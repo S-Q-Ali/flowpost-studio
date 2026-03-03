@@ -14,7 +14,149 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      connected_accounts: {
+        Row: {
+          account_name: string | null
+          connected_at: string | null
+          id: string
+          is_connected: boolean
+          platform: string
+          user_id: string
+        }
+        Insert: {
+          account_name?: string | null
+          connected_at?: string | null
+          id?: string
+          is_connected?: boolean
+          platform: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string | null
+          connected_at?: string | null
+          id?: string
+          is_connected?: boolean
+          platform?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      posts: {
+        Row: {
+          caption: string | null
+          captions_enabled: boolean
+          created_at: string
+          hashtags: string | null
+          id: string
+          platform: string
+          published_at: string | null
+          scheduled_at: string | null
+          status: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          caption?: string | null
+          captions_enabled?: boolean
+          created_at?: string
+          hashtags?: string | null
+          id?: string
+          platform: string
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          caption?: string | null
+          captions_enabled?: boolean
+          created_at?: string
+          hashtags?: string | null
+          id?: string
+          platform?: string
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          duration: number | null
+          file_url: string | null
+          id: string
+          thumbnail_url: string | null
+          title: string
+          uploaded_at: string
+          user_id: string
+        }
+        Insert: {
+          duration?: number | null
+          file_url?: string | null
+          id?: string
+          thumbnail_url?: string | null
+          title: string
+          uploaded_at?: string
+          user_id: string
+        }
+        Update: {
+          duration?: number | null
+          file_url?: string | null
+          id?: string
+          thumbnail_url?: string | null
+          title?: string
+          uploaded_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workflows: {
+        Row: {
+          caption_template: string | null
+          created_at: string
+          delay_hours: number
+          destination_platforms: string[]
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          caption_template?: string | null
+          created_at?: string
+          delay_hours?: number
+          destination_platforms?: string[]
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          caption_template?: string | null
+          created_at?: string
+          delay_hours?: number
+          destination_platforms?: string[]
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
