@@ -1,38 +1,37 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChevronLeft, ChevronRight, List, CalendarDays } from "lucide-react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isSameMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from "date-fns";
 import type { Post, Platform, PostStatus } from "@/lib/types";
 import { toast } from "sonner";
 
+const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
+
 export default function CalendarPage() {
-  const { user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [view, setView] = useState<"month" | "list">("month");
 
   const fetchPosts = async () => {
-    if (!user) return;
     const start = startOfMonth(currentMonth).toISOString();
     const end = endOfMonth(currentMonth).toISOString();
     const { data } = await supabase
       .from("posts")
       .select("*, videos(*)")
-      .eq("user_id", user.id)
+      .eq("user_id", PERSONAL_USER_ID)
       .gte("scheduled_at", start)
       .lte("scheduled_at", end)
       .order("scheduled_at", { ascending: true });
     setPosts((data as any) ?? []);
   };
 
-  useEffect(() => { fetchPosts(); }, [user, currentMonth]);
+  useEffect(() => { fetchPosts(); }, [currentMonth]);
 
   const days = eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) });
   const startDayOfWeek = startOfMonth(currentMonth).getDay();

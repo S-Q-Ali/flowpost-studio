@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Platform } from "@/lib/types";
 
+const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
+
 const platforms: { id: Platform; label: string }[] = [
   { id: "facebook", label: "Facebook Page" },
   { id: "instagram", label: "Instagram Reels" },
@@ -24,7 +25,6 @@ const platforms: { id: Platform; label: string }[] = [
 ];
 
 export default function UploadPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
@@ -56,28 +56,25 @@ export default function UploadPage() {
   };
 
   const handleSubmit = async () => {
-    if (!user || !file || !title || selectedPlatforms.length === 0) {
+    if (!file || !title || selectedPlatforms.length === 0) {
       toast.error("Please fill in all required fields");
       return;
     }
     setIsSubmitting(true);
     try {
-      // Upload file
-      const filePath = `${user.id}/${Date.now()}-${file.name}`;
+      const filePath = `${PERSONAL_USER_ID}/${Date.now()}-${file.name}`;
       const { error: uploadError } = await supabase.storage.from("videos").upload(filePath, file);
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage.from("videos").getPublicUrl(filePath);
 
-      // Create video record
       const { data: video, error: videoError } = await supabase
         .from("videos")
-        .insert({ user_id: user.id, title, file_url: publicUrl })
+        .insert({ user_id: PERSONAL_USER_ID, title, file_url: publicUrl })
         .select()
         .single();
       if (videoError) throw videoError;
 
-      // Calculate scheduled time
       let scheduledAt = new Date().toISOString();
       if (publishMode === "schedule" && scheduleDate) {
         const [h, m] = scheduleTime.split(":").map(Number);
@@ -86,9 +83,8 @@ export default function UploadPage() {
         scheduledAt = d.toISOString();
       }
 
-      // Create posts for each platform
       const posts = selectedPlatforms.map((platform) => ({
-        user_id: user.id,
+        user_id: PERSONAL_USER_ID,
         video_id: video.id,
         platform,
         caption,
@@ -101,11 +97,10 @@ export default function UploadPage() {
       const { error: postsError } = await supabase.from("posts").insert(posts);
       if (postsError) throw postsError;
 
-      // Apply active workflows
       const { data: workflows } = await supabase
         .from("workflows")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", PERSONAL_USER_ID)
         .eq("is_active", true);
 
       if (workflows && workflows.length > 0) {
@@ -120,7 +115,7 @@ export default function UploadPage() {
               ? wf.caption_template.replace("{{title}}", title).replace("{{hashtags}}", hashtags)
               : caption;
             workflowPosts.push({
-              user_id: user.id,
+              user_id: PERSONAL_USER_ID,
               video_id: video.id,
               platform: p,
               caption: wfCaption,
@@ -152,7 +147,6 @@ export default function UploadPage() {
         <p className="text-sm text-muted-foreground">Upload a video and schedule it across platforms</p>
       </div>
 
-      {/* Drop zone */}
       <Card
         className={cn(
           "border-2 border-dashed transition-colors cursor-pointer bg-card",
@@ -177,7 +171,6 @@ export default function UploadPage() {
         </CardContent>
       </Card>
 
-      {/* Details */}
       <Card className="bg-card border-border shadow-card">
         <CardHeader><CardTitle className="text-foreground">Post Details</CardTitle></CardHeader>
         <CardContent className="space-y-5">
@@ -203,7 +196,6 @@ export default function UploadPage() {
         </CardContent>
       </Card>
 
-      {/* Platforms */}
       <Card className="bg-card border-border shadow-card">
         <CardHeader><CardTitle className="text-foreground">Platforms</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -216,7 +208,6 @@ export default function UploadPage() {
         </CardContent>
       </Card>
 
-      {/* Schedule */}
       <Card className="bg-card border-border shadow-card">
         <CardHeader><CardTitle className="text-foreground">Publish Options</CardTitle></CardHeader>
         <CardContent className="space-y-4">

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,23 +11,22 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import type { Post, Platform, PostStatus } from "@/lib/types";
 
+const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 const filters = ["all", "scheduled", "published", "failed"] as const;
 
 export default function QueuePage() {
-  const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const fetchPosts = async () => {
-    if (!user) return;
-    let q = supabase.from("posts").select("*, videos(*)").eq("user_id", user.id).order("scheduled_at", { ascending: true });
+    let q = supabase.from("posts").select("*, videos(*)").eq("user_id", PERSONAL_USER_ID).order("scheduled_at", { ascending: true });
     if (filter !== "all") q = q.eq("status", filter);
     const { data } = await q;
     setPosts((data as any) ?? []);
   };
 
-  useEffect(() => { fetchPosts(); }, [user, filter]);
+  useEffect(() => { fetchPosts(); }, [filter]);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
