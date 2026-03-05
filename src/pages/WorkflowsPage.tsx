@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +13,8 @@ import { Plus, Workflow, Zap } from "lucide-react";
 import { toast } from "sonner";
 import type { Workflow as WorkflowType, Platform } from "@/lib/types";
 
+const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
+
 const platformOptions: { id: Platform; label: string }[] = [
   { id: "facebook", label: "Facebook" },
   { id: "instagram", label: "Instagram Reels" },
@@ -21,7 +22,6 @@ const platformOptions: { id: Platform; label: string }[] = [
 ];
 
 export default function WorkflowsPage() {
-  const { user } = useAuth();
   const [workflows, setWorkflows] = useState<WorkflowType[]>([]);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -30,24 +30,23 @@ export default function WorkflowsPage() {
   const [delayHours, setDelayHours] = useState(0);
 
   const fetchWorkflows = async () => {
-    if (!user) return;
-    const { data } = await supabase.from("workflows").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    const { data } = await supabase.from("workflows").select("*").eq("user_id", PERSONAL_USER_ID).order("created_at", { ascending: false });
     setWorkflows((data as any) ?? []);
   };
 
-  useEffect(() => { fetchWorkflows(); }, [user]);
+  useEffect(() => { fetchWorkflows(); }, []);
 
   const togglePlatform = (p: Platform) => {
     setPlatforms((prev) => prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]);
   };
 
   const handleCreate = async () => {
-    if (!user || !name || platforms.length === 0) {
+    if (!name || platforms.length === 0) {
       toast.error("Name and at least one platform are required");
       return;
     }
     const { error } = await supabase.from("workflows").insert({
-      user_id: user.id,
+      user_id: PERSONAL_USER_ID,
       name,
       destination_platforms: platforms,
       caption_template: captionTemplate,

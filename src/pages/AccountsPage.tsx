@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { User } from "lucide-react";
 import { toast } from "sonner";
 import type { ConnectedAccount, Platform } from "@/lib/types";
+
+const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 const platformSections: { platform: Platform; label: string }[] = [
   { platform: "facebook", label: "Facebook" },
@@ -16,26 +17,23 @@ const platformSections: { platform: Platform; label: string }[] = [
 ];
 
 export default function AccountsPage() {
-  const { user } = useAuth();
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
 
   const fetchAccounts = async () => {
-    if (!user) return;
-    const { data } = await supabase.from("connected_accounts").select("*").eq("user_id", user.id);
+    const { data } = await supabase.from("connected_accounts").select("*").eq("user_id", PERSONAL_USER_ID);
     setAccounts((data as any) ?? []);
   };
 
-  useEffect(() => { fetchAccounts(); }, [user]);
+  useEffect(() => { fetchAccounts(); }, []);
 
   const getAccount = (platform: Platform) => accounts.find((a) => a.platform === platform);
 
   const connect = async (platform: Platform) => {
-    if (!user) return;
     const existing = getAccount(platform);
     if (existing) {
       await supabase.from("connected_accounts").update({ is_connected: true, account_name: `My ${platform} account`, connected_at: new Date().toISOString() }).eq("id", existing.id);
     } else {
-      await supabase.from("connected_accounts").insert({ user_id: user.id, platform, account_name: `My ${platform} account`, is_connected: true, connected_at: new Date().toISOString() });
+      await supabase.from("connected_accounts").insert({ user_id: PERSONAL_USER_ID, platform, account_name: `My ${platform} account`, is_connected: true, connected_at: new Date().toISOString() });
     }
     toast.success(`${platform} connected (mock)`);
     fetchAccounts();

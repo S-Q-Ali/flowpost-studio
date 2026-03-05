@@ -5,12 +5,9 @@ import {
   Calendar,
   ListTodo,
   Link2,
-  LogOut,
   Zap,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
 import {
   Sidebar,
   SidebarContent,
@@ -19,10 +16,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -36,8 +31,6 @@ const navItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
-  const { signOut } = useAuth();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
@@ -75,17 +68,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter className="p-3 border-t border-border">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground hover:bg-secondary"
-          onClick={signOut}
-        >
-          <LogOut size={18} />
-          {!collapsed && <span>Sign Out</span>}
-        </Button>
-      </SidebarFooter>
     </Sidebar>
   );
 }

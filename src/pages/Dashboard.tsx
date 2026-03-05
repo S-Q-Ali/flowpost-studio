@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlatformIcon } from "@/components/PlatformIcon";
@@ -9,21 +8,21 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Video, Upload, Calendar, Link2, Plus } from "lucide-react";
 import type { Post, Platform, PostStatus } from "@/lib/types";
 
+const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
+
 export default function Dashboard() {
-  const { user } = useAuth();
   const [stats, setStats] = useState({ videos: 0, scheduled: 0, published: 0, accounts: 0 });
   const [recentPosts, setRecentPosts] = useState<Post[]>([]);
 
   useEffect(() => {
-    if (!user) return;
     const fetchData = async () => {
       const [{ count: videos }, { count: scheduled }, { count: published }, { count: accounts }, { data: posts }] =
         await Promise.all([
-          supabase.from("videos").select("*", { count: "exact", head: true }).eq("user_id", user.id),
-          supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "scheduled"),
-          supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "published"),
-          supabase.from("connected_accounts").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("is_connected", true),
-          supabase.from("posts").select("*, videos(*)").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
+          supabase.from("videos").select("*", { count: "exact", head: true }).eq("user_id", PERSONAL_USER_ID),
+          supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", PERSONAL_USER_ID).eq("status", "scheduled"),
+          supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", PERSONAL_USER_ID).eq("status", "published"),
+          supabase.from("connected_accounts").select("*", { count: "exact", head: true }).eq("user_id", PERSONAL_USER_ID).eq("is_connected", true),
+          supabase.from("posts").select("*, videos(*)").eq("user_id", PERSONAL_USER_ID).order("created_at", { ascending: false }).limit(5),
         ]);
       setStats({
         videos: videos ?? 0,
@@ -34,7 +33,7 @@ export default function Dashboard() {
       setRecentPosts((posts as any) ?? []);
     };
     fetchData();
-  }, [user]);
+  }, []);
 
   const statCards = [
     { label: "Videos Uploaded", value: stats.videos, icon: Video, color: "text-primary" },
