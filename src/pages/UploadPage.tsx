@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Platform } from "@/lib/types";
+import { uploadToR2 } from "@/lib/r2";
 
 const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -62,11 +63,7 @@ export default function UploadPage() {
     }
     setIsSubmitting(true);
     try {
-      const filePath = `${PERSONAL_USER_ID}/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage.from("videos").upload(filePath, file);
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage.from("videos").getPublicUrl(filePath);
+      const publicUrl = await uploadToR2(file, PERSONAL_USER_ID);
 
       const { data: video, error: videoError } = await supabase
         .from("videos")
