@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     const { data: post, error: postError } = await supabase
       .from("posts")
       .select(
-        "id, video_id, account_id, caption, status, platform, fb_ai_label",
+        "id, video_id, account_id, caption, status, platform",
       )
       .eq("id", postId)
       .single();
@@ -187,10 +187,6 @@ Deno.serve(async (req) => {
     finishForm.append("access_token", accessToken);
     finishForm.append("title", video.title || "Uploaded Video");
     finishForm.append("description", (post.caption || "").toString());
-
-    if (post.fb_ai_label === true) {
-      finishForm.append("content_tags", '["ai_generated"]');
-    }
 
     const finishRes = await fetch(
       `https://graph-video.facebook.com/v21.0/${encodeURIComponent(pageId)}/videos`,
