@@ -38,7 +38,7 @@ function html(body: string, status = 200) {
 }
 
 async function exchangeCodeForUserToken(code: string, redirectUri: string) {
-  const res = await fetch("https://graph.facebook.com/v18.0/oauth/access_token", {
+  const res = await fetch("https://graph.facebook.com/v21.0/oauth/access_token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -55,7 +55,7 @@ async function exchangeCodeForUserToken(code: string, redirectUri: string) {
 }
 
 async function getLongLivedUserToken(shortLivedToken: string) {
-  const url = new URL("https://graph.facebook.com/v18.0/oauth/access_token");
+  const url = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
   url.searchParams.set("grant_type", "fb_exchange_token");
   url.searchParams.set("client_id", FB_APP_ID!);
   url.searchParams.set("client_secret", FB_APP_SECRET!);
@@ -68,7 +68,7 @@ async function getLongLivedUserToken(shortLivedToken: string) {
 }
 
 async function fetchFacebookPages(longLivedUserToken: string) {
-  const url = new URL("https://graph.facebook.com/v18.0/me/accounts");
+  const url = new URL("https://graph.facebook.com/v21.0/me/accounts");
   url.searchParams.set("access_token", longLivedUserToken);
   url.searchParams.set("fields", "id,name,access_token,category,picture");
 
@@ -88,7 +88,7 @@ async function fetchFacebookPages(longLivedUserToken: string) {
 }
 
 async function fetchLinkedInstagramBusinessAccount(pageId: string, pageAccessToken: string) {
-  const url = new URL(`https://graph.facebook.com/v18.0/${pageId}`);
+  const url = new URL(`https://graph.facebook.com/v21.0/${pageId}`);
   url.searchParams.set("access_token", pageAccessToken);
   url.searchParams.set(
     "fields",
@@ -146,19 +146,12 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/facebook-auth?action=callback`;
 
     if (action === "url") {
-      const authUrl = new URL("https://www.facebook.com/v18.0/dialog/oauth");
+      const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
       authUrl.searchParams.set("client_id", FB_APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set(
         "scope",
-        [
-          "pages_manage_posts",
-          "pages_read_engagement",
-          "pages_show_list",
-          "instagram_basic",
-          "instagram_content_publish",
-          "public_profile",
-        ].join(","),
+        "pages_manage_posts,pages_read_engagement,pages_show_list,instagram_content_publish,instagram_manage_content,business_management,public_profile",
       );
       authUrl.searchParams.set("response_type", "code");
 
