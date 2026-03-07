@@ -21,6 +21,8 @@ import { uploadToR2 } from "@/lib/r2";
 import { Progress } from "@/components/ui/progress";
 
 const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 const platforms: { id: Platform; label: string }[] = [
   { id: "facebook", label: "Facebook Page" },
@@ -45,13 +47,19 @@ export default function UploadPage() {
   const [facebookAccounts, setFacebookAccounts] = useState<ConnectedAccount[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [publishMode, setPublishMode] = useState<"now" | "schedule">("now");
-  const [scheduleDate, setScheduleDate] = useState<Date>();
-  const [scheduleTime, setScheduleTime] = useState("12:00");
+  const getDefaultScheduleDate = () => {
+    const date = new Date();
+    date.setHours(17, 0, 0, 0);
+    return date;
+  };
+  const [scheduleDate, setScheduleDate] = useState<Date>(getDefaultScheduleDate());
+  const [scheduleTime, setScheduleTime] = useState("17:00");
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [containsAlteredContent, setContainsAlteredContent] = useState(true);
   const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null);
+  const [facebookAiLabel, setFacebookAiLabel] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -196,7 +204,7 @@ export default function UploadPage() {
         scheduledAt = d.toISOString();
       }
 
-      const posts: { user_id: string; video_id: string; platform: string; caption: string | null; hashtags: string | null; scheduled_at: string; status: "scheduled"; captions_enabled: boolean; account_id?: string | null; contains_altered_content?: boolean }[] = [];
+      const posts: { user_id: string; video_id: string; platform: string; caption: string | null; hashtags: string | null; scheduled_at: string; status: "scheduled"; captions_enabled: boolean; account_id?: string | null; contains_altered_content?: boolean; fb_ai_label?: boolean }[] = [];
       for (const platform of selectedPlatforms) {
         if (platform === "youtube") {
           for (const accountId of selectedYouTubeAccountIds) {
@@ -242,6 +250,7 @@ export default function UploadPage() {
               scheduled_at: scheduledAt,
               status: "scheduled",
               captions_enabled: captionsEnabled,
+              fb_ai_label: facebookAiLabel,
             });
           }
         }
@@ -287,6 +296,8 @@ export default function UploadPage() {
 
       if (isPublishNow && insertedPosts?.length) {
         const youtubePosts = insertedPosts.filter((p: { platform: string }) => p.platform === "youtube");
+        const facebookPosts = insertedPosts.filter((p: { platform: string }) => p.platform === "facebook");
+
         if (youtubePosts.length > 0) {
           toast.info("Uploading to YouTube...");
           let allOk = true;
@@ -296,11 +307,38 @@ export default function UploadPage() {
             });
             if (uploadErr) allOk = false;
           }
-          if (allOk) {
-            toast.success("Video published successfully!");
-          } else {
-            toast.error("Publishing failed, check Queue");
+          if (!allOk) {
+            toast.error("Some YouTube uploads failed, check Queue");
           }
+        }
+
+        if (facebookPosts.length > 0) {
+          toast.info("Uploading to Facebook...");
+          let allOk = true;
+          for (const post of facebookPosts) {
+            const res = await fetch(
+              `${supabaseUrl}/functions/v1/facebook-upload`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${anonKey}`,
+                  apikey: anonKey,
+                },
+                body: JSON.stringify({ postId: post.id }),
+              },
+            );
+            if (!res.ok) {
+              allOk = false;
+            }
+          }
+          if (!allOk) {
+            toast.error("Some Facebook uploads failed, check Queue");
+          }
+        }
+
+        if (youtubePosts.length > 0 || facebookPosts.length > 0) {
+          toast.success("Video publishing triggered!");
         }
       }
 
@@ -491,6 +529,20 @@ export default function UploadPage() {
                     rows={4}
                     className="resize-none"
                   />
+                </div>
+                <div className="flex items-center gap-3 mt-2">
+                  <Switch
+                    checked={facebookAiLabel}
+                    onCheckedChange={setFacebookAiLabel}
+                  />
+                  <div>
+                    <p className="text-sm font-medium">
+                      AI-Generated Content Label
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Facebook will show an AI label on this video
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
