@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set(
         "scope",
-        "pages_manage_posts,pages_read_engagement,pages_show_list,instagram_content_publish,instagram_manage_content,business_management,public_profile",
+        "pages_manage_posts,pages_read_engagement,pages_show_list,instagram_content_publish,business_management,public_profile",
       );
       authUrl.searchParams.set("response_type", "code");
 
