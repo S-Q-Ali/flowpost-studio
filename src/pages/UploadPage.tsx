@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,13 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Upload, CalendarIcon, Loader2 } from "lucide-react";
+import { Upload, CalendarIcon, Loader2, Youtube, Instagram, Facebook } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Platform } from "@/lib/types";
+import type { ConnectedAccount } from "@/lib/types";
+import { uploadToR2 } from "@/lib/r2";
+import { Progress } from "@/components/ui/progress";
 
 const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -27,16 +31,36 @@ const platforms: { id: Platform; label: string }[] = [
 export default function UploadPage() {
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
-  const [caption, setCaption] = useState("");
+  const [youtubeTitle, setYoutubeTitle] = useState("");
+  const [youtubeDescription, setYoutubeDescription] = useState("");
+  const [instagramCaption, setInstagramCaption] = useState("");
+  const [facebookCaption, setFacebookCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
+  const [selectedYouTubeAccountIds, setSelectedYouTubeAccountIds] = useState<string[]>([]);
+  const [youtubeAccounts, setYoutubeAccounts] = useState<ConnectedAccount[]>([]);
   const [publishMode, setPublishMode] = useState<"now" | "schedule">("now");
   const [scheduleDate, setScheduleDate] = useState<Date>();
   const [scheduleTime, setScheduleTime] = useState("12:00");
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [containsAlteredContent, setContainsAlteredContent] = useState(true);
+  const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", PERSONAL_USER_ID)
+        .eq("platform", "youtube")
+        .eq("is_connected", true);
+      setYoutubeAccounts((data as ConnectedAccount[]) ?? []);
+    };
+    load();
+  }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -52,49 +76,127 @@ export default function UploadPage() {
   };
 
   const togglePlatform = (p: Platform) => {
-    setSelectedPlatforms((prev) => prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]);
+    setSelectedPlatforms((prev) => {
+      const next = prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p];
+      if (p === "youtube" && !next.includes("youtube")) setSelectedYouTubeAccountIds([]);
+      return next;
+    });
+  };
+
+  const toggleYouTubeChannel = (accountId: string) => {
+    setSelectedYouTubeAccountIds((prev) =>
+      prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
+    );
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleSubmit = async () => {
-    if (!file || !title || selectedPlatforms.length === 0) {
-      toast.error("Please fill in all required fields");
+    if (!file) {
+      toast.error("Please upload a video file");
       return;
     }
+    if (selectedPlatforms.length === 0) {
+      toast.error("Please select at least one platform");
+      return;
+    }
+    const youtubeSelected = selectedPlatforms.includes("youtube");
+    if (youtubeSelected) {
+      if (!youtubeTitle.trim()) {
+        toast.error("YouTube title is required");
+        return;
+      }
+      if (selectedYouTubeAccountIds.length === 0) {
+        toast.error("Select at least one YouTube channel");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
+    setUploadProgress(0);
+
     try {
-      const filePath = `${PERSONAL_USER_ID}/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage.from("videos").upload(filePath, file);
-      if (uploadError) throw uploadError;
+      let videoId = uploadedVideoId;
+      const youtubeSelectedNow = selectedPlatforms.includes("youtube");
 
-      const { data: { publicUrl } } = supabase.storage.from("videos").getPublicUrl(filePath);
+      if (!videoId) {
+        const publicUrl = await uploadToR2(file, PERSONAL_USER_ID, (percent) => setUploadProgress(percent));
 
-      const { data: video, error: videoError } = await supabase
-        .from("videos")
-        .insert({ user_id: PERSONAL_USER_ID, title, file_url: publicUrl })
-        .select()
-        .single();
-      if (videoError) throw videoError;
+        const computedTitle =
+          youtubeSelectedNow && youtubeTitle.trim().length > 0 ? youtubeTitle.trim() : file.name;
 
-      let scheduledAt = new Date().toISOString();
-      if (publishMode === "schedule" && scheduleDate) {
+        const { data: video, error: videoError } = await supabase
+          .from("videos")
+          .insert({ user_id: PERSONAL_USER_ID, title: computedTitle, file_url: publicUrl })
+          .select()
+          .single();
+        if (videoError) throw videoError;
+
+        videoId = video.id as string;
+        setUploadedVideoId(videoId);
+      }
+
+      const isPublishNow = publishMode === "now";
+      let scheduledAt: string;
+      if (isPublishNow) {
+        scheduledAt = new Date().toISOString();
+      } else {
         const [h, m] = scheduleTime.split(":").map(Number);
-        const d = new Date(scheduleDate);
+        const d = scheduleDate ? new Date(scheduleDate) : new Date();
         d.setHours(h, m, 0, 0);
         scheduledAt = d.toISOString();
       }
 
-      const posts = selectedPlatforms.map((platform) => ({
-        user_id: PERSONAL_USER_ID,
-        video_id: video.id,
-        platform,
-        caption,
-        hashtags,
-        scheduled_at: scheduledAt,
-        status: "scheduled" as const,
-        captions_enabled: captionsEnabled,
-      }));
+      const posts: { user_id: string; video_id: string; platform: string; caption: string | null; hashtags: string | null; scheduled_at: string; status: "scheduled"; captions_enabled: boolean; account_id?: string | null; contains_altered_content?: boolean }[] = [];
+      for (const platform of selectedPlatforms) {
+        if (platform === "youtube") {
+          for (const accountId of selectedYouTubeAccountIds) {
+            const platformCaption = youtubeDescription.trim() || null;
+            posts.push({
+              user_id: PERSONAL_USER_ID,
+              video_id: videoId,
+              platform: "youtube",
+              account_id: accountId,
+              caption: platformCaption,
+              hashtags,
+              scheduled_at: scheduledAt,
+              status: "scheduled",
+              captions_enabled: captionsEnabled,
+              contains_altered_content: containsAlteredContent,
+            });
+          }
+        } else if (platform === "instagram") {
+          const platformCaption = instagramCaption.trim() || null;
+          posts.push({
+            user_id: PERSONAL_USER_ID,
+            video_id: videoId,
+            platform: "instagram",
+            caption: platformCaption,
+            hashtags,
+            scheduled_at: scheduledAt,
+            status: "scheduled",
+            captions_enabled: captionsEnabled,
+          });
+        } else if (platform === "facebook") {
+          const platformCaption = facebookCaption.trim() || null;
+          posts.push({
+            user_id: PERSONAL_USER_ID,
+            video_id: videoId,
+            platform: "facebook",
+            caption: platformCaption,
+            hashtags,
+            scheduled_at: scheduledAt,
+            status: "scheduled",
+            captions_enabled: captionsEnabled,
+          });
+        }
+      }
 
-      const { error: postsError } = await supabase.from("posts").insert(posts);
+      const { data: insertedPosts, error: postsError } = await supabase.from("posts").insert(posts).select("id, platform, account_id");
       if (postsError) throw postsError;
 
       const { data: workflows } = await supabase
@@ -105,6 +207,7 @@ export default function UploadPage() {
 
       if (workflows && workflows.length > 0) {
         const workflowPosts: any[] = [];
+        const baseCaption = youtubeDescription || instagramCaption || facebookCaption || "";
         for (const wf of workflows) {
           const wfPlatforms = (wf.destination_platforms as string[]).filter(
             (p) => !selectedPlatforms.includes(p as Platform)
@@ -112,11 +215,11 @@ export default function UploadPage() {
           for (const p of wfPlatforms) {
             const delayMs = (wf.delay_hours || 0) * 3600000;
             const wfCaption = wf.caption_template
-              ? wf.caption_template.replace("{{title}}", title).replace("{{hashtags}}", hashtags)
-              : caption;
+              ? wf.caption_template.replace("{{title}}", youtubeTitle || file.name).replace("{{hashtags}}", hashtags)
+              : baseCaption;
             workflowPosts.push({
               user_id: PERSONAL_USER_ID,
-              video_id: video.id,
+              video_id: videoId,
               platform: p,
               caption: wfCaption,
               hashtags,
@@ -131,12 +234,40 @@ export default function UploadPage() {
         }
       }
 
-      toast.success("Video added to queue!");
-      navigate("/queue");
+      if (isPublishNow && insertedPosts?.length) {
+        const youtubePosts = insertedPosts.filter((p: { platform: string }) => p.platform === "youtube");
+        if (youtubePosts.length > 0) {
+          toast.info("Uploading to YouTube...");
+          let allOk = true;
+          for (const post of youtubePosts) {
+            const { error: uploadErr } = await supabase.functions.invoke("youtube-upload", {
+              body: { postId: post.id },
+            });
+            if (uploadErr) allOk = false;
+          }
+          if (allOk) {
+            toast.success("Video published successfully!");
+          } else {
+            toast.error("Publishing failed, check Queue");
+          }
+        }
+      }
+
+      toast.success("Added to queue!");
+
+      if (isPublishNow) {
+        navigate("/queue");
+      } else {
+        const scheduledLabel = scheduleDate
+          ? format(new Date(scheduledAt), "PPp")
+          : format(new Date(scheduledAt), "PPp");
+        navigate("/queue");
+      }
     } catch (e: any) {
       toast.error(e.message);
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(0);
     }
   };
 
@@ -172,19 +303,141 @@ export default function UploadPage() {
       </Card>
 
       <Card className="bg-card border-border shadow-card">
-        <CardHeader><CardTitle className="text-foreground">Post Details</CardTitle></CardHeader>
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <Label>Video Title</Label>
-            <Input placeholder="Internal label for this video" value={title} onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Caption / Description</Label>
-            <Textarea placeholder="Write your caption…" value={caption} onChange={(e) => setCaption(e.target.value)} rows={3} />
-          </div>
-          <div className="space-y-2">
-            <Label>Hashtags</Label>
-            <Input placeholder="#viral #shorts #reels" value={hashtags} onChange={(e) => setHashtags(e.target.value)} />
+        <CardHeader><CardTitle className="text-foreground">Platforms</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {platforms.map((p) => (
+            <div key={p.id}>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <Checkbox checked={selectedPlatforms.includes(p.id)} onCheckedChange={() => togglePlatform(p.id)} />
+                <span className="text-sm text-foreground">{p.label}</span>
+              </label>
+              {p.id === "youtube" && selectedPlatforms.includes("youtube") && (
+                <div className="ml-6 mt-2 space-y-2">
+                  {youtubeAccounts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No YouTube channels connected. Connect one in Accounts.</p>
+                  ) : (
+                    youtubeAccounts.map((acc) => (
+                      <label key={acc.id} className="flex items-center gap-3 cursor-pointer">
+                        <Checkbox
+                          checked={selectedYouTubeAccountIds.includes(acc.account_id ?? "")}
+                          onCheckedChange={() => toggleYouTubeChannel(acc.account_id ?? "")}
+                        />
+                        <span className="text-sm text-foreground">
+                          {acc.account_name ?? "YouTube"} ({acc.account_id})
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {selectedPlatforms.length > 0 && (
+        <Card className="bg-card border-border shadow-card">
+          <CardHeader><CardTitle className="text-foreground">Per-platform content</CardTitle></CardHeader>
+          <CardContent className="space-y-6">
+            {selectedPlatforms.includes("youtube") && (
+              <div className="space-y-3 border border-border/60 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <Youtube className="h-4 w-4 text-red-500" />
+                  <span className="text-sm font-medium text-foreground">YouTube</span>
+                </div>
+                <div className="space-y-2">
+                  <Label>Video Title</Label>
+                  <Input
+                    placeholder="Required for YouTube posts"
+                    value={youtubeTitle}
+                    onChange={(e) => setYoutubeTitle(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>YouTube Description (optional)</Label>
+                  <Textarea
+                    placeholder="Description for YouTube Shorts"
+                    value={youtubeDescription}
+                    onChange={(e) => setYoutubeDescription(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedPlatforms.includes("instagram") && (
+              <div className="space-y-3 border border-border/60 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <Instagram className="h-4 w-4 text-pink-500" />
+                  <span className="text-sm font-medium text-foreground">Instagram</span>
+                </div>
+                <div className="space-y-2">
+                  <Label>Instagram Caption (optional)</Label>
+                  <Textarea
+                    placeholder="Caption for Instagram Reels"
+                    value={instagramCaption}
+                    onChange={(e) => setInstagramCaption(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedPlatforms.includes("facebook") && (
+              <div className="space-y-3 border border-border/60 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <Facebook className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium text-foreground">Facebook</span>
+                </div>
+                <div className="space-y-2">
+                  <Label>Facebook Caption (optional)</Label>
+                  <Textarea
+                    placeholder="Caption for Facebook Page"
+                    value={facebookCaption}
+                    onChange={(e) => setFacebookCaption(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Hashtags (optional, shared)</Label>
+              <Input
+                placeholder="#viral #shorts #reels"
+                value={hashtags}
+                onChange={(e) => setHashtags(e.target.value)}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="bg-card border-border shadow-card">
+        <CardHeader><CardTitle className="text-foreground">Content settings</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className={cn("rounded-lg border p-4", containsAlteredContent ? "border-amber-500/50 bg-amber-500/10" : "border-border")}>
+            <Label className="text-sm font-medium">Does this video contain altered or synthetic content?</Label>
+            <p className="text-xs text-muted-foreground mt-0.5">(AI-generated faces, voices, or realistic scenes)</p>
+            <RadioGroup
+              value={containsAlteredContent ? "yes" : "no"}
+              onValueChange={(v) => setContainsAlteredContent(v === "yes")}
+              className="mt-3 space-y-2"
+            >
+              <label className="flex items-center gap-3 cursor-pointer">
+                <RadioGroupItem value="no" />
+                <span className="text-sm text-foreground">No — This is original content</span>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <RadioGroupItem value="yes" />
+                <span className={cn("text-sm", containsAlteredContent ? "text-amber-600 dark:text-amber-400 font-medium" : "text-foreground")}>
+                  Yes — This contains AI-generated/altered content
+                </span>
+              </label>
+            </RadioGroup>
           </div>
           <div className="flex items-center justify-between">
             <div>
@@ -193,18 +446,6 @@ export default function UploadPage() {
             </div>
             <Switch checked={captionsEnabled} onCheckedChange={setCaptionsEnabled} />
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-card border-border shadow-card">
-        <CardHeader><CardTitle className="text-foreground">Platforms</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          {platforms.map((p) => (
-            <label key={p.id} className="flex items-center gap-3 cursor-pointer">
-              <Checkbox checked={selectedPlatforms.includes(p.id)} onCheckedChange={() => togglePlatform(p.id)} />
-              <span className="text-sm text-foreground">{p.label}</span>
-            </label>
-          ))}
         </CardContent>
       </Card>
 
@@ -246,12 +487,35 @@ export default function UploadPage() {
         </CardContent>
       </Card>
 
+      {isSubmitting && (
+        <Card className="bg-card border-border shadow-card overflow-hidden">
+          <CardContent className="pt-5 pb-5 space-y-3">
+            <p className="text-sm text-foreground font-medium">
+              {file ? `Uploading video (${formatFileSize(file.size)})` : "Uploading video"}
+            </p>
+            <div className="flex items-center gap-3">
+              <Progress value={uploadProgress} className="h-2 flex-1 [&>div]:bg-[#7C3AED] [&>div]:transition-all [&>div]:duration-300" />
+              <div className="flex items-center gap-2 min-w-[100px]">
+                <Loader2 className="h-4 w-4 animate-spin text-[#7C3AED]" />
+                <span className="text-sm text-muted-foreground">
+                  {uploadProgress < 100 ? `Uploading... ${uploadProgress}%` : "Processing..."}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Button
         className="w-full gradient-primary text-primary-foreground h-12 text-base font-semibold"
         onClick={handleSubmit}
         disabled={isSubmitting}
       >
-        {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…</> : "Add to Queue"}
+        {isSubmitting ? (
+          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…</>
+        ) : (
+          "Add to Queue"
+        )}
       </Button>
     </div>
   );
