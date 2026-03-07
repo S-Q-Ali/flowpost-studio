@@ -39,7 +39,11 @@ export default function UploadPage() {
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
   const [selectedYouTubeAccountIds, setSelectedYouTubeAccountIds] = useState<string[]>([]);
+  const [selectedFacebookPageIds, setSelectedFacebookPageIds] = useState<string[]>([]);
+  const [selectedInstagramAccountIds, setSelectedInstagramAccountIds] = useState<string[]>([]);
   const [youtubeAccounts, setYoutubeAccounts] = useState<ConnectedAccount[]>([]);
+  const [facebookAccounts, setFacebookAccounts] = useState<ConnectedAccount[]>([]);
+  const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [publishMode, setPublishMode] = useState<"now" | "schedule">("now");
   const [scheduleDate, setScheduleDate] = useState<Date>();
   const [scheduleTime, setScheduleTime] = useState("12:00");
@@ -51,13 +55,30 @@ export default function UploadPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase
+      const { data: yt } = await supabase
         .from("connected_accounts")
         .select("*")
         .eq("user_id", PERSONAL_USER_ID)
         .eq("platform", "youtube")
         .eq("is_connected", true);
-      setYoutubeAccounts((data as ConnectedAccount[]) ?? []);
+
+      const { data: fb } = await supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", PERSONAL_USER_ID)
+        .eq("platform", "facebook")
+        .eq("is_connected", true);
+
+      const { data: ig } = await supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", PERSONAL_USER_ID)
+        .eq("platform", "instagram")
+        .eq("is_connected", true);
+
+      setYoutubeAccounts((yt as ConnectedAccount[]) ?? []);
+      setFacebookAccounts((fb as ConnectedAccount[]) ?? []);
+      setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
     };
     load();
   }, []);
@@ -79,12 +100,26 @@ export default function UploadPage() {
     setSelectedPlatforms((prev) => {
       const next = prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p];
       if (p === "youtube" && !next.includes("youtube")) setSelectedYouTubeAccountIds([]);
+      if (p === "facebook" && !next.includes("facebook")) setSelectedFacebookPageIds([]);
+      if (p === "instagram" && !next.includes("instagram")) setSelectedInstagramAccountIds([]);
       return next;
     });
   };
 
   const toggleYouTubeChannel = (accountId: string) => {
     setSelectedYouTubeAccountIds((prev) =>
+      prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
+    );
+  };
+
+  const toggleFacebookPage = (accountId: string) => {
+    setSelectedFacebookPageIds((prev) =>
+      prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
+    );
+  };
+
+  const toggleInstagramAccount = (accountId: string) => {
+    setSelectedInstagramAccountIds((prev) =>
       prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
     );
   };
@@ -114,6 +149,16 @@ export default function UploadPage() {
         toast.error("Select at least one YouTube channel");
         return;
       }
+    }
+    const facebookSelected = selectedPlatforms.includes("facebook");
+    if (facebookSelected && selectedFacebookPageIds.length === 0) {
+      toast.error("Select at least one Facebook Page");
+      return;
+    }
+    const instagramSelected = selectedPlatforms.includes("instagram");
+    if (instagramSelected && selectedInstagramAccountIds.length === 0) {
+      toast.error("Select at least one Instagram account");
+      return;
     }
 
     setIsSubmitting(true);
@@ -171,28 +216,34 @@ export default function UploadPage() {
           }
         } else if (platform === "instagram") {
           const platformCaption = instagramCaption.trim() || null;
-          posts.push({
-            user_id: PERSONAL_USER_ID,
-            video_id: videoId,
-            platform: "instagram",
-            caption: platformCaption,
-            hashtags,
-            scheduled_at: scheduledAt,
-            status: "scheduled",
-            captions_enabled: captionsEnabled,
-          });
+          for (const accountId of selectedInstagramAccountIds) {
+            posts.push({
+              user_id: PERSONAL_USER_ID,
+              video_id: videoId,
+              platform: "instagram",
+              account_id: accountId,
+              caption: platformCaption,
+              hashtags,
+              scheduled_at: scheduledAt,
+              status: "scheduled",
+              captions_enabled: captionsEnabled,
+            });
+          }
         } else if (platform === "facebook") {
           const platformCaption = facebookCaption.trim() || null;
-          posts.push({
-            user_id: PERSONAL_USER_ID,
-            video_id: videoId,
-            platform: "facebook",
-            caption: platformCaption,
-            hashtags,
-            scheduled_at: scheduledAt,
-            status: "scheduled",
-            captions_enabled: captionsEnabled,
-          });
+          for (const accountId of selectedFacebookPageIds) {
+            posts.push({
+              user_id: PERSONAL_USER_ID,
+              video_id: videoId,
+              platform: "facebook",
+              account_id: accountId,
+              caption: platformCaption,
+              hashtags,
+              scheduled_at: scheduledAt,
+              status: "scheduled",
+              captions_enabled: captionsEnabled,
+            });
+          }
         }
       }
 
@@ -324,6 +375,46 @@ export default function UploadPage() {
                         />
                         <span className="text-sm text-foreground">
                           {acc.account_name ?? "YouTube"} ({acc.account_id})
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+              {p.id === "facebook" && selectedPlatforms.includes("facebook") && (
+                <div className="ml-6 mt-2 space-y-2">
+                  {facebookAccounts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No Facebook Pages connected. Connect in Accounts.</p>
+                  ) : (
+                    facebookAccounts.map((acc) => (
+                      <label key={acc.id} className="flex items-center gap-3 cursor-pointer">
+                        <Checkbox
+                          checked={selectedFacebookPageIds.includes(acc.account_id ?? "")}
+                          onCheckedChange={() => toggleFacebookPage(acc.account_id ?? "")}
+                        />
+                        <span className="text-sm text-foreground">
+                          {acc.account_name ?? "Facebook Page"} ({acc.account_id})
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+              {p.id === "instagram" && selectedPlatforms.includes("instagram") && (
+                <div className="ml-6 mt-2 space-y-2">
+                  {instagramAccounts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No Instagram Business accounts found. Connect via Facebook in Accounts.
+                    </p>
+                  ) : (
+                    instagramAccounts.map((acc) => (
+                      <label key={acc.id} className="flex items-center gap-3 cursor-pointer">
+                        <Checkbox
+                          checked={selectedInstagramAccountIds.includes(acc.account_id ?? "")}
+                          onCheckedChange={() => toggleInstagramAccount(acc.account_id ?? "")}
+                        />
+                        <span className="text-sm text-foreground">
+                          {acc.account_name ?? "Instagram"} ({acc.account_id})
                         </span>
                       </label>
                     ))
