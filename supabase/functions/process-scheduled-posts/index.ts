@@ -42,8 +42,7 @@ Deno.serve(async (req) => {
       .from("posts")
       .select("id, platform")
       .eq("status", "scheduled")
-      .lte("scheduled_at", now)
-      .eq("platform", "youtube");
+      .lte("scheduled_at", now);
 
     if (fetchError) {
       console.error("Failed to fetch scheduled posts", fetchError);
@@ -53,29 +52,45 @@ Deno.serve(async (req) => {
       );
     }
 
-    const list = posts ?? [];
+    const scheduledPosts = posts ?? [];
     const supabaseUrl = SB_URL!;
     const serviceRoleKey = SB_SERVICE_ROLE_KEY!;
 
     let processed = 0;
-    for (const post of list) {
-      const res = await fetch(supabaseUrl + "/functions/v1/youtube-upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + serviceRoleKey,
+    for (const post of scheduledPosts) {
+      let functionName = "";
+      if (post.platform === "youtube") {
+        functionName = "youtube-upload";
+      } else if (post.platform === "facebook") {
+        functionName = "facebook-upload";
+      } else {
+        // Skip instagram and any other unsupported platforms for now
+        console.log(`Skipping scheduled post ${post.id} for platform ${post.platform}`);
+        continue;
+      }
+
+      const res = await fetch(
+        `${supabaseUrl}/functions/v1/${functionName}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceRoleKey}`,
+            apikey: serviceRoleKey,
+          },
+          body: JSON.stringify({ postId: post.id }),
         },
-        body: JSON.stringify({ postId: post.id }),
-      });
+      );
+
       if (res.ok) {
         processed++;
       } else {
-        console.error(`youtube-upload failed for post ${post.id}`, await res.text());
+        console.error(`${functionName} failed for post ${post.id}`, await res.text());
       }
     }
 
     return new Response(
-      JSON.stringify({ processed, total: list.length }),
+      JSON.stringify({ processed, total: scheduledPosts.length }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
