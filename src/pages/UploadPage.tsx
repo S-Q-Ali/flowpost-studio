@@ -59,7 +59,6 @@ export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [containsAlteredContent, setContainsAlteredContent] = useState(true);
   const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null);
-  const [facebookAiLabel, setFacebookAiLabel] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -204,7 +203,7 @@ export default function UploadPage() {
         scheduledAt = d.toISOString();
       }
 
-      const posts: { user_id: string; video_id: string; platform: string; caption: string | null; hashtags: string | null; scheduled_at: string; status: "scheduled"; captions_enabled: boolean; account_id?: string | null; contains_altered_content?: boolean; fb_ai_label?: boolean }[] = [];
+      const posts: { user_id: string; video_id: string; platform: string; caption: string | null; hashtags: string | null; scheduled_at: string; status: "scheduled"; captions_enabled: boolean; account_id?: string | null; contains_altered_content?: boolean }[] = [];
       for (const platform of selectedPlatforms) {
         if (platform === "youtube") {
           for (const accountId of selectedYouTubeAccountIds) {
@@ -250,7 +249,6 @@ export default function UploadPage() {
               scheduled_at: scheduledAt,
               status: "scheduled",
               captions_enabled: captionsEnabled,
-              fb_ai_label: facebookAiLabel,
             });
           }
         }
@@ -529,20 +527,6 @@ export default function UploadPage() {
                     rows={4}
                     className="resize-none"
                   />
-                </div>
-                <div className="flex items-center gap-3 mt-2">
-                  <Switch
-                    checked={facebookAiLabel}
-                    onCheckedChange={setFacebookAiLabel}
-                  />
-                  <div>
-                    <p className="text-sm font-medium">
-                      AI-Generated Content Label
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Facebook will show an AI label on this video
-                    </p>
-                  </div>
                 </div>
               </div>
             )}
