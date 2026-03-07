@@ -1,6 +1,11 @@
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 const R2_ENDPOINT = Deno.env.get("R2_ENDPOINT");
 const R2_ACCESS_KEY = Deno.env.get("R2_ACCESS_KEY");
 const R2_SECRET_KEY = Deno.env.get("R2_SECRET_KEY");
@@ -27,8 +32,25 @@ interface GetUploadUrlBody {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const authHeader = req.headers.get("Authorization");
+  const validKeys = [Deno.env.get("SB_ANON_KEY"), Deno.env.get("SB_SERVICE_ROLE_KEY")];
+  const token = authHeader?.replace("Bearer ", "");
+  if (!token || !validKeys.includes(token)) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -40,7 +62,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "fileName, fileType and userId are required" }),
         {
           status: 400,
-          headers: { "Content-Type": "application/json" },
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
     }
@@ -63,7 +85,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ uploadUrl, publicUrl }),
       {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
   } catch (error) {
@@ -72,7 +94,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: "Failed to generate upload URL" }),
       {
         status: 500,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
   }

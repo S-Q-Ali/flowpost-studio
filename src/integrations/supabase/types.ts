@@ -16,35 +16,52 @@ export type Database = {
     Tables: {
       connected_accounts: {
         Row: {
+          access_token: string | null
           account_name: string | null
+          account_id: string | null
           connected_at: string | null
           id: string
           is_connected: boolean
+          metadata: Json | null
           platform: string
+          refresh_token: string | null
+          token_expiry: string | null
           user_id: string
         }
         Insert: {
+          access_token?: string | null
           account_name?: string | null
+          account_id?: string | null
           connected_at?: string | null
           id?: string
           is_connected?: boolean
+          metadata?: Json | null
           platform: string
+          refresh_token?: string | null
+          token_expiry?: string | null
           user_id: string
         }
         Update: {
+          access_token?: string | null
           account_name?: string | null
+          account_id?: string | null
           connected_at?: string | null
           id?: string
           is_connected?: boolean
+          metadata?: Json | null
           platform?: string
+          refresh_token?: string | null
+          token_expiry?: string | null
           user_id?: string
         }
         Relationships: []
       }
       posts: {
         Row: {
+          account_id: string | null
           caption: string | null
           captions_enabled: boolean
+          contains_altered_content: boolean
           created_at: string
           hashtags: string | null
           id: string
@@ -56,8 +73,10 @@ export type Database = {
           video_id: string
         }
         Insert: {
+          account_id?: string | null
           caption?: string | null
           captions_enabled?: boolean
+          contains_altered_content?: boolean
           created_at?: string
           hashtags?: string | null
           id?: string
@@ -69,8 +88,10 @@ export type Database = {
           video_id: string
         }
         Update: {
+          account_id?: string | null
           caption?: string | null
           captions_enabled?: boolean
+          contains_altered_content?: boolean
           created_at?: string
           hashtags?: string | null
           id?: string

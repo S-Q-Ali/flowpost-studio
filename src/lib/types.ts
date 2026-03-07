@@ -16,8 +16,10 @@ export interface Post {
   user_id: string;
   video_id: string;
   platform: Platform;
+  account_id?: string | null;
   caption: string | null;
   hashtags: string | null;
+  contains_altered_content?: boolean;
   scheduled_at: string | null;
   published_at: string | null;
   status: PostStatus;
@@ -43,6 +45,9 @@ export interface ConnectedAccount {
   user_id: string;
   platform: Platform;
   account_name: string | null;
+  account_id?: string | null;
   is_connected: boolean;
   connected_at: string | null;
+  token_expiry?: string | null;
+  metadata?: unknown;
 }
