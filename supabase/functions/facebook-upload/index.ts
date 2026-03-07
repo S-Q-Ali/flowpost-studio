@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     const { data: post, error: postError } = await supabase
       .from("posts")
       .select(
-        "id, video_id, account_id, caption, hashtags, status, platform, fb_ai_label",
+        "id, video_id, account_id, caption, status, platform, fb_ai_label",
       )
       .eq("id", postId)
       .single();
@@ -108,65 +108,83 @@ Deno.serve(async (req) => {
     const fileSize = videoBytes.byteLength;
 
     // STEP A - Initialize upload session
-    const initForm = new FormData();
-    initForm.append("upload_phase", "start");
-    initForm.append("access_token", accessToken);
-    initForm.append("file_size", String(fileSize));
+    const startForm = new FormData();
+    startForm.append("upload_phase", "start");
+    startForm.append("file_size", String(fileSize));
+    startForm.append("access_token", accessToken);
 
-    const initRes = await fetch(
+    const startRes = await fetch(
       `https://graph-video.facebook.com/v21.0/${encodeURIComponent(pageId)}/videos`,
       {
         method: "POST",
-        body: initForm,
+        body: startForm,
       },
     );
 
-    if (!initRes.ok) {
-      const errText = await initRes.text();
-      console.error("Facebook init upload failed", initRes.status, errText);
+    if (!startRes.ok) {
+      const errText = await startRes.text();
+      console.error("Facebook init upload failed", startRes.status, errText);
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
       return json({ error: `Facebook upload init failed: ${errText}` }, 502);
     }
 
-    const initData = await initRes.json() as {
+    const startData = await startRes.json() as {
       upload_session_id?: string;
-      upload_url?: string;
+      start_offset?: string;
+      end_offset?: string;
+      video_id?: string;
+      [key: string]: unknown;
     };
 
-    if (!initData.upload_session_id || !initData.upload_url) {
-      console.error("Missing upload_session_id or upload_url from Facebook", initData);
+    const uploadSessionId = startData.upload_session_id;
+    const startOffset = parseInt((startData.start_offset as string) ?? "0", 10);
+    const endOffset = parseInt((startData.end_offset as string) ?? "0", 10);
+
+    if (!uploadSessionId) {
+      console.error("No upload_session_id in Facebook response", startData);
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
       return json(
-        { error: "Invalid response from Facebook upload init" },
+        { error: `No upload_session_id: ${JSON.stringify(startData)}` },
         502,
       );
     }
 
-    const uploadUrl = initData.upload_url;
-
-    // STEP C - Upload video bytes
-    const uploadRes = await fetch(uploadUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `OAuth ${accessToken}`,
-        offset: "0",
-        file_size: String(fileSize),
-      },
-      body: videoBytes,
+    console.log("Facebook upload start offsets", {
+      startOffset,
+      endOffset,
+      uploadSessionId,
     });
 
-    if (!uploadRes.ok) {
-      const errText = await uploadRes.text();
-      console.error("Facebook video upload failed", uploadRes.status, errText);
+    // STEP B - Upload video chunk (single-chunk transfer)
+    const transferForm = new FormData();
+    transferForm.append("upload_phase", "transfer");
+    transferForm.append("upload_session_id", uploadSessionId);
+    transferForm.append("start_offset", "0");
+    transferForm.append("video_file_chunk", new Blob([videoBytes]));
+
+    const transferRes = await fetch(
+      `https://graph-video.facebook.com/v21.0/${encodeURIComponent(pageId)}/videos`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `OAuth ${accessToken}`,
+        },
+        body: transferForm,
+      },
+    );
+
+    if (!transferRes.ok) {
+      const errText = await transferRes.text();
+      console.error("Facebook video transfer failed", transferRes.status, errText);
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
       return json({ error: `Facebook video upload failed: ${errText}` }, 502);
     }
 
-    // STEP D - Finish upload
+    // STEP C - Finish upload
     const finishForm = new FormData();
     finishForm.append("upload_phase", "finish");
+    finishForm.append("upload_session_id", uploadSessionId);
     finishForm.append("access_token", accessToken);
-    finishForm.append("upload_session_id", initData.upload_session_id);
     finishForm.append("title", video.title || "Uploaded Video");
     finishForm.append("description", (post.caption || "").toString());
 
