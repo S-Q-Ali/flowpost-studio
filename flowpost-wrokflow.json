@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "zinc-bucksaw-489020-n0",
+  "private_key_id": "f556c206db62b1f18d1e22c251042e8cec971d4e",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC5XBzkSelU2zek\nH5EZYxQZwXonMe/OfvUQdGuQYJl7Rej6CFajekaJADgpsqb9cEgJxsH36p+Yyt1p\nAFKGHXITw7bLW8VkTCv/f4MSXXeKnFCOCV5XPoE1DVesiPikitxBkWfg76zhOFZJ\n3CO2sNjGmelx0cVvJTOjkD0LNZv2Pj3JU7niY1wYg8jwO5XG6/kaYvzZfJGwUcx5\nOV/g3fUUlrV6qaTlWYVknwH0Z6Ai/HAPyx3dDnvDcAUaGjCElG82XIk+JKfkXJvT\n9Lz+NiOEm3PWbOQj4aeTDXqu15/j6ExlxOHyXrZO3UcgabhWr/7xL4BHpStHR/7S\nNJ5uz6dvAgMBAAECggEAC+5oc69oRAyKU9euVNaCVDgWf1BhEcctSh5cUCJPrtYs\nrW98+C/mO2pWsyRrSFQCZxKyqJ0jIcgpIVmidjyN+8S0zvk8xvx6NouEKdn3WGZA\nbyweNPpygbI2qwX0D09a5yOPbrSuyZ6BO2beq6NNiNceZjOtBD7+SHB/5WlRfTOf\nUfr/Fav4B79u7n+70X/eDV77mvQo5ArjX3aa0ZaO/bmdEAWTpxO1ciZjDsBxpWuC\nMIWY0FzEgnVzSbTUJ6yGqCiFraKd7+voI7rRZ8riHqj7pKxp8BB5cXjPo0fiZp56\nWc+ZBKHmtJQo5zdPmN6XRUuD3WKn75KYUlCxMBhUmQKBgQDq3YlmmIe6lK3Zbxg4\nt1SqPmShVZPUzKoNXCOdb8xb1WV+uh4s2kkvzitwd+j6rzy9eKjqklXa/exOTPP/\nt0IGGw/94D1lZJymt9fSzcXl0zY0bduPrduy/uWuvFFKv2E/aYl/1bOrXa/e96TR\nNo6dL+HRQohi1BZu3Tjs6HwxqQKBgQDKCiTdEFNCYMMNNsIv/PMPjONx8Tebh9Ji\nCB6h/mlnteqPGfSvrp5WBWTW7pUi5X5dDYsLNjwrsj/aafuRWhHpoF7Z0rRHp6jk\nt3BhAP7bMszZW2VEDArHhfhVk1a+lTJd1KNY37cB7nwtXOo8STuuKh6c2c/3b8sa\nHKueiw7vVwKBgCDCN6j0u3G9zSXXxgQbJhb8zuJl4lG7Hjjw0hLihhmFATwUz6Kn\n669cTVjJkNhuWsV+r+jP8mOyKSSevSW8tNvPKILbpRSgXO0wFU1U4DZ3KEdVz1sR\n/+POg9DEeX44hWLn4ILRFtdfIOmzluyLdIbeJ9wdMJLATES4XHlG0BPJAoGBAIHz\nXlyWCId0R2DzbJmDIC9LVmvOVA8EoGwPfuyA//kGCFV8w2ZQcWUw2PhpwqEMbWea\ns2lFvBP69ZkdfAK0pTrYvMlr/irsivR5jJ3IDyScGyhe4daPzEsjP2SDfVLeEeRK\nRbp/Qm3KoDJpRfv6upk+XCxU6K/lRwSHlldGaBfHAoGABYSGUCw0GMk7oJbsQqhg\np6SGd2bMfI2oMjC877Tl6pcJ9SzdSd9sQE1GbsRXz9Otsc0PcwOMzBTDtCjMiXfm\nejgKoUO7MTVCkAfrUXiycAZ5nmerBgdmCBVD6XJWA5C/H0aJeZ+zRFd3BGOb3fc1\nmvdBZ7GKBi1Flau0pZOfTYg=\n-----END PRIVATE KEY-----\n",
+  "client_email": "flowpost-workflow@zinc-bucksaw-489020-n0.iam.gserviceaccount.com",
+  "client_id": "108041710309351307871",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/flowpost-workflow%40zinc-bucksaw-489020-n0.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

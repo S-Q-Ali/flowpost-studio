@@ -8,61 +8,648 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { PlatformBadge } from "@/components/PlatformIcon";
-import { Plus, Workflow, Zap } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Clock3, Play, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import type { Workflow as WorkflowType, Platform } from "@/lib/types";
+import type { Platform, ConnectedAccount } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { formatDistanceToNow, setHours, setMinutes } from "date-fns";
 
 const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
-const platformOptions: { id: Platform; label: string }[] = [
-  { id: "facebook", label: "Facebook" },
-  { id: "instagram", label: "Instagram Reels" },
-  { id: "youtube", label: "YouTube Shorts" },
+type WorkflowRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  is_active: boolean;
+  sheet_url: string | null;
+  sheet_id: string | null;
+  platforms: string[] | null;
+  youtube_channel_ids: string[] | null;
+  facebook_page_ids: string[] | null;
+  instagram_account_ids: string[] | null;
+  trigger_hour_start: number;
+  trigger_hour_end: number;
+  max_videos_per_trigger: number | null;
+  last_triggered_at: string | null;
+  total_posted: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type Mode = "create" | "edit";
+type Step = 1 | 2 | 3 | 4;
+
+const hourOptions = Array.from({ length: 23 }, (_, i) => i + 1); // 1-23
+
+const formatHour = (hour: number) => {
+  const date = setMinutes(setHours(new Date(), hour % 24), 0);
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    hour12: true,
+  }).format(date);
+};
+
+const platformOptions: { id: Platform; label: string; icon: React.ComponentType<any>; color: string }[] = [
+  { id: "youtube", label: "YouTube Shorts", icon: Youtube, color: "text-red-500" },
+  { id: "facebook", label: "Facebook Page", icon: Facebook, color: "text-blue-500" },
+  { id: "instagram", label: "Instagram Reels", icon: Instagram, color: "text-pink-500" },
 ];
 
 export default function WorkflowsPage() {
-  const [workflows, setWorkflows] = useState<WorkflowType[]>([]);
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [platforms, setPlatforms] = useState<Platform[]>([]);
-  const [captionTemplate, setCaptionTemplate] = useState("{{title}} {{hashtags}}");
-  const [delayHours, setDelayHours] = useState(0);
+  const [workflows, setWorkflows] = useState<WorkflowRow[]>([]);
+  const [youtubeAccounts, setYoutubeAccounts] = useState<ConnectedAccount[]>([]);
+  const [facebookAccounts, setFacebookAccounts] = useState<ConnectedAccount[]>([]);
+  const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
 
-  const fetchWorkflows = async () => {
-    const { data } = await supabase.from("workflows").select("*").eq("user_id", PERSONAL_USER_ID).order("created_at", { ascending: false });
-    setWorkflows((data as any) ?? []);
-  };
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [mode, setMode] = useState<Mode>("create");
+  const [activeStep, setActiveStep] = useState<Step>(1);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowRow | null>(null);
 
-  useEffect(() => { fetchWorkflows(); }, []);
+  // Form state
+  const [workflowName, setWorkflowName] = useState("");
+  const [isActive, setIsActive] = useState(true);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
+  const [selectedYoutubeIds, setSelectedYoutubeIds] = useState<string[]>([]);
+  const [selectedFacebookIds, setSelectedFacebookIds] = useState<string[]>([]);
+  const [selectedInstagramIds, setSelectedInstagramIds] = useState<string[]>([]);
+  const [triggerStartHour, setTriggerStartHour] = useState<number>(14);
+  const [triggerEndHour, setTriggerEndHour] = useState<number>(15);
+  const [maxVideos, setMaxVideos] = useState<number>(3);
+  const [sheetUrl, setSheetUrl] = useState("");
 
-  const togglePlatform = (p: Platform) => {
-    setPlatforms((prev) => prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]);
-  };
+  const [deleteTarget, setDeleteTarget] = useState<WorkflowRow | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [runningId, setRunningId] = useState<string | null>(null);
 
-  const handleCreate = async () => {
-    if (!name || platforms.length === 0) {
-      toast.error("Name and at least one platform are required");
+  const loadWorkflows = async () => {
+    const { data, error } = await supabase
+      .from("workflows")
+      .select("*")
+      .eq("user_id", PERSONAL_USER_ID)
+      .order("created_at", { ascending: false });
+    if (error) {
+      toast.error(error.message);
       return;
     }
-    const { error } = await supabase.from("workflows").insert({
-      user_id: PERSONAL_USER_ID,
-      name,
-      destination_platforms: platforms,
-      caption_template: captionTemplate,
-      delay_hours: delayHours,
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success("Workflow created!");
-    setOpen(false);
-    setName("");
-    setPlatforms([]);
-    fetchWorkflows();
+    setWorkflows((data as WorkflowRow[]) ?? []);
   };
 
-  const toggleActive = async (wf: WorkflowType) => {
-    await supabase.from("workflows").update({ is_active: !wf.is_active }).eq("id", wf.id);
-    fetchWorkflows();
+  const loadAccounts = async () => {
+    const [{ data: yt }, { data: fb }, { data: ig }] = await Promise.all([
+      supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", PERSONAL_USER_ID)
+        .eq("platform", "youtube")
+        .eq("is_connected", true),
+      supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", PERSONAL_USER_ID)
+        .eq("platform", "facebook")
+        .eq("is_connected", true),
+      supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", PERSONAL_USER_ID)
+        .eq("platform", "instagram")
+        .eq("is_connected", true),
+    ]);
+
+    setYoutubeAccounts((yt as ConnectedAccount[]) ?? []);
+    setFacebookAccounts((fb as ConnectedAccount[]) ?? []);
+    setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
+  };
+
+  useEffect(() => {
+    loadWorkflows();
+    loadAccounts();
+  }, []);
+
+  const resetForm = () => {
+    setWorkflowName("");
+    setIsActive(true);
+    setSelectedPlatforms([]);
+    setSelectedYoutubeIds([]);
+    setSelectedFacebookIds([]);
+    setSelectedInstagramIds([]);
+    setTriggerStartHour(14);
+    setTriggerEndHour(15);
+    setMaxVideos(3);
+    setSheetUrl("");
+    setSelectedWorkflow(null);
+    setActiveStep(1);
+  };
+
+  const openCreate = () => {
+    setMode("create");
+    resetForm();
+    setSheetOpen(true);
+  };
+
+  const openEdit = (wf: WorkflowRow) => {
+    setMode("edit");
+    setSelectedWorkflow(wf);
+    setWorkflowName(wf.name);
+    setIsActive(wf.is_active);
+    const wfPlatforms = (wf.platforms ?? []) as Platform[];
+    setSelectedPlatforms(wfPlatforms);
+    setSelectedYoutubeIds(wf.youtube_channel_ids ?? []);
+    setSelectedFacebookIds(wf.facebook_page_ids ?? []);
+    setSelectedInstagramIds(wf.instagram_account_ids ?? []);
+    setTriggerStartHour(wf.trigger_hour_start ?? 14);
+    setTriggerEndHour(wf.trigger_hour_end ?? 15);
+    setMaxVideos(wf.max_videos_per_trigger ?? 3);
+    setSheetUrl(wf.sheet_url ?? "");
+    setActiveStep(1);
+    setSheetOpen(true);
+  };
+
+  const togglePlatform = (p: Platform) => {
+    setSelectedPlatforms((prev) =>
+      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p],
+    );
+  };
+
+  const toggleAccount = (
+    existing: string[],
+    setter: (ids: string[]) => void,
+    id: string,
+  ) => {
+    setter(existing.includes(id) ? existing.filter((x) => x !== id) : [...existing, id]);
+  };
+
+  const extractSheetId = (url: string): string | null => {
+    const match = url.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    return match ? match[1] : null;
+  };
+
+  const handleTestSheet = () => {
+    if (!sheetUrl.trim()) {
+      toast.error("Enter a Google Sheet URL first");
+      return;
+    }
+    if (!extractSheetId(sheetUrl.trim())) {
+      toast.error("Invalid Google Sheet URL format");
+      return;
+    }
+    toast.success("Sheet URL looks valid!");
+  };
+
+  const handleSave = async () => {
+    if (!workflowName.trim()) {
+      toast.error("Workflow name is required");
+      return;
+    }
+    if (selectedPlatforms.length === 0) {
+      toast.error("Select at least one platform");
+      return;
+    }
+    if (!sheetUrl.trim()) {
+      toast.error("Google Sheet URL is required");
+      return;
+    }
+    const id = extractSheetId(sheetUrl.trim());
+    if (!id) {
+      toast.error("Invalid Google Sheet URL format");
+      return;
+    }
+    if (triggerEndHour <= triggerStartHour) {
+      toast.error("End hour must be after start hour");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const payload = {
+        user_id: PERSONAL_USER_ID,
+        name: workflowName.trim(),
+        is_active: isActive,
+        platforms: selectedPlatforms,
+        youtube_channel_ids: selectedYoutubeIds,
+        facebook_page_ids: selectedFacebookIds,
+        instagram_account_ids: selectedInstagramIds,
+        trigger_hour_start: triggerStartHour,
+        trigger_hour_end: triggerEndHour,
+        max_videos_per_trigger: maxVideos,
+        sheet_url: sheetUrl.trim(),
+        sheet_id: id,
+      };
+
+      if (mode === "create") {
+        const { error } = await supabase.from("workflows").insert(payload);
+        if (error) throw error;
+        toast.success("Workflow created!");
+      } else if (selectedWorkflow) {
+        const { error } = await supabase
+          .from("workflows")
+          .update(payload)
+          .eq("id", selectedWorkflow.id);
+        if (error) throw error;
+        toast.success("Workflow updated!");
+      }
+
+      setSheetOpen(false);
+      resetForm();
+      loadWorkflows();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save workflow");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleActive = async (wf: WorkflowRow) => {
+    const { error } = await supabase
+      .from("workflows")
+      .update({ is_active: !wf.is_active })
+      .eq("id", wf.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    loadWorkflows();
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const { error } = await supabase
+      .from("workflows")
+      .delete()
+      .eq("id", deleteTarget.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Workflow deleted");
+    setDeleteTarget(null);
+    loadWorkflows();
+  };
+
+  const runWorkflow = async (workflowId: string) => {
+    setRunningId(workflowId);
+    try {
+      const { data, error } = await supabase.functions.invoke<{
+        processed: number;
+        workflows_triggered: number;
+        errors: string[];
+      }>("process-workflow", {
+        body: { workflowId },
+      });
+      if (error) throw error;
+      const processed = data?.processed ?? 0;
+      toast.success(`Workflow triggered! ${processed} videos processed`);
+      loadWorkflows();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to run workflow");
+    } finally {
+      setRunningId(null);
+    }
+  };
+
+  const renderStepIndicator = () => {
+    const steps: { id: Step; label: string }[] = [
+      { id: 1, label: "Basic Info" },
+      { id: 2, label: "Platforms" },
+      { id: 3, label: "Schedule" },
+      { id: 4, label: "Sheet" },
+    ];
+    return (
+      <div className="flex items-center justify-between mb-4">
+        {steps.map((step) => {
+          const isActiveStep = step.id === activeStep;
+          const isCompleted = step.id < activeStep;
+          return (
+            <div key={step.id} className="flex-1 flex items-center">
+              <div
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-full border text-xs",
+                  isActiveStep
+                    ? "border-primary text-primary bg-primary/10"
+                    : isCompleted
+                    ? "border-primary/60 text-primary/80 bg-primary/5"
+                    : "border-border text-muted-foreground",
+                )}
+              >
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-current text-[10px]">
+                  {step.id}
+                </span>
+                <span>{step.label}</span>
+              </div>
+              {step.id !== 4 && (
+                <div className="flex-1 h-px mx-2 bg-border" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderStepContent = () => {
+    if (activeStep === 1) {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label>Workflow Name</Label>
+              <p className="text-xs text-muted-foreground">
+                Give this workflow a clear, descriptive name.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {isActive ? "Active" : "Paused"}
+              </span>
+              <Switch checked={isActive} onCheckedChange={setIsActive} />
+            </div>
+          </div>
+          <Input
+            placeholder="e.g. Post from Sheet to all channels"
+            value={workflowName}
+            onChange={(e) => setWorkflowName(e.target.value)}
+          />
+        </div>
+      );
+    }
+
+    if (activeStep === 2) {
+      return (
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label>Platforms & Accounts</Label>
+            <p className="text-xs text-muted-foreground">
+              Choose where this workflow is allowed to post from the Sheet.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {platformOptions.map(({ id, label, icon: Icon, color }) => {
+              const selected = selectedPlatforms.includes(id);
+              return (
+                <div
+                  key={id}
+                  className={cn(
+                    "rounded-lg border p-3 space-y-2",
+                    selected ? "border-primary bg-primary/5" : "border-border",
+                  )}
+                >
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <Checkbox
+                      checked={selected}
+                      onCheckedChange={() => togglePlatform(id)}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Icon className={cn("h-4 w-4", color)} />
+                      <span className="text-sm text-foreground">{label}</span>
+                    </div>
+                  </label>
+                  {selected && id === "youtube" && (
+                    <div className="ml-7 space-y-1">
+                      {youtubeAccounts.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No YouTube channels connected. Connect them in Accounts.
+                        </p>
+                      ) : (
+                        youtubeAccounts.map((acc) => (
+                          <label
+                            key={acc.id}
+                            className="flex items-center gap-2 cursor-pointer text-xs"
+                          >
+                            <Checkbox
+                              checked={selectedYoutubeIds.includes(acc.account_id ?? "")}
+                              onCheckedChange={() =>
+                                toggleAccount(
+                                  selectedYoutubeIds,
+                                  setSelectedYoutubeIds,
+                                  acc.account_id ?? "",
+                                )
+                              }
+                            />
+                            <span className="text-foreground">
+                              {acc.account_name ?? "YouTube"} ({acc.account_id})
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {selected && id === "facebook" && (
+                    <div className="ml-7 space-y-1">
+                      {facebookAccounts.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No Facebook Pages connected. Connect them in Accounts.
+                        </p>
+                      ) : (
+                        facebookAccounts.map((acc) => (
+                          <label
+                            key={acc.id}
+                            className="flex items-center gap-2 cursor-pointer text-xs"
+                          >
+                            <Checkbox
+                              checked={selectedFacebookIds.includes(acc.account_id ?? "")}
+                              onCheckedChange={() =>
+                                toggleAccount(
+                                  selectedFacebookIds,
+                                  setSelectedFacebookIds,
+                                  acc.account_id ?? "",
+                                )
+                              }
+                            />
+                            <span className="text-foreground">
+                              {acc.account_name ?? "Facebook Page"} ({acc.account_id})
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {selected && id === "instagram" && (
+                    <div className="ml-7 space-y-1">
+                      {instagramAccounts.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No Instagram Business accounts connected.
+                        </p>
+                      ) : (
+                        instagramAccounts.map((acc) => (
+                          <label
+                            key={acc.id}
+                            className="flex items-center gap-2 cursor-pointer text-xs"
+                          >
+                            <Checkbox
+                              checked={selectedInstagramIds.includes(acc.account_id ?? "")}
+                              onCheckedChange={() =>
+                                toggleAccount(
+                                  selectedInstagramIds,
+                                  setSelectedInstagramIds,
+                                  acc.account_id ?? "",
+                                )
+                              }
+                            />
+                            <span className="text-foreground">
+                              {acc.account_name ?? "Instagram"} ({acc.account_id})
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeStep === 3) {
+      return (
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label>Trigger Window</Label>
+            <p className="text-xs text-muted-foreground">
+              FlowPost will pick a random time within this window each day.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1 space-y-1">
+              <Label>Start hour</Label>
+              <select
+                className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                value={triggerStartHour}
+                onChange={(e) => setTriggerStartHour(Number(e.target.value))}
+              >
+                {hourOptions.map((h) => (
+                  <option key={h} value={h}>
+                    {formatHour(h)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 space-y-1">
+              <Label>End hour</Label>
+              <select
+                className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                value={triggerEndHour}
+                onChange={(e) => setTriggerEndHour(Number(e.target.value))}
+              >
+                {hourOptions.map((h) => (
+                  <option key={h} value={h}>
+                    {formatHour(h)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label>Maximum videos per trigger</Label>
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              value={maxVideos}
+              onChange={(e) => setMaxVideos(Number(e.target.value) || 1)}
+            />
+            <p className="text-xs text-muted-foreground">
+              How many videos to post in one trigger.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // Step 4 - Google Sheet
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <Label>Google Sheet URL</Label>
+          <p className="text-xs text-muted-foreground">
+            Sheet must have columns:{" "}
+            <code className="text-[10px]">video_url, title, description, platforms, scheduled_time, status, youtube_channels, facebook_pages</code>
+          </p>
+        </div>
+        <Input
+          placeholder="https://docs.google.com/spreadsheets/d/..."
+          value={sheetUrl}
+          onChange={(e) => setSheetUrl(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={handleTestSheet}
+          >
+            <Link2 className="h-3 w-3" />
+            Test Connection
+          </Button>
+        </div>
+        <details className="mt-2 text-xs text-muted-foreground space-y-1">
+          <summary className="cursor-pointer text-foreground text-sm">
+            How to set up your Google Sheet
+          </summary>
+          <p>
+            Each row represents a video to post. Use <code>platforms</code> to specify where it should go
+            (e.g. <code>youtube,facebook</code>). Use <code>status</code> to control posting
+            (e.g. <code>pending</code>, <code>posted</code>).
+          </p>
+        </details>
+      </div>
+    );
+  };
+
+  const renderWorkflowCardPlatforms = (wf: WorkflowRow) => {
+    const platforms = (wf.platforms ?? []) as Platform[];
+    if (!platforms.length) return <p className="text-xs text-muted-foreground">No platforms selected</p>;
+    return (
+      <div className="flex gap-1 flex-wrap">
+        {platforms.map((p) => {
+          const meta = platformOptions.find((x) => x.id === p);
+          if (!meta) return null;
+          const Icon = meta.icon;
+          return (
+            <Badge
+              key={p}
+              variant="outline"
+              className="flex items-center gap-1 border-border/60 bg-background/40 text-xs"
+            >
+              <Icon className={cn("h-3 w-3", meta.color)} />
+              <span>{meta.label}</span>
+            </Badge>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderWorkflowTriggerText = (wf: WorkflowRow) => {
+    const start = formatHour(wf.trigger_hour_start ?? 14);
+    const end = formatHour(wf.trigger_hour_end ?? 15);
+    return `Posts between ${start} - ${end}`;
+  };
+
+  const renderLastTriggered = (wf: WorkflowRow) => {
+    if (!wf.last_triggered_at) return "Never";
+    try {
+      return `Last ran ${formatDistanceToNow(new Date(wf.last_triggered_at), {
+        addSuffix: true,
+      })}`;
+    } catch {
+      return "Last run time unavailable";
+    }
   };
 
   return (
@@ -70,45 +657,56 @@ export default function WorkflowsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Workflows</h1>
-          <p className="text-sm text-muted-foreground">Automate your content distribution</p>
+          <p className="text-sm text-muted-foreground">
+            Automate posting from Google Sheets into your connected channels.
+          </p>
         </div>
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet open={sheetOpen} onOpenChange={(open) => { setSheetOpen(open); if (!open) resetForm(); }}>
           <SheetTrigger asChild>
-            <Button className="gradient-primary text-primary-foreground gap-2"><Plus size={16} /> Create Workflow</Button>
+            <Button className="gradient-primary text-primary-foreground gap-2" onClick={openCreate}>
+              <Plus size={16} /> Create Workflow
+            </Button>
           </SheetTrigger>
           <SheetContent className="bg-card border-border overflow-auto">
-            <SheetHeader><SheetTitle className="text-foreground">New Workflow</SheetTitle></SheetHeader>
-            <div className="space-y-5 mt-6">
-              <div className="space-y-2">
-                <Label>Workflow Name</Label>
-                <Input placeholder="e.g. Auto-post to all platforms" value={name} onChange={(e) => setName(e.target.value)} />
+            <SheetHeader>
+              <SheetTitle className="text-foreground">
+                {mode === "create" ? "New Workflow" : "Edit Workflow"}
+              </SheetTitle>
+            </SheetHeader>
+            <div className="mt-6 space-y-6">
+              {renderStepIndicator()}
+              {renderStepContent()}
+              <div className="flex justify-between pt-4 border-t border-border/70">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={activeStep === 1}
+                  onClick={() => setActiveStep((prev) => (prev > 1 ? ((prev - 1) as Step) : prev))}
+                >
+                  Back
+                </Button>
+                {activeStep < 4 ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gradient-primary text-primary-foreground"
+                    onClick={() => setActiveStep((prev) => (prev < 4 ? ((prev + 1) as Step) : prev))}
+                  >
+                    Next
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gradient-primary text-primary-foreground"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? "Saving..." : mode === "create" ? "Save Workflow" : "Update Workflow"}
+                  </Button>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label>Trigger</Label>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary text-sm text-muted-foreground">
-                  <Zap size={14} className="text-primary" />
-                  When I upload a new video manually
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Auto-post to</Label>
-                {platformOptions.map((p) => (
-                  <label key={p.id} className="flex items-center gap-3 cursor-pointer">
-                    <Checkbox checked={platforms.includes(p.id)} onCheckedChange={() => togglePlatform(p.id)} />
-                    <span className="text-sm text-foreground">{p.label}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="space-y-2">
-                <Label>Caption Template</Label>
-                <Textarea value={captionTemplate} onChange={(e) => setCaptionTemplate(e.target.value)} rows={3} />
-                <p className="text-xs text-muted-foreground">Variables: {"{{title}}"}, {"{{hashtags}}"}</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Delay (hours)</Label>
-                <Input type="number" min={0} value={delayHours} onChange={(e) => setDelayHours(Number(e.target.value))} />
-              </div>
-              <Button className="w-full gradient-primary text-primary-foreground" onClick={handleCreate}>Save Workflow</Button>
             </div>
           </SheetContent>
         </Sheet>
@@ -116,34 +714,148 @@ export default function WorkflowsPage() {
 
       {workflows.length === 0 ? (
         <Card className="bg-card border-border shadow-card">
-          <CardContent className="flex flex-col items-center py-16">
-            <Workflow size={48} className="text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No workflows yet. Create one to automate distribution!</p>
+          <CardContent className="flex flex-col items-center py-16 space-y-3">
+            <Workflow size={48} className="text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">
+              No workflows yet. Create your first workflow to automate posting from Google Sheets.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={openCreate}
+            >
+              <Plus size={14} className="mr-1" /> Create Workflow
+            </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {workflows.map((wf) => (
-            <Card key={wf.id} className="bg-card border-border shadow-card">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-foreground text-base">{wf.name}</CardTitle>
-                <Switch checked={wf.is_active} onCheckedChange={() => toggleActive(wf)} />
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground mb-2">Trigger: Manual upload</p>
-                <div className="flex gap-2 flex-wrap">
-                  {wf.destination_platforms.map((p) => (
-                    <PlatformBadge key={p} platform={p as Platform} />
-                  ))}
+            <Card
+              key={wf.id}
+              className="bg-card border-border shadow-card hover:border-primary/40 transition-colors"
+            >
+              <CardHeader className="flex flex-row items-start justify-between pb-2">
+                <div className="space-y-1">
+                  <CardTitle className="text-foreground text-base flex items-center gap-2">
+                    {wf.name}
+                    {wf.is_active ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                        Active
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/60">
+                        Paused
+                      </span>
+                    )}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock3 className="h-3 w-3" />
+                    {renderWorkflowTriggerText(wf)}
+                  </p>
                 </div>
-                {wf.delay_hours > 0 && (
-                  <p className="text-xs text-muted-foreground mt-2">Delay: {wf.delay_hours}h after upload</p>
-                )}
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={wf.is_active}
+                    onCheckedChange={() => toggleActive(wf)}
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-1">Platforms</p>
+                  {renderWorkflowCardPlatforms(wf)}
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>
+                    Max videos:{" "}
+                    <span className="text-foreground">
+                      {wf.max_videos_per_trigger ?? 3} per trigger
+                    </span>
+                  </span>
+                  <span>{renderLastTriggered(wf)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>
+                    Total posted:{" "}
+                    <span className="text-foreground">
+                      {wf.total_posted ?? 0} videos
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span
+                      className={cn(
+                        "inline-block w-2 h-2 rounded-full",
+                        wf.sheet_url ? "bg-emerald-400" : "bg-yellow-400",
+                      )}
+                    />
+                    {wf.sheet_url ? "Sheet connected" : "Sheet not set"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/70">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-primary hover:text-primary-foreground"
+                    onClick={() => runWorkflow(wf.id)}
+                    disabled={runningId === wf.id}
+                  >
+                    {runningId === wf.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Play className="h-3 w-3" />
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={() => openEdit(wf)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-destructive/80 hover:text-destructive"
+                    onClick={() => setDeleteTarget(wf)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Delete workflow?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete{" "}
+              <span className="font-semibold text-foreground">
+                {deleteTarget?.name}
+              </span>{" "}
+              and it will no longer trigger posts from your Google Sheet.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDelete}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
