@@ -455,6 +455,7 @@ Deno.serve(async (req) => {
                   scheduled_at: nowIso,
                   status: "scheduled",
                   captions_enabled: true,
+                  contains_altered_content: wf.youtube_altered_content ?? true,
                 });
               }
             } else if (p === "facebook") {
@@ -500,6 +501,23 @@ Deno.serve(async (req) => {
           if (postsError || !insertedPosts) {
             console.error("Failed to insert posts", postsError);
             continue;
+          }
+
+          // Immediately mark posts as processing so the scheduled-posts cron
+          // does not pick them up again
+          const { error: processingUpdateError } = await supabase
+            .from("posts")
+            .update({ status: "processing" })
+            .in(
+              "id",
+              (insertedPosts as { id: string }[]).map((p) => p.id),
+            );
+
+          if (processingUpdateError) {
+            console.error(
+              "Failed to mark posts as processing",
+              processingUpdateError,
+            );
           }
 
           // Kick off uploads via existing Edge Functions
