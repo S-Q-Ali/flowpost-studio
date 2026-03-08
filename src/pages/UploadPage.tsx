@@ -339,24 +339,38 @@ export default function UploadPage() {
         }
       }
 
-      if (isPublishNow && insertedPosts?.length) {
-        const createdPostIds = insertedPosts.map((p: { id: string }) => p.id);
+      if (isPublishNow && insertedPosts && insertedPosts.length > 0) {
+        const createdPostIds = insertedPosts.map((p: any) => p.id);
+
         await supabase
           .from("posts")
           .update({ status: "processing" })
           .in("id", createdPostIds);
 
-        const youtubePosts = insertedPosts.filter((p: { platform: string }) => p.platform === "youtube");
-        const facebookPosts = insertedPosts.filter((p: { platform: string }) => p.platform === "facebook");
+        const youtubePosts =
+          insertedPosts.filter((p: any) => p.platform === "youtube") ?? [];
+        const facebookPosts =
+          insertedPosts.filter((p: any) => p.platform === "facebook") ?? [];
 
         if (youtubePosts.length > 0) {
           toast.info("Uploading to YouTube...");
           let allOk = true;
           for (const post of youtubePosts) {
-            const { error: uploadErr } = await supabase.functions.invoke("youtube-upload", {
-              body: { postId: post.id },
-            });
-            if (uploadErr) allOk = false;
+            const res = await fetch(
+              `${supabaseUrl}/functions/v1/youtube-upload`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${anonKey}`,
+                  apikey: anonKey,
+                },
+                body: JSON.stringify({ postId: post.id }),
+              },
+            );
+            if (!res.ok) {
+              allOk = false;
+            }
           }
           if (!allOk) {
             toast.error("Some YouTube uploads failed, check Queue");
