@@ -13,11 +13,32 @@ import CalendarPage from "./pages/CalendarPage";
 import QueuePage from "./pages/QueuePage";
 import AccountsPage from "./pages/AccountsPage";
 import NotFound from "./pages/NotFound";
+import { Loader2, Zap } from "lucide-react";
 
 const queryClient = new QueryClient();
 
 function AppRoutes() {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, isVerifying, login } = useAuth();
+
+  if (isVerifying) {
+    return (
+      <div
+        className="min-h-screen flex flex-col items-center justify-center gap-6 p-6"
+        style={{ backgroundColor: "#0F0F0F" }}
+      >
+        <div
+          className="flex h-14 w-14 items-center justify-center rounded-2xl"
+          style={{ background: "linear-gradient(135deg, #7C3AED, #A78BFA)" }}
+        >
+          <Zap size={28} className="text-white" />
+        </div>
+        <p className="text-sm text-zinc-500 flex items-center gap-2">
+          <Loader2 size={18} className="animate-spin" />
+          Verifying...
+        </p>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <PasswordGate onSuccess={login} />;
