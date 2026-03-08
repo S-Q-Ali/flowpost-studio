@@ -69,6 +69,11 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      await supabase
+        .from("posts")
+        .update({ status: "processing" })
+        .eq("id", post.id);
+
       const res = await fetch(
         `${supabaseUrl}/functions/v1/${functionName}`,
         {
@@ -85,6 +90,10 @@ Deno.serve(async (req) => {
       if (res.ok) {
         processed++;
       } else {
+        await supabase
+          .from("posts")
+          .update({ status: "failed" })
+          .eq("id", post.id);
         console.error(`${functionName} failed for post ${post.id}`, await res.text());
       }
     }

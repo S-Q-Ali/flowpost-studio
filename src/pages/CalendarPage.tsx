@@ -46,6 +46,7 @@ export default function CalendarPage() {
   const statusColor = (status: PostStatus) => {
     if (status === "published") return "bg-status-published";
     if (status === "failed") return "bg-status-failed";
+    if (status === "processing") return "bg-status-processing";
     return "bg-status-scheduled";
   };
 

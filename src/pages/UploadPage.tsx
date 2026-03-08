@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,6 +59,7 @@ export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [containsAlteredContent, setContainsAlteredContent] = useState(true);
   const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     const load = async () => {
@@ -138,33 +139,42 @@ export default function UploadPage() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     if (!file) {
       toast.error("Please upload a video file");
+      isSubmittingRef.current = false;
       return;
     }
     if (selectedPlatforms.length === 0) {
       toast.error("Please select at least one platform");
+      isSubmittingRef.current = false;
       return;
     }
     const youtubeSelected = selectedPlatforms.includes("youtube");
     if (youtubeSelected) {
       if (!youtubeTitle.trim()) {
         toast.error("YouTube title is required");
+        isSubmittingRef.current = false;
         return;
       }
       if (selectedYouTubeAccountIds.length === 0) {
         toast.error("Select at least one YouTube channel");
+        isSubmittingRef.current = false;
         return;
       }
     }
     const facebookSelected = selectedPlatforms.includes("facebook");
     if (facebookSelected && selectedFacebookPageIds.length === 0) {
       toast.error("Select at least one Facebook Page");
+      isSubmittingRef.current = false;
       return;
     }
     const instagramSelected = selectedPlatforms.includes("instagram");
     if (instagramSelected && selectedInstagramAccountIds.length === 0) {
       toast.error("Select at least one Instagram account");
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -207,6 +217,18 @@ export default function UploadPage() {
       for (const platform of selectedPlatforms) {
         if (platform === "youtube") {
           for (const accountId of selectedYouTubeAccountIds) {
+            const { data: existing } = await supabase
+              .from("posts")
+              .select("id")
+              .eq("video_id", videoId)
+              .eq("platform", platform)
+              .eq("account_id", accountId)
+              .eq("status", "scheduled")
+              .maybeSingle();
+            if (existing) {
+              console.log("Post already exists, skipping", { videoId, platform, accountId });
+              continue;
+            }
             const platformCaption = youtubeDescription.trim() || null;
             posts.push({
               user_id: PERSONAL_USER_ID,
@@ -222,8 +244,20 @@ export default function UploadPage() {
             });
           }
         } else if (platform === "instagram") {
-          const platformCaption = instagramCaption.trim() || null;
           for (const accountId of selectedInstagramAccountIds) {
+            const { data: existing } = await supabase
+              .from("posts")
+              .select("id")
+              .eq("video_id", videoId)
+              .eq("platform", platform)
+              .eq("account_id", accountId)
+              .eq("status", "scheduled")
+              .maybeSingle();
+            if (existing) {
+              console.log("Post already exists, skipping", { videoId, platform, accountId });
+              continue;
+            }
+            const platformCaption = instagramCaption.trim() || null;
             posts.push({
               user_id: PERSONAL_USER_ID,
               video_id: videoId,
@@ -237,8 +271,20 @@ export default function UploadPage() {
             });
           }
         } else if (platform === "facebook") {
-          const platformCaption = facebookCaption.trim() || null;
           for (const accountId of selectedFacebookPageIds) {
+            const { data: existing } = await supabase
+              .from("posts")
+              .select("id")
+              .eq("video_id", videoId)
+              .eq("platform", platform)
+              .eq("account_id", accountId)
+              .eq("status", "scheduled")
+              .maybeSingle();
+            if (existing) {
+              console.log("Post already exists, skipping", { videoId, platform, accountId });
+              continue;
+            }
+            const platformCaption = facebookCaption.trim() || null;
             posts.push({
               user_id: PERSONAL_USER_ID,
               video_id: videoId,
@@ -252,6 +298,14 @@ export default function UploadPage() {
             });
           }
         }
+      }
+
+      if (posts.length === 0) {
+        toast.info("All selected posts already exist in queue.");
+        if (isPublishNow) navigate("/queue");
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+        return;
       }
 
       const { data: insertedPosts, error: postsError } = await supabase.from("posts").insert(posts).select("id, platform, account_id");
@@ -355,6 +409,7 @@ export default function UploadPage() {
     } finally {
       setIsSubmitting(false);
       setUploadProgress(0);
+      isSubmittingRef.current = false;
     }
   };
 

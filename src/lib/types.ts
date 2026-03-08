@@ -1,5 +1,5 @@
 export type Platform = 'facebook' | 'instagram' | 'youtube';
-export type PostStatus = 'scheduled' | 'published' | 'failed';
+export type PostStatus = 'scheduled' | 'processing' | 'published' | 'failed';
 
 export interface Video {
   id: string;

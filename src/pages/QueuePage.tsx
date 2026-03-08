@@ -38,7 +38,7 @@ import { toast } from "sonner";
 import type { Post, Platform, PostStatus } from "@/lib/types";
 
 const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
-const filters = ["all", "scheduled", "published", "failed"] as const;
+const filters = ["all", "scheduled", "processing", "published", "failed"] as const;
 
 type PostWithDetails = Post & { channelName?: string | null };
 
