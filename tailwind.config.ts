@@ -65,6 +65,7 @@ export default {
         instagram: "hsl(var(--instagram))",
         youtube: "hsl(var(--youtube))",
         "status-scheduled": "hsl(var(--status-scheduled))",
+        "status-processing": "hsl(var(--status-processing))",
         "status-published": "hsl(var(--status-published))",
         "status-failed": "hsl(var(--status-failed))",
       },
