@@ -6,6 +6,7 @@ import {
   ListTodo,
   Link2,
   Zap,
+  Lock,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -16,8 +17,16 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -31,6 +40,7 @@ const navItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+  const { logout } = useAuth();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
@@ -68,6 +78,23 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="p-2 border-t border-border">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <SidebarMenuButton
+                onClick={logout}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground w-full"
+              >
+                <Lock size={18} />
+                {!collapsed && <span>Lock</span>}
+              </SidebarMenuButton>
+            </TooltipTrigger>
+            <TooltipContent side="right">Lock app (logout)</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </SidebarFooter>
     </Sidebar>
   );
 }
