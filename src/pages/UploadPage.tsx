@@ -139,49 +139,42 @@ export default function UploadPage() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
-
-    if (!file) {
-      toast.error("Please upload a video file");
-      isSubmittingRef.current = false;
-      return;
-    }
-    if (selectedPlatforms.length === 0) {
-      toast.error("Please select at least one platform");
-      isSubmittingRef.current = false;
-      return;
-    }
-    const youtubeSelected = selectedPlatforms.includes("youtube");
-    if (youtubeSelected) {
-      if (!youtubeTitle.trim()) {
-        toast.error("YouTube title is required");
-        isSubmittingRef.current = false;
-        return;
-      }
-      if (selectedYouTubeAccountIds.length === 0) {
-        toast.error("Select at least one YouTube channel");
-        isSubmittingRef.current = false;
-        return;
-      }
-    }
-    const facebookSelected = selectedPlatforms.includes("facebook");
-    if (facebookSelected && selectedFacebookPageIds.length === 0) {
-      toast.error("Select at least one Facebook Page");
-      isSubmittingRef.current = false;
-      return;
-    }
-    const instagramSelected = selectedPlatforms.includes("instagram");
-    if (instagramSelected && selectedInstagramAccountIds.length === 0) {
-      toast.error("Select at least one Instagram account");
-      isSubmittingRef.current = false;
-      return;
-    }
-
-    setIsSubmitting(true);
     setUploadProgress(0);
 
     try {
+      if (!file) {
+        toast.error("Please upload a video file");
+        return;
+      }
+      if (selectedPlatforms.length === 0) {
+        toast.error("Please select at least one platform");
+        return;
+      }
+      const youtubeSelected = selectedPlatforms.includes("youtube");
+      if (youtubeSelected) {
+        if (!youtubeTitle.trim()) {
+          toast.error("YouTube title is required");
+          return;
+        }
+        if (selectedYouTubeAccountIds.length === 0) {
+          toast.error("Select at least one YouTube channel");
+          return;
+        }
+      }
+      const facebookSelected = selectedPlatforms.includes("facebook");
+      if (facebookSelected && selectedFacebookPageIds.length === 0) {
+        toast.error("Select at least one Facebook Page");
+        return;
+      }
+      const instagramSelected = selectedPlatforms.includes("instagram");
+      if (instagramSelected && selectedInstagramAccountIds.length === 0) {
+        toast.error("Select at least one Instagram account");
+        return;
+      }
       let videoId = uploadedVideoId;
       const youtubeSelectedNow = selectedPlatforms.includes("youtube");
 
@@ -271,6 +264,8 @@ export default function UploadPage() {
             });
           }
         } else if (platform === "facebook") {
+          // Facebook posts created only here (single place)
+          console.log("Creating Facebook posts for pages:", selectedFacebookPageIds);
           for (const accountId of selectedFacebookPageIds) {
             const { data: existing } = await supabase
               .from("posts")
@@ -303,8 +298,6 @@ export default function UploadPage() {
       if (posts.length === 0) {
         toast.info("All selected posts already exist in queue.");
         if (isPublishNow) navigate("/queue");
-        isSubmittingRef.current = false;
-        setIsSubmitting(false);
         return;
       }
 
