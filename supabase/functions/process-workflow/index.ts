@@ -307,7 +307,6 @@ Deno.serve(async (req) => {
       const statusIdx = headerIndex["status"];
       const ytChannelsIdx = headerIndex["youtube_channels"];
       const fbPagesIdx = headerIndex["facebook_pages"];
-      const igAccountsIdx = headerIndex["instagram_accounts"];
 
       if (
         videoUrlIdx === undefined || statusIdx === undefined
@@ -425,9 +424,6 @@ Deno.serve(async (req) => {
           const rowFbPages = fbPagesIdx !== undefined
             ? parseList(row[fbPagesIdx])
             : [];
-          const rowIgAccounts = igAccountsIdx !== undefined
-            ? parseList(row[igAccountsIdx])
-            : [];
 
           const ytAccounts = rowYtChannels.length
             ? rowYtChannels
@@ -435,9 +431,7 @@ Deno.serve(async (req) => {
           const fbAccounts = rowFbPages.length
             ? rowFbPages
             : (wf.facebook_page_ids ?? []);
-          const igAccounts = rowIgAccounts.length
-            ? rowIgAccounts
-            : (wf.instagram_account_ids ?? []);
+          const igAccounts = wf.instagram_account_ids ?? [];
 
           const postsPayload: any[] = [];
           const nowIso = new Date().toISOString();
