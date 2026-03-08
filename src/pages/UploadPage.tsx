@@ -206,7 +206,7 @@ export default function UploadPage() {
         scheduledAt = d.toISOString();
       }
 
-      const posts: { user_id: string; video_id: string; platform: string; caption: string | null; hashtags: string | null; scheduled_at: string; status: "scheduled"; captions_enabled: boolean; account_id?: string | null; contains_altered_content?: boolean }[] = [];
+      const posts: { user_id: string; video_id: string; platform: string; caption: string | null; hashtags: string | null; scheduled_at: string; status: "scheduled" | "processing"; captions_enabled: boolean; account_id?: string | null; contains_altered_content?: boolean }[] = [];
       for (const platform of selectedPlatforms) {
         if (platform === "youtube") {
           for (const accountId of selectedYouTubeAccountIds) {
@@ -231,7 +231,7 @@ export default function UploadPage() {
               caption: platformCaption,
               hashtags,
               scheduled_at: scheduledAt,
-              status: "scheduled",
+              status: isPublishNow ? "processing" : "scheduled",
               captions_enabled: captionsEnabled,
               contains_altered_content: containsAlteredContent,
             });
@@ -259,7 +259,7 @@ export default function UploadPage() {
               caption: platformCaption,
               hashtags,
               scheduled_at: scheduledAt,
-              status: "scheduled",
+              status: isPublishNow ? "processing" : "scheduled",
               captions_enabled: captionsEnabled,
             });
           }
@@ -288,7 +288,7 @@ export default function UploadPage() {
               caption: platformCaption,
               hashtags,
               scheduled_at: scheduledAt,
-              status: "scheduled",
+              status: isPublishNow ? "processing" : "scheduled",
               captions_enabled: captionsEnabled,
             });
           }
@@ -301,7 +301,7 @@ export default function UploadPage() {
         return;
       }
 
-      const { data: insertedPosts, error: postsError } = await supabase.from("posts").insert(posts).select("id, platform, account_id");
+      const { data: insertedPosts, error: postsError } = await supabase.from("posts").insert(posts).select("id, platform, account_id, status");
       if (postsError) throw postsError;
 
       const { data: workflows } = await supabase
@@ -340,6 +340,12 @@ export default function UploadPage() {
       }
 
       if (isPublishNow && insertedPosts?.length) {
+        const createdPostIds = insertedPosts.map((p: { id: string }) => p.id);
+        await supabase
+          .from("posts")
+          .update({ status: "processing" })
+          .in("id", createdPostIds);
+
         const youtubePosts = insertedPosts.filter((p: { platform: string }) => p.platform === "youtube");
         const facebookPosts = insertedPosts.filter((p: { platform: string }) => p.platform === "facebook");
 
