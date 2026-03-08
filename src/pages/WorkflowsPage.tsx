@@ -591,12 +591,16 @@ export default function WorkflowsPage() {
 
     // Step 4 - Google Sheet
     return (
-      <div className="space-y-4">
+        <div className="space-y-4">
         <div className="space-y-1">
           <Label>Google Sheet URL</Label>
           <p className="text-xs text-muted-foreground">
-            Sheet must have columns:{" "}
-            <code className="text-[10px]">video_url, title, description, platforms, scheduled_time, status, youtube_channels, facebook_pages</code>
+            Sheet must include these required columns:{" "}
+            <code className="text-[10px]">video_url, title, description, status</code>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Optional columns:{" "}
+            <code className="text-[10px]">platforms, scheduled_time, youtube_channels, facebook_pages</code>
           </p>
         </div>
         <Input
@@ -621,9 +625,9 @@ export default function WorkflowsPage() {
             How to set up your Google Sheet
           </summary>
           <p>
-            Each row represents a video to post. Use <code>platforms</code> to specify where it should go
-            (e.g. <code>youtube,facebook</code>). Use <code>status</code> to control posting
-            (e.g. <code>pending</code>, <code>posted</code>).
+            Each row represents a video to post. Use <code>platforms</code> to optionally override
+            the workflow platforms (e.g. <code>youtube,facebook</code>). Use <code>status</code> with
+            values like <code>ready to post</code> / <code>posted</code> to control posting.
           </p>
         </details>
       </div>
