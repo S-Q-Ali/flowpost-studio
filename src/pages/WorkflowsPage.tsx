@@ -38,6 +38,7 @@ type WorkflowRow = {
   youtube_channel_ids: string[] | null;
   facebook_page_ids: string[] | null;
   instagram_account_ids: string[] | null;
+  youtube_altered_content: boolean | null;
   trigger_hour_start: number;
   trigger_hour_end: number;
   max_videos_per_trigger: number | null;
@@ -88,6 +89,7 @@ export default function WorkflowsPage() {
   const [triggerEndHour, setTriggerEndHour] = useState<number>(15);
   const [maxVideos, setMaxVideos] = useState<number>(3);
   const [sheetUrl, setSheetUrl] = useState("");
+  const [youtubeAlteredContent, setYoutubeAlteredContent] = useState<boolean>(true);
 
   const [deleteTarget, setDeleteTarget] = useState<WorkflowRow | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -148,6 +150,7 @@ export default function WorkflowsPage() {
     setTriggerStartHour(14);
     setTriggerEndHour(15);
     setMaxVideos(3);
+    setYoutubeAlteredContent(true);
     setSheetUrl("");
     setSelectedWorkflow(null);
     setActiveStep(1);
@@ -172,6 +175,7 @@ export default function WorkflowsPage() {
     setTriggerStartHour(wf.trigger_hour_start ?? 14);
     setTriggerEndHour(wf.trigger_hour_end ?? 15);
     setMaxVideos(wf.max_videos_per_trigger ?? 3);
+    setYoutubeAlteredContent(wf.youtube_altered_content ?? true);
     setSheetUrl(wf.sheet_url ?? "");
     setActiveStep(1);
     setSheetOpen(true);
@@ -241,6 +245,7 @@ export default function WorkflowsPage() {
         youtube_channel_ids: selectedYoutubeIds,
         facebook_page_ids: selectedFacebookIds,
         instagram_account_ids: selectedInstagramIds,
+        youtube_altered_content: youtubeAlteredContent,
         trigger_hour_start: triggerStartHour,
         trigger_hour_end: triggerEndHour,
         max_videos_per_trigger: maxVideos,
@@ -565,6 +570,20 @@ export default function WorkflowsPage() {
             <p className="text-xs text-muted-foreground">
               How many videos to post in one trigger.
             </p>
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label>YouTube Altered Content</Label>
+                <p className="text-xs text-muted-foreground">
+                  Mark YouTube videos as AI-generated or altered content.
+                </p>
+              </div>
+              <Switch
+                checked={youtubeAlteredContent}
+                onCheckedChange={setYoutubeAlteredContent}
+              />
+            </div>
           </div>
         </div>
       );
