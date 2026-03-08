@@ -447,7 +447,7 @@ Deno.serve(async (req) => {
                   caption: description || null,
                   hashtags: null,
                   scheduled_at: nowIso,
-                  status: "scheduled",
+                  status: "processing",
                   captions_enabled: true,
                   contains_altered_content: wf.youtube_altered_content ?? true,
                 });
@@ -462,7 +462,7 @@ Deno.serve(async (req) => {
                   caption: description || null,
                   hashtags: null,
                   scheduled_at: nowIso,
-                  status: "scheduled",
+                  status: "processing",
                   captions_enabled: true,
                 });
               }
@@ -476,7 +476,7 @@ Deno.serve(async (req) => {
                   caption: description || null,
                   hashtags: null,
                   scheduled_at: nowIso,
-                  status: "scheduled",
+                  status: "processing",
                   captions_enabled: true,
                 });
               }
