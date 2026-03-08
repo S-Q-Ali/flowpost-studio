@@ -227,10 +227,13 @@ Deno.serve(async (req) => {
     let totalProcessedVideos = 0;
     let workflowsTriggered = 0;
 
-    // Pakistan time hour calculation (UTC+5)
-    const currentUtcHour = new Date().getUTCHours();
-    const pktHour = (currentUtcHour + 5) % 24;
-    const today = toPkDateString(new Date());
+    // Pakistan time hour calculation using Asia/Karachi timezone
+    const now = new Date();
+    const pktTime = new Date(
+      now.toLocaleString("en-US", { timeZone: "Asia/Karachi" }),
+    );
+    const pktHour = pktTime.getHours();
+    const today = toPkDateString(pktTime);
 
     for (const wf of list) {
       const sheetId: string | undefined =
@@ -244,6 +247,10 @@ Deno.serve(async (req) => {
       if (!workflowId) {
         const start = wf.trigger_hour_start ?? 14;
         const end = wf.trigger_hour_end ?? 15;
+
+        console.log("UTC hour:", now.getUTCHours());
+        console.log("PKT hour:", pktHour);
+        console.log("Workflow window:", start, "-", end);
 
         if (pktHour < start || pktHour >= end) {
           continue;
