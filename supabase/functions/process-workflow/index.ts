@@ -244,8 +244,8 @@ Deno.serve(async (req) => {
         console.log("UTC minute:", utcMinute);
         console.log("Workflow window (UTC):", start, "-", end);
 
-        // Trigger window check in UTC
-        if (utcHour < start || utcHour >= end) {
+        // Trigger window check in UTC (end hour inclusive so 23:00 is inside 22-23 window)
+        if (utcHour < start || utcHour > end) {
           continue;
         }
 
