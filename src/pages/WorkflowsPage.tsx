@@ -53,9 +53,6 @@ type Step = 1 | 2 | 3 | 4;
 
 const hourOptions = Array.from({ length: 24 }, (_, i) => i); // 0-23 UTC
 
-const formatHourUtc = (hour: number) =>
-  `${hour.toString().padStart(2, "0")}:00 UTC`;
-
 const platformOptions: { id: Platform; label: string; icon: React.ComponentType<any>; color: string }[] = [
   { id: "youtube", label: "YouTube Shorts", icon: Youtube, color: "text-red-500" },
   { id: "facebook", label: "Facebook Page", icon: Facebook, color: "text-blue-500" },
@@ -80,8 +77,8 @@ export default function WorkflowsPage() {
   const [selectedYoutubeIds, setSelectedYoutubeIds] = useState<string[]>([]);
   const [selectedFacebookIds, setSelectedFacebookIds] = useState<string[]>([]);
   const [selectedInstagramIds, setSelectedInstagramIds] = useState<string[]>([]);
-  const [triggerStartHour, setTriggerStartHour] = useState<number>(14);
-  const [triggerEndHour, setTriggerEndHour] = useState<number>(15);
+  const [triggerStartHour, setTriggerStartHour] = useState<number>(0);
+  const [triggerEndHour, setTriggerEndHour] = useState<number>(1);
   const [maxVideos, setMaxVideos] = useState<number>(3);
   const [sheetUrl, setSheetUrl] = useState("");
   const [youtubeAlteredContent, setYoutubeAlteredContent] = useState<boolean>(true);
@@ -142,8 +139,8 @@ export default function WorkflowsPage() {
     setSelectedYoutubeIds([]);
     setSelectedFacebookIds([]);
     setSelectedInstagramIds([]);
-    setTriggerStartHour(14);
-    setTriggerEndHour(15);
+    setTriggerStartHour(0);
+    setTriggerEndHour(1);
     setMaxVideos(3);
     setYoutubeAlteredContent(true);
     setSheetUrl("");
@@ -167,8 +164,8 @@ export default function WorkflowsPage() {
     setSelectedYoutubeIds(wf.youtube_channel_ids ?? []);
     setSelectedFacebookIds(wf.facebook_page_ids ?? []);
     setSelectedInstagramIds(wf.instagram_account_ids ?? []);
-    setTriggerStartHour(wf.trigger_hour_start ?? 14);
-    setTriggerEndHour(wf.trigger_hour_end ?? 15);
+    setTriggerStartHour(wf.trigger_hour_start ?? 0);
+    setTriggerEndHour(wf.trigger_hour_end ?? 1);
     setMaxVideos(wf.max_videos_per_trigger ?? 3);
     setYoutubeAlteredContent(wf.youtube_altered_content ?? true);
     setSheetUrl(wf.sheet_url ?? "");
@@ -533,7 +530,7 @@ export default function WorkflowsPage() {
               >
                 {hourOptions.map((h) => (
                   <option key={h} value={h}>
-                    {formatHourUtc(h)}
+                    {h.toString().padStart(2, "0")}:00 UTC
                   </option>
                 ))}
               </select>
@@ -547,7 +544,7 @@ export default function WorkflowsPage() {
               >
                 {hourOptions.map((h) => (
                   <option key={h} value={h}>
-                    {formatHourUtc(h)}
+                    {h.toString().padStart(2, "0")}:00 UTC
                   </option>
                 ))}
               </select>
@@ -665,8 +662,8 @@ export default function WorkflowsPage() {
   };
 
   const renderWorkflowTriggerText = (wf: WorkflowRow) => {
-    const start = wf.trigger_hour_start ?? 14;
-    const end = wf.trigger_hour_end ?? 15;
+    const start = wf.trigger_hour_start ?? 0;
+    const end = wf.trigger_hour_end ?? 1;
     const startLabel = `${start.toString().padStart(2, "0")}:00`;
     const endLabel = `${end.toString().padStart(2, "0")}:00`;
     return `Posts between ${startLabel} - ${endLabel} UTC`;
