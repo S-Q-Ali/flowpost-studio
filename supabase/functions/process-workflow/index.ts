@@ -222,13 +222,10 @@ Deno.serve(async (req) => {
     let totalProcessedVideos = 0;
     let workflowsTriggered = 0;
 
-    // Pakistan time hour calculation using Asia/Karachi timezone
+    // Use UTC time directly for scheduling
     const now = new Date();
-    const pktTime = new Date(
-      now.toLocaleString("en-US", { timeZone: "Asia/Karachi" }),
-    );
-    const pktHour = pktTime.getHours();
-    const pktMinute = pktTime.getMinutes();
+    const utcHour = now.getUTCHours();
+    const utcMinute = now.getUTCMinutes();
 
     for (const wf of list) {
       const sheetId: string | undefined =
@@ -243,16 +240,18 @@ Deno.serve(async (req) => {
         const start = wf.trigger_hour_start ?? 14;
         const end = wf.trigger_hour_end ?? 15;
 
-        console.log("UTC hour:", now.getUTCHours());
-        console.log("PKT hour:", pktHour);
-        console.log("Workflow window:", start, "-", end);
+        console.log("UTC hour:", utcHour);
+        console.log("UTC minute:", utcMinute);
+        console.log("Workflow window (UTC):", start, "-", end);
 
-        if (pktHour < start || pktHour >= end) {
+        // Trigger window check in UTC
+        if (utcHour < start || utcHour >= end) {
           continue;
         }
 
-        const todayIso = new Date().toISOString().slice(0, 10);
-        const seed = String(wf.id ?? "") + todayIso;
+        // Deterministic random minute and hour within window (UTC)
+        const todayUtc = now.toISOString().slice(0, 10);
+        const seed = String(wf.id ?? "") + todayUtc;
         let hash = 0;
         for (let i = 0; i < seed.length; i++) {
           hash = ((hash << 5) - hash) + seed.charCodeAt(i);
@@ -268,29 +267,27 @@ Deno.serve(async (req) => {
         console.log(
           `Workflow ${wf.name}: random trigger time set to ${randomHour}:${randomMinute
             .toString()
-            .padStart(2, "0")} PKT`,
+            .padStart(2, "0")} UTC`,
         );
 
+        // Skip until random trigger time reached in UTC
         if (
-          pktHour < randomHour ||
-          (pktHour === randomHour && pktMinute < randomMinute)
+          utcHour < randomHour ||
+          (utcHour === randomHour && utcMinute < randomMinute)
         ) {
           continue;
         }
 
+        // Already triggered today check (UTC date)
         const lastTriggered = wf.last_triggered_at
           ? new Date(wf.last_triggered_at)
           : null;
-        const todayPkt = new Date()
-          .toLocaleString("en-US", { timeZone: "Asia/Karachi" })
-          .split(",")[0];
-        const lastTriggeredPkt = lastTriggered
-          ? lastTriggered
-            .toLocaleString("en-US", { timeZone: "Asia/Karachi" })
-            .split(",")[0]
+        const lastTriggeredUtc = lastTriggered
+          ? lastTriggered.toISOString().slice(0, 10)
           : null;
 
-        if (lastTriggeredPkt === todayPkt) {
+        if (lastTriggeredUtc === todayUtc) {
+          console.log("Already triggered today, skipping");
           continue;
         }
       }
@@ -576,8 +573,16 @@ Deno.serve(async (req) => {
                 },
                 body: JSON.stringify({ postId: post.id }),
               });
-            } else {
-              // Instagram: posts are created, but upload is skipped for now
+            } else if (post.platform === "instagram") {
+              await fetch(`${SB_URL}/functions/v1/instagram-upload`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                  apikey: SB_SERVICE_ROLE_KEY!,
+                },
+                body: JSON.stringify({ postId: post.id }),
+              });
             }
           }
 
