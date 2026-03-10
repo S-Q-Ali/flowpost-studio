@@ -153,11 +153,6 @@ async function uploadVideoToR2FromBytes(
   return data.publicUrl;
 }
 
-function toPkDateString(date: Date): string {
-  // Use UTC date string (sufficient for "already today" guard)
-  return date.toISOString().slice(0, 10);
-}
-
 function parseList(value: string | undefined | null): string[] {
   if (!value) return [];
   return value
@@ -233,7 +228,7 @@ Deno.serve(async (req) => {
       now.toLocaleString("en-US", { timeZone: "Asia/Karachi" }),
     );
     const pktHour = pktTime.getHours();
-    const today = toPkDateString(pktTime);
+    const pktMinute = pktTime.getMinutes();
 
     for (const wf of list) {
       const sheetId: string | undefined =
@@ -256,8 +251,46 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const lastTriggered: string | null = wf.last_triggered_at ?? null;
-        if (lastTriggered && lastTriggered.startsWith(today)) {
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const seed = String(wf.id ?? "") + todayIso;
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+          hash |= 0;
+        }
+
+        const randomMinute = Math.abs(hash) % 60;
+        const windowSizeRaw = end - start;
+        const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
+        const randomHourOffset = Math.abs(hash >> 8) % windowSize;
+        const randomHour = start + randomHourOffset;
+
+        console.log(
+          `Workflow ${wf.name}: random trigger time set to ${randomHour}:${randomMinute
+            .toString()
+            .padStart(2, "0")} PKT`,
+        );
+
+        if (
+          pktHour < randomHour ||
+          (pktHour === randomHour && pktMinute < randomMinute)
+        ) {
+          continue;
+        }
+
+        const lastTriggered = wf.last_triggered_at
+          ? new Date(wf.last_triggered_at)
+          : null;
+        const todayPkt = new Date()
+          .toLocaleString("en-US", { timeZone: "Asia/Karachi" })
+          .split(",")[0];
+        const lastTriggeredPkt = lastTriggered
+          ? lastTriggered
+            .toLocaleString("en-US", { timeZone: "Asia/Karachi" })
+            .split(",")[0]
+          : null;
+
+        if (lastTriggeredPkt === todayPkt) {
           continue;
         }
       }
