@@ -87,32 +87,6 @@ async function fetchFacebookPages(longLivedUserToken: string) {
   return pages.filter((p) => !!p.id && !!p.access_token);
 }
 
-async function fetchLinkedInstagramBusinessAccount(pageId: string, pageAccessToken: string) {
-  const url = new URL(`https://graph.facebook.com/v21.0/${pageId}`);
-  url.searchParams.set("access_token", pageAccessToken);
-  url.searchParams.set(
-    "fields",
-    "instagram_business_account{id,name,username,profile_picture_url,followers_count}",
-  );
-
-  const res = await fetch(url.toString(), { method: "GET" });
-  const jsonRes = await res.json();
-  if (!res.ok) throw new Error(`FB page IG lookup failed: ${JSON.stringify(jsonRes)}`);
-
-  const ig = jsonRes?.instagram_business_account as
-    | {
-      id: string;
-      name?: string;
-      username?: string;
-      profile_picture_url?: string;
-      followers_count?: number;
-    }
-    | undefined;
-
-  if (!ig?.id) return null;
-  return ig;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -149,10 +123,17 @@ Deno.serve(async (req) => {
       const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
       authUrl.searchParams.set("client_id", FB_APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
-      authUrl.searchParams.set(
-        "scope",
-        "pages_manage_posts,pages_read_engagement,pages_show_list,instagram_content_publish,business_management,public_profile",
-      );
+      const scope = [
+        "pages_show_list",
+        "pages_read_engagement",
+        "pages_manage_posts",
+        "instagram_basic",
+        "instagram_content_publish",
+        "instagram_manage_comments",
+        "business_management",
+        "public_profile",
+      ].join(",");
+      authUrl.searchParams.set("scope", scope);
       authUrl.searchParams.set("response_type", "code");
 
       return json({ url: authUrl.toString() });
@@ -197,23 +178,33 @@ Deno.serve(async (req) => {
 
         if (fbUpsertError) throw fbUpsertError;
 
-        const ig = await fetchLinkedInstagramBusinessAccount(page.id, pageAccessToken);
-        if (ig) {
+        // Fetch connected Instagram account for this page
+        const igResponse = await fetch(
+          `https://graph.facebook.com/v18.0/${page.id}?fields=instagram_business_account&access_token=${pageAccessToken}`,
+        );
+        const igData = await igResponse.json();
+
+        if (igData.instagram_business_account) {
+          const igAccountRes = await fetch(
+            `https://graph.facebook.com/v18.0/${igData.instagram_business_account.id}?fields=id,name,username,profile_picture_url&access_token=${pageAccessToken}`,
+          );
+          const igAccount = await igAccountRes.json();
+
           const { error: igUpsertError } = await supabaseAdmin
             .from("connected_accounts")
             .upsert(
               {
                 user_id: PERSONAL_USER_ID,
                 platform: "instagram",
-                account_name: ig.username ?? ig.name ?? "Instagram",
-                account_id: ig.id,
+                account_name: igAccount.username || igAccount.name || "Instagram",
+                account_id: igAccount.id,
                 access_token: pageAccessToken,
                 is_connected: true,
                 connected_at: new Date().toISOString(),
                 metadata: {
-                  followers_count: typeof ig.followers_count === "number" ? ig.followers_count : null,
-                  profile_picture_url: ig.profile_picture_url ?? null,
-                  linked_page_id: page.id,
+                  page_id: page.id,
+                  page_name: page.name,
+                  profile_picture: igAccount.profile_picture_url,
                 },
               },
               { onConflict: "user_id,platform,account_id" },
