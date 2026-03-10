@@ -339,7 +339,7 @@ export default function UploadPage() {
         }
       }
 
-      if (isPublishNow && insertedPosts && insertedPosts.length > 0) {
+        if (isPublishNow && insertedPosts && insertedPosts.length > 0) {
         const createdPostIds = insertedPosts.map((p: any) => p.id);
 
         await supabase
@@ -351,6 +351,8 @@ export default function UploadPage() {
           insertedPosts.filter((p: any) => p.platform === "youtube") ?? [];
         const facebookPosts =
           insertedPosts.filter((p: any) => p.platform === "facebook") ?? [];
+        const instagramPosts =
+          insertedPosts.filter((p: any) => p.platform === "instagram") ?? [];
 
         if (youtubePosts.length > 0) {
           toast.info("Uploading to YouTube...");
@@ -402,7 +404,32 @@ export default function UploadPage() {
           }
         }
 
-        if (youtubePosts.length > 0 || facebookPosts.length > 0) {
+        if (instagramPosts.length > 0) {
+          toast.info("Uploading to Instagram...");
+          let allOk = true;
+          for (const post of instagramPosts) {
+            const res = await fetch(
+              `${supabaseUrl}/functions/v1/instagram-upload`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${anonKey}`,
+                  apikey: anonKey,
+                },
+                body: JSON.stringify({ postId: post.id }),
+              },
+            );
+            if (!res.ok) {
+              allOk = false;
+            }
+          }
+          if (!allOk) {
+            toast.error("Some Instagram uploads failed, check Queue");
+          }
+        }
+
+        if (youtubePosts.length > 0 || facebookPosts.length > 0 || instagramPosts.length > 0) {
           toast.success("Video publishing triggered!");
         }
       }

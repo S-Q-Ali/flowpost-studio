@@ -63,8 +63,9 @@ Deno.serve(async (req) => {
         functionName = "youtube-upload";
       } else if (post.platform === "facebook") {
         functionName = "facebook-upload";
+      } else if (post.platform === "instagram") {
+        functionName = "instagram-upload";
       } else {
-        // Skip instagram and any other unsupported platforms for now
         console.log(`Skipping scheduled post ${post.id} for platform ${post.platform}`);
         continue;
       }

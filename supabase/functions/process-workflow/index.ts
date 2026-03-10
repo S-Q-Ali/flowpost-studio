@@ -576,8 +576,16 @@ Deno.serve(async (req) => {
                 },
                 body: JSON.stringify({ postId: post.id }),
               });
-            } else {
-              // Instagram: posts are created, but upload is skipped for now
+            } else if (post.platform === "instagram") {
+              await fetch(`${SB_URL}/functions/v1/instagram-upload`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                  apikey: SB_SERVICE_ROLE_KEY!,
+                },
+                body: JSON.stringify({ postId: post.id }),
+              });
             }
           }
 
