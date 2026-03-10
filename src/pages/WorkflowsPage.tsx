@@ -23,7 +23,7 @@ import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Cl
 import { toast } from "sonner";
 import type { Platform, ConnectedAccount } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow, setHours, setMinutes } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 
 const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -51,15 +51,10 @@ type WorkflowRow = {
 type Mode = "create" | "edit";
 type Step = 1 | 2 | 3 | 4;
 
-const hourOptions = Array.from({ length: 23 }, (_, i) => i + 1); // 1-23
+const hourOptions = Array.from({ length: 24 }, (_, i) => i); // 0-23 UTC
 
-const formatHour = (hour: number) => {
-  const date = setMinutes(setHours(new Date(), hour % 24), 0);
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    hour12: true,
-  }).format(date);
-};
+const formatHourUtc = (hour: number) =>
+  `${hour.toString().padStart(2, "0")}:00 UTC`;
 
 const platformOptions: { id: Platform; label: string; icon: React.ComponentType<any>; color: string }[] = [
   { id: "youtube", label: "YouTube Shorts", icon: Youtube, color: "text-red-500" },
@@ -523,7 +518,7 @@ export default function WorkflowsPage() {
       return (
         <div className="space-y-4">
           <div className="space-y-1">
-            <Label>Trigger Window</Label>
+            <Label>Post between (UTC time)</Label>
             <p className="text-xs text-muted-foreground">
               FlowPost will pick a random time within this window each day.
             </p>
@@ -538,7 +533,7 @@ export default function WorkflowsPage() {
               >
                 {hourOptions.map((h) => (
                   <option key={h} value={h}>
-                    {formatHour(h)}
+                    {formatHourUtc(h)}
                   </option>
                 ))}
               </select>
@@ -552,11 +547,22 @@ export default function WorkflowsPage() {
               >
                 {hourOptions.map((h) => (
                   <option key={h} value={h}>
-                    {formatHour(h)}
+                    {formatHourUtc(h)}
                   </option>
                 ))}
               </select>
             </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">
+              Times are in UTC. Current UTC time: {new Date().toUTCString()}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Pakistan (PKT) = UTC + 5<br />
+              USA Eastern (EST) = UTC - 5<br />
+              USA Central (CST) = UTC - 6<br />
+              USA Pacific (PST) = UTC - 8
+            </p>
           </div>
           <div className="space-y-1">
             <Label>Maximum videos per trigger</Label>
@@ -659,9 +665,11 @@ export default function WorkflowsPage() {
   };
 
   const renderWorkflowTriggerText = (wf: WorkflowRow) => {
-    const start = formatHour(wf.trigger_hour_start ?? 14);
-    const end = formatHour(wf.trigger_hour_end ?? 15);
-    return `Posts between ${start} - ${end}`;
+    const start = wf.trigger_hour_start ?? 14;
+    const end = wf.trigger_hour_end ?? 15;
+    const startLabel = `${start.toString().padStart(2, "0")}:00`;
+    const endLabel = `${end.toString().padStart(2, "0")}:00`;
+    return `Posts between ${startLabel} - ${endLabel} UTC`;
   };
 
   const renderLastTriggered = (wf: WorkflowRow) => {
