@@ -527,7 +527,7 @@ Deno.serve(async (req) => {
           const { data: insertedPosts, error: postsError } = await supabase
             .from("posts")
             .insert(postsPayload)
-            .select("id, platform");
+            .select("id, platform, account_id");
 
           if (postsError || !insertedPosts) {
             console.error("Failed to insert posts", postsError);
@@ -552,7 +552,11 @@ Deno.serve(async (req) => {
           }
 
           // Kick off uploads via existing Edge Functions
-          for (const post of insertedPosts as { id: string; platform: string }[]) {
+          for (const post of insertedPosts as {
+            id: string;
+            platform: string;
+            account_id: string | null;
+          }[]) {
             if (post.platform === "youtube") {
               await fetch(`${SB_URL}/functions/v1/youtube-upload`, {
                 method: "POST",
@@ -573,6 +577,32 @@ Deno.serve(async (req) => {
                 },
                 body: JSON.stringify({ postId: post.id }),
               });
+
+              if (wf.post_as_story && post.account_id) {
+                const { data: fbAcc } = await supabase
+                  .from("connected_accounts")
+                  .select("access_token")
+                  .eq("account_id", post.account_id)
+                  .eq("platform", "facebook")
+                  .single();
+
+                if (fbAcc?.access_token) {
+                  await fetch(`${SB_URL}/functions/v1/post-story`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                    },
+                    body: JSON.stringify({
+                      platform: "facebook",
+                      accountId: post.account_id,
+                      videoUrl: publicUrl,
+                      accessToken: fbAcc.access_token,
+                    }),
+                  });
+                  console.log("Facebook story posted for post:", post.id);
+                }
+              }
             } else if (post.platform === "instagram") {
               await fetch(`${SB_URL}/functions/v1/instagram-upload`, {
                 method: "POST",
@@ -583,6 +613,32 @@ Deno.serve(async (req) => {
                 },
                 body: JSON.stringify({ postId: post.id }),
               });
+
+              if (wf.post_as_story && post.account_id) {
+                const { data: igAcc } = await supabase
+                  .from("connected_accounts")
+                  .select("access_token")
+                  .eq("account_id", post.account_id)
+                  .eq("platform", "instagram")
+                  .single();
+
+                if (igAcc?.access_token) {
+                  await fetch(`${SB_URL}/functions/v1/post-story`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                    },
+                    body: JSON.stringify({
+                      platform: "instagram",
+                      accountId: post.account_id,
+                      videoUrl: publicUrl,
+                      accessToken: igAcc.access_token,
+                    }),
+                  });
+                  console.log("Instagram story posted for post:", post.id);
+                }
+              }
             }
           }
 
