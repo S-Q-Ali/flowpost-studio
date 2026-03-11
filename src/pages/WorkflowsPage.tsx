@@ -39,6 +39,7 @@ type WorkflowRow = {
   facebook_page_ids: string[] | null;
   instagram_account_ids: string[] | null;
   youtube_altered_content: boolean | null;
+  post_as_story: boolean | null;
   trigger_hour_start: number;
   trigger_hour_end: number;
   max_videos_per_trigger: number | null;
@@ -80,6 +81,7 @@ export default function WorkflowsPage() {
   const [triggerStartHour, setTriggerStartHour] = useState<number>(0);
   const [triggerEndHour, setTriggerEndHour] = useState<number>(1);
   const [maxVideos, setMaxVideos] = useState<number>(3);
+  const [postAsStory, setPostAsStory] = useState<boolean>(false);
   const [sheetUrl, setSheetUrl] = useState("");
   const [youtubeAlteredContent, setYoutubeAlteredContent] = useState<boolean>(true);
 
@@ -142,6 +144,7 @@ export default function WorkflowsPage() {
     setTriggerStartHour(0);
     setTriggerEndHour(1);
     setMaxVideos(3);
+    setPostAsStory(false);
     setYoutubeAlteredContent(true);
     setSheetUrl("");
     setSelectedWorkflow(null);
@@ -167,6 +170,7 @@ export default function WorkflowsPage() {
     setTriggerStartHour(wf.trigger_hour_start ?? 0);
     setTriggerEndHour(wf.trigger_hour_end ?? 1);
     setMaxVideos(wf.max_videos_per_trigger ?? 3);
+    setPostAsStory(wf.post_as_story ?? false);
     setYoutubeAlteredContent(wf.youtube_altered_content ?? true);
     setSheetUrl(wf.sheet_url ?? "");
     setActiveStep(1);
@@ -238,6 +242,7 @@ export default function WorkflowsPage() {
         facebook_page_ids: selectedFacebookIds,
         instagram_account_ids: selectedInstagramIds,
         youtube_altered_content: youtubeAlteredContent,
+        post_as_story: postAsStory,
         trigger_hour_start: triggerStartHour,
         trigger_hour_end: triggerEndHour,
         max_videos_per_trigger: maxVideos,
@@ -507,6 +512,18 @@ export default function WorkflowsPage() {
               );
             })}
           </div>
+          <div className="mt-4 rounded-lg border border-border/80 bg-muted/5 px-3 py-3 flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <Label>Also Post as Story</Label>
+              <p className="text-xs text-muted-foreground">
+                Automatically post as Facebook &amp; Instagram Story alongside regular posts when supported.
+              </p>
+            </div>
+            <Switch
+              checked={postAsStory}
+              onCheckedChange={setPostAsStory}
+            />
+          </div>
         </div>
       );
     }
@@ -641,7 +658,7 @@ export default function WorkflowsPage() {
     const platforms = (wf.platforms ?? []) as Platform[];
     if (!platforms.length) return <p className="text-xs text-muted-foreground">No platforms selected</p>;
     return (
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex gap-1 flex-wrap items-center">
         {platforms.map((p) => {
           const meta = platformOptions.find((x) => x.id === p);
           if (!meta) return null;
@@ -657,6 +674,14 @@ export default function WorkflowsPage() {
             </Badge>
           );
         })}
+        {wf.post_as_story && (
+          <Badge
+            variant="outline"
+            className="ml-1 text-[10px] border-emerald-500/40 bg-emerald-500/5 text-emerald-500"
+          >
+            Stories: On
+          </Badge>
+        )}
       </div>
     );
   };
