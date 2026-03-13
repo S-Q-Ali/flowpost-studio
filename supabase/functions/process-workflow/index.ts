@@ -195,6 +195,28 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // For scheduled runs (no workflowId), use a per-minute lock to prevent duplicate execution
+    if (!workflowId) {
+      await supabase
+        .from("workflow_locks")
+        .delete()
+        .lt("expires_at", new Date().toISOString());
+
+      const lockKey =
+        "process-workflow-" + new Date().toISOString().slice(0, 16);
+      const { error: lockError } = await supabase.from("workflow_locks").insert({
+        lock_key: lockKey,
+        locked_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      });
+
+      if (lockError) {
+        console.log("Another instance is running, exiting");
+        return json({ message: "Already running" });
+      }
+      console.log("Lock acquired:", lockKey);
+    }
+
     const filters: Record<string, unknown> = { is_active: true };
     if (workflowId) {
       filters.id = workflowId;
