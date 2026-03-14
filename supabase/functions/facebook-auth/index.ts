@@ -124,18 +124,15 @@ Deno.serve(async (req) => {
       authUrl.searchParams.set("client_id", FB_APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
       const scope = [
-        "public_profile",
-        "pages_show_list",
-        "pages_read_engagement",
-        "pages_manage_posts",
-        "business_management",
-        "instagram_basic",
-        "instagram_content_publish",
-        "instagram_manage_comments",
-        "instagram_business_basic",
-        "instagram_business_content_publish",
-        "instagram_business_manage_comments",
-      ].join(",");
+        'public_profile',
+        'pages_show_list',
+        'pages_read_engagement',
+        'pages_manage_posts',
+        'business_management',
+        'instagram_basic',
+        'instagram_content_publish',
+        'instagram_manage_comments'
+      ].join(',');
       authUrl.searchParams.set("scope", scope);
       authUrl.searchParams.set("response_type", "code");
 
