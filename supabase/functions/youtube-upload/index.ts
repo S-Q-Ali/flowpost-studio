@@ -61,10 +61,18 @@ Deno.serve(async (req) => {
   }
 
   let postId: string;
+  let driveDownloadUrl: string | undefined;
+  let googleAccessToken: string | undefined;
   try {
     const body = await req.json();
     postId = body?.postId;
     if (!postId) return json({ error: "postId required" }, 400);
+    driveDownloadUrl = typeof body?.driveDownloadUrl === "string"
+      ? body.driveDownloadUrl
+      : undefined;
+    googleAccessToken = typeof body?.googleAccessToken === "string"
+      ? body.googleAccessToken
+      : undefined;
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
@@ -120,7 +128,15 @@ Deno.serve(async (req) => {
       accessToken = updated?.access_token ?? accessToken;
     }
 
-    const videoRes = await fetch(video.file_url);
+    // Support either:
+    // - Traditional flow: video.file_url points to R2/public storage
+    // - Workflow flow: direct Google Drive download URL + access token
+    const sourceUrl = driveDownloadUrl || video.file_url;
+    const videoRes = await fetch(sourceUrl, {
+      headers: driveDownloadUrl && googleAccessToken
+        ? { Authorization: `Bearer ${googleAccessToken}` }
+        : undefined,
+    });
     if (!videoRes.ok) {
       throw new Error(`Failed to download video: ${videoRes.status}`);
     }
