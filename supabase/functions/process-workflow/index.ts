@@ -117,42 +117,6 @@ interface GetUploadUrlResponse {
   publicUrl: string;
 }
 
-async function uploadVideoToR2FromBytes(
-  videoBytes: ArrayBuffer,
-  fileName: string,
-  contentType: string,
-  userId: string,
-): Promise<string> {
-  const { data, error } = await supabase.functions.invoke<GetUploadUrlResponse>(
-    "get-upload-url",
-    {
-      body: {
-        fileName,
-        fileType: contentType,
-        userId,
-      },
-    },
-  );
-
-  if (error || !data?.uploadUrl || !data?.publicUrl) {
-    throw new Error(error?.message || "Failed to obtain upload URL");
-  }
-
-  const putRes = await fetch(data.uploadUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": contentType,
-    },
-    body: videoBytes,
-  });
-
-  if (!putRes.ok) {
-    throw new Error(`Failed to upload video to storage: ${putRes.status}`);
-  }
-
-  return data.publicUrl;
-}
-
 function parseList(value: string | undefined | null): string[] {
   if (!value) return [];
   return value
@@ -406,47 +370,21 @@ Deno.serve(async (req) => {
             console.warn("Could not extract fileId from Drive URL", driveUrl);
             continue;
           }
-
-          const downloadUrl =
+          const driveDownloadUrl =
             `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-
-          const videoRes = await fetch(downloadUrl, {
-            headers: {
-              Authorization: `Bearer ${googleToken}`,
-            },
-          });
-
-          if (!videoRes.ok) {
-            console.error(
-              "Failed to download video from Drive",
-              videoRes.status,
-              await videoRes.text(),
-            );
-            continue;
-          }
-
-          const videoBytes = await videoRes.arrayBuffer();
-          const contentType =
-            videoRes.headers.get("content-type") || "video/mp4";
 
           const title = titleIdx !== undefined ? row[titleIdx] || "" : "";
           const description =
             descIdx !== undefined ? row[descIdx] || "" : "";
           const fileName = title || `workflow-video-${fileId}.mp4`;
 
-          const publicUrl = await uploadVideoToR2FromBytes(
-            videoBytes,
-            fileName,
-            contentType,
-            PERSONAL_USER_ID,
-          );
-
           const { data: videoRecord, error: videoError } = await supabase
             .from("videos")
             .insert({
               user_id: PERSONAL_USER_ID,
               title: title || fileName,
-              file_url: publicUrl,
+              // Store Drive download URL temporarily – upload functions will stream directly
+              file_url: driveDownloadUrl,
             })
             .select("id")
             .single();
@@ -587,7 +525,11 @@ Deno.serve(async (req) => {
                   Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
                   apikey: SB_SERVICE_ROLE_KEY!,
                 },
-                body: JSON.stringify({ postId: post.id }),
+                body: JSON.stringify({
+                  postId: post.id,
+                  driveDownloadUrl,
+                  googleAccessToken: googleToken,
+                }),
               });
             } else if (post.platform === "facebook") {
               await fetch(`${SB_URL}/functions/v1/facebook-upload`, {
@@ -597,7 +539,11 @@ Deno.serve(async (req) => {
                   Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
                   apikey: SB_SERVICE_ROLE_KEY!,
                 },
-                body: JSON.stringify({ postId: post.id }),
+                body: JSON.stringify({
+                  postId: post.id,
+                  driveDownloadUrl,
+                  googleAccessToken: googleToken,
+                }),
               });
 
               if (wf.post_as_story && post.account_id) {
@@ -609,20 +555,12 @@ Deno.serve(async (req) => {
                   .single();
 
                 if (fbAcc?.access_token) {
-                  await fetch(`${SB_URL}/functions/v1/post-story`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                    },
-                    body: JSON.stringify({
-                      platform: "facebook",
-                      accountId: post.account_id,
-                      videoUrl: publicUrl,
-                      accessToken: fbAcc.access_token,
-                    }),
-                  });
-                  console.log("Facebook story posted for post:", post.id);
+                  // For workflow-driven posts using Google Drive URLs we currently
+                  // skip auto-story posting to avoid relying on a non-public URL.
+                  console.log(
+                    "Skipping Facebook story for workflow post using Drive URL",
+                    post.id,
+                  );
                 }
               }
             } else if (post.platform === "instagram") {
@@ -645,20 +583,12 @@ Deno.serve(async (req) => {
                   .single();
 
                 if (igAcc?.access_token) {
-                  await fetch(`${SB_URL}/functions/v1/post-story`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                    },
-                    body: JSON.stringify({
-                      platform: "instagram",
-                      accountId: post.account_id,
-                      videoUrl: publicUrl,
-                      accessToken: igAcc.access_token,
-                    }),
-                  });
-                  console.log("Instagram story posted for post:", post.id);
+                  // For workflow-driven posts using Google Drive URLs we currently
+                  // skip auto-story posting to avoid relying on a non-public URL.
+                  console.log(
+                    "Skipping Instagram story for workflow post using Drive URL",
+                    post.id,
+                  );
                 }
               }
             }
