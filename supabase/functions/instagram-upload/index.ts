@@ -172,6 +172,10 @@ Deno.serve(async (req) => {
       console.log("R2 upload complete, URL:", videoUrl);
     }
 
+    console.log("Creating Instagram container for user:", igUserId);
+    console.log("Using video URL:", videoUrl);
+    console.log("Caption:", post.caption);
+
     // Step 3a - Create media container
     const containerRes = await fetch(
       `https://graph.facebook.com/v18.0/${igUserId}/media`,
@@ -186,21 +190,22 @@ Deno.serve(async (req) => {
         }),
       },
     );
-    const container = await containerRes.json();
+    const containerResText = await containerRes.text();
+    console.log("Container response status:", containerRes.status);
+    console.log("Container response body:", containerResText);
+
+    const container = JSON.parse(containerResText);
 
     if (!container.id) {
-      console.error("Instagram container creation failed", container);
+      console.error("Container creation failed:", container);
       await supabase
         .from("posts")
         .update({ status: "failed" })
         .eq("id", postId);
-      return json(
-        {
-          error: `Container creation failed: ${JSON.stringify(container)}`,
-        },
-        502,
-      );
+      return json({ error: `Container failed: ${containerResText}` }, 502);
     }
+
+    console.log("Container created:", container.id);
 
     await supabase
       .from("posts")
@@ -212,6 +217,8 @@ Deno.serve(async (req) => {
         },
       })
       .eq("id", postId);
+
+    console.log("Metadata saved, returning success");
 
     return json({ success: true, container_id: container.id });
   } catch (err) {
