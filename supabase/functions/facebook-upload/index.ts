@@ -24,6 +24,57 @@ function json(data: unknown, status = 200) {
   });
 }
 
+function buildMultipartStream(params: {
+  fields: Array<{ name: string; value: string }>;
+  file: { fieldName: string; filename: string; contentType: string; stream: ReadableStream<Uint8Array> };
+}) {
+  const boundary = `----flowpost-${crypto.randomUUID()}`;
+  const encoder = new TextEncoder();
+
+  const fileHeader = [
+    `--${boundary}\r\n`,
+    `Content-Disposition: form-data; name="${params.file.fieldName}"; filename="${params.file.filename}"\r\n`,
+    `Content-Type: ${params.file.contentType}\r\n\r\n`,
+  ].join("");
+
+  const fileFooter = `\r\n--${boundary}--\r\n`;
+
+  const prefixParts: Uint8Array[] = [];
+  for (const f of params.fields) {
+    prefixParts.push(
+      encoder.encode(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${f.name}"\r\n\r\n${f.value}\r\n`,
+      ),
+    );
+  }
+  prefixParts.push(encoder.encode(fileHeader));
+
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const p of prefixParts) controller.enqueue(p);
+
+      const reader = params.file.stream.getReader();
+      const pump = (): void => {
+        reader.read().then(({ done, value }) => {
+          if (done) {
+            controller.enqueue(encoder.encode(fileFooter));
+            controller.close();
+            return;
+          }
+          if (value) controller.enqueue(value);
+          pump();
+        }).catch((err) => controller.error(err));
+      };
+      pump();
+    },
+  });
+
+  return {
+    contentType: `multipart/form-data; boundary=${boundary}`,
+    body,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -109,19 +160,37 @@ Deno.serve(async (req) => {
     // - Traditional flow: video.file_url points to R2/public storage
     // - Workflow flow: direct Google Drive download URL + access token
     const sourceUrl = driveDownloadUrl || video.file_url;
-    const videoRes = await fetch(sourceUrl, {
-      headers: driveDownloadUrl && googleAccessToken
-        ? { Authorization: `Bearer ${googleAccessToken}` }
-        : undefined,
-    });
-    if (!videoRes.ok) {
-      console.error("Failed to download video from R2", videoRes.status);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json({ error: "Failed to download video file" }, 502);
+    let publicSourceUrl = sourceUrl;
+    if (sourceUrl.includes("googleapis.com/drive")) {
+      const fileIdMatch = sourceUrl.match(/files\/([^?]+)/);
+      if (fileIdMatch) {
+        publicSourceUrl =
+          `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`;
+      }
     }
 
-    const videoBytes = await videoRes.arrayBuffer();
-    const fileSize = videoBytes.byteLength;
+    const headRes = await fetch(publicSourceUrl, {
+      method: "HEAD",
+      headers: sourceUrl.includes("googleapis.com") && googleAccessToken
+        ? { Authorization: `Bearer ${googleAccessToken}` }
+        : {},
+    });
+    if (!headRes.ok) {
+      console.error("Failed to fetch video headers", headRes.status);
+      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      return json({ error: "Failed to fetch video metadata" }, 502);
+    }
+
+    const fileSizeStr = headRes.headers.get("content-length") || "0";
+    const fileSize = parseInt(fileSizeStr, 10);
+    const contentType = headRes.headers.get("content-type") || "video/mp4";
+    if (!Number.isFinite(fileSize) || fileSize <= 0) {
+      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      return json(
+        { error: "Unable to determine video content-length for upload" },
+        502,
+      );
+    }
 
     // STEP A - Initialize upload session
     const startForm = new FormData();
@@ -171,12 +240,32 @@ Deno.serve(async (req) => {
       uploadSessionId,
     });
 
-    // STEP B - Upload video chunk (single-chunk transfer)
-    const transferForm = new FormData();
-    transferForm.append("upload_phase", "transfer");
-    transferForm.append("upload_session_id", uploadSessionId);
-    transferForm.append("start_offset", "0");
-    transferForm.append("video_file_chunk", new Blob([videoBytes]));
+    const videoStreamRes = await fetch(publicSourceUrl, {
+      headers: sourceUrl.includes("googleapis.com") && googleAccessToken
+        ? { Authorization: `Bearer ${googleAccessToken}` }
+        : {},
+    });
+    if (!videoStreamRes.ok || !videoStreamRes.body) {
+      const status = videoStreamRes.status || 0;
+      console.error("Failed to stream video", status);
+      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      return json({ error: "Failed to stream video file" }, 502);
+    }
+
+    // STEP B - Upload video chunk (single-chunk transfer) via streaming multipart form-data
+    const transferMultipart = buildMultipartStream({
+      fields: [
+        { name: "upload_phase", value: "transfer" },
+        { name: "upload_session_id", value: uploadSessionId },
+        { name: "start_offset", value: "0" },
+      ],
+      file: {
+        fieldName: "video_file_chunk",
+        filename: "video.mp4",
+        contentType,
+        stream: videoStreamRes.body,
+      },
+    });
 
     const transferRes = await fetch(
       `https://graph-video.facebook.com/v21.0/${encodeURIComponent(pageId)}/videos`,
@@ -184,8 +273,11 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: {
           Authorization: `OAuth ${accessToken}`,
+          "Content-Type": transferMultipart.contentType,
         },
-        body: transferForm,
+        body: transferMultipart.body,
+        // @ts-ignore - duplex is required for streaming bodies
+        duplex: "half",
       },
     );
 
