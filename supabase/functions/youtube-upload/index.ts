@@ -132,17 +132,21 @@ Deno.serve(async (req) => {
     // - Traditional flow: video.file_url points to R2/public storage
     // - Workflow flow: direct Google Drive download URL + access token
     const sourceUrl = driveDownloadUrl || video.file_url;
-    const videoRes = await fetch(sourceUrl, {
-      headers: driveDownloadUrl && googleAccessToken
+
+    const headRes = await fetch(sourceUrl, {
+      method: "HEAD",
+      headers: sourceUrl.includes("googleapis.com") && googleAccessToken
         ? { Authorization: `Bearer ${googleAccessToken}` }
-        : undefined,
+        : {},
     });
-    if (!videoRes.ok) {
-      throw new Error(`Failed to download video: ${videoRes.status}`);
+    if (!headRes.ok) {
+      throw new Error(`Failed to fetch video headers: ${headRes.status}`);
     }
-    const videoBytes = await videoRes.arrayBuffer();
-    const contentLength = videoBytes.byteLength;
-    const contentType = videoRes.headers.get("content-type") || "video/mp4";
+
+    const contentLength =
+      headRes.headers.get("content-length") || "0";
+    const contentType =
+      headRes.headers.get("content-type") || "video/mp4";
 
     const tags: string[] = [];
     if (post.hashtags) {
@@ -171,7 +175,7 @@ Deno.serve(async (req) => {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json; charset=UTF-8",
-          "X-Upload-Content-Length": String(contentLength),
+          "X-Upload-Content-Length": contentLength,
           "X-Upload-Content-Type": contentType,
         },
         body: JSON.stringify(metadata),
@@ -191,13 +195,24 @@ Deno.serve(async (req) => {
       return json({ error: "No upload URL from YouTube" }, 502);
     }
 
+    const videoStream = await fetch(sourceUrl, {
+      headers: sourceUrl.includes("googleapis.com") && googleAccessToken
+        ? { Authorization: `Bearer ${googleAccessToken}` }
+        : {},
+    });
+    if (!videoStream.ok) {
+      throw new Error(`Failed to fetch video: ${videoStream.status}`);
+    }
+
     const uploadRes = await fetch(uploadUrl, {
       method: "PUT",
       headers: {
-        "Content-Length": String(contentLength),
+        "Content-Length": contentLength,
         "Content-Type": contentType,
       },
-      body: videoBytes,
+      body: videoStream.body,
+      // @ts-ignore - duplex is required for streaming bodies
+      duplex: "half",
     });
 
     if (!uploadRes.ok) {

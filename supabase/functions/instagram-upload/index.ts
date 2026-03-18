@@ -90,6 +90,15 @@ Deno.serve(async (req) => {
     const accessToken = account.access_token as string;
     const igUserId = account.account_id as string;
 
+    let videoUrl = video.file_url as string;
+    if (videoUrl.includes("googleapis.com/drive")) {
+      const fileIdMatch = videoUrl.match(/files\/([^?]+)/);
+      if (fileIdMatch) {
+        videoUrl =
+          `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`;
+      }
+    }
+
     // Step 3a - Create media container
     const containerRes = await fetch(
       `https://graph.facebook.com/v18.0/${igUserId}/media`,
@@ -98,9 +107,8 @@ Deno.serve(async (req) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           media_type: "REELS",
-          video_url: video.file_url,
+          video_url: videoUrl,
           caption: post.caption || "",
-          share_to_feed: true,
           access_token: accessToken,
         }),
       },
