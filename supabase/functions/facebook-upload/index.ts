@@ -74,57 +74,6 @@ function json(data: unknown, status = 200) {
   });
 }
 
-function buildMultipartStream(params: {
-  fields: Array<{ name: string; value: string }>;
-  file: { fieldName: string; filename: string; contentType: string; stream: ReadableStream<Uint8Array> };
-}) {
-  const boundary = `----flowpost-${crypto.randomUUID()}`;
-  const encoder = new TextEncoder();
-
-  const fileHeader = [
-    `--${boundary}\r\n`,
-    `Content-Disposition: form-data; name="${params.file.fieldName}"; filename="${params.file.filename}"\r\n`,
-    `Content-Type: ${params.file.contentType}\r\n\r\n`,
-  ].join("");
-
-  const fileFooter = `\r\n--${boundary}--\r\n`;
-
-  const prefixParts: Uint8Array[] = [];
-  for (const f of params.fields) {
-    prefixParts.push(
-      encoder.encode(
-        `--${boundary}\r\nContent-Disposition: form-data; name="${f.name}"\r\n\r\n${f.value}\r\n`,
-      ),
-    );
-  }
-  prefixParts.push(encoder.encode(fileHeader));
-
-  const body = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const p of prefixParts) controller.enqueue(p);
-
-      const reader = params.file.stream.getReader();
-      const pump = (): void => {
-        reader.read().then(({ done, value }) => {
-          if (done) {
-            controller.enqueue(encoder.encode(fileFooter));
-            controller.close();
-            return;
-          }
-          if (value) controller.enqueue(value);
-          pump();
-        }).catch((err) => controller.error(err));
-      };
-      pump();
-    },
-  });
-
-  return {
-    contentType: `multipart/form-data; boundary=${boundary}`,
-    body,
-  };
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -233,142 +182,26 @@ Deno.serve(async (req) => {
       console.log("R2 upload complete, URL:", videoUrl);
     }
 
-    const headRes = await fetch(videoUrl, {
-      method: "HEAD",
-      headers: {},
-    });
-    if (!headRes.ok) {
-      console.error("Failed to fetch video headers", headRes.status);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json({ error: "Failed to fetch video metadata" }, 502);
-    }
-
-    const fileSizeStr = headRes.headers.get("content-length") || "0";
-    const fileSize = parseInt(fileSizeStr, 10);
-    const contentType = headRes.headers.get("content-type") || "video/mp4";
-    if (!Number.isFinite(fileSize) || fileSize <= 0) {
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json(
-        { error: "Unable to determine video content-length for upload" },
-        502,
-      );
-    }
-
-    // STEP A - Initialize upload session
-    const startForm = new FormData();
-    startForm.append("upload_phase", "start");
-    startForm.append("file_size", String(fileSize));
-    startForm.append("access_token", accessToken);
-
-    const startRes = await fetch(
-      `https://graph-video.facebook.com/v21.0/${encodeURIComponent(pageId)}/videos`,
+    // Simplest + most reliable approach: let Facebook pull from a public URL (R2)
+    const postRes = await fetch(
+      `https://graph.facebook.com/v18.0/${encodeURIComponent(pageId)}/videos`,
       {
         method: "POST",
-        body: startForm,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_url: videoUrl,
+          description: (post.caption || "").toString(),
+          access_token: accessToken,
+          published: true,
+        }),
       },
     );
 
-    if (!startRes.ok) {
-      const errText = await startRes.text();
-      console.error("Facebook init upload failed", startRes.status, errText);
+    const postData = await postRes.json();
+    if (!postRes.ok || !postData?.id) {
+      console.error("Facebook file_url upload failed", postRes.status, postData);
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json({ error: `Facebook upload init failed: ${errText}` }, 502);
-    }
-
-    const startData = await startRes.json() as {
-      upload_session_id?: string;
-      start_offset?: string;
-      end_offset?: string;
-      video_id?: string;
-      [key: string]: unknown;
-    };
-
-    const uploadSessionId = startData.upload_session_id;
-    const startOffset = parseInt((startData.start_offset as string) ?? "0", 10);
-    const endOffset = parseInt((startData.end_offset as string) ?? "0", 10);
-
-    if (!uploadSessionId) {
-      console.error("No upload_session_id in Facebook response", startData);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json(
-        { error: `No upload_session_id: ${JSON.stringify(startData)}` },
-        502,
-      );
-    }
-
-    console.log("Facebook upload start offsets", {
-      startOffset,
-      endOffset,
-      uploadSessionId,
-    });
-
-    const videoStreamRes = await fetch(videoUrl, {
-      headers: {},
-    });
-    if (!videoStreamRes.ok || !videoStreamRes.body) {
-      const status = videoStreamRes.status || 0;
-      console.error("Failed to stream video", status);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json({ error: "Failed to stream video file" }, 502);
-    }
-
-    // STEP B - Upload video chunk (single-chunk transfer) via streaming multipart form-data
-    const transferMultipart = buildMultipartStream({
-      fields: [
-        { name: "upload_phase", value: "transfer" },
-        { name: "upload_session_id", value: uploadSessionId },
-        { name: "start_offset", value: "0" },
-      ],
-      file: {
-        fieldName: "video_file_chunk",
-        filename: "video.mp4",
-        contentType,
-        stream: videoStreamRes.body,
-      },
-    });
-
-    const transferRes = await fetch(
-      `https://graph-video.facebook.com/v21.0/${encodeURIComponent(pageId)}/videos`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `OAuth ${accessToken}`,
-          "Content-Type": transferMultipart.contentType,
-        },
-        body: transferMultipart.body,
-        // @ts-ignore - duplex is required for streaming bodies
-        duplex: "half",
-      },
-    );
-
-    if (!transferRes.ok) {
-      const errText = await transferRes.text();
-      console.error("Facebook video transfer failed", transferRes.status, errText);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json({ error: `Facebook video upload failed: ${errText}` }, 502);
-    }
-
-    // STEP C - Finish upload
-    const finishForm = new FormData();
-    finishForm.append("upload_phase", "finish");
-    finishForm.append("upload_session_id", uploadSessionId);
-    finishForm.append("access_token", accessToken);
-    finishForm.append("title", video.title || "Uploaded Video");
-    finishForm.append("description", (post.caption || "").toString());
-
-    const finishRes = await fetch(
-      `https://graph-video.facebook.com/v21.0/${encodeURIComponent(pageId)}/videos`,
-      {
-        method: "POST",
-        body: finishForm,
-      },
-    );
-
-    if (!finishRes.ok) {
-      const errText = await finishRes.text();
-      console.error("Facebook finish upload failed", finishRes.status, errText);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json({ error: `Facebook finish upload failed: ${errText}` }, 502);
+      return json({ error: `Facebook upload failed: ${JSON.stringify(postData)}` }, 502);
     }
 
     const { error: updateError } = await supabase
@@ -384,7 +217,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    return json({ success: true, postId });
+    return json({ success: true, postId, facebook_video_id: postData.id });
   } catch (err) {
     console.error("facebook-upload error", err);
     try {

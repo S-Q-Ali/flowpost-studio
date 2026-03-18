@@ -99,6 +99,49 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Also attempt to publish Instagram posts that already have a container id
+    // (created previously by instagram-upload).
+    const { data: igToPublish } = await supabase
+      .from("posts")
+      .select("id")
+      .eq("platform", "instagram")
+      .eq("status", "processing")
+      .not("metadata", "is", null)
+      .limit(10);
+
+    if (Array.isArray(igToPublish) && igToPublish.length) {
+      for (const p of igToPublish as { id: string }[]) {
+        try {
+          const metaRes = await supabase
+            .from("posts")
+            .select("metadata")
+            .eq("id", p.id)
+            .single();
+          const containerId = (metaRes.data as any)?.metadata?.instagram_container_id;
+          if (!containerId) continue;
+
+          const pubRes = await fetch(
+            `${supabaseUrl}/functions/v1/instagram-publish`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${serviceRoleKey}`,
+                apikey: serviceRoleKey,
+              },
+              body: JSON.stringify({ postId: p.id }),
+            },
+          );
+
+          if (!pubRes.ok) {
+            console.error("instagram-publish failed for post", p.id, await pubRes.text());
+          }
+        } catch (err) {
+          console.error("instagram-publish loop error", err);
+        }
+      }
+    }
+
     return new Response(
       JSON.stringify({ processed, total: scheduledPosts.length }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
