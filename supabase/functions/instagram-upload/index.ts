@@ -24,6 +24,56 @@ function json(data: unknown, status = 200) {
   });
 }
 
+type GetUploadUrlResponse = {
+  uploadUrl: string;
+  publicUrl: string;
+};
+
+async function uploadDriveVideoToR2(
+  driveUrl: string,
+  googleToken: string,
+  videoId: string,
+  title: string,
+): Promise<string> {
+  const { data: uploadData, error } = await supabase.functions.invoke<
+    GetUploadUrlResponse
+  >(
+    "get-upload-url",
+    {
+      body: {
+        fileName: `${title || videoId}.mp4`,
+        fileType: "video/mp4",
+        userId: "00000000-0000-0000-0000-000000000000",
+      },
+    },
+  );
+
+  if (error || !uploadData?.uploadUrl || !uploadData?.publicUrl) {
+    throw new Error(error?.message || "Failed to get R2 upload URL");
+  }
+
+  const driveRes = await fetch(driveUrl, {
+    headers: { Authorization: `Bearer ${googleToken}` },
+  });
+  if (!driveRes.ok || !driveRes.body) {
+    throw new Error(`Drive fetch failed: ${driveRes.status}`);
+  }
+
+  const putRes = await fetch(uploadData.uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "video/mp4" },
+    body: driveRes.body,
+    // @ts-ignore - duplex needed for streaming
+    duplex: "half",
+  });
+
+  if (!putRes.ok) {
+    throw new Error(`R2 upload failed: ${putRes.status}`);
+  }
+
+  return uploadData.publicUrl;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -42,11 +92,19 @@ Deno.serve(async (req) => {
   }
 
   let postId: string;
+  let driveDownloadUrl: string | undefined;
+  let googleAccessToken: string | undefined;
 
   try {
     const body = await req.json();
     postId = body?.postId;
     if (!postId) return json({ error: "postId required" }, 400);
+    driveDownloadUrl = typeof body?.driveDownloadUrl === "string"
+      ? body.driveDownloadUrl
+      : undefined;
+    googleAccessToken = typeof body?.googleAccessToken === "string"
+      ? body.googleAccessToken
+      : undefined;
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
@@ -91,12 +149,27 @@ Deno.serve(async (req) => {
     const igUserId = account.account_id as string;
 
     let videoUrl = video.file_url as string;
-    if (videoUrl.includes("googleapis.com/drive")) {
-      const fileIdMatch = videoUrl.match(/files\/([^?]+)/);
-      if (fileIdMatch) {
-        videoUrl =
-          `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`;
-      }
+
+    if (
+      (driveDownloadUrl || videoUrl.includes("googleapis.com")) &&
+      googleAccessToken
+    ) {
+      const driveSource = driveDownloadUrl || videoUrl;
+      console.log("Uploading Drive video to R2 first...");
+
+      videoUrl = await uploadDriveVideoToR2(
+        driveSource,
+        googleAccessToken,
+        post.video_id as string,
+        (video.title as string) || (post.video_id as string),
+      );
+
+      await supabase
+        .from("videos")
+        .update({ file_url: videoUrl })
+        .eq("id", post.video_id);
+
+      console.log("R2 upload complete, URL:", videoUrl);
     }
 
     // Step 3a - Create media container
