@@ -84,19 +84,34 @@ async function deleteFromR2(fileKey: string): Promise<boolean> {
   const bucket = R2_BUCKET!;
 
   const url = `${endpoint}/${bucket}/${fileKey}`;
+  const urlObj = new URL(url);
+  const pathParts = urlObj.pathname.split("/");
+  // Remove empty first element and bucket name
+  const keyParts = pathParts.slice(2).map((p) => decodeURIComponent(p)); // skip '' and bucket
+  const decodedKey = keyParts.join("/");
+
+  // For AWS Signature V4, encode each path segment but preserve forward slashes
+  const encodedKey = decodedKey
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+
+  const encodedUrl = `${endpoint}/${bucket}/${encodedKey}`;
   const now = new Date();
   const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const emptyHash = await sha256("");
 
   const method = "DELETE";
-  const canonicalUri = `/${bucket}/${fileKey}`;
+  const canonicalUri = `/${bucket}/${encodedKey}`;
   const canonicalQueryString = "";
   const host = new URL(endpoint).host;
   const canonicalHeaders =
     `host:${host}\n` +
+    `x-amz-content-sha256:${emptyHash}\n` +
     `x-amz-date:${amzDate}\n`;
-  const signedHeaders = "host;x-amz-date";
-  const payloadHash = await sha256("");
+  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+  const payloadHash = emptyHash;
 
   const canonicalRequest = [
     method,
@@ -129,10 +144,11 @@ async function deleteFromR2(fileKey: string): Promise<boolean> {
     `SignedHeaders=${signedHeaders}, ` +
     `Signature=${signature}`;
 
-  const res = await fetch(url, {
+  const res = await fetch(encodedUrl, {
     method: "DELETE",
     headers: {
       "x-amz-date": amzDate,
+      "x-amz-content-sha256": emptyHash,
       Authorization: authHeader,
     },
   });
