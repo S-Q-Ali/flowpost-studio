@@ -565,6 +565,13 @@ Deno.serve(async (req) => {
           }
 
           if (wf.post_as_story) {
+            const { data: updatedVideo } = await supabase
+              .from("videos")
+              .select("file_url")
+              .eq("id", videoRecord.id)
+              .single();
+
+            const storyVideoUrl = updatedVideo?.file_url || publicDriveUrl;
             const usedStoryTokens = new Set<string>();
 
             for (const post of insertedPosts as {
@@ -594,7 +601,7 @@ Deno.serve(async (req) => {
                     body: JSON.stringify({
                       platform: "facebook",
                       accountId: post.account_id,
-                      videoUrl: publicDriveUrl,
+                      videoUrl: storyVideoUrl,
                       accessToken: fbAcc.access_token,
                     }),
                   });
@@ -624,7 +631,7 @@ Deno.serve(async (req) => {
                     body: JSON.stringify({
                       platform: "instagram",
                       accountId: post.account_id,
-                      videoUrl: publicDriveUrl,
+                      videoUrl: storyVideoUrl,
                       accessToken: igAcc.access_token,
                     }),
                   });
