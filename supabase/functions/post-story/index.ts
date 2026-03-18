@@ -80,31 +80,50 @@ Deno.serve(async (req) => {
 
   try {
     if (platform === "facebook") {
-      const fbRes = await fetch(
+      const startRes = await fetch(
         `https://graph.facebook.com/v18.0/${accountId}/video_stories`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            file_url: videoUrl,
-            upload_phase: "single",
+            upload_phase: "start",
             access_token: accessToken,
           }),
         },
       );
 
-      const fbData = await fbRes.json();
-
-      if (!fbRes.ok || !fbData?.id) {
-        console.error(
-          "Facebook story creation failed",
-          fbRes.status,
-          JSON.stringify(fbData),
-        );
-        throw new Error(JSON.stringify(fbData));
+      const startData = await startRes.json();
+      if (!startRes.ok || !startData?.video_id || !startData?.upload_url) {
+        console.error("Facebook story start failed", startRes.status, startData);
+        throw new Error(JSON.stringify(startData));
       }
 
-      return json({ success: true, storyId: fbData.id });
+      const finishRes = await fetch(
+        `https://graph.facebook.com/v18.0/${accountId}/video_stories`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            upload_phase: "finish",
+            video_id: startData.video_id,
+            file_url: videoUrl,
+            access_token: accessToken,
+            published: true,
+          }),
+        },
+      );
+
+      const finishData = await finishRes.json();
+      if (!finishRes.ok || !finishData?.success) {
+        console.error(
+          "Facebook story finish failed",
+          finishRes.status,
+          finishData,
+        );
+        throw new Error(JSON.stringify(finishData));
+      }
+
+      return json({ success: true, video_id: startData.video_id });
     }
 
     // Instagram story flow
