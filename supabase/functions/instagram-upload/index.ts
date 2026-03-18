@@ -202,88 +202,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Step 3b - Poll container status
-    let containerStatus = "IN_PROGRESS";
-    let attempts = 0;
-
-    while (containerStatus === "IN_PROGRESS" && attempts < 12) {
-      await new Promise((r) => setTimeout(r, 5000));
-
-      const statusRes = await fetch(
-        `https://graph.facebook.com/v18.0/${container.id}?fields=status_code&access_token=${accessToken}`,
-      );
-      const statusData = await statusRes.json();
-      containerStatus = statusData.status_code || "UNKNOWN";
-      attempts++;
-
-      console.log(
-        `Instagram container status: ${containerStatus}, attempt: ${attempts}`,
-      );
-    }
-
-    if (containerStatus !== "FINISHED") {
-      console.error(
-        "Instagram container not ready",
-        containerStatus,
-        "after attempts",
-        attempts,
-      );
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", postId);
-      return json(
-        {
-          error:
-            `Container not ready after ${attempts} attempts. Status: ${containerStatus}`,
-        },
-        502,
-      );
-    }
-
-    // Step 3c - Publish container
-    const publishRes = await fetch(
-      `https://graph.facebook.com/v18.0/${igUserId}/media_publish`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          creation_id: container.id,
-          access_token: accessToken,
-        }),
-      },
-    );
-    const publishData = await publishRes.json();
-
-    if (!publishData.id) {
-      console.error("Instagram publish failed", publishData);
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", postId);
-      return json(
-        { error: `Publish failed: ${JSON.stringify(publishData)}` },
-        502,
-      );
-    }
-
-    const { error: updateError } = await supabase
+    await supabase
       .from("posts")
       .update({
-        status: "published",
-        published_at: new Date().toISOString(),
+        status: "processing",
+        metadata: {
+          instagram_container_id: container.id,
+          r2_url: videoUrl,
+        },
       })
       .eq("id", postId);
 
-    if (updateError) {
-      console.error("Failed to update post status", updateError);
-      return json(
-        { error: "Upload succeeded but status update failed" },
-        500,
-      );
-    }
-
-    return json({ success: true, instagram_post_id: publishData.id });
+    return json({ success: true, container_id: container.id });
   } catch (err) {
     console.error("instagram-upload error", err);
     try {
