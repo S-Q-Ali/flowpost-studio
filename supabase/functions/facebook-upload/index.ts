@@ -17,6 +17,56 @@ const supabase = createClient(SB_URL!, SB_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
 
+type GetUploadUrlResponse = {
+  uploadUrl: string;
+  publicUrl: string;
+};
+
+async function uploadDriveVideoToR2(
+  driveUrl: string,
+  googleToken: string,
+  videoId: string,
+  title: string,
+): Promise<string> {
+  const { data: uploadData, error } = await supabase.functions.invoke<
+    GetUploadUrlResponse
+  >(
+    "get-upload-url",
+    {
+      body: {
+        fileName: `${title || videoId}.mp4`,
+        fileType: "video/mp4",
+        userId: "00000000-0000-0000-0000-000000000000",
+      },
+    },
+  );
+
+  if (error || !uploadData?.uploadUrl || !uploadData?.publicUrl) {
+    throw new Error(error?.message || "Failed to get R2 upload URL");
+  }
+
+  const driveRes = await fetch(driveUrl, {
+    headers: { Authorization: `Bearer ${googleToken}` },
+  });
+  if (!driveRes.ok || !driveRes.body) {
+    throw new Error(`Drive fetch failed: ${driveRes.status}`);
+  }
+
+  const putRes = await fetch(uploadData.uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "video/mp4" },
+    body: driveRes.body,
+    // @ts-ignore - duplex needed for streaming
+    duplex: "half",
+  });
+
+  if (!putRes.ok) {
+    throw new Error(`R2 upload failed: ${putRes.status}`);
+  }
+
+  return uploadData.publicUrl;
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -159,21 +209,33 @@ Deno.serve(async (req) => {
     // Support either:
     // - Traditional flow: video.file_url points to R2/public storage
     // - Workflow flow: direct Google Drive download URL + access token
-    const sourceUrl = driveDownloadUrl || video.file_url;
-    let publicSourceUrl = sourceUrl;
-    if (sourceUrl.includes("googleapis.com/drive")) {
-      const fileIdMatch = sourceUrl.match(/files\/([^?]+)/);
-      if (fileIdMatch) {
-        publicSourceUrl =
-          `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`;
-      }
+    let videoUrl = video.file_url as string;
+
+    if (
+      (driveDownloadUrl || videoUrl.includes("googleapis.com")) &&
+      googleAccessToken
+    ) {
+      const driveSource = driveDownloadUrl || videoUrl;
+      console.log("Uploading Drive video to R2 first...");
+
+      videoUrl = await uploadDriveVideoToR2(
+        driveSource,
+        googleAccessToken,
+        post.video_id,
+        video.title || post.video_id,
+      );
+
+      await supabase
+        .from("videos")
+        .update({ file_url: videoUrl })
+        .eq("id", post.video_id);
+
+      console.log("R2 upload complete, URL:", videoUrl);
     }
 
-    const headRes = await fetch(publicSourceUrl, {
+    const headRes = await fetch(videoUrl, {
       method: "HEAD",
-      headers: sourceUrl.includes("googleapis.com") && googleAccessToken
-        ? { Authorization: `Bearer ${googleAccessToken}` }
-        : {},
+      headers: {},
     });
     if (!headRes.ok) {
       console.error("Failed to fetch video headers", headRes.status);
@@ -240,10 +302,8 @@ Deno.serve(async (req) => {
       uploadSessionId,
     });
 
-    const videoStreamRes = await fetch(publicSourceUrl, {
-      headers: sourceUrl.includes("googleapis.com") && googleAccessToken
-        ? { Authorization: `Bearer ${googleAccessToken}` }
-        : {},
+    const videoStreamRes = await fetch(videoUrl, {
+      headers: {},
     });
     if (!videoStreamRes.ok || !videoStreamRes.body) {
       const status = videoStreamRes.status || 0;

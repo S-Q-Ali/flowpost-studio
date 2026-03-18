@@ -555,7 +555,11 @@ Deno.serve(async (req) => {
                   Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
                   apikey: SB_SERVICE_ROLE_KEY!,
                 },
-                body: JSON.stringify({ postId: post.id }),
+                body: JSON.stringify({
+                  postId: post.id,
+                  driveDownloadUrl,
+                  googleAccessToken: googleToken,
+                }),
               });
             }
           }
