@@ -35,13 +35,14 @@ async function uploadDriveVideoToR2(
   videoId: string,
   title: string,
 ): Promise<string> {
+  const baseName = (title || videoId).replace(/\.mp4$/i, "");
   const { data: uploadData, error } = await supabase.functions.invoke<
     GetUploadUrlResponse
   >(
     "get-upload-url",
     {
       body: {
-        fileName: `${title || videoId}.mp4`,
+        fileName: `${baseName}.mp4`,
         fileType: "video/mp4",
         userId: "00000000-0000-0000-0000-000000000000",
       },
