@@ -92,10 +92,44 @@ Deno.serve(async (req) => {
         },
       );
 
-      const startData = await startRes.json();
+      const startData = await startRes.json() as {
+        video_id?: string;
+        upload_url?: string;
+      };
       if (!startRes.ok || !startData?.video_id || !startData?.upload_url) {
         console.error("Facebook story start failed", startRes.status, startData);
         throw new Error(JSON.stringify(startData));
+      }
+
+      const { video_id, upload_url } = startData;
+
+      const videoRes = await fetch(videoUrl);
+      if (!videoRes.ok || !videoRes.body) {
+        throw new Error(`Failed to fetch video: ${videoRes.status}`);
+      }
+
+      const fileSize = videoRes.headers.get("content-length") || "0";
+
+      const uploadRes = await fetch(upload_url, {
+        method: "POST",
+        headers: {
+          Authorization: `OAuth ${accessToken}`,
+          offset: "0",
+          file_size: fileSize,
+        },
+        body: videoRes.body,
+        // @ts-expect-error duplex required for streaming request body
+        duplex: "half",
+      });
+
+      if (!uploadRes.ok) {
+        let errBody: unknown;
+        try {
+          errBody = await uploadRes.json();
+        } catch {
+          errBody = await uploadRes.text();
+        }
+        throw new Error(JSON.stringify(errBody));
       }
 
       const finishRes = await fetch(
@@ -105,8 +139,7 @@ Deno.serve(async (req) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             upload_phase: "finish",
-            video_id: startData.video_id,
-            file_url: videoUrl,
+            video_id,
             access_token: accessToken,
             published: true,
           }),
@@ -123,7 +156,7 @@ Deno.serve(async (req) => {
         throw new Error(JSON.stringify(finishData));
       }
 
-      return json({ success: true, video_id: startData.video_id });
+      return json({ success: true, video_id });
     }
 
     // Instagram story flow
