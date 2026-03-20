@@ -378,7 +378,11 @@ Deno.serve(async (req) => {
           const title = titleIdx !== undefined ? row[titleIdx] || "" : "";
           const description =
             descIdx !== undefined ? row[descIdx] || "" : "";
-          const fileName = title || `workflow-video-${fileId}.mp4`;
+          const baseName = (title || `workflow-video-${fileId}`).replace(
+            /\.mp4$/i,
+            "",
+          );
+          const fileName = `${baseName}.mp4`;
 
           const { data: videoRecord, error: videoError } = await supabase
             .from("videos")

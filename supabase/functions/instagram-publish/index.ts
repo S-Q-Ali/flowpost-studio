@@ -57,11 +57,20 @@ Deno.serve(async (req) => {
 
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, account_id, platform, caption, status, metadata")
+      .select("id, account_id, platform, caption, status, metadata, video_id")
       .eq("id", postId)
       .single();
 
     if (postError || !post) return json({ error: "Post not found" }, 404);
+    console.log(
+      "Post found:",
+      JSON.stringify({
+        id: post.id,
+        status: post.status,
+        metadata: post.metadata,
+        video_id: post.video_id,
+      }),
+    );
     if (post.platform !== "instagram") {
       return json({ error: "Post is not for Instagram" }, 400);
     }
@@ -88,6 +97,11 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = account.access_token as string;
+    console.log("Account found:", account?.account_id);
+    console.log(
+      "Starting poll for container:",
+      post.metadata.instagram_container_id,
+    );
 
     let status = "IN_PROGRESS";
     let attempts = 0;
