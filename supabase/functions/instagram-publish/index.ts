@@ -103,49 +103,67 @@ Deno.serve(async (req) => {
       post.metadata.instagram_container_id,
     );
 
-    let status = "IN_PROGRESS";
-    let attempts = 0;
-    while (status === "IN_PROGRESS" && attempts < 20) {
-      await new Promise((r) => setTimeout(r, 5000));
-      const statusRes = await fetch(
-        `https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${accessToken}`,
-      );
-      const s = await statusRes.json();
-      status = s.status_code || "UNKNOWN";
-      attempts++;
-    }
-
-    if (status !== "FINISHED") {
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json({ error: `Container not ready: ${status}` }, 502);
-    }
-
-    const publishRes = await fetch(
-      `https://graph.facebook.com/v18.0/${post.account_id}/media_publish`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          creation_id: containerId,
-          access_token: accessToken,
-        }),
-      },
+    const statusRes = await fetch(
+      `https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${accessToken}`,
     );
-    const publishData = await publishRes.json();
-    if (!publishRes.ok || !publishData?.id) {
+    const statusData = await statusRes.json();
+    const status = statusData?.status_code || "UNKNOWN";
+
+    console.log("Container status:", status);
+
+    if (status === "FINISHED") {
+      // Publish immediately
+      const publishRes = await fetch(
+        `https://graph.facebook.com/v18.0/${post.account_id}/media_publish`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            creation_id: containerId,
+            access_token: accessToken,
+          }),
+        },
+      );
+      const publishData = await publishRes.json();
+      if (!publishRes.ok || !publishData?.id) {
+        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+        return json(
+          { error: `Publish failed: ${JSON.stringify(publishData)}` },
+          502,
+        );
+      }
+
+      const { error: updateError } = await supabase
+        .from("posts")
+        .update({
+          status: "published",
+          published_at: new Date().toISOString(),
+        })
+        .eq("id", postId);
+      if (updateError) {
+        return json({ error: "Publish succeeded but status update failed" }, 500);
+      }
+
+      return json({
+        success: true,
+        instagram_post_id: publishData.id,
+        postId,
+      });
+    }
+
+    if (status === "ERROR") {
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json({ error: `Publish failed: ${JSON.stringify(publishData)}` }, 502);
+      return json({ error: "Container processing failed" }, 502);
     }
 
-    const { error: updateError } = await supabase
-      .from("posts")
-      .update({ status: "published", published_at: new Date().toISOString() })
-      .eq("id", postId);
-    if (updateError) {
-      return json({ error: "Publish succeeded but status update failed" }, 500);
-    }
-
-    return json({ success: true, instagram_post_id: publishData.id, postId });
+    // Still IN_PROGRESS (or some other code). Return immediately.
+    // `process-scheduled-posts` will retry on next cron tick.
+    console.log("Container still processing, will retry");
+    return json({
+      success: false,
+      status: "processing",
+      message: "Container not ready yet, will retry",
+    });
   } catch (err) {
     console.error("instagram-publish crashed:", err);
     return json({ error: String(err) }, 500);
