@@ -29,27 +29,32 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const validKeys = [SB_ANON_KEY, SB_SERVICE_ROLE_KEY];
-  if (!token || !validKeys.includes(token)) {
-    return json({ error: "Unauthorized" }, 401);
-  }
-
-  if (req.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
-  }
-
-  let postId: string;
   try {
-    const body = await req.json();
-    postId = body?.postId;
-    if (!postId) return json({ error: "postId required" }, 400);
-  } catch {
-    return json({ error: "Invalid JSON body" }, 400);
-  }
+    console.log(
+      "instagram-publish called with body:",
+      JSON.stringify(await req.clone().json()),
+    );
 
-  try {
+    const authHeader = req.headers.get("Authorization");
+    const token = authHeader?.replace("Bearer ", "");
+    const validKeys = [SB_ANON_KEY, SB_SERVICE_ROLE_KEY];
+    if (!token || !validKeys.includes(token)) {
+      return json({ error: "Unauthorized" }, 401);
+    }
+
+    if (req.method !== "POST") {
+      return json({ error: "Method not allowed" }, 405);
+    }
+
+    let postId: string;
+    try {
+      const body = await req.json();
+      postId = body?.postId;
+      if (!postId) return json({ error: "postId required" }, 400);
+    } catch {
+      return json({ error: "Invalid JSON body" }, 400);
+    }
+
     const { data: post, error: postError } = await supabase
       .from("posts")
       .select("id, account_id, platform, caption, status, metadata")
@@ -62,11 +67,13 @@ Deno.serve(async (req) => {
     }
     if (!post.account_id) return json({ error: "Post has no account_id" }, 400);
 
-    const containerId =
-      (post.metadata as any)?.instagram_container_id as string | undefined;
-    if (!containerId) {
-      return json({ error: "Missing instagram_container_id in post metadata" }, 400);
+    if (!post.metadata?.instagram_container_id) {
+      console.error("No container_id in metadata:", post.metadata);
+      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      return json({ error: "No container_id" }, 400);
     }
+
+    const containerId = post.metadata.instagram_container_id as string;
 
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
@@ -126,15 +133,8 @@ Deno.serve(async (req) => {
 
     return json({ success: true, instagram_post_id: publishData.id, postId });
   } catch (err) {
-    console.error("instagram-publish error", err);
-    try {
-      if (typeof postId === "string") {
-        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      }
-    } catch {
-      // ignore
-    }
-    return json({ error: err instanceof Error ? err.message : "Publish failed" }, 500);
+    console.error("instagram-publish crashed:", err);
+    return json({ error: String(err) }, 500);
   }
 });
 

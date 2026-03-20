@@ -160,6 +160,7 @@ Deno.serve(async (req) => {
     }
 
     // Instagram story flow
+    console.log("Instagram story using URL:", videoUrl);
     const containerRes = await fetch(
       `https://graph.facebook.com/v18.0/${accountId}/media`,
       {
@@ -173,7 +174,9 @@ Deno.serve(async (req) => {
       },
     );
 
-    const container = await containerRes.json();
+    const containerResText = await containerRes.text();
+    console.log("Container response:", containerResText);
+    const container = JSON.parse(containerResText);
     if (!container?.id) {
       console.error(
         "Instagram story container creation failed",
