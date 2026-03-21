@@ -292,6 +292,26 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Immediately update last_triggered_at to prevent double trigger (even if processing fails later)
+      const { error: earlyTriggerError } = await supabase
+        .from("workflows")
+        .update({
+          last_triggered_at: new Date().toISOString(),
+        })
+        .eq("id", wf.id);
+
+      if (earlyTriggerError) {
+        console.error(
+          "Failed to update last_triggered_at (early)",
+          wf.id,
+          earlyTriggerError,
+        );
+        errors.push(
+          `Failed to claim workflow ${wf.id}: ${earlyTriggerError.message}`,
+        );
+        continue;
+      }
+
       // Read sheet
       const sheetRes = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1`,
@@ -689,7 +709,6 @@ Deno.serve(async (req) => {
         const { error: updateError } = await supabase
           .from("workflows")
           .update({
-            last_triggered_at: new Date().toISOString(),
             total_posted: (wf.total_posted ?? 0) + workflowVideoCount,
           })
           .eq("id", wf.id);
