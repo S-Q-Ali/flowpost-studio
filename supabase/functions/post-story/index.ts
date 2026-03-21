@@ -187,19 +187,27 @@ Deno.serve(async (req) => {
       throw new Error(JSON.stringify(container));
     }
 
-    let status = "IN_PROGRESS";
-    let attempts = 0;
+    await new Promise((r) => setTimeout(r, 15000));
 
-    await new Promise(r => setTimeout(r, 5000));
+    let containerStatus = "";
+    for (let i = 0; i < 3; i++) {
+      const statusRes = await fetch(
+        `https://graph.facebook.com/v21.0/${container.id}?fields=status_code&access_token=${accessToken}`,
+      );
+      const pollData = await statusRes.json();
+      containerStatus = pollData.status_code;
+      console.log(
+        `Story container status (attempt ${i + 1}):`,
+        containerStatus,
+      );
 
-    const statusRes = await fetch(
-      `https://graph.facebook.com/v21.0/${container.id}?fields=status_code&access_token=${accessToken}`,
-    );
-    const pollData = await statusRes.json();
-    const containerStatus = pollData.status_code;
-    console.log('Story container status:', containerStatus);
+      if (containerStatus === "FINISHED") break;
+      if (containerStatus === "ERROR") break;
 
-    if (containerStatus === 'FINISHED') {
+      await new Promise((r) => setTimeout(r, 10000));
+    }
+
+    if (containerStatus === "FINISHED") {
       const publishRes = await fetch(
         `https://graph.facebook.com/v21.0/${accountId}/media_publish`,
         {
