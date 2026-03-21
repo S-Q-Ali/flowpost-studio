@@ -167,8 +167,9 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          media_type: "REELS",
+          media_type: "STORIES",
           video_url: videoUrl,
+          share_to_feed:false,
           access_token: accessToken,
         }),
       },
@@ -188,46 +189,36 @@ Deno.serve(async (req) => {
     let status = "IN_PROGRESS";
     let attempts = 0;
 
-    while (status === "IN_PROGRESS" && attempts < 12) {
-      await new Promise((r) => setTimeout(r, 5000));
+    await new Promise(r => setTimeout(r, 5000));
 
-      const statusRes = await fetch(
-        `https://graph.facebook.com/v18.0/${container.id}?fields=status_code&access_token=${accessToken}`,
-      );
-      const s = await statusRes.json();
-      status = s.status_code;
-      attempts++;
-    }
-
-    if (status !== "FINISHED") {
-      console.error("Instagram story container not ready", status);
-      throw new Error(`Container not ready: ${status}`);
-    }
-
-    const publishRes = await fetch(
-      `https://graph.facebook.com/v18.0/${accountId}/media_publish`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          creation_id: container.id,
-          access_token: accessToken,
-        }),
-      },
+    const statusRes = await fetch(
+      `https://graph.facebook.com/v18.0/${container.id}?fields=status_code&access_token=${accessToken}`
     );
+    const pollData = await statusRes.json();
+    const containerStatus = pollData.status_code;
+    console.log('Story container status:', containerStatus);
 
-    const publishData = await publishRes.json();
-
-    if (!publishRes.ok || !publishData?.id) {
-      console.error(
-        "Instagram story publish failed",
-        publishRes.status,
-        JSON.stringify(publishData),
+    if (containerStatus === 'FINISHED') {
+      const publishRes = await fetch(
+        `https://graph.facebook.com/v18.0/${accountId}/media_publish`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            creation_id: container.id,
+            access_token: accessToken
+          })
+        }
       );
-      throw new Error(JSON.stringify(publishData));
-    }
+      const publishData = await publishRes.json();
+      if (!publishData.id) throw new Error(JSON.stringify(publishData));
+      return json({ success: true, storyId: publishData.id });
 
-    return json({ success: true, storyId: publishData.id });
+    } else {
+      // IN_PROGRESS or ERROR - just log and return
+      console.log('Story container not ready:', containerStatus);
+      return json({ success: false, status: containerStatus });
+    }
   } catch (err) {
     console.error("post-story error", err);
     return json(
