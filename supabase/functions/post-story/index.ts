@@ -160,9 +160,11 @@ Deno.serve(async (req) => {
     }
 
     // Instagram story flow
+    console.log("Instagram account ID:", accountId);
+    console.log("Token prefix:", accessToken.substring(0, 20));
     console.log("Instagram story using URL:", videoUrl);
     const containerRes = await fetch(
-      `https://graph.instagram.com/v21.0/${accountId}/media`,
+      `https://graph.facebook.com/v21.0/${accountId}/media`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -191,7 +193,7 @@ Deno.serve(async (req) => {
     await new Promise(r => setTimeout(r, 5000));
 
     const statusRes = await fetch(
-      `https://graph.instagram.com/v21.0/${container.id}?fields=status_code&access_token=${accessToken}`,
+      `https://graph.facebook.com/v21.0/${container.id}?fields=status_code&access_token=${accessToken}`,
     );
     const pollData = await statusRes.json();
     const containerStatus = pollData.status_code;
@@ -199,7 +201,7 @@ Deno.serve(async (req) => {
 
     if (containerStatus === 'FINISHED') {
       const publishRes = await fetch(
-        `https://graph.instagram.com/v21.0/${accountId}/media_publish`,
+        `https://graph.facebook.com/v21.0/${accountId}/media_publish`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
