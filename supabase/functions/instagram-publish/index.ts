@@ -112,7 +112,27 @@ Deno.serve(async (req) => {
     console.log("Container status:", status);
 
     if (status === "FINISHED") {
-      // Publish immediately
+      // Try to claim this publish atomically (only one worker proceeds)
+      const { data: claimed, error: claimError } = await supabase
+        .from("posts")
+        .update({ status: "publishing" })
+        .eq("id", postId)
+        .eq("status", "processing")
+        .select("id")
+        .maybeSingle();
+
+      if (claimError) {
+        console.error("Claim failed", claimError);
+        return json({ error: claimError.message }, 500);
+      }
+      if (!claimed) {
+        console.log(
+          "Post already being published or done, skipping",
+        );
+        return json({ success: true, message: "Already handled" });
+      }
+
+      // Now safe to publish — we have the claim
       const publishRes = await fetch(
         `https://graph.facebook.com/v18.0/${post.account_id}/media_publish`,
         {
