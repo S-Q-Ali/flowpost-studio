@@ -187,10 +187,11 @@ Deno.serve(async (req) => {
       throw new Error(JSON.stringify(container));
     }
 
-    await new Promise((r) => setTimeout(r, 15000));
+    // Reel/story containers often need 60+ seconds — wait 30s first, then poll
+    await new Promise((r) => setTimeout(r, 30000));
 
     let containerStatus = "";
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const statusRes = await fetch(
         `https://graph.facebook.com/v21.0/${container.id}?fields=status_code&access_token=${accessToken}`,
       );
@@ -204,7 +205,7 @@ Deno.serve(async (req) => {
       if (containerStatus === "FINISHED") break;
       if (containerStatus === "ERROR") break;
 
-      await new Promise((r) => setTimeout(r, 10000));
+      await new Promise((r) => setTimeout(r, 15000));
     }
 
     if (containerStatus === "FINISHED") {
