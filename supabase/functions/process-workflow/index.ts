@@ -520,6 +520,13 @@ Deno.serve(async (req) => {
             continue;
           }
 
+          console.log("post_as_story:", wf.post_as_story);
+          console.log("instagram_account_ids:", wf.instagram_account_ids);
+          console.log(
+            "posts created:",
+            (insertedPosts as { platform: string }[]).map((p) => p.platform),
+          );
+
           // Immediately mark posts as processing so the scheduled-posts cron
           // does not pick them up again
           const { error: processingUpdateError } = await supabase
@@ -633,7 +640,15 @@ Deno.serve(async (req) => {
                 }
               }
 
-              if (post.platform === "instagram" && post.account_id) {
+              if (post.platform === "instagram" && wf.post_as_story) {
+                console.log("Calling Instagram story for post:", post.id);
+                if (!post.account_id) {
+                  console.warn(
+                    "Instagram story skipped: missing account_id for post",
+                    post.id,
+                  );
+                  continue;
+                }
                 const { data: igAcc } = await supabase
                   .from("connected_accounts")
                   .select("access_token")
@@ -641,11 +656,7 @@ Deno.serve(async (req) => {
                   .eq("platform", "instagram")
                   .single();
 
-                if (
-                  igAcc?.access_token &&
-                  !usedStoryTokens.has(igAcc.access_token)
-                ) {
-                  usedStoryTokens.add(igAcc.access_token);
+                if (igAcc?.access_token) {
                   await fetch(`${SB_URL}/functions/v1/post-story`, {
                     method: "POST",
                     headers: {
@@ -660,6 +671,11 @@ Deno.serve(async (req) => {
                     }),
                   });
                   console.log("Instagram story posted:", post.id);
+                } else {
+                  console.warn(
+                    "Instagram story skipped: no access_token for account",
+                    post.account_id,
+                  );
                 }
               }
             }
