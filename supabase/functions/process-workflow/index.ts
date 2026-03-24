@@ -264,16 +264,27 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Already triggered today check (UTC date)
+        const todayWindowStart = new Date();
+        todayWindowStart.setUTCHours(start, 0, 0, 0);
+        const todayWindowEnd = new Date();
+        todayWindowEnd.setUTCHours(end, 0, 0, 0);
+
         const lastTriggered = wf.last_triggered_at
           ? new Date(wf.last_triggered_at)
           : null;
-        const lastTriggeredUtc = lastTriggered
-          ? lastTriggered.toISOString().slice(0, 10)
-          : null;
 
-        if (lastTriggeredUtc === todayUtc) {
-          console.log("Already triggered today, skipping");
+        // Only skip if already triggered within today's UTC window.
+        const alreadyTriggeredInWindow = lastTriggered
+          ? (
+            lastTriggered >= todayWindowStart &&
+            lastTriggered <= todayWindowEnd
+          )
+          : false;
+
+        if (alreadyTriggeredInWindow) {
+          console.log(
+            `Workflow ${wf.name} already triggered in today's window, skipping`,
+          );
           continue;
         }
       }
