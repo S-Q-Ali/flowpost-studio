@@ -264,27 +264,19 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const todayWindowStart = new Date();
-        todayWindowStart.setUTCHours(start, 0, 0, 0);
-        const todayWindowEnd = new Date();
-        todayWindowEnd.setUTCHours(end, 0, 0, 0);
-
         const lastTriggered = wf.last_triggered_at
           ? new Date(wf.last_triggered_at)
           : null;
 
-        // Only skip if already triggered within today's UTC window.
-        const alreadyTriggeredInWindow = lastTriggered
-          ? (
-            lastTriggered >= todayWindowStart &&
-            lastTriggered <= todayWindowEnd
-          )
-          : false;
+        const todayUTC = now.toISOString().slice(0, 10);
+        const lastTriggeredDate = lastTriggered
+          ? lastTriggered.toISOString().slice(0, 10)
+          : null;
 
-        if (alreadyTriggeredInWindow) {
-          console.log(
-            `Workflow ${wf.name} already triggered in today's window, skipping`,
-          );
+        const alreadyTriggeredToday = lastTriggeredDate === todayUTC;
+
+        if (alreadyTriggeredToday) {
+          console.log(`Workflow ${wf.name} already triggered today, skipping`);
           continue;
         }
       }
@@ -295,8 +287,7 @@ Deno.serve(async (req) => {
         } catch (err) {
           console.error("Google auth error", err);
           errors.push(
-            `Google auth failed for workflow ${wf.id}: ${
-              err instanceof Error ? err.message : String(err)
+            `Google auth failed for workflow ${wf.id}: ${err instanceof Error ? err.message : String(err)
             }`,
           );
           continue;
@@ -722,8 +713,7 @@ Deno.serve(async (req) => {
         } catch (err) {
           console.error("Error processing sheet row", err);
           errors.push(
-            `Row processing failed for workflow ${wf.id}: ${
-              err instanceof Error ? err.message : String(err)
+            `Row processing failed for workflow ${wf.id}: ${err instanceof Error ? err.message : String(err)
             }`,
           );
         }
