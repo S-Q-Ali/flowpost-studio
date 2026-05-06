@@ -553,7 +553,7 @@ Deno.serve(async (req) => {
             account_id: string | null;
           }[]) {
             if (post.platform === "youtube") {
-              await fetch(`${SB_URL}/functions/v1/youtube-upload`, {
+              void fetch(`${SB_URL}/functions/v1/youtube-upload`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -567,7 +567,7 @@ Deno.serve(async (req) => {
                 }),
               });
             } else if (post.platform === "facebook") {
-              await fetch(`${SB_URL}/functions/v1/facebook-upload`, {
+              void fetch(`${SB_URL}/functions/v1/facebook-upload`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -581,7 +581,7 @@ Deno.serve(async (req) => {
                 }),
               });
             } else if (post.platform === "instagram") {
-              await fetch(`${SB_URL}/functions/v1/instagram-upload`, {
+              void fetch(`${SB_URL}/functions/v1/instagram-upload`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -598,13 +598,24 @@ Deno.serve(async (req) => {
           }
 
           if (wf.post_as_story) {
+            // Uploads are fire-and-forget. Wait briefly for upload functions
+            // to swap Drive URL -> R2 public URL on the video record.
+            await new Promise((r) => setTimeout(r, 5000));
+
             const { data: updatedVideo } = await supabase
               .from("videos")
               .select("file_url")
               .eq("id", videoRecord.id)
               .single();
 
-            const storyVideoUrl = updatedVideo?.file_url || publicDriveUrl;
+            const storyVideoUrl = updatedVideo?.file_url?.startsWith("https://pub-")
+              ? updatedVideo.file_url
+              : null;
+
+            if (!storyVideoUrl) {
+              console.log("R2 URL not ready yet, skipping story");
+              continue;
+            }
             const usedStoryTokens = new Set<string>();
 
             for (const post of insertedPosts as {
@@ -625,7 +636,7 @@ Deno.serve(async (req) => {
                   !usedStoryTokens.has(fbAcc.access_token)
                 ) {
                   usedStoryTokens.add(fbAcc.access_token);
-                  await fetch(`${SB_URL}/functions/v1/post-story`, {
+                  void fetch(`${SB_URL}/functions/v1/post-story`, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
@@ -659,7 +670,7 @@ Deno.serve(async (req) => {
                   .single();
 
                 if (igAcc?.access_token) {
-                  await fetch(`${SB_URL}/functions/v1/post-story`, {
+                  void fetch(`${SB_URL}/functions/v1/post-story`, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
