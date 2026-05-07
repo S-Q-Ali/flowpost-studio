@@ -313,7 +313,8 @@ Deno.serve(async (req) => {
         } catch (err) {
           console.error("Google auth error", err);
           errors.push(
-            `Google auth failed for workflow ${wf.id}: ${err instanceof Error ? err.message : String(err)
+            `Google auth failed for workflow ${wf.id}: ${
+              err instanceof Error ? err.message : String(err)
             }`,
           );
           continue;
@@ -747,7 +748,8 @@ Deno.serve(async (req) => {
         } catch (err) {
           console.error("Error processing sheet row", err);
           errors.push(
-            `Row processing failed for workflow ${wf.id}: ${err instanceof Error ? err.message : String(err)
+            `Row processing failed for workflow ${wf.id}: ${
+              err instanceof Error ? err.message : String(err)
             }`,
           );
         }
@@ -790,7 +792,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("process-workflow error", err);
-    
+
     // Release global manual run lock on error
     if (isManualRun) {
       try {
@@ -799,7 +801,7 @@ Deno.serve(async (req) => {
         // ignore
       }
     }
-    
+
     return json(
       {
         error: err instanceof Error ? err.message : "Unknown error",
