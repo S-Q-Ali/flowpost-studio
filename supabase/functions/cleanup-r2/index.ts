@@ -12,11 +12,10 @@ const R2_BUCKET = Deno.env.get("R2_BUCKET");
 const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL");
 const SB_URL = Deno.env.get("SB_URL");
 const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
-const SB_ANON_KEY = Deno.env.get("SB_ANON_KEY");
 
 if (
   !R2_ENDPOINT || !R2_ACCESS_KEY || !R2_SECRET_KEY ||
-  !R2_BUCKET || !R2_PUBLIC_URL || !SB_URL || !SB_SERVICE_ROLE_KEY || !SB_ANON_KEY
+  !R2_BUCKET || !R2_PUBLIC_URL || !SB_URL || !SB_SERVICE_ROLE_KEY
 ) {
   console.error("Missing required environment variables for cleanup-r2");
 }
@@ -167,9 +166,8 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.replace("Bearer ", "");
-  const validKeys = [SB_ANON_KEY, SB_SERVICE_ROLE_KEY];
 
-  if (!token || !validKeys.includes(token)) {
+  if (!token || token !== SB_SERVICE_ROLE_KEY) {
     return json({ error: "Unauthorized" }, 401);
   }
 
@@ -178,25 +176,53 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Delete videos 24 hours after ALL posts for that video are published
+    // This ensures we don't delete if one platform post is still processing
     const cutoff = new Date(
-      Date.now() - 48 * 60 * 60 * 1000,
+      Date.now() - 24 * 60 * 60 * 1000,
     ).toISOString();
 
-    const { data: oldVideos, error: fetchError } = await supabase
+    // Get videos that have R2 URLs and check their posts
+    const { data: r2Videos, error: fetchError } = await supabase
       .from("videos")
       .select("id, file_url, title, uploaded_at")
-      .lt("uploaded_at", cutoff);
+      .eq("user_id", "00000000-0000-0000-0000-000000000000")
+      .like("file_url", "%pub-%");
 
     if (fetchError) {
-      console.error("Failed to fetch old videos", fetchError);
+      console.error("Failed to fetch videos", fetchError);
       return json({ error: fetchError.message }, 500);
     }
 
-    const videos = oldVideos ?? [];
+    const videosToDelete: { id: string; file_url: string; title: string }[] = [];
+
+    for (const video of (r2Videos ?? []) as any[]) {
+      // Check ALL posts for this video - only delete if ALL posts are published AND published > 24h ago
+      const { data: allPosts } = await supabase
+        .from("posts")
+        .select("status, published_at")
+        .eq("video_id", video.id);
+
+      if (!allPosts || allPosts.length === 0) {
+        // No posts for this video, consider deleting (might be orphaned)
+        console.log("Video has no posts:", video.id);
+        continue;
+      }
+
+      // Check if ALL posts are published and have been published > 24h
+      const allPublishedOver24h = allPosts.every(
+        (p) => p.status === "published" && p.published_at && p.published_at < cutoff,
+      );
+
+      if (allPublishedOver24h) {
+        videosToDelete.push({ id: video.id, file_url: video.file_url, title: video.title });
+      }
+    }
+
     let deletedCount = 0;
     const errors: string[] = [];
 
-    for (const video of videos as any[]) {
+    for (const video of videosToDelete) {
       try {
         if (!video.file_url || !R2_PUBLIC_URL) {
           continue;
@@ -249,7 +275,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ deleted: deletedCount, errors });
+    return json({ deleted: deletedCount, errors, checked: r2Videos?.length ?? 0 });
   } catch (err) {
     console.error("cleanup-r2 error", err);
     return json(
