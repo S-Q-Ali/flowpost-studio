@@ -87,9 +87,7 @@ async function getGoogleAccessToken(): Promise<string> {
     new TextEncoder().encode(signingInput),
   );
 
-  const jwt = `${signingInput}.${base64UrlEncode(
-    new Uint8Array(signature),
-  )}`;
+  const jwt = `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -275,9 +273,9 @@ Deno.serve(async (req) => {
           const randomHour = start + randomHourOffset;
 
           console.log(
-            `Workflow ${wf.name}: random trigger time set to ${randomHour}:${randomMinute
-              .toString()
-              .padStart(2, "0")} UTC`,
+            `Workflow ${wf.name}: random trigger time set to ${randomHour}:${
+              randomMinute.toString().padStart(2, "0")
+            } UTC`,
           );
 
           // Skip until random trigger time reached in UTC
