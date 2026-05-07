@@ -1,0 +1,106 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const SB_URL = Deno.env.get("SB_URL");
+const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
+
+if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
+  console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for google-oauth");
+}
+
+const supabase = createClient(SB_URL!, SB_SERVICE_ROLE_KEY!, {
+  auth: { persistSession: false },
+});
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const url = new URL(req.url);
+  const code = url.searchParams.get("code");
+  const error = url.searchParams.get("error");
+
+  if (error) {
+    return json({ error: error }, 400);
+  }
+
+  if (!code) {
+    return json({ error: "No authorization code provided" }, 400);
+  }
+
+  try {
+    const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (exchangeError || !exchangeData.user) {
+      console.error("Token exchange failed:", exchangeError);
+      return json({ error: "Failed to exchange code for session" }, 500);
+    }
+
+    const user = exchangeData.user;
+    const email = user.email;
+    const name = user.user_metadata?.full_name || user.user_metadata?.name || email;
+    const avatarUrl = user.user_metadata?.avatar_url || null;
+
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+
+    if (!existingUser) {
+      const { error: insertError } = await supabase
+        .from("users")
+        .insert({
+          id: user.id,
+          email: email,
+          name: name,
+          avatar_url: avatarUrl,
+          is_admin: false,
+        });
+
+      if (insertError) {
+        console.error("Failed to create user record:", insertError);
+      }
+    }
+
+    const token = crypto.randomUUID() + crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { error: sessionError } = await supabase
+      .from("sessions")
+      .insert({ 
+        token, 
+        expires_at: expiresAt,
+        user_id: user.id
+      });
+
+    if (sessionError) {
+      console.error("Failed to create session:", sessionError);
+    }
+
+    const redirectUrl = `${url.searchParams.get("redirect_uri") || "/"}?token=${token}`;
+    
+    return new Response(null, {
+      status: 302,
+      headers: {
+        "Location": redirectUrl,
+        ...corsHeaders,
+      },
+    });
+  } catch (err) {
+    console.error("google-oauth error:", err);
+    return json({ error: "OAuth failed" }, 500);
+  }
+});

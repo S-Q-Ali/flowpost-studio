@@ -7,13 +7,12 @@ const corsHeaders = {
 
 const SB_URL = Deno.env.get("SB_URL");
 const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
-const SB_ANON_KEY = Deno.env.get("SB_ANON_KEY");
 const GOOGLE_FALLBACK_SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID") || undefined;
 
 const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
-if (!SB_URL || !SB_SERVICE_ROLE_KEY || !SB_ANON_KEY) {
-  console.error("Missing SB_URL, SB_SERVICE_ROLE_KEY or SB_ANON_KEY for process-workflow");
+if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
+  console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for process-workflow");
 }
 
 const supabase = createClient(SB_URL!, SB_SERVICE_ROLE_KEY!, {
@@ -140,9 +139,8 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.replace("Bearer ", "");
-  const validKeys = [SB_ANON_KEY, SB_SERVICE_ROLE_KEY];
 
-  if (!token || !validKeys.includes(token)) {
+  if (!token || token !== SB_SERVICE_ROLE_KEY) {
     return json({ error: "Unauthorized" }, 401);
   }
 
@@ -151,35 +149,60 @@ Deno.serve(async (req) => {
   }
 
   let workflowId: string | undefined;
+  let isManualRun = false;
   try {
     const body = await req.json().catch(() => null);
     workflowId = body?.workflowId;
+    isManualRun = !!workflowId;
   } catch {
     // ignore invalid JSON when called without body
   }
 
-  try {
-    // For scheduled runs (no workflowId), use a per-minute lock to prevent duplicate execution
-    if (!workflowId) {
-      await supabase
-        .from("workflow_locks")
-        .delete()
-        .lt("expires_at", new Date().toISOString());
+  // For manual runs, use a GLOBAL lock to prevent concurrent manual executions
+  if (isManualRun) {
+    const manualLockKey = "manual-workflow-global-running";
+    
+    // Clean up old expired locks first
+    await supabase
+      .from("workflow_locks")
+      .delete()
+      .lt("expires_at", new Date().toISOString());
+    
+    // Try to acquire global manual run lock (30 min expiry)
+    const { error: lockError } = await supabase.from("workflow_locks").insert({
+      lock_key: manualLockKey,
+      locked_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    });
 
-      const lockKey =
-        "process-workflow-" + new Date().toISOString().slice(0, 16);
-      const { error: lockError } = await supabase.from("workflow_locks").insert({
-        lock_key: lockKey,
-        locked_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      });
-
-      if (lockError) {
-        console.log("Another instance is running, exiting");
-        return json({ message: "Already running" });
-      }
-      console.log("Lock acquired:", lockKey);
+    if (lockError) {
+      console.log("Another manual workflow is currently running");
+      return json({ error: "Another workflow is currently running. Please wait for it to complete." }, 409);
     }
+    console.log("Global manual run lock acquired");
+  }
+  
+  const isManualRun = !!workflowId;
+  
+  // Use a per-minute lock to prevent duplicate execution (both scheduled and manual)
+  await supabase
+    .from("workflow_locks")
+    .delete()
+    .lt("expires_at", new Date().toISOString());
+
+  const lockKey =
+    "process-workflow-" + new Date().toISOString().slice(0, 16);
+  const { error: lockError } = await supabase.from("workflow_locks").insert({
+    lock_key: lockKey,
+    locked_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+  });
+
+    if (lockError) {
+      console.log("Another instance is running, exiting");
+      return json({ message: "Another workflow is currently running. Please wait." });
+    }
+    console.log("Lock acquired:", lockKey);
 
     const filters: Record<string, unknown> = { is_active: true };
     if (workflowId) {
@@ -221,65 +244,68 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // If manual run (workflowId provided), skip trigger window checks
-      if (!workflowId) {
-        const start = wf.trigger_hour_start ?? 14;
+      const start = wf.trigger_hour_start ?? 14;
         const end = wf.trigger_hour_end ?? 15;
 
         console.log("UTC hour:", utcHour);
         console.log("UTC minute:", utcMinute);
         console.log("Workflow window (UTC):", start, "-", end);
 
-        // Trigger window check in UTC (end hour inclusive so 23:00 is inside 22-23 window)
-        if (utcHour < start || utcHour > end) {
-          continue;
+        // Only check trigger window for scheduled runs (not manual)
+        if (!isManualRun) {
+          // Trigger window check in UTC - end hour is EXCLUSIVE to prevent running in next hour
+          // If window is 21-22, only runs during hour 21 (21:00 - 21:59)
+          if (utcHour < start || utcHour >= end) {
+            continue;
+          }
+
+          // Deterministic random minute and hour within window (UTC)
+          const todayUtc = now.toISOString().slice(0, 10);
+          const seed = String(wf.id ?? "") + todayUtc;
+          let hash = 0;
+          for (let i = 0; i < seed.length; i++) {
+            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+            hash |= 0;
+          }
+
+          const randomMinute = Math.abs(hash) % 60;
+          const windowSizeRaw = end - start;
+          const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
+          const randomHourOffset = Math.abs(hash >> 8) % windowSize;
+          const randomHour = start + randomHourOffset;
+
+          console.log(
+            `Workflow ${wf.name}: random trigger time set to ${randomHour}:${randomMinute
+              .toString()
+              .padStart(2, "0")} UTC`,
+          );
+
+          // Skip until random trigger time reached in UTC
+          // Also add check to ensure we don't run in next hour after random hour
+          if (
+            utcHour < randomHour ||
+            (utcHour === randomHour && utcMinute < randomMinute) ||
+            (utcHour > randomHour && utcHour < end) // Don't run in hours after random hour but before end
+          ) {
+            continue;
+          }
+
+          const lastTriggered = wf.last_triggered_at
+            ? new Date(wf.last_triggered_at)
+            : null;
+
+          const todayUTC = now.toISOString().slice(0, 10);
+          const lastTriggeredDate = lastTriggered
+            ? lastTriggered.toISOString().slice(0, 10)
+            : null;
+
+          const alreadyTriggeredToday = lastTriggeredDate === todayUTC;
+
+          if (alreadyTriggeredToday) {
+            console.log(`Workflow ${wf.name} already triggered today, skipping`);
+            continue;
+          }
         }
-
-        // Deterministic random minute and hour within window (UTC)
-        const todayUtc = now.toISOString().slice(0, 10);
-        const seed = String(wf.id ?? "") + todayUtc;
-        let hash = 0;
-        for (let i = 0; i < seed.length; i++) {
-          hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-          hash |= 0;
-        }
-
-        const randomMinute = Math.abs(hash) % 60;
-        const windowSizeRaw = end - start;
-        const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
-        const randomHourOffset = Math.abs(hash >> 8) % windowSize;
-        const randomHour = start + randomHourOffset;
-
-        console.log(
-          `Workflow ${wf.name}: random trigger time set to ${randomHour}:${randomMinute
-            .toString()
-            .padStart(2, "0")} UTC`,
-        );
-
-        // Skip until random trigger time reached in UTC
-        if (
-          utcHour < randomHour ||
-          (utcHour === randomHour && utcMinute < randomMinute)
-        ) {
-          continue;
-        }
-
-        const lastTriggered = wf.last_triggered_at
-          ? new Date(wf.last_triggered_at)
-          : null;
-
-        const todayUTC = now.toISOString().slice(0, 10);
-        const lastTriggeredDate = lastTriggered
-          ? lastTriggered.toISOString().slice(0, 10)
-          : null;
-
-        const alreadyTriggeredToday = lastTriggeredDate === todayUTC;
-
-        if (alreadyTriggeredToday) {
-          console.log(`Workflow ${wf.name} already triggered today, skipping`);
-          continue;
-        }
-      }
 
       if (!googleToken) {
         try {
@@ -294,17 +320,20 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Immediately update last_triggered_at to prevent double trigger (even if processing fails later)
+      // Update trigger tracking - scheduled runs update last_triggered_at, manual runs update last_manual_triggered_at
+      // This ensures manual runs don't affect the next scheduled run time
+      const triggerUpdate = isManualRun
+        ? { last_manual_triggered_at: new Date().toISOString() }
+        : { last_triggered_at: new Date().toISOString() };
+      
       const { error: earlyTriggerError } = await supabase
         .from("workflows")
-        .update({
-          last_triggered_at: new Date().toISOString(),
-        })
+        .update(triggerUpdate)
         .eq("id", wf.id);
 
       if (earlyTriggerError) {
         console.error(
-          "Failed to update last_triggered_at (early)",
+          "Failed to update trigger time",
           wf.id,
           earlyTriggerError,
         );
@@ -553,7 +582,7 @@ Deno.serve(async (req) => {
             account_id: string | null;
           }[]) {
             if (post.platform === "youtube") {
-              await fetch(`${SB_URL}/functions/v1/youtube-upload`, {
+              void fetch(`${SB_URL}/functions/v1/youtube-upload`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -567,7 +596,7 @@ Deno.serve(async (req) => {
                 }),
               });
             } else if (post.platform === "facebook") {
-              await fetch(`${SB_URL}/functions/v1/facebook-upload`, {
+              void fetch(`${SB_URL}/functions/v1/facebook-upload`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -581,7 +610,7 @@ Deno.serve(async (req) => {
                 }),
               });
             } else if (post.platform === "instagram") {
-              await fetch(`${SB_URL}/functions/v1/instagram-upload`, {
+              void fetch(`${SB_URL}/functions/v1/instagram-upload`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -598,13 +627,24 @@ Deno.serve(async (req) => {
           }
 
           if (wf.post_as_story) {
+            // Uploads are fire-and-forget. Wait briefly for upload functions
+            // to swap Drive URL -> R2 public URL on the video record.
+            await new Promise((r) => setTimeout(r, 5000));
+
             const { data: updatedVideo } = await supabase
               .from("videos")
               .select("file_url")
               .eq("id", videoRecord.id)
               .single();
 
-            const storyVideoUrl = updatedVideo?.file_url || publicDriveUrl;
+            const storyVideoUrl = updatedVideo?.file_url?.startsWith("https://pub-")
+              ? updatedVideo.file_url
+              : null;
+
+            if (!storyVideoUrl) {
+              console.log("R2 URL not ready yet, skipping story");
+              continue;
+            }
             const usedStoryTokens = new Set<string>();
 
             for (const post of insertedPosts as {
@@ -625,7 +665,7 @@ Deno.serve(async (req) => {
                   !usedStoryTokens.has(fbAcc.access_token)
                 ) {
                   usedStoryTokens.add(fbAcc.access_token);
-                  await fetch(`${SB_URL}/functions/v1/post-story`, {
+                  void fetch(`${SB_URL}/functions/v1/post-story`, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
@@ -659,7 +699,7 @@ Deno.serve(async (req) => {
                   .single();
 
                 if (igAcc?.access_token) {
-                  await fetch(`${SB_URL}/functions/v1/post-story`, {
+                  void fetch(`${SB_URL}/functions/v1/post-story`, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
@@ -681,32 +721,26 @@ Deno.serve(async (req) => {
                 }
               }
             }
-          }
 
-          // Update sheet row status to "posted"
-          if (statusIdx !== undefined) {
-            const colLetter = String.fromCharCode("A".charCodeAt(0) + statusIdx);
-            const range = `Sheet1!${colLetter}${rowIndex}`;
-            const updateRes = await fetch(
-              `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(
-                range,
-              )}?valueInputOption=RAW`,
-              {
-                method: "PUT",
-                headers: {
-                  Authorization: `Bearer ${googleToken}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ values: [["posted"]] }),
+          // Store sheet info in post metadata for later update (after successful upload)
+          // We don't update the sheet here - the upload functions will do it after success
+          const { error: metadataUpdateError } = await supabase
+            .from("posts")
+            .update({
+              metadata: {
+                ...((insertedPosts as any[])[0]?.metadata || {}),
+                sheet_id: sheetId,
+                sheet_row_index: rowIndex,
+                sheet_col_index: statusIdx,
               },
+            })
+            .in(
+              "id",
+              (insertedPosts as { id: string }[]).map((p) => p.id),
             );
-            if (!updateRes.ok) {
-              console.error(
-                "Failed to update sheet status",
-                updateRes.status,
-                await updateRes.text(),
-              );
-            }
+
+          if (metadataUpdateError) {
+            console.error("Failed to update post metadata with sheet info", metadataUpdateError);
           }
 
           workflowVideoCount++;
@@ -739,6 +773,16 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Release global manual run lock if was manual run
+    if (isManualRun) {
+      try {
+        await supabase.from("workflow_locks").delete().eq("lock_key", "manual-workflow-global-running");
+        console.log("Global manual run lock released");
+      } catch (e) {
+        console.error("Failed to release manual lock:", e);
+      }
+    }
+
     return json({
       processed: totalProcessedVideos,
       workflows_triggered: workflowsTriggered,
@@ -746,6 +790,16 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("process-workflow error", err);
+    
+    // Release global manual run lock on error
+    if (isManualRun) {
+      try {
+        await supabase.from("workflow_locks").delete().eq("lock_key", "manual-workflow-global-running");
+      } catch (e) {
+        // ignore
+      }
+    }
+    
     return json(
       {
         error: err instanceof Error ? err.message : "Unknown error",

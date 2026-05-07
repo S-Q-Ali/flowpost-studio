@@ -13,6 +13,7 @@ import CalendarPage from "./pages/CalendarPage";
 import QueuePage from "./pages/QueuePage";
 import AccountsPage from "./pages/AccountsPage";
 import NotFound from "./pages/NotFound";
+import AuthCallback from "./pages/AuthCallback";
 import { Loader2, Zap } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route element={<AppLayout />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/upload" element={<UploadPage />} />

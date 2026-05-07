@@ -7,10 +7,9 @@ const corsHeaders = {
 
 const SB_URL = Deno.env.get("SB_URL");
 const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
-const SB_ANON_KEY = Deno.env.get("SB_ANON_KEY");
 
-if (!SB_URL || !SB_SERVICE_ROLE_KEY || !SB_ANON_KEY) {
-  console.error("Missing SB_URL, SB_SERVICE_ROLE_KEY, or SB_ANON_KEY for instagram-publish");
+if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
+  console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for instagram-publish");
 }
 
 const supabase = createClient(SB_URL!, SB_SERVICE_ROLE_KEY!, {
@@ -37,8 +36,7 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get("Authorization");
     const token = authHeader?.replace("Bearer ", "");
-    const validKeys = [SB_ANON_KEY, SB_SERVICE_ROLE_KEY];
-    if (!token || !validKeys.includes(token)) {
+    if (!token || token !== SB_SERVICE_ROLE_KEY) {
       return json({ error: "Unauthorized" }, 401);
     }
 
@@ -133,15 +131,16 @@ Deno.serve(async (req) => {
       }
 
       // Now safe to publish — we have the claim
+      const publishForm = new URLSearchParams();
+      publishForm.append("creation_id", containerId);
+      publishForm.append("access_token", accessToken);
+
       const publishRes = await fetch(
         `https://graph.facebook.com/v18.0/${post.account_id}/media_publish`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            creation_id: containerId,
-            access_token: accessToken,
-          }),
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: publishForm.toString(),
         },
       );
       const publishData = await publishRes.json();
@@ -164,6 +163,21 @@ Deno.serve(async (req) => {
         return json({ error: "Publish succeeded but status update failed" }, 500);
       }
 
+      // Update Google Sheet status to "posted"
+      try {
+        await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+            apikey: SB_SERVICE_ROLE_KEY!,
+          },
+          body: JSON.stringify({ postId, status: "posted" }),
+        });
+      } catch (sheetErr) {
+        console.error("Failed to update sheet status", sheetErr);
+      }
+
       return json({
         success: true,
         instagram_post_id: publishData.id,
@@ -173,6 +187,20 @@ Deno.serve(async (req) => {
 
     if (status === "ERROR") {
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      // Update sheet status to "failed"
+      try {
+        await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+            apikey: SB_SERVICE_ROLE_KEY!,
+          },
+          body: JSON.stringify({ postId, status: "failed" }),
+        });
+      } catch (sheetErr) {
+        console.error("Failed to update sheet status", sheetErr);
+      }
       return json({ error: "Container processing failed" }, 502);
     }
 

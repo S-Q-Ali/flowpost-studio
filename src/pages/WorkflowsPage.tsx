@@ -88,6 +88,7 @@ export default function WorkflowsPage() {
   const [deleteTarget, setDeleteTarget] = useState<WorkflowRow | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [isAnyWorkflowRunning, setIsAnyWorkflowRunning] = useState(false);
 
   const loadWorkflows = async () => {
     const { data, error } = await supabase
@@ -301,24 +302,43 @@ export default function WorkflowsPage() {
   };
 
   const runWorkflow = async (workflowId: string) => {
+    // Check if another workflow is already running
+    if (runningId || isAnyWorkflowRunning) {
+      toast.error("Another workflow is currently running. Please wait.");
+      return;
+    }
+    
     setRunningId(workflowId);
+    setIsAnyWorkflowRunning(true);
     try {
       const { data, error } = await supabase.functions.invoke<{
         processed: number;
         workflows_triggered: number;
-        errors: string[];
+        error?: string;
       }>("process-workflow", {
         body: { workflowId },
       });
+      
       if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+      
       const processed = data?.processed ?? 0;
       toast.success(`Workflow triggered! ${processed} videos processed`);
       loadWorkflows();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error("Failed to run workflow");
+      const errorMsg = e?.message || e?.data?.error || "Failed to run workflow";
+      if (errorMsg.includes("another workflow is currently running")) {
+        toast.error("Another workflow is already running. Please wait for it to complete.");
+      } else {
+        toast.error(errorMsg);
+      }
     } finally {
       setRunningId(null);
+      setIsAnyWorkflowRunning(false);
     }
   };
 
@@ -567,15 +587,26 @@ export default function WorkflowsPage() {
               </select>
             </div>
           </div>
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+            <p className="text-xs font-medium text-primary">Your local time window:</p>
+            <p className="text-sm text-foreground">
+              {(() => {
+                const now = new Date();
+                const startLocal = new Date(now);
+                startLocal.setUTCHours(triggerStartHour, 0, 0, 0);
+                const endLocal = new Date(now);
+                endLocal.setUTCHours(triggerEndHour - 1, 59, 59, 999);
+                const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return `${formatTime(startLocal)} - ${formatTime(endLocal)} (your time)`;
+              })()}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Current your time: {new Date().toLocaleTimeString()}
+            </p>
+          </div>
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">
               Times are in UTC. Current UTC time: {new Date().toUTCString()}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Pakistan (PKT) = UTC + 5<br />
-              USA Eastern (EST) = UTC - 5<br />
-              USA Central (CST) = UTC - 6<br />
-              USA Pacific (PST) = UTC - 8
             </p>
           </div>
           <div className="space-y-1">
@@ -691,7 +722,22 @@ export default function WorkflowsPage() {
     const end = wf.trigger_hour_end ?? 1;
     const startLabel = `${start.toString().padStart(2, "0")}:00`;
     const endLabel = `${end.toString().padStart(2, "0")}:00`;
-    return `Posts between ${startLabel} - ${endLabel} UTC`;
+    
+    // Calculate local time window
+    const now = new Date();
+    const startLocal = new Date(now);
+    startLocal.setUTCHours(start, 0, 0, 0);
+    const endLocal = new Date(now);
+    endLocal.setUTCHours(end - 1, 59, 59, 999);
+    const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const localTimeWindow = `${formatTime(startLocal)} - ${formatTime(endLocal)}`;
+    
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="text-muted-foreground text-xs">Posts between {startLabel} - {endLabel} UTC</span>
+        <span className="text-[10px] text-primary/80">{localTimeWindow} your time</span>
+      </div>
+    );
   };
 
   const renderLastTriggered = (wf: WorkflowRow) => {
@@ -853,7 +899,7 @@ export default function WorkflowsPage() {
                     size="icon"
                     className="h-7 w-7 text-primary hover:text-primary-foreground"
                     onClick={() => runWorkflow(wf.id)}
-                    disabled={runningId === wf.id}
+                    disabled={runningId === wf.id || isAnyWorkflowRunning}
                   >
                     {runningId === wf.id ? (
                       <Loader2 className="h-3 w-3 animate-spin" />

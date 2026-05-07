@@ -177,18 +177,19 @@ Deno.serve(async (req) => {
     console.log("Using video URL:", videoUrl);
     console.log("Caption:", post.caption);
 
-    // Step 3a - Create media container
+    // Step 3a - Create media container using URLSearchParams (Meta API expects form-encoded data)
+    const containerForm = new URLSearchParams();
+    containerForm.append("media_type", "REELS");
+    containerForm.append("video_url", videoUrl);
+    containerForm.append("caption", post.caption || "");
+    containerForm.append("access_token", accessToken);
+
     const containerRes = await fetch(
       `https://graph.facebook.com/v18.0/${igUserId}/media`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          media_type: "REELS",
-          video_url: videoUrl,
-          caption: post.caption || "",
-          access_token: accessToken,
-        }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: containerForm.toString(),
       },
     );
     const containerResText = await containerRes.text();

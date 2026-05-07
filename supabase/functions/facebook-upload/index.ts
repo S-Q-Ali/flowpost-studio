@@ -202,6 +202,20 @@ Deno.serve(async (req) => {
     if (!postRes.ok || !postData?.id) {
       console.error("Facebook file_url upload failed", postRes.status, postData);
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      // Update sheet status to "failed"
+      try {
+        await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+            apikey: SB_SERVICE_ROLE_KEY!,
+          },
+          body: JSON.stringify({ postId, status: "failed" }),
+        });
+      } catch (sheetErr) {
+        console.error("Failed to update sheet status", sheetErr);
+      }
       return json({ error: `Facebook upload failed: ${JSON.stringify(postData)}` }, 502);
     }
 
@@ -218,12 +232,37 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Update Google Sheet status to "posted"
+    try {
+      await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+          apikey: SB_SERVICE_ROLE_KEY!,
+        },
+        body: JSON.stringify({ postId, status: "posted" }),
+      });
+    } catch (sheetErr) {
+      console.error("Failed to update sheet status", sheetErr);
+    }
+
     return json({ success: true, postId, facebook_video_id: postData.id });
   } catch (err) {
     console.error("facebook-upload error", err);
     try {
       if (typeof postId === "string") {
         await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+        // Update sheet status to "failed"
+        await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+            apikey: SB_SERVICE_ROLE_KEY!,
+          },
+          body: JSON.stringify({ postId, status: "failed" }),
+        });
       }
     } catch {
       // ignore
