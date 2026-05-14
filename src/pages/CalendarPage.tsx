@@ -7,10 +7,9 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChevronLeft, ChevronRight, List, CalendarDays } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from "date-fns";
+import { PERSONAL_USER_ID } from "@/lib/constants";
 import type { Post, Platform, PostStatus } from "@/lib/types";
 import { toast } from "sonner";
-
-const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -31,7 +30,11 @@ export default function CalendarPage() {
     setPosts((data as any) ?? []);
   };
 
-  useEffect(() => { fetchPosts(); }, [currentMonth]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchPosts().then(() => { if (cancelled) setPosts([]); });
+    return () => { cancelled = true; };
+  }, [currentMonth]);
 
   const days = eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) });
   const startDayOfWeek = startOfMonth(currentMonth).getDay();

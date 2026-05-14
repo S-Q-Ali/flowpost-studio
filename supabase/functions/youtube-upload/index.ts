@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -19,6 +19,26 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+const ALLOWED_DOMAINS = [
+  "www.googleapis.com",
+  "drive.google.com",
+  "pub-1d4bcccec36046308147315db8637398.r2.dev",
+  "storage.googleapis.com",
+  "youtube.googleapis.com",
+];
+
+function validateUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return false;
+    return ALLOWED_DOMAINS.some(
+      (domain) => parsed.hostname === domain || parsed.hostname.endsWith("." + domain),
+    );
+  } catch {
+    return false;
+  }
 }
 
 function isTokenExpired(tokenExpiry: string | null): boolean {
@@ -50,7 +70,7 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = req.headers.get("Authorization");
-  const validKeys = [Deno.env.get("SB_ANON_KEY"), Deno.env.get("SB_SERVICE_ROLE_KEY")];
+  const validKeys = [Deno.env.get("SB_SERVICE_ROLE_KEY")];
   const token = authHeader?.replace("Bearer ", "");
   if (!token || !validKeys.includes(token)) {
     return json({ error: "Unauthorized" }, 401);
@@ -132,6 +152,11 @@ Deno.serve(async (req) => {
     // - Traditional flow: video.file_url points to R2/public storage
     // - Workflow flow: direct Google Drive download URL + access token
     const sourceUrl = driveDownloadUrl || video.file_url;
+
+    if (!validateUrl(sourceUrl)) {
+      console.error("Blocked fetch to disallowed URL:", sourceUrl);
+      return json({ error: "Invalid video source URL" }, 400);
+    }
 
     const headRes = await fetch(sourceUrl, {
       method: "HEAD",

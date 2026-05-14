@@ -15,12 +15,11 @@ import { Upload, CalendarIcon, Loader2, Youtube, Instagram, Facebook } from "luc
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { PERSONAL_USER_ID } from "@/lib/constants";
 import type { Platform } from "@/lib/types";
 import type { ConnectedAccount } from "@/lib/types";
 import { uploadToR2 } from "@/lib/r2";
 import { Progress } from "@/components/ui/progress";
-
-const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 

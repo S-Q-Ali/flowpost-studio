@@ -2,7 +2,7 @@ import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = req.headers.get("Authorization");
-  const validKeys = [Deno.env.get("SB_ANON_KEY"), Deno.env.get("SB_SERVICE_ROLE_KEY")];
+  const validKeys = [Deno.env.get("SB_SERVICE_ROLE_KEY")];
   const token = authHeader?.replace("Bearer ", "");
   if (!token || !validKeys.includes(token)) {
     return new Response(
@@ -60,6 +60,17 @@ Deno.serve(async (req) => {
     if (!fileName || !fileType || !userId) {
       return new Response(
         JSON.stringify({ error: "fileName, fileType and userId are required" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const ALLOWED_TYPES = ["video/mp4", "video/quicktime"];
+    if (!ALLOWED_TYPES.includes(fileType)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid file type. Only MP4 and MOV are allowed." }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

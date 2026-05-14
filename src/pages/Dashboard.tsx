@@ -6,15 +6,15 @@ import { Button } from "@/components/ui/button";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Video, Upload, Calendar, Link2, Plus } from "lucide-react";
+import { PERSONAL_USER_ID } from "@/lib/constants";
 import type { Post, Platform, PostStatus } from "@/lib/types";
-
-const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ videos: 0, scheduled: 0, published: 0, accounts: 0 });
   const [recentPosts, setRecentPosts] = useState<Post[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchData = async () => {
       const [{ count: videos }, { count: scheduled }, { count: published }, { count: accounts }, { data: posts }] =
         await Promise.all([
@@ -24,15 +24,19 @@ export default function Dashboard() {
           supabase.from("connected_accounts").select("*", { count: "exact", head: true }).eq("user_id", PERSONAL_USER_ID).eq("is_connected", true),
           supabase.from("posts").select("*, videos(*)").eq("user_id", PERSONAL_USER_ID).order("created_at", { ascending: false }).limit(5),
         ]);
+      if (cancelled) return;
       setStats({
         videos: videos ?? 0,
         scheduled: scheduled ?? 0,
         published: published ?? 0,
         accounts: accounts ?? 0,
       });
-      setRecentPosts((posts as any) ?? []);
+      if (!cancelled) {
+        setRecentPosts((posts ?? []) as Post[]);
+      }
     };
     fetchData();
+    return () => { cancelled = true; };
   }, []);
 
   const statCards = [

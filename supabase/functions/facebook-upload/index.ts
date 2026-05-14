@@ -1,16 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 const SB_URL = Deno.env.get("SB_URL");
 const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
-const SB_ANON_KEY = Deno.env.get("SB_ANON_KEY");
 
-if (!SB_URL || !SB_SERVICE_ROLE_KEY || !SB_ANON_KEY) {
-  console.error("Missing SB_URL, SB_SERVICE_ROLE_KEY, or SB_ANON_KEY for facebook-upload");
+if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
+  console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for facebook-upload");
 }
 
 const supabase = createClient(SB_URL!, SB_SERVICE_ROLE_KEY!, {
@@ -46,6 +45,10 @@ async function uploadDriveVideoToR2(
     throw new Error(error?.message || "Failed to get R2 upload URL");
   }
 
+  if (!validateUrl(driveUrl)) {
+    throw new Error(`Blocked fetch to disallowed URL: ${driveUrl}`);
+  }
+
   const driveRes = await fetch(driveUrl, {
     headers: { Authorization: `Bearer ${googleToken}` },
   });
@@ -68,6 +71,25 @@ async function uploadDriveVideoToR2(
   return uploadData.publicUrl;
 }
 
+const ALLOWED_DOMAINS = [
+  "www.googleapis.com",
+  "drive.google.com",
+  "pub-1d4bcccec36046308147315db8637398.r2.dev",
+  "graph.facebook.com",
+];
+
+function validateUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return false;
+    return ALLOWED_DOMAINS.some(
+      (domain) => parsed.hostname === domain || parsed.hostname.endsWith("." + domain),
+    );
+  } catch {
+    return false;
+  }
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -82,7 +104,7 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.replace("Bearer ", "");
-  const validKeys = [SB_ANON_KEY, SB_SERVICE_ROLE_KEY];
+  const validKeys = [SB_SERVICE_ROLE_KEY];
 
   if (!token || !validKeys.includes(token)) {
     return json({ error: "Unauthorized" }, 401);
