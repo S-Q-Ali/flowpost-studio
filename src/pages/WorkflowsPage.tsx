@@ -23,9 +23,8 @@ import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Cl
 import { toast } from "sonner";
 import type { Platform, ConnectedAccount } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { PERSONAL_USER_ID } from "@/lib/constants";
 import { formatDistanceToNow } from "date-fns";
-
-const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 type WorkflowRow = {
   id: string;

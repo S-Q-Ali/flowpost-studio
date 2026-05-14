@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -12,6 +12,70 @@ const ADMIN_USER_ID = "00000000-0000-0000-0000-000000000000";
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
+
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MINUTES = 15;
+
+async function checkRateLimit(ip: string): Promise<{ allowed: boolean; remainingAttempts?: number; lockoutUntil?: string }> {
+  const now = new Date().toISOString();
+
+  const { data: rateLimit, error } = await supabase
+    .from("rate_limits")
+    .select("*")
+    .eq("key", `verify-security-questions:${ip}`)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error("Rate limit check error:", error);
+    return { allowed: true };
+  }
+
+  if (!rateLimit) {
+    return { allowed: true, remainingAttempts: MAX_ATTEMPTS };
+  }
+
+  if (new Date(rateLimit.reset_at) > new Date()) {
+    return {
+      allowed: false,
+      lockoutUntil: rateLimit.reset_at,
+      remainingAttempts: 0,
+    };
+  }
+
+  const remaining = MAX_ATTEMPTS - rateLimit.attempts;
+  return { allowed: remaining > 0, remainingAttempts: remaining };
+}
+
+async function recordFailedAttempt(ip: string) {
+  const now = new Date();
+  const key = `verify-security-questions:${ip}`;
+
+  const { data: existing } = await supabase
+    .from("rate_limits")
+    .select("*")
+    .eq("key", key)
+    .single();
+
+  if (existing) {
+    const newAttempts = existing.attempts + 1;
+    if (newAttempts >= MAX_ATTEMPTS) {
+      const lockoutUntil = new Date(now.getTime() + LOCKOUT_DURATION_MINUTES * 60 * 1000);
+      await supabase
+        .from("rate_limits")
+        .update({ attempts: newAttempts, reset_at: lockoutUntil.toISOString() })
+        .eq("key", key);
+    } else {
+      await supabase
+        .from("rate_limits")
+        .update({ attempts: newAttempts })
+        .eq("key", key);
+    }
+  } else {
+    await supabase
+      .from("rate_limits")
+      .insert({ key, attempts: 1, reset_at: now.toISOString() });
+  }
+}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -43,8 +107,23 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || req.headers.get("x-real-ip")
+    || "unknown";
+
   if (req.method === "POST") {
     try {
+      const rateCheck = await checkRateLimit(ip);
+      if (!rateCheck.allowed) {
+        const lockoutDate = new Date(rateCheck.lockoutUntil!);
+        const remainingMinutes = Math.ceil((lockoutDate.getTime() - Date.now()) / 60000);
+        return json({
+          success: false,
+          error: `Too many failed attempts. Try again in ${remainingMinutes} minutes.`,
+          lockoutUntil: rateCheck.lockoutUntil,
+        }, 429);
+      }
+
       const body = await req.json() as {
         action?: string;
         favTeacher?: string;
@@ -102,6 +181,7 @@ Deno.serve(async (req) => {
           return json({ success: true, verified: true, token });
         }
 
+        await recordFailedAttempt(ip);
         return json({ success: false, verified: false, error: "Incorrect answers" }, 401);
       }
 

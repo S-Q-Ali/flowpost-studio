@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -87,9 +87,7 @@ async function getGoogleAccessToken(): Promise<string> {
     new TextEncoder().encode(signingInput),
   );
 
-  const jwt = `${signingInput}.${base64UrlEncode(
-    new Uint8Array(signature),
-  )}`;
+  const jwt = `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -102,7 +100,7 @@ async function getGoogleAccessToken(): Promise<string> {
 
   const tokenData = await tokenRes.json();
   if (!tokenRes.ok || !tokenData.access_token) {
-    throw new Error(`Google auth failed: ${JSON.stringify(tokenData)}`);
+    throw new Error("Google authentication failed. Check service account configuration.");
   }
   return tokenData.access_token as string;
 }
@@ -182,8 +180,6 @@ Deno.serve(async (req) => {
     console.log("Global manual run lock acquired");
   }
   
-  const isManualRun = !!workflowId;
-  
   // Use a per-minute lock to prevent duplicate execution (both scheduled and manual)
   await supabase
     .from("workflow_locks")
@@ -198,532 +194,447 @@ Deno.serve(async (req) => {
     expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
   });
 
-    if (lockError) {
-      console.log("Another instance is running, exiting");
-      return json({ message: "Another workflow is currently running. Please wait." });
+  if (lockError) {
+    console.log("Another instance is running, exiting");
+    return json({ message: "Another workflow is currently running. Please wait." });
+  }
+  console.log("Lock acquired:", lockKey);
+
+  const filters: Record<string, unknown> = { is_active: true };
+  if (workflowId) {
+    filters.id = workflowId;
+  } else {
+    filters.user_id = PERSONAL_USER_ID;
+  }
+
+  const { data: workflows, error: wfError } = await supabase
+    .from("workflows")
+    .select("*")
+    .match(filters);
+
+  if (wfError) {
+    console.error("Failed to fetch workflows", wfError);
+    return json({ error: wfError.message }, 500);
+  }
+
+  const list = (workflows as any[] | null) ?? [];
+  if (list.length === 0) {
+    return json({ processed: 0, workflows_triggered: 0, errors: [] });
+  }
+
+  let googleToken: string | null = null;
+  const errors: string[] = [];
+  let totalProcessedVideos = 0;
+  let workflowsTriggered = 0;
+
+  // Use UTC time directly for scheduling
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  const utcMinute = now.getUTCMinutes();
+
+  for (const wf of list) {
+    const sheetId: string | undefined =
+      wf.sheet_id || GOOGLE_FALLBACK_SHEET_ID;
+    if (!sheetId) {
+      errors.push(`Workflow ${wf.id} has no sheet_id and no GOOGLE_SHEET_ID fallback`);
+      continue;
     }
-    console.log("Lock acquired:", lockKey);
 
-    const filters: Record<string, unknown> = { is_active: true };
-    if (workflowId) {
-      filters.id = workflowId;
-    } else {
-      filters.user_id = PERSONAL_USER_ID;
-    }
+    const start = wf.trigger_hour_start ?? 14;
+    const end = wf.trigger_hour_end ?? 15;
 
-    const { data: workflows, error: wfError } = await supabase
-      .from("workflows")
-      .select("*")
-      .match(filters);
+    console.log("UTC hour:", utcHour);
+    console.log("UTC minute:", utcMinute);
+    console.log("Workflow window (UTC):", start, "-", end);
 
-    if (wfError) {
-      console.error("Failed to fetch workflows", wfError);
-      return json({ error: wfError.message }, 500);
-    }
-
-    const list = (workflows as any[] | null) ?? [];
-    if (list.length === 0) {
-      return json({ processed: 0, workflows_triggered: 0, errors: [] });
-    }
-
-    let googleToken: string | null = null;
-    const errors: string[] = [];
-    let totalProcessedVideos = 0;
-    let workflowsTriggered = 0;
-
-    // Use UTC time directly for scheduling
-    const now = new Date();
-    const utcHour = now.getUTCHours();
-    const utcMinute = now.getUTCMinutes();
-
-    for (const wf of list) {
-      const sheetId: string | undefined =
-        wf.sheet_id || GOOGLE_FALLBACK_SHEET_ID;
-      if (!sheetId) {
-        errors.push(`Workflow ${wf.id} has no sheet_id and no GOOGLE_SHEET_ID fallback`);
+    // Only check trigger window for scheduled runs (not manual)
+    if (!isManualRun) {
+      // Trigger window check in UTC - end hour is EXCLUSIVE to prevent running in next hour
+      // If window is 21-22, only runs during hour 21 (21:00 - 21:59)
+      if (utcHour < start || utcHour >= end) {
         continue;
       }
 
-      const start = wf.trigger_hour_start ?? 14;
-        const end = wf.trigger_hour_end ?? 15;
-
-        console.log("UTC hour:", utcHour);
-        console.log("UTC minute:", utcMinute);
-        console.log("Workflow window (UTC):", start, "-", end);
-
-        // Only check trigger window for scheduled runs (not manual)
-        if (!isManualRun) {
-          // Trigger window check in UTC - end hour is EXCLUSIVE to prevent running in next hour
-          // If window is 21-22, only runs during hour 21 (21:00 - 21:59)
-          if (utcHour < start || utcHour >= end) {
-            continue;
-          }
-
-          // Deterministic random minute and hour within window (UTC)
-          const todayUtc = now.toISOString().slice(0, 10);
-          const seed = String(wf.id ?? "") + todayUtc;
-          let hash = 0;
-          for (let i = 0; i < seed.length; i++) {
-            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-            hash |= 0;
-          }
-
-          const randomMinute = Math.abs(hash) % 60;
-          const windowSizeRaw = end - start;
-          const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
-          const randomHourOffset = Math.abs(hash >> 8) % windowSize;
-          const randomHour = start + randomHourOffset;
-
-          console.log(
-            `Workflow ${wf.name}: random trigger time set to ${randomHour}:${randomMinute
-              .toString()
-              .padStart(2, "0")} UTC`,
-          );
-
-          // Skip until random trigger time reached in UTC
-          // Also add check to ensure we don't run in next hour after random hour
-          if (
-            utcHour < randomHour ||
-            (utcHour === randomHour && utcMinute < randomMinute) ||
-            (utcHour > randomHour && utcHour < end) // Don't run in hours after random hour but before end
-          ) {
-            continue;
-          }
-
-          const lastTriggered = wf.last_triggered_at
-            ? new Date(wf.last_triggered_at)
-            : null;
-
-          const todayUTC = now.toISOString().slice(0, 10);
-          const lastTriggeredDate = lastTriggered
-            ? lastTriggered.toISOString().slice(0, 10)
-            : null;
-
-          const alreadyTriggeredToday = lastTriggeredDate === todayUTC;
-
-          if (alreadyTriggeredToday) {
-            console.log(`Workflow ${wf.name} already triggered today, skipping`);
-            continue;
-          }
-        }
-
-      if (!googleToken) {
-        try {
-          googleToken = await getGoogleAccessToken();
-        } catch (err) {
-          console.error("Google auth error", err);
-          errors.push(
-            `Google auth failed for workflow ${wf.id}: ${err instanceof Error ? err.message : String(err)
-            }`,
-          );
-          continue;
-        }
+      // Deterministic random minute and hour within window (UTC)
+      const todayUtc = now.toISOString().slice(0, 10);
+      const seed = String(wf.id ?? "") + todayUtc;
+      let hash = 0;
+      for (let i = 0; i < seed.length; i++) {
+        hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+        hash |= 0;
       }
 
-      // Update trigger tracking - scheduled runs update last_triggered_at, manual runs update last_manual_triggered_at
-      // This ensures manual runs don't affect the next scheduled run time
-      const triggerUpdate = isManualRun
-        ? { last_manual_triggered_at: new Date().toISOString() }
-        : { last_triggered_at: new Date().toISOString() };
-      
-      const { error: earlyTriggerError } = await supabase
-        .from("workflows")
-        .update(triggerUpdate)
-        .eq("id", wf.id);
+      const randomMinute = Math.abs(hash) % 60;
+      const windowSizeRaw = end - start;
+      const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
+      const randomHourOffset = Math.abs(hash >> 8) % windowSize;
+      const randomHour = start + randomHourOffset;
 
-      if (earlyTriggerError) {
-        console.error(
-          "Failed to update trigger time",
-          wf.id,
-          earlyTriggerError,
-        );
-        errors.push(
-          `Failed to claim workflow ${wf.id}: ${earlyTriggerError.message}`,
-        );
-        continue;
-      }
-
-      // Read sheet
-      const sheetRes = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1`,
-        {
-          headers: {
-            Authorization: `Bearer ${googleToken}`,
-          },
-        },
+      console.log(
+        `Workflow ${wf.name}: random trigger time set to ${randomHour}:${
+          randomMinute.toString().padStart(2, "0")
+        } UTC`,
       );
 
-      if (!sheetRes.ok) {
-        const text = await sheetRes.text();
-        console.error("Failed to read sheet", sheetRes.status, text);
-        errors.push(
-          `Failed to read sheet for workflow ${wf.id}: ${sheetRes.status}`,
-        );
-        continue;
-      }
-
-      const sheetData = (await sheetRes.json()) as SheetValuesResponse;
-      const rows = sheetData.values ?? [];
-      if (rows.length < 2) {
-        continue;
-      }
-
-      const headers = rows[0] ?? [];
-      const headerIndex: Record<string, number> = {};
-      headers.forEach((h, idx) => {
-        headerIndex[h.toLowerCase()] = idx;
-      });
-
-      const videoUrlIdx = headerIndex["video_url"];
-      const titleIdx = headerIndex["title"];
-      const descIdx = headerIndex["description"];
-      const platformsIdx = headerIndex["platforms"];
-      const statusIdx = headerIndex["status"];
-      const ytChannelsIdx = headerIndex["youtube_channels"];
-      const fbPagesIdx = headerIndex["facebook_pages"];
-
+      // Skip until random trigger time reached in UTC
       if (
-        videoUrlIdx === undefined || statusIdx === undefined
+        utcHour < randomHour ||
+        (utcHour === randomHour && utcMinute < randomMinute) ||
+        (utcHour > randomHour && utcHour < end)
       ) {
+        continue;
+      }
+
+      const lastTriggered = wf.last_triggered_at
+        ? new Date(wf.last_triggered_at)
+        : null;
+
+      const todayUTC = now.toISOString().slice(0, 10);
+      const lastTriggeredDate = lastTriggered
+        ? lastTriggered.toISOString().slice(0, 10)
+        : null;
+
+      const alreadyTriggeredToday = lastTriggeredDate === todayUTC;
+
+      if (alreadyTriggeredToday) {
+        console.log(`Workflow ${wf.name} already triggered today, skipping`);
+        continue;
+      }
+    }
+
+    if (!googleToken) {
+      try {
+        googleToken = await getGoogleAccessToken();
+      } catch (err) {
+        console.error("Google auth error", err);
         errors.push(
-          `Sheet for workflow ${wf.id} is missing required columns (video_url/status)`,
+          `Google auth failed for workflow ${wf.id}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
         );
         continue;
       }
+    }
 
-      const dataRows = rows.slice(1);
-      const readyRows: { row: string[]; rowIndex: number }[] = [];
+    // Update trigger tracking
+    const triggerUpdate = isManualRun
+      ? { last_manual_triggered_at: new Date().toISOString() }
+      : { last_triggered_at: new Date().toISOString() };
+    
+    const { error: earlyTriggerError } = await supabase
+      .from("workflows")
+      .update(triggerUpdate)
+      .eq("id", wf.id);
 
-      dataRows.forEach((row, i) => {
-        const statusVal = row[statusIdx]?.toLowerCase().trim();
-        if (statusVal === "ready to post") {
-          readyRows.push({ row, rowIndex: i + 2 }); // +2 to account for header row
-        }
-      });
+    if (earlyTriggerError) {
+      console.error("Failed to update trigger time", wf.id, earlyTriggerError);
+      errors.push(
+        `Failed to claim workflow ${wf.id}: ${earlyTriggerError.message}`,
+      );
+      continue;
+    }
 
-      if (readyRows.length === 0) {
-        continue;
+    // Read sheet
+    const sheetRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1`,
+      { headers: { Authorization: `Bearer ${googleToken}` } },
+    );
+
+    if (!sheetRes.ok) {
+      const text = await sheetRes.text();
+      console.error("Failed to read sheet", sheetRes.status, text);
+      errors.push(`Failed to read sheet for workflow ${wf.id}: ${sheetRes.status}`);
+      continue;
+    }
+
+    const sheetData = (await sheetRes.json()) as SheetValuesResponse;
+    const rows = sheetData.values ?? [];
+    if (rows.length < 2) continue;
+
+    const headers = rows[0] ?? [];
+    const headerIndex: Record<string, number> = {};
+    headers.forEach((h, idx) => { headerIndex[h.toLowerCase()] = idx; });
+
+    const videoUrlIdx = headerIndex["video_url"];
+    const titleIdx = headerIndex["title"];
+    const descIdx = headerIndex["description"];
+    const platformsIdx = headerIndex["platforms"];
+    const statusIdx = headerIndex["status"];
+    const ytChannelsIdx = headerIndex["youtube_channels"];
+    const fbPagesIdx = headerIndex["facebook_pages"];
+
+    if (videoUrlIdx === undefined || statusIdx === undefined) {
+      errors.push(`Sheet for workflow ${wf.id} is missing required columns (video_url/status)`);
+      continue;
+    }
+
+    const dataRows = rows.slice(1);
+    const readyRows: { row: string[]; rowIndex: number }[] = [];
+
+    dataRows.forEach((row, i) => {
+      const statusVal = row[statusIdx]?.toLowerCase().trim();
+      if (statusVal === "ready to post") {
+        readyRows.push({ row, rowIndex: i + 2 });
       }
+    });
 
-      const maxVideosPerTrigger: number = wf.max_videos_per_trigger ?? 3;
-      const toProcess = readyRows.slice(0, maxVideosPerTrigger);
+    if (readyRows.length === 0) continue;
 
-      let workflowVideoCount = 0;
+    const maxVideosPerTrigger: number = wf.max_videos_per_trigger ?? 3;
+    const toProcess = readyRows.slice(0, maxVideosPerTrigger);
+    let workflowVideoCount = 0;
 
-      for (const { row, rowIndex } of toProcess) {
-        try {
-          const driveUrl = row[videoUrlIdx];
-          if (!driveUrl) continue;
+    for (const { row, rowIndex } of toProcess) {
+      try {
+        const driveUrl = row[videoUrlIdx];
+        if (!driveUrl) continue;
 
-          const match = driveUrl.match(/\/d\/([^/]+)/);
-          const fileId = match?.[1];
-          if (!fileId) {
-            console.warn("Could not extract fileId from Drive URL", driveUrl);
-            continue;
+        const match = driveUrl.match(/\/d\/([^/]+)/);
+        const fileId = match?.[1];
+        if (!fileId) {
+          console.warn("Could not extract fileId from Drive URL", driveUrl);
+          continue;
+        }
+        const driveDownloadUrl =
+          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        const publicDriveUrl =
+          `https://drive.google.com/uc?export=download&id=${fileId}`;
+
+        const title = titleIdx !== undefined ? row[titleIdx] || "" : "";
+        const description = descIdx !== undefined ? row[descIdx] || "" : "";
+        const baseName = (title || `workflow-video-${fileId}`).replace(/\.mp4$/i, "");
+        const fileName = `${baseName}.mp4`;
+
+        const { data: videoRecord, error: videoError } = await supabase
+          .from("videos")
+          .insert({
+            user_id: PERSONAL_USER_ID,
+            title: title || fileName,
+            file_url: driveDownloadUrl,
+          })
+          .select("id")
+          .single();
+
+        if (videoError || !videoRecord) {
+          console.error("Failed to insert video", videoError);
+          continue;
+        }
+
+        // Determine platforms
+        let platforms: ("youtube" | "facebook" | "instagram")[] = [];
+        const rowPlatformsRaw = platformsIdx !== undefined ? row[platformsIdx] : "";
+        if (rowPlatformsRaw) {
+          const parsed = parseList(rowPlatformsRaw)
+            .map(normalizePlatform)
+            .filter((p): p is "youtube" | "facebook" | "instagram" => !!p);
+          platforms = parsed;
+        } else if (Array.isArray(wf.platforms)) {
+          const parsed = (wf.platforms as string[])
+            .map(normalizePlatform)
+            .filter((p): p is "youtube" | "facebook" | "instagram" => !!p);
+          platforms = parsed;
+        }
+
+        if (platforms.length === 0) {
+          console.warn("No platforms resolved for workflow", wf.id);
+          continue;
+        }
+
+        const rowYtChannels = ytChannelsIdx !== undefined ? parseList(row[ytChannelsIdx]) : [];
+        const rowFbPages = fbPagesIdx !== undefined ? parseList(row[fbPagesIdx]) : [];
+
+        const ytAccounts = rowYtChannels.length ? rowYtChannels : (wf.youtube_channel_ids ?? []);
+        const fbAccounts = rowFbPages.length ? rowFbPages : (wf.facebook_page_ids ?? []);
+        const igAccounts = wf.instagram_account_ids ?? [];
+
+        const postsPayload: any[] = [];
+        const nowIso = new Date().toISOString();
+
+        for (const p of platforms) {
+          if (p === "youtube") {
+            for (const accountId of ytAccounts) {
+              postsPayload.push({
+                user_id: PERSONAL_USER_ID,
+                video_id: videoRecord.id,
+                platform: "youtube",
+                account_id: accountId,
+                caption: description || null,
+                hashtags: null,
+                scheduled_at: nowIso,
+                status: "processing",
+                captions_enabled: true,
+                contains_altered_content: wf.youtube_altered_content ?? true,
+              });
+            }
+          } else if (p === "facebook") {
+            for (const accountId of fbAccounts) {
+              postsPayload.push({
+                user_id: PERSONAL_USER_ID,
+                video_id: videoRecord.id,
+                platform: "facebook",
+                account_id: accountId,
+                caption: description || null,
+                hashtags: null,
+                scheduled_at: nowIso,
+                status: "processing",
+                captions_enabled: true,
+              });
+            }
+          } else if (p === "instagram") {
+            for (const accountId of igAccounts) {
+              postsPayload.push({
+                user_id: PERSONAL_USER_ID,
+                video_id: videoRecord.id,
+                platform: "instagram",
+                account_id: accountId,
+                caption: description || null,
+                hashtags: null,
+                scheduled_at: nowIso,
+                status: "processing",
+                captions_enabled: true,
+              });
+            }
           }
-          const driveDownloadUrl =
-            `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-          const publicDriveUrl =
-            `https://drive.google.com/uc?export=download&id=${fileId}`;
+        }
 
-          const title = titleIdx !== undefined ? row[titleIdx] || "" : "";
-          const description =
-            descIdx !== undefined ? row[descIdx] || "" : "";
-          const baseName = (title || `workflow-video-${fileId}`).replace(
-            /\.mp4$/i,
-            "",
-          );
-          const fileName = `${baseName}.mp4`;
+        if (postsPayload.length === 0) continue;
 
-          const { data: videoRecord, error: videoError } = await supabase
+        const { data: insertedPosts, error: postsError } = await supabase
+          .from("posts")
+          .insert(postsPayload)
+          .select("id, platform, account_id");
+
+        if (postsError || !insertedPosts) {
+          console.error("Failed to insert posts", postsError);
+          continue;
+        }
+
+        // Mark posts as processing
+        const { error: processingUpdateError } = await supabase
+          .from("posts")
+          .update({ status: "processing" })
+          .in("id", (insertedPosts as { id: string }[]).map((p) => p.id));
+
+        if (processingUpdateError) {
+          console.error("Failed to mark posts as processing", processingUpdateError);
+        }
+
+        // Kick off uploads via existing Edge Functions
+        for (const post of insertedPosts as { id: string; platform: string; account_id: string | null }[]) {
+          if (post.platform === "youtube") {
+            void fetch(`${SB_URL}/functions/v1/youtube-upload`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                apikey: SB_SERVICE_ROLE_KEY!,
+              },
+              body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+            });
+          } else if (post.platform === "facebook") {
+            void fetch(`${SB_URL}/functions/v1/facebook-upload`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                apikey: SB_SERVICE_ROLE_KEY!,
+              },
+              body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+            });
+          } else if (post.platform === "instagram") {
+            void fetch(`${SB_URL}/functions/v1/instagram-upload`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                apikey: SB_SERVICE_ROLE_KEY!,
+              },
+              body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+            });
+          }
+        }
+
+        if (wf.post_as_story) {
+          await new Promise((r) => setTimeout(r, 5000));
+
+          const { data: updatedVideo } = await supabase
             .from("videos")
-            .insert({
-              user_id: PERSONAL_USER_ID,
-              title: title || fileName,
-              // Store Drive download URL temporarily – upload functions will stream directly
-              file_url: driveDownloadUrl,
-            })
-            .select("id")
+            .select("file_url")
+            .eq("id", videoRecord.id)
             .single();
 
-          if (videoError || !videoRecord) {
-            console.error("Failed to insert video", videoError);
+          const storyVideoUrl = updatedVideo?.file_url?.startsWith("https://pub-")
+            ? updatedVideo.file_url
+            : null;
+
+          if (!storyVideoUrl) {
+            console.log("R2 URL not ready yet, skipping story");
             continue;
           }
+          const usedStoryTokens = new Set<string>();
 
-          // Determine platforms
-          let platforms: ("youtube" | "facebook" | "instagram")[] = [];
-          const rowPlatformsRaw =
-            platformsIdx !== undefined ? row[platformsIdx] : "";
-          if (rowPlatformsRaw) {
-            const parsed = parseList(rowPlatformsRaw)
-              .map(normalizePlatform)
-              .filter((p): p is "youtube" | "facebook" | "instagram" => !!p);
-            platforms = parsed;
-          } else if (Array.isArray(wf.platforms)) {
-            const parsed = (wf.platforms as string[])
-              .map(normalizePlatform)
-              .filter((p): p is "youtube" | "facebook" | "instagram" => !!p);
-            platforms = parsed;
-          }
+          for (const post of insertedPosts as { id: string; platform: string; account_id: string | null }[]) {
+            if (post.platform === "facebook" && post.account_id) {
+              const { data: fbAcc } = await supabase
+                .from("connected_accounts")
+                .select("access_token")
+                .eq("account_id", post.account_id)
+                .eq("platform", "facebook")
+                .single();
 
-          if (platforms.length === 0) {
-            console.warn("No platforms resolved for workflow", wf.id);
-            continue;
-          }
-
-          const rowYtChannels = ytChannelsIdx !== undefined
-            ? parseList(row[ytChannelsIdx])
-            : [];
-          const rowFbPages = fbPagesIdx !== undefined
-            ? parseList(row[fbPagesIdx])
-            : [];
-
-          const ytAccounts = rowYtChannels.length
-            ? rowYtChannels
-            : (wf.youtube_channel_ids ?? []);
-          const fbAccounts = rowFbPages.length
-            ? rowFbPages
-            : (wf.facebook_page_ids ?? []);
-          const igAccounts = wf.instagram_account_ids ?? [];
-
-          const postsPayload: any[] = [];
-          const nowIso = new Date().toISOString();
-
-          for (const p of platforms) {
-            if (p === "youtube") {
-              for (const accountId of ytAccounts) {
-                postsPayload.push({
-                  user_id: PERSONAL_USER_ID,
-                  video_id: videoRecord.id,
-                  platform: "youtube",
-                  account_id: accountId,
-                  caption: description || null,
-                  hashtags: null,
-                  scheduled_at: nowIso,
-                  status: "processing",
-                  captions_enabled: true,
-                  contains_altered_content: wf.youtube_altered_content ?? true,
+              if (fbAcc?.access_token && !usedStoryTokens.has(fbAcc.access_token)) {
+                usedStoryTokens.add(fbAcc.access_token);
+                void fetch(`${SB_URL}/functions/v1/post-story`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                  },
+                  body: JSON.stringify({
+                    platform: "facebook",
+                    accountId: post.account_id,
+                    videoUrl: storyVideoUrl,
+                    accessToken: fbAcc.access_token,
+                  }),
                 });
+                console.log("Facebook story posted:", post.id);
               }
-            } else if (p === "facebook") {
-              for (const accountId of fbAccounts) {
-                postsPayload.push({
-                  user_id: PERSONAL_USER_ID,
-                  video_id: videoRecord.id,
-                  platform: "facebook",
-                  account_id: accountId,
-                  caption: description || null,
-                  hashtags: null,
-                  scheduled_at: nowIso,
-                  status: "processing",
-                  captions_enabled: true,
+            }
+
+            if (post.platform === "instagram" && wf.post_as_story) {
+              if (!post.account_id) {
+                console.warn("Instagram story skipped: missing account_id for post", post.id);
+                continue;
+              }
+              const { data: igAcc } = await supabase
+                .from("connected_accounts")
+                .select("access_token")
+                .eq("account_id", post.account_id)
+                .eq("platform", "instagram")
+                .single();
+
+              if (igAcc?.access_token) {
+                void fetch(`${SB_URL}/functions/v1/post-story`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                  },
+                  body: JSON.stringify({
+                    platform: "instagram",
+                    accountId: post.account_id,
+                    videoUrl: storyVideoUrl,
+                    accessToken: igAcc.access_token,
+                  }),
                 });
-              }
-            } else if (p === "instagram") {
-              for (const accountId of igAccounts) {
-                postsPayload.push({
-                  user_id: PERSONAL_USER_ID,
-                  video_id: videoRecord.id,
-                  platform: "instagram",
-                  account_id: accountId,
-                  caption: description || null,
-                  hashtags: null,
-                  scheduled_at: nowIso,
-                  status: "processing",
-                  captions_enabled: true,
-                });
+                console.log("Instagram story posted:", post.id);
+              } else {
+                console.warn("Instagram story skipped: no access_token for account", post.account_id);
               }
             }
           }
 
-          if (postsPayload.length === 0) {
-            continue;
-          }
-
-          const { data: insertedPosts, error: postsError } = await supabase
-            .from("posts")
-            .insert(postsPayload)
-            .select("id, platform, account_id");
-
-          if (postsError || !insertedPosts) {
-            console.error("Failed to insert posts", postsError);
-            continue;
-          }
-
-          console.log("post_as_story:", wf.post_as_story);
-          console.log("instagram_account_ids:", wf.instagram_account_ids);
-          console.log(
-            "posts created:",
-            (insertedPosts as { platform: string }[]).map((p) => p.platform),
-          );
-
-          // Immediately mark posts as processing so the scheduled-posts cron
-          // does not pick them up again
-          const { error: processingUpdateError } = await supabase
-            .from("posts")
-            .update({ status: "processing" })
-            .in(
-              "id",
-              (insertedPosts as { id: string }[]).map((p) => p.id),
-            );
-
-          if (processingUpdateError) {
-            console.error(
-              "Failed to mark posts as processing",
-              processingUpdateError,
-            );
-          }
-
-          // Kick off uploads via existing Edge Functions
-          for (const post of insertedPosts as {
-            id: string;
-            platform: string;
-            account_id: string | null;
-          }[]) {
-            if (post.platform === "youtube") {
-              void fetch(`${SB_URL}/functions/v1/youtube-upload`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                  apikey: SB_SERVICE_ROLE_KEY!,
-                },
-                body: JSON.stringify({
-                  postId: post.id,
-                  driveDownloadUrl,
-                  googleAccessToken: googleToken,
-                }),
-              });
-            } else if (post.platform === "facebook") {
-              void fetch(`${SB_URL}/functions/v1/facebook-upload`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                  apikey: SB_SERVICE_ROLE_KEY!,
-                },
-                body: JSON.stringify({
-                  postId: post.id,
-                  driveDownloadUrl,
-                  googleAccessToken: googleToken,
-                }),
-              });
-            } else if (post.platform === "instagram") {
-              void fetch(`${SB_URL}/functions/v1/instagram-upload`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                  apikey: SB_SERVICE_ROLE_KEY!,
-                },
-                body: JSON.stringify({
-                  postId: post.id,
-                  driveDownloadUrl,
-                  googleAccessToken: googleToken,
-                }),
-              });
-            }
-          }
-
-          if (wf.post_as_story) {
-            // Uploads are fire-and-forget. Wait briefly for upload functions
-            // to swap Drive URL -> R2 public URL on the video record.
-            await new Promise((r) => setTimeout(r, 5000));
-
-            const { data: updatedVideo } = await supabase
-              .from("videos")
-              .select("file_url")
-              .eq("id", videoRecord.id)
-              .single();
-
-            const storyVideoUrl = updatedVideo?.file_url?.startsWith("https://pub-")
-              ? updatedVideo.file_url
-              : null;
-
-            if (!storyVideoUrl) {
-              console.log("R2 URL not ready yet, skipping story");
-              continue;
-            }
-            const usedStoryTokens = new Set<string>();
-
-            for (const post of insertedPosts as {
-              id: string;
-              platform: string;
-              account_id: string | null;
-            }[]) {
-              if (post.platform === "facebook" && post.account_id) {
-                const { data: fbAcc } = await supabase
-                  .from("connected_accounts")
-                  .select("access_token")
-                  .eq("account_id", post.account_id)
-                  .eq("platform", "facebook")
-                  .single();
-
-                if (
-                  fbAcc?.access_token &&
-                  !usedStoryTokens.has(fbAcc.access_token)
-                ) {
-                  usedStoryTokens.add(fbAcc.access_token);
-                  void fetch(`${SB_URL}/functions/v1/post-story`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                    },
-                    body: JSON.stringify({
-                      platform: "facebook",
-                      accountId: post.account_id,
-                      videoUrl: storyVideoUrl,
-                      accessToken: fbAcc.access_token,
-                    }),
-                  });
-                  console.log("Facebook story posted:", post.id);
-                }
-              }
-
-              if (post.platform === "instagram" && wf.post_as_story) {
-                console.log("Calling Instagram story for post:", post.id);
-                if (!post.account_id) {
-                  console.warn(
-                    "Instagram story skipped: missing account_id for post",
-                    post.id,
-                  );
-                  continue;
-                }
-                const { data: igAcc } = await supabase
-                  .from("connected_accounts")
-                  .select("access_token")
-                  .eq("account_id", post.account_id)
-                  .eq("platform", "instagram")
-                  .single();
-
-                if (igAcc?.access_token) {
-                  void fetch(`${SB_URL}/functions/v1/post-story`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                    },
-                    body: JSON.stringify({
-                      platform: "instagram",
-                      accountId: post.account_id,
-                      videoUrl: storyVideoUrl,
-                      accessToken: igAcc.access_token,
-                    }),
-                  });
-                  console.log("Instagram story posted:", post.id);
-                } else {
-                  console.warn(
-                    "Instagram story skipped: no access_token for account",
-                    post.account_id,
-                  );
-                }
-              }
-            }
-
-          // Store sheet info in post metadata for later update (after successful upload)
-          // We don't update the sheet here - the upload functions will do it after success
+          // Store sheet info in post metadata
           const { error: metadataUpdateError } = await supabase
             .from("posts")
             .update({
@@ -734,63 +645,56 @@ Deno.serve(async (req) => {
                 sheet_col_index: statusIdx,
               },
             })
-            .in(
-              "id",
-              (insertedPosts as { id: string }[]).map((p) => p.id),
-            );
+            .in("id", (insertedPosts as { id: string }[]).map((p) => p.id));
 
           if (metadataUpdateError) {
             console.error("Failed to update post metadata with sheet info", metadataUpdateError);
           }
-
-          workflowVideoCount++;
-        } catch (err) {
-          console.error("Error processing sheet row", err);
-          errors.push(
-            `Row processing failed for workflow ${wf.id}: ${err instanceof Error ? err.message : String(err)
-            }`,
-          );
         }
-      }
 
-      if (workflowVideoCount > 0) {
-        totalProcessedVideos += workflowVideoCount;
-        workflowsTriggered++;
-
-        const { error: updateError } = await supabase
-          .from("workflows")
-          .update({
-            total_posted: (wf.total_posted ?? 0) + workflowVideoCount,
-          })
-          .eq("id", wf.id);
-
-        if (updateError) {
-          console.error("Failed to update workflow stats", updateError);
-          errors.push(
-            `Failed to update stats for workflow ${wf.id}: ${updateError.message}`,
-          );
-        }
+        workflowVideoCount++;
+      } catch (err) {
+        console.error("Error processing sheet row", err);
+        errors.push(`Row processing failed for workflow ${wf.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`);
       }
     }
 
-    // Release global manual run lock if was manual run
-    if (isManualRun) {
-      try {
-        await supabase.from("workflow_locks").delete().eq("lock_key", "manual-workflow-global-running");
-        console.log("Global manual run lock released");
-      } catch (e) {
-        console.error("Failed to release manual lock:", e);
+    if (workflowVideoCount > 0) {
+      totalProcessedVideos += workflowVideoCount;
+      workflowsTriggered++;
+
+      const { error: updateError } = await supabase
+        .from("workflows")
+        .update({ total_posted: (wf.total_posted ?? 0) + workflowVideoCount })
+        .eq("id", wf.id);
+
+      if (updateError) {
+        console.error("Failed to update workflow stats", updateError);
+        errors.push(`Failed to update stats for workflow ${wf.id}: ${updateError.message}`);
       }
     }
+  }
 
-    return json({
-      processed: totalProcessedVideos,
-      workflows_triggered: workflowsTriggered,
-      errors,
-    });
+  // Release global manual run lock if was manual run
+  if (isManualRun) {
+    try {
+      await supabase.from("workflow_locks").delete().eq("lock_key", "manual-workflow-global-running");
+      console.log("Global manual run lock released");
+    } catch (e) {
+      console.error("Failed to release manual lock:", e);
+    }
+  }
+
+  return json({
+    processed: totalProcessedVideos,
+    workflows_triggered: workflowsTriggered,
+    errors,
+  });
   } catch (err) {
     console.error("process-workflow error", err);
-    
+
     // Release global manual run lock on error
     if (isManualRun) {
       try {
@@ -799,7 +703,7 @@ Deno.serve(async (req) => {
         // ignore
       }
     }
-    
+
     return json(
       {
         error: err instanceof Error ? err.message : "Unknown error",

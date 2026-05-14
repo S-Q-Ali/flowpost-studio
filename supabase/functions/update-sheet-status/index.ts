@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -99,7 +99,7 @@ async function getGoogleAccessToken(): Promise<string> {
 
   const tokenData = await tokenRes.json();
   if (!tokenRes.ok || !tokenData.access_token) {
-    throw new Error(`Google auth failed: ${JSON.stringify(tokenData)}`);
+    throw new Error("Google authentication failed. Check service account configuration.");
   }
   return tokenData.access_token as string;
 }

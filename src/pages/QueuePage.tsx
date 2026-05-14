@@ -35,9 +35,8 @@ import { Trash2, Pencil, ListTodo, Video, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { PERSONAL_USER_ID } from "@/lib/constants";
 import type { Post, Platform, PostStatus } from "@/lib/types";
-
-const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 const filters = ["all", "scheduled", "processing", "published", "failed"] as const;
 
 type PostWithDetails = Post & { channelName?: string | null };

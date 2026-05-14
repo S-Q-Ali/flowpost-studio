@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
 
   if (action !== "callback" && action !== "url") {
     const authHeader = req.headers.get("Authorization");
-    const validKeys = [Deno.env.get("SB_ANON_KEY"), Deno.env.get("SB_SERVICE_ROLE_KEY")];
+    const validKeys = [Deno.env.get("SB_SERVICE_ROLE_KEY")];
     const token = authHeader?.replace("Bearer ", "");
     if (!token || !validKeys.includes(token)) {
       return json({ error: "Unauthorized" }, 401);

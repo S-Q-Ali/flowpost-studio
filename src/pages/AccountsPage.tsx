@@ -7,9 +7,8 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { PERSONAL_USER_ID } from "@/lib/constants";
 import type { ConnectedAccount, Platform } from "@/lib/types";
-
-const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 export default function AccountsPage() {
   const [isYouTubeConnecting, setIsYouTubeConnecting] = useState(false);
