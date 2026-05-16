@@ -310,12 +310,14 @@ export default function WorkflowsPage() {
     setRunningId(workflowId);
     setIsAnyWorkflowRunning(true);
     try {
+      const token = localStorage.getItem("flowpost_token");
       const { data, error } = await supabase.functions.invoke<{
         processed: number;
         workflows_triggered: number;
         error?: string;
       }>("process-workflow", {
         body: { workflowId },
+        headers: { "x-admin-token": token || "" },
       });
       
       if (error) throw error;

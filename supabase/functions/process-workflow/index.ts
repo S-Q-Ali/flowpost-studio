@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-token",
 };
 
 const SB_URL = Deno.env.get("SB_URL");
@@ -136,9 +136,25 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "");
+  const bearerToken = authHeader?.replace("Bearer ", "");
 
-  if (!token || token !== SB_SERVICE_ROLE_KEY) {
+  const isServiceRole = bearerToken === SB_SERVICE_ROLE_KEY;
+
+  let isSessionValid = false;
+  if (!isServiceRole) {
+    const adminToken = req.headers.get("x-admin-token");
+    if (adminToken) {
+      const { data: session } = await supabase
+        .from("sessions")
+        .select("id")
+        .eq("token", adminToken)
+        .gte("expires_at", new Date().toISOString())
+        .maybeSingle();
+      isSessionValid = !!session;
+    }
+  }
+
+  if (!isServiceRole && !isSessionValid) {
     return json({ error: "Unauthorized" }, 401);
   }
 
@@ -156,6 +172,7 @@ Deno.serve(async (req) => {
     // ignore invalid JSON when called without body
   }
 
+  try {
   // For manual runs, use a GLOBAL lock to prevent concurrent manual executions
   if (isManualRun) {
     const manualLockKey = "manual-workflow-global-running";
