@@ -44,6 +44,7 @@ type WorkflowRow = {
   max_videos_per_trigger: number | null;
   last_triggered_at: string | null;
   last_manual_triggered_at: string | null;
+  run_days: number[] | null;
   total_posted: number | null;
   created_at: string;
   updated_at: string;
@@ -81,6 +82,7 @@ export default function WorkflowsPage() {
   const [triggerStartHour, setTriggerStartHour] = useState<number>(0);
   const [triggerEndHour, setTriggerEndHour] = useState<number>(1);
   const [maxVideos, setMaxVideos] = useState<number>(3);
+  const [runDays, setRunDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [postAsStory, setPostAsStory] = useState<boolean>(false);
   const [sheetUrl, setSheetUrl] = useState("");
   const [youtubeAlteredContent, setYoutubeAlteredContent] = useState<boolean>(true);
@@ -171,6 +173,7 @@ export default function WorkflowsPage() {
     setTriggerStartHour(wf.trigger_hour_start ?? 0);
     setTriggerEndHour(wf.trigger_hour_end ?? 1);
     setMaxVideos(wf.max_videos_per_trigger ?? 3);
+    setRunDays(wf.run_days ?? [0, 1, 2, 3, 4, 5, 6]);
     setPostAsStory(wf.post_as_story ?? false);
     setYoutubeAlteredContent(wf.youtube_altered_content ?? true);
     setSheetUrl(wf.sheet_url ?? "");
@@ -247,6 +250,7 @@ export default function WorkflowsPage() {
         trigger_hour_start: triggerStartHour,
         trigger_hour_end: triggerEndHour,
         max_videos_per_trigger: maxVideos,
+        run_days: runDays,
         sheet_url: sheetUrl.trim(),
         sheet_id: id,
       };
@@ -609,6 +613,42 @@ export default function WorkflowsPage() {
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">
               Times are in UTC. Current UTC time: {new Date().toUTCString()}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Run on days</Label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 0, label: "Sun" },
+                { value: 1, label: "Mon" },
+                { value: 2, label: "Tue" },
+                { value: 3, label: "Wed" },
+                { value: 4, label: "Thu" },
+                { value: 5, label: "Fri" },
+                { value: 6, label: "Sat" },
+              ].map((day) => (
+                <button
+                  key={day.value}
+                  type="button"
+                  onClick={() =>
+                    setRunDays((prev) =>
+                      prev.includes(day.value)
+                        ? prev.filter((d) => d !== day.value)
+                        : [...prev, day.value].sort()
+                    )
+                  }
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    runDays.includes(day.value)
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {day.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Select the days to run the workflow (UTC).
             </p>
           </div>
           <div className="space-y-1">

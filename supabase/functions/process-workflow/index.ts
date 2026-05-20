@@ -266,6 +266,14 @@ Deno.serve(async (req) => {
 
     // Only check trigger window for scheduled runs (not manual)
     if (!isManualRun) {
+      // Check run_days - skip if today is not in the allowed days
+      const runDays = (wf.run_days as number[] | null) ?? [0, 1, 2, 3, 4, 5, 6];
+      const todayDay = now.getUTCDay();
+      if (!runDays.includes(todayDay)) {
+        console.log(`Workflow ${wf.name} not scheduled for today (UTC day ${todayDay}), run_days:`, runDays);
+        continue;
+      }
+
       // Trigger window check in UTC - end hour is EXCLUSIVE to prevent running in next hour
       // If window is 21-22, only runs during hour 21 (21:00 - 21:59)
       if (utcHour < start || utcHour >= end) {
