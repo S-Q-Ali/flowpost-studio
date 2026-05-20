@@ -289,6 +289,15 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      const runIntervalHours = (wf.run_interval_hours as number) ?? 1;
+      if (runIntervalHours > 1 && !isManualRun) {
+        if (utcHour % runIntervalHours !== 0) {
+          const nextRunHour = Math.ceil(utcHour / runIntervalHours) * runIntervalHours;
+          console.log(`Workflow ${wf.name}: interval ${runIntervalHours}h, skipping (next run at ${nextRunHour % 24}:00 UTC)`);
+          continue;
+        }
+      }
+
       // Deterministic random minute and hour within window (UTC)
       const todayUtc = now.toISOString().slice(0, 10);
       const seed = String(wf.id ?? "") + todayUtc;
@@ -414,8 +423,9 @@ Deno.serve(async (req) => {
 
     if (readyRows.length === 0) continue;
 
-    const maxVideosPerTrigger: number = wf.max_videos_per_trigger ?? 3;
-    const toProcess = readyRows.slice(0, maxVideosPerTrigger);
+    const runIntervalHours = (wf.run_interval_hours as number) ?? 1;
+    const videosPerRun = (wf.videos_per_run as number) ?? 1;
+    const toProcess = readyRows.slice(0, videosPerRun);
     let workflowVideoCount = 0;
 
     for (const { row, rowIndex } of toProcess) {

@@ -42,6 +42,8 @@ type WorkflowRow = {
   trigger_hour_start: number;
   trigger_hour_end: number;
   max_videos_per_trigger: number | null;
+  run_interval_hours: number | null;
+  videos_per_run: number | null;
   last_triggered_at: string | null;
   last_manual_triggered_at: string | null;
   run_days: number[] | null;
@@ -82,7 +84,8 @@ export default function WorkflowsPage() {
   const [selectedInstagramIds, setSelectedInstagramIds] = useState<string[]>([]);
   const [triggerStartHour, setTriggerStartHour] = useState<number>(0);
   const [triggerEndHour, setTriggerEndHour] = useState<number>(1);
-  const [maxVideos, setMaxVideos] = useState<number>(3);
+  const [runIntervalHours, setRunIntervalHours] = useState<number>(1);
+  const [videosPerRun, setVideosPerRun] = useState<number>(1);
   const [runDays, setRunDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [dayTimeWindows, setDayTimeWindows] = useState<Record<string, { start: number; end: number }>>({});
   const [usePerDayTimes, setUsePerDayTimes] = useState<boolean>(false);
@@ -149,7 +152,8 @@ export default function WorkflowsPage() {
     setSelectedInstagramIds([]);
     setTriggerStartHour(0);
     setTriggerEndHour(1);
-    setMaxVideos(3);
+    setRunIntervalHours(1);
+    setVideosPerRun(1);
     setPostAsStory(false);
     setYoutubeAlteredContent(true);
     setSheetUrl("");
@@ -175,7 +179,8 @@ export default function WorkflowsPage() {
     setSelectedInstagramIds(wf.instagram_account_ids ?? []);
     setTriggerStartHour(wf.trigger_hour_start ?? 0);
     setTriggerEndHour(wf.trigger_hour_end ?? 1);
-    setMaxVideos(wf.max_videos_per_trigger ?? 3);
+    setRunIntervalHours(wf.run_interval_hours ?? 1);
+    setVideosPerRun(wf.videos_per_run ?? 1);
     setRunDays(wf.run_days ?? [0, 1, 2, 3, 4, 5, 6]);
     setDayTimeWindows((wf.day_time_windows as Record<string, { start: number; end: number }>) ?? {});
     setUsePerDayTimes(!!wf.day_time_windows && Object.keys(wf.day_time_windows).length > 0);
@@ -254,7 +259,8 @@ export default function WorkflowsPage() {
         post_as_story: postAsStory,
         trigger_hour_start: triggerStartHour,
         trigger_hour_end: triggerEndHour,
-        max_videos_per_trigger: maxVideos,
+        run_interval_hours: runIntervalHours,
+        videos_per_run: videosPerRun,
         run_days: runDays,
         day_time_windows: Object.keys(dayTimeWindows).length > 0 ? dayTimeWindows : null,
         sheet_url: sheetUrl.trim(),
@@ -731,19 +737,47 @@ export default function WorkflowsPage() {
               </div>
             )}
           </div>
-          <div className="space-y-1">
-            <Label>Maximum videos per trigger</Label>
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              value={maxVideos}
-              onChange={(e) => setMaxVideos(Number(e.target.value) || 1)}
-            />
-            <p className="text-xs text-muted-foreground">
-              How many videos to post in one trigger.
-            </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label>Run every</Label>
+              <Select
+                value={runIntervalHours.toString()}
+                onValueChange={(v) => setRunIntervalHours(Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 hour</SelectItem>
+                  <SelectItem value="2">2 hours</SelectItem>
+                  <SelectItem value="3">3 hours</SelectItem>
+                  <SelectItem value="4">4 hours</SelectItem>
+                  <SelectItem value="6">6 hours</SelectItem>
+                  <SelectItem value="8">8 hours</SelectItem>
+                  <SelectItem value="12">12 hours</SelectItem>
+                  <SelectItem value="24">24 hours</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Videos per run</Label>
+              <Select
+                value={videosPerRun.toString()}
+                onValueChange={(v) => setVideosPerRun(Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 video</SelectItem>
+                  <SelectItem value="2">2 videos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Total: {Math.floor((24 / runIntervalHours) * videosPerRun)} videos per day
+          </p>
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
