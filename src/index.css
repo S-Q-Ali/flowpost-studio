@@ -7,44 +7,44 @@
 
 @layer base {
   :root {
-    --background: 0 0% 5.9%;
+    --background: 215 40% 5%;
     --foreground: 0 0% 98%;
 
-    --card: 0 0% 10.2%;
+    --card: 215 40% 10%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 10.2%;
+    --popover: 215 40% 10%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 263 70% 58%;
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 14.9%;
+    --secondary: 215 30% 14%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 240 3.8% 66.1%;
+    --muted: 215 30% 14%;
+    --muted-foreground: 215 10% 66%;
 
-    --accent: 263 70% 58%;
+    --accent: 217 91% 60%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 62.8% 50.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 263 70% 58%;
+    --border: 215 30% 18%;
+    --input: 215 30% 18%;
+    --ring: 217 91% 60%;
 
     --radius: 0.625rem;
 
-    --sidebar-background: 0 0% 7%;
+    --sidebar-background: 215 40% 6%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 263 70% 58%;
+    --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 14.9%;
+    --sidebar-accent: 215 30% 14%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 0 0% 14.9%;
-    --sidebar-ring: 263 70% 58%;
+    --sidebar-border: 215 30% 14%;
+    --sidebar-ring: 217 91% 60%;
 
     /* Platform colors */
     --facebook: 220 46% 48%;
@@ -58,12 +58,12 @@
     --status-failed: 0 84% 60%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(263, 70%, 58%), hsl(280, 80%, 65%));
-    --gradient-hero: linear-gradient(135deg, hsl(263, 70%, 58%) 0%, hsl(290, 60%, 50%) 50%, hsl(320, 60%, 50%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0, 0%, 12%) 0%, hsl(0, 0%, 9%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 60%), hsl(225, 80%, 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(217, 91%, 60%) 0%, hsl(190, 80%, 50%) 50%, hsl(240, 70%, 55%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(215, 40%, 12%) 0%, hsl(215, 40%, 8%) 100%);
 
     /* Shadows */
-    --shadow-glow: 0 0 40px -10px hsl(263, 70%, 58%, 0.3);
+    --shadow-glow: 0 0 40px -10px hsl(217, 91%, 60%, 0.3);
     --shadow-card: 0 1px 3px 0 hsl(0, 0%, 0%, 0.3), 0 1px 2px -1px hsl(0, 0%, 0%, 0.3);
   }
 }
