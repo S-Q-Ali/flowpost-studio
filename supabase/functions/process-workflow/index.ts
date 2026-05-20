@@ -572,100 +572,102 @@ Deno.serve(async (req) => {
         }
 
         if (wf.post_as_story) {
-          await new Promise((r) => setTimeout(r, 5000));
-
-          const { data: updatedVideo } = await supabase
-            .from("videos")
-            .select("file_url")
-            .eq("id", videoRecord.id)
-            .single();
-
-          const storyVideoUrl = updatedVideo?.file_url?.startsWith("https://pub-")
-            ? updatedVideo.file_url
-            : null;
+          let storyVideoUrl: string | null = null;
+          for (let attempt = 0; attempt < 30; attempt++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const { data: updatedVideo } = await supabase
+              .from("videos")
+              .select("file_url")
+              .eq("id", videoRecord.id)
+              .single();
+            if (updatedVideo?.file_url?.startsWith("https://pub-")) {
+              storyVideoUrl = updatedVideo.file_url;
+              break;
+            }
+          }
 
           if (!storyVideoUrl) {
-            console.log("R2 URL not ready yet, skipping story");
-            continue;
-          }
-          const usedStoryTokens = new Set<string>();
+            console.log("R2 URL not ready yet after 60s, skipping story");
+          } else {
+            const usedStoryTokens = new Set<string>();
 
-          for (const post of insertedPosts as { id: string; platform: string; account_id: string | null }[]) {
-            if (post.platform === "facebook" && post.account_id) {
-              const { data: fbAcc } = await supabase
-                .from("connected_accounts")
-                .select("access_token")
-                .eq("account_id", post.account_id)
-                .eq("platform", "facebook")
-                .single();
+            for (const post of insertedPosts as { id: string; platform: string; account_id: string | null }[]) {
+              if (post.platform === "facebook" && post.account_id) {
+                const { data: fbAcc } = await supabase
+                  .from("connected_accounts")
+                  .select("access_token")
+                  .eq("account_id", post.account_id)
+                  .eq("platform", "facebook")
+                  .single();
 
-              if (fbAcc?.access_token && !usedStoryTokens.has(fbAcc.access_token)) {
-                usedStoryTokens.add(fbAcc.access_token);
-                void fetch(`${SB_URL}/functions/v1/post-story`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                  },
-                  body: JSON.stringify({
-                    platform: "facebook",
-                    accountId: post.account_id,
-                    videoUrl: storyVideoUrl,
-                    accessToken: fbAcc.access_token,
-                  }),
-                });
-                console.log("Facebook story posted:", post.id);
+                if (fbAcc?.access_token && !usedStoryTokens.has(fbAcc.access_token)) {
+                  usedStoryTokens.add(fbAcc.access_token);
+                  void fetch(`${SB_URL}/functions/v1/post-story`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                    },
+                    body: JSON.stringify({
+                      platform: "facebook",
+                      accountId: post.account_id,
+                      videoUrl: storyVideoUrl,
+                      accessToken: fbAcc.access_token,
+                    }),
+                  });
+                  console.log("Facebook story posted:", post.id);
+                }
+              }
+
+              if (post.platform === "instagram") {
+                if (!post.account_id) {
+                  console.warn("Instagram story skipped: missing account_id for post", post.id);
+                  continue;
+                }
+                const { data: igAcc } = await supabase
+                  .from("connected_accounts")
+                  .select("access_token")
+                  .eq("account_id", post.account_id)
+                  .eq("platform", "instagram")
+                  .single();
+
+                if (igAcc?.access_token) {
+                  void fetch(`${SB_URL}/functions/v1/post-story`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                    },
+                    body: JSON.stringify({
+                      platform: "instagram",
+                      accountId: post.account_id,
+                      videoUrl: storyVideoUrl,
+                      accessToken: igAcc.access_token,
+                    }),
+                  });
+                  console.log("Instagram story posted:", post.id);
+                } else {
+                  console.warn("Instagram story skipped: no access_token for account", post.account_id);
+                }
               }
             }
 
-            if (post.platform === "instagram" && wf.post_as_story) {
-              if (!post.account_id) {
-                console.warn("Instagram story skipped: missing account_id for post", post.id);
-                continue;
-              }
-              const { data: igAcc } = await supabase
-                .from("connected_accounts")
-                .select("access_token")
-                .eq("account_id", post.account_id)
-                .eq("platform", "instagram")
-                .single();
+            // Store sheet info in post metadata
+            const { error: metadataUpdateError } = await supabase
+              .from("posts")
+              .update({
+                metadata: {
+                  ...((insertedPosts as any[])[0]?.metadata || {}),
+                  sheet_id: sheetId,
+                  sheet_row_index: rowIndex,
+                  sheet_col_index: statusIdx,
+                },
+              })
+              .in("id", (insertedPosts as { id: string }[]).map((p) => p.id));
 
-              if (igAcc?.access_token) {
-                void fetch(`${SB_URL}/functions/v1/post-story`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                  },
-                  body: JSON.stringify({
-                    platform: "instagram",
-                    accountId: post.account_id,
-                    videoUrl: storyVideoUrl,
-                    accessToken: igAcc.access_token,
-                  }),
-                });
-                console.log("Instagram story posted:", post.id);
-              } else {
-                console.warn("Instagram story skipped: no access_token for account", post.account_id);
-              }
+            if (metadataUpdateError) {
+              console.error("Failed to update post metadata with sheet info", metadataUpdateError);
             }
-          }
-
-          // Store sheet info in post metadata
-          const { error: metadataUpdateError } = await supabase
-            .from("posts")
-            .update({
-              metadata: {
-                ...((insertedPosts as any[])[0]?.metadata || {}),
-                sheet_id: sheetId,
-                sheet_row_index: rowIndex,
-                sheet_col_index: statusIdx,
-              },
-            })
-            .in("id", (insertedPosts as { id: string }[]).map((p) => p.id));
-
-          if (metadataUpdateError) {
-            console.error("Failed to update post metadata with sheet info", metadataUpdateError);
           }
         }
 
