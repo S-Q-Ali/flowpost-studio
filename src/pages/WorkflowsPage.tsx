@@ -43,6 +43,7 @@ type WorkflowRow = {
   trigger_hour_end: number;
   max_videos_per_trigger: number | null;
   last_triggered_at: string | null;
+  last_manual_triggered_at: string | null;
   total_posted: number | null;
   created_at: string;
   updated_at: string;
@@ -742,14 +743,20 @@ export default function WorkflowsPage() {
   };
 
   const renderLastTriggered = (wf: WorkflowRow) => {
-    if (!wf.last_triggered_at) return "Never";
-    try {
-      return `Last ran ${formatDistanceToNow(new Date(wf.last_triggered_at), {
-        addSuffix: true,
-      })}`;
-    } catch {
-      return "Last run time unavailable";
-    }
+    const scheduled = wf.last_triggered_at;
+    const manual = wf.last_manual_triggered_at;
+
+    if (!scheduled && !manual) return "Never";
+
+    const scheduledText = scheduled
+      ? `Last ran ${formatDistanceToNow(new Date(scheduled), { addSuffix: true })}`
+      : "Scheduled: Never";
+
+    const manualText = manual
+      ? `Manual run ${formatDistanceToNow(new Date(manual), { addSuffix: true })}`
+      : "Manual: Never";
+
+    return `${scheduledText} • ${manualText}`;
   };
 
   return (
