@@ -101,13 +101,24 @@ Deno.serve(async (req) => {
       post.metadata.instagram_container_id,
     );
 
-    const statusRes = await fetch(
-      `https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${accessToken}`,
-    );
-    const statusData = await statusRes.json();
-    const status = statusData?.status_code || "UNKNOWN";
+    let status = "UNKNOWN";
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const statusRes = await fetch(
+        `https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${accessToken}`,
+      );
+      const statusData = await statusRes.json();
+      status = statusData?.status_code || "UNKNOWN";
+      console.log("Container status:", status);
 
-    console.log("Container status:", status);
+      if (status === "FINISHED") {
+        break;
+      }
+      if (status === "ERROR") {
+        break;
+      }
+      // Still processing, wait 2 seconds and retry
+      await new Promise((r) => setTimeout(r, 2000));
+    }
 
     if (status === "FINISHED") {
       // Try to claim this publish atomically (only one worker proceeds)

@@ -221,6 +221,7 @@ Deno.serve(async (req) => {
     );
 
     const postData = await postRes.json();
+    console.log("Facebook upload response:", postRes.status, postData);
     if (!postRes.ok || !postData?.id) {
       console.error("Facebook file_url upload failed", postRes.status, postData);
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
