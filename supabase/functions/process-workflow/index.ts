@@ -276,7 +276,16 @@ Deno.serve(async (req) => {
 
       // Trigger window check in UTC - end hour is EXCLUSIVE to prevent running in next hour
       // If window is 21-22, only runs during hour 21 (21:00 - 21:59)
-      if (utcHour < start || utcHour >= end) {
+      // Check per-day time windows if configured, otherwise use default
+      let windowStart = start;
+      let windowEnd = end;
+      const dayTimeWindows = wf.day_time_windows as Record<string, { start: number; end: number }> | null;
+      if (dayTimeWindows && dayTimeWindows[todayDay.toString()]) {
+        windowStart = dayTimeWindows[todayDay.toString()].start;
+        windowEnd = dayTimeWindows[todayDay.toString()].end;
+        console.log(`Workflow ${wf.name}: using per-day time window for day ${todayDay}: ${windowStart}-${windowEnd}`);
+      }
+      if (utcHour < windowStart || utcHour >= windowEnd) {
         continue;
       }
 
@@ -290,10 +299,10 @@ Deno.serve(async (req) => {
       }
 
       const randomMinute = Math.abs(hash) % 60;
-      const windowSizeRaw = end - start;
+      const windowSizeRaw = windowEnd - windowStart;
       const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
       const randomHourOffset = Math.abs(hash >> 8) % windowSize;
-      const randomHour = start + randomHourOffset;
+      const randomHour = windowStart + randomHourOffset;
 
       console.log(
         `Workflow ${wf.name}: random trigger time set to ${randomHour}:${
@@ -305,7 +314,7 @@ Deno.serve(async (req) => {
       if (
         utcHour < randomHour ||
         (utcHour === randomHour && utcMinute < randomMinute) ||
-        (utcHour > randomHour && utcHour < end)
+        (utcHour > randomHour && utcHour < windowEnd)
       ) {
         continue;
       }

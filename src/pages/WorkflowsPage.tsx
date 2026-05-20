@@ -45,6 +45,7 @@ type WorkflowRow = {
   last_triggered_at: string | null;
   last_manual_triggered_at: string | null;
   run_days: number[] | null;
+  day_time_windows: Record<string, { start: number; end: number }> | null;
   total_posted: number | null;
   created_at: string;
   updated_at: string;
@@ -83,6 +84,8 @@ export default function WorkflowsPage() {
   const [triggerEndHour, setTriggerEndHour] = useState<number>(1);
   const [maxVideos, setMaxVideos] = useState<number>(3);
   const [runDays, setRunDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+  const [dayTimeWindows, setDayTimeWindows] = useState<Record<string, { start: number; end: number }>>({});
+  const [usePerDayTimes, setUsePerDayTimes] = useState<boolean>(false);
   const [postAsStory, setPostAsStory] = useState<boolean>(false);
   const [sheetUrl, setSheetUrl] = useState("");
   const [youtubeAlteredContent, setYoutubeAlteredContent] = useState<boolean>(true);
@@ -174,6 +177,8 @@ export default function WorkflowsPage() {
     setTriggerEndHour(wf.trigger_hour_end ?? 1);
     setMaxVideos(wf.max_videos_per_trigger ?? 3);
     setRunDays(wf.run_days ?? [0, 1, 2, 3, 4, 5, 6]);
+    setDayTimeWindows((wf.day_time_windows as Record<string, { start: number; end: number }>) ?? {});
+    setUsePerDayTimes(!!wf.day_time_windows && Object.keys(wf.day_time_windows).length > 0);
     setPostAsStory(wf.post_as_story ?? false);
     setYoutubeAlteredContent(wf.youtube_altered_content ?? true);
     setSheetUrl(wf.sheet_url ?? "");
@@ -251,6 +256,7 @@ export default function WorkflowsPage() {
         trigger_hour_end: triggerEndHour,
         max_videos_per_trigger: maxVideos,
         run_days: runDays,
+        day_time_windows: Object.keys(dayTimeWindows).length > 0 ? dayTimeWindows : null,
         sheet_url: sheetUrl.trim(),
         sheet_id: id,
       };
@@ -650,6 +656,80 @@ export default function WorkflowsPage() {
             <p className="text-xs text-muted-foreground">
               Select the days to run the workflow (UTC).
             </p>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="usePerDayTimes"
+                checked={usePerDayTimes}
+                onChange={(e) => setUsePerDayTimes(e.target.checked)}
+                className="rounded border-border"
+              />
+              <Label htmlFor="usePerDayTimes" className="font-normal cursor-pointer">
+                Set different times for each day
+              </Label>
+            </div>
+            {usePerDayTimes && (
+              <div className="space-y-2 pl-2 border-l-2 border-muted">
+                {[
+                  { value: 0, label: "Sunday" },
+                  { value: 1, label: "Monday" },
+                  { value: 2, label: "Tuesday" },
+                  { value: 3, label: "Wednesday" },
+                  { value: 4, label: "Thursday" },
+                  { value: 5, label: "Friday" },
+                  { value: 6, label: "Saturday" },
+                ].map((day) => {
+                  const dayKey = day.value.toString();
+                  const isEnabled = runDays.includes(day.value);
+                  const dayStart = dayTimeWindows[dayKey]?.start ?? triggerStartHour;
+                  const dayEnd = dayTimeWindows[dayKey]?.end ?? triggerEndHour;
+                  if (!isEnabled) return null;
+                  return (
+                    <div key={day.value} className="flex items-center gap-2 text-sm">
+                      <span className="w-20 text-muted-foreground">{day.label}</span>
+                      <select
+                        className="rounded border border-border bg-background px-1 py-0.5 text-xs"
+                        value={dayStart}
+                        onChange={(e) =>
+                          setDayTimeWindows((prev) => ({
+                            ...prev,
+                            [dayKey]: { start: Number(e.target.value), end: prev[dayKey]?.end ?? triggerEndHour },
+                          }))
+                        }
+                      >
+                        {hourOptions.map((h) => (
+                          <option key={h} value={h}>
+                            {h.toString().padStart(2, "0")}:00
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-muted-foreground">to</span>
+                      <select
+                        className="rounded border border-border bg-background px-1 py-0.5 text-xs"
+                        value={dayEnd}
+                        onChange={(e) =>
+                          setDayTimeWindows((prev) => ({
+                            ...prev,
+                            [dayKey]: { start: prev[dayKey]?.start ?? triggerStartHour, end: Number(e.target.value) },
+                          }))
+                        }
+                      >
+                        {hourOptions.map((h) => (
+                          <option key={h} value={h}>
+                            {h.toString().padStart(2, "0")}:00
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-muted-foreground">
+                  Only selected days above are editable. Unselected days will be ignored.
+                </p>
+              </div>
+            )}
           </div>
           <div className="space-y-1">
             <Label>Maximum videos per trigger</Label>
