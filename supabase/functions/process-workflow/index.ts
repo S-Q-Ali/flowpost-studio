@@ -568,6 +568,28 @@ Deno.serve(async (req) => {
               },
               body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
             });
+            for (let igAttempt = 0; igAttempt < 30; igAttempt++) {
+              await new Promise((r) => setTimeout(r, 2000));
+              const { data: postData } = await supabase
+                .from("posts")
+                .select("metadata")
+                .eq("id", post.id)
+                .single();
+              const containerId = postData?.metadata?.instagram_container_id;
+              if (containerId) {
+                void fetch(`${SB_URL}/functions/v1/instagram-publish`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                    apikey: SB_SERVICE_ROLE_KEY!,
+                  },
+                  body: JSON.stringify({ postId: post.id }),
+                });
+                console.log("Instagram publish triggered for post:", post.id);
+                break;
+              }
+            }
           }
         }
 
