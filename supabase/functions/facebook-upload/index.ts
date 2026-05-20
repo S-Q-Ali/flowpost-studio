@@ -205,19 +205,22 @@ Deno.serve(async (req) => {
       console.log("R2 upload complete, URL:", videoUrl);
     }
 
-    // Simplest + most reliable approach: let Facebook pull from a public URL (R2)
+    // Download video from R2 and upload directly to Facebook as multipart
+    const videoRes = await fetch(videoUrl);
+    if (!videoRes.ok || !videoRes.body) {
+      return json({ error: `Failed to fetch video from storage: ${videoRes.status}` }, 502);
+    }
+    const videoBuffer = await videoRes.arrayBuffer();
+
+    const formData = new FormData();
+    formData.append("source", new Blob([videoBuffer], { type: "video/mp4" }), "video.mp4");
+    formData.append("description", (post.caption || "").toString());
+    formData.append("access_token", accessToken);
+    formData.append("published", "true");
+
     const postRes = await fetch(
       `https://graph.facebook.com/v18.0/${encodeURIComponent(pageId)}/videos`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          file_url: videoUrl,
-          description: (post.caption || "").toString(),
-          access_token: accessToken,
-          published: true,
-        }),
-      },
+      { method: "POST", body: formData },
     );
 
     const postData = await postRes.json();
