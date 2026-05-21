@@ -56,6 +56,7 @@ type WorkflowRow = {
   run_days: number[] | null;
   day_time_windows: Record<string, { start: number; end: number }> | null;
   total_posted: number | null;
+  media_type: "video" | "image";
   created_at: string;
   updated_at: string;
 };
@@ -85,6 +86,7 @@ export default function WorkflowsPage() {
   // Form state
   const [workflowName, setWorkflowName] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [mediaType, setMediaType] = useState<"video" | "image">("video");
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
   const [selectedYoutubeIds, setSelectedYoutubeIds] = useState<string[]>([]);
   const [selectedFacebookIds, setSelectedFacebookIds] = useState<string[]>([]);
@@ -153,6 +155,7 @@ export default function WorkflowsPage() {
   const resetForm = () => {
     setWorkflowName("");
     setIsActive(true);
+    setMediaType("video");
     setSelectedPlatforms([]);
     setSelectedYoutubeIds([]);
     setSelectedFacebookIds([]);
@@ -179,6 +182,7 @@ export default function WorkflowsPage() {
     setSelectedWorkflow(wf);
     setWorkflowName(wf.name);
     setIsActive(wf.is_active);
+    setMediaType(wf.media_type ?? "video");
     const wfPlatforms = (wf.platforms ?? []) as Platform[];
     setSelectedPlatforms(wfPlatforms);
     setSelectedYoutubeIds(wf.youtube_channel_ids ?? []);
@@ -258,6 +262,7 @@ export default function WorkflowsPage() {
         user_id: PERSONAL_USER_ID,
         name: workflowName.trim(),
         is_active: isActive,
+        media_type: mediaType,
         platforms: selectedPlatforms,
         youtube_channel_ids: selectedYoutubeIds,
         facebook_page_ids: selectedFacebookIds,
@@ -429,6 +434,44 @@ export default function WorkflowsPage() {
             value={workflowName}
             onChange={(e) => setWorkflowName(e.target.value)}
           />
+          <div className="space-y-2">
+            <Label>Media Type</Label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="mediaType"
+                  checked={mediaType === "video"}
+                  onChange={() => {
+                    setMediaType("video");
+                    // Don't remove YouTube from selection, it will be hidden
+                  }}
+                  className="accent-primary"
+                />
+                <span className="text-sm text-foreground">Video</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="mediaType"
+                  checked={mediaType === "image"}
+                  onChange={() => {
+                    setMediaType("image");
+                    // Remove YouTube when switching to image
+                    setSelectedPlatforms((prev) => prev.filter((p) => p !== "youtube"));
+                    setSelectedYoutubeIds([]);
+                  }}
+                  className="accent-primary"
+                />
+                <span className="text-sm text-foreground">Image</span>
+              </label>
+            </div>
+            {mediaType === "image" && (
+              <p className="text-xs text-muted-foreground">
+                Image workflows support Facebook and Instagram only. YouTube does not support image posts.
+              </p>
+            )}
+          </div>
         </div>
       );
     }
@@ -443,7 +486,9 @@ export default function WorkflowsPage() {
             </p>
           </div>
           <div className="space-y-3">
-            {platformOptions.map(({ id, label, icon: Icon, color }) => {
+            {platformOptions
+              .filter((p) => mediaType !== "image" || p.id !== "youtube")
+              .map(({ id, label, icon: Icon, color }) => {
               const selected = selectedPlatforms.includes(id);
               return (
                 <div

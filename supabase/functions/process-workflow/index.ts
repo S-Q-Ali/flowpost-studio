@@ -455,6 +455,7 @@ Deno.serve(async (req) => {
             user_id: PERSONAL_USER_ID,
             title: title || fileName,
             file_url: driveDownloadUrl,
+            media_type: (wf as any).media_type ?? "video",
           })
           .select("id")
           .single();

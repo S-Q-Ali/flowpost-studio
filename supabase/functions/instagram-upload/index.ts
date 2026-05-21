@@ -53,15 +53,27 @@ async function uploadDriveVideoToR2(
   videoId: string,
   title: string,
 ): Promise<string> {
-  const baseName = (title || videoId).replace(/\.mp4$/i, "");
+  return uploadDriveMediaToR2(driveUrl, googleToken, videoId, title, false);
+}
+
+async function uploadDriveMediaToR2(
+  driveUrl: string,
+  googleToken: string,
+  mediaId: string,
+  title: string,
+  isImage: boolean,
+): Promise<string> {
+  const ext = isImage ? ".jpg" : ".mp4";
+  const contentType = isImage ? "image/jpeg" : "video/mp4";
+  const baseName = (title || mediaId).replace(/\.(mp4|mov|jpg|jpeg|png)$/i, "");
   const { data: uploadData, error } = await supabase.functions.invoke<
     GetUploadUrlResponse
   >(
     "get-upload-url",
     {
       body: {
-        fileName: `${baseName}.mp4`,
-        fileType: "video/mp4",
+        fileName: `${baseName}${ext}`,
+        fileType: contentType,
         userId: "00000000-0000-0000-0000-000000000000",
       },
     },
@@ -84,7 +96,7 @@ async function uploadDriveVideoToR2(
 
   const putRes = await fetch(uploadData.uploadUrl, {
     method: "PUT",
-    headers: { "Content-Type": "video/mp4" },
+    headers: { "Content-Type": contentType },
     body: driveRes.body,
     // @ts-ignore - duplex needed for streaming
     duplex: "half",
@@ -156,6 +168,9 @@ Deno.serve(async (req) => {
       return json({ error: "Video not found or missing file_url" }, 404);
     }
 
+    const mediaType = video.media_type ?? "video";
+    const isImage = mediaType === "image";
+
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
       .select("*")
@@ -171,38 +186,43 @@ Deno.serve(async (req) => {
     const accessToken = account.access_token as string;
     const igUserId = account.account_id as string;
 
-    let videoUrl = video.file_url as string;
+    let mediaUrl = video.file_url as string;
 
     if (
-      (driveDownloadUrl || videoUrl.includes("googleapis.com")) &&
+      (driveDownloadUrl || mediaUrl.includes("googleapis.com")) &&
       googleAccessToken
     ) {
-      const driveSource = driveDownloadUrl || videoUrl;
-      console.log("Uploading Drive video to R2 first...");
+      const driveSource = driveDownloadUrl || mediaUrl;
+      console.log(`Uploading Drive ${isImage ? "image" : "video"} to R2 first...`);
 
-      videoUrl = await uploadDriveVideoToR2(
+      mediaUrl = await uploadDriveMediaToR2(
         driveSource,
         googleAccessToken,
         post.video_id as string,
         (video.title as string) || (post.video_id as string),
+        isImage,
       );
 
       await supabase
         .from("videos")
-        .update({ file_url: videoUrl })
+        .update({ file_url: mediaUrl })
         .eq("id", post.video_id);
 
-      console.log("R2 upload complete, URL:", videoUrl);
+      console.log("R2 upload complete, URL:", mediaUrl);
     }
 
-    console.log("Creating Instagram container for user:", igUserId);
-    console.log("Using video URL:", videoUrl);
+    console.log(`Creating Instagram ${isImage ? "image" : "reel"} container for user:`, igUserId);
+    console.log("Using media URL:", mediaUrl);
     console.log("Caption:", post.caption);
 
     // Step 3a - Create media container using URLSearchParams (Meta API expects form-encoded data)
     const containerForm = new URLSearchParams();
-    containerForm.append("media_type", "REELS");
-    containerForm.append("video_url", videoUrl);
+    containerForm.append("media_type", isImage ? "IMAGE" : "REELS");
+    if (isImage) {
+      containerForm.append("image_url", mediaUrl);
+    } else {
+      containerForm.append("video_url", mediaUrl);
+    }
     containerForm.append("caption", post.caption || "");
     containerForm.append("access_token", accessToken);
 
@@ -237,7 +257,7 @@ Deno.serve(async (req) => {
         status: "processing",
         metadata: {
           instagram_container_id: container.id,
-          r2_url: videoUrl,
+          r2_url: mediaUrl,
         },
       })
       .eq("id", postId);

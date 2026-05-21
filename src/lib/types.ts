@@ -8,6 +8,7 @@ export interface Video {
   file_url: string | null;
   thumbnail_url: string | null;
   duration: number | null;
+  media_type: "video" | "image";
   uploaded_at: string;
 }
 

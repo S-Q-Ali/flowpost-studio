@@ -27,15 +27,27 @@ async function uploadDriveVideoToR2(
   videoId: string,
   title: string,
 ): Promise<string> {
-  const baseName = (title || videoId).replace(/\.mp4$/i, "");
+  return uploadDriveMediaToR2(driveUrl, googleToken, videoId, title, false);
+}
+
+async function uploadDriveMediaToR2(
+  driveUrl: string,
+  googleToken: string,
+  mediaId: string,
+  title: string,
+  isImage: boolean,
+): Promise<string> {
+  const ext = isImage ? ".jpg" : ".mp4";
+  const contentType = isImage ? "image/jpeg" : "video/mp4";
+  const baseName = (title || mediaId).replace(/\.(mp4|mov|jpg|jpeg|png)$/i, "");
   const { data: uploadData, error } = await supabase.functions.invoke<
     GetUploadUrlResponse
   >(
     "get-upload-url",
     {
       body: {
-        fileName: `${baseName}.mp4`,
-        fileType: "video/mp4",
+        fileName: `${baseName}${ext}`,
+        fileType: contentType,
         userId: "00000000-0000-0000-0000-000000000000",
       },
     },
@@ -58,7 +70,7 @@ async function uploadDriveVideoToR2(
 
   const putRes = await fetch(uploadData.uploadUrl, {
     method: "PUT",
-    headers: { "Content-Type": "video/mp4" },
+    headers: { "Content-Type": contentType },
     body: driveRes.body,
     // @ts-ignore - duplex needed for streaming
     duplex: "half",
@@ -155,13 +167,15 @@ Deno.serve(async (req) => {
 
     const { data: video, error: videoError } = await supabase
       .from("videos")
-      .select("id, title, file_url")
+      .select("id, title, file_url, media_type")
       .eq("id", post.video_id)
       .single();
 
     if (videoError || !video?.file_url) {
       return json({ error: "Video not found or missing file_url" }, 404);
     }
+
+    const mediaType = (video as any).media_type ?? "video";
 
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
@@ -181,49 +195,71 @@ Deno.serve(async (req) => {
     // Support either:
     // - Traditional flow: video.file_url points to R2/public storage
     // - Workflow flow: direct Google Drive download URL + access token
-    let videoUrl = video.file_url as string;
+    let mediaUrl = video.file_url as string;
+    const isImage = mediaType === "image";
 
     if (
-      (driveDownloadUrl || videoUrl.includes("googleapis.com")) &&
+      (driveDownloadUrl || mediaUrl.includes("googleapis.com")) &&
       googleAccessToken
     ) {
-      const driveSource = driveDownloadUrl || videoUrl;
-      console.log("Uploading Drive video to R2 first...");
+      const driveSource = driveDownloadUrl || mediaUrl;
+      console.log(`Uploading Drive ${isImage ? "image" : "video"} to R2 first...`);
 
-      videoUrl = await uploadDriveVideoToR2(
+      mediaUrl = await uploadDriveMediaToR2(
         driveSource,
         googleAccessToken,
         post.video_id,
         video.title || post.video_id,
+        isImage,
       );
 
       await supabase
         .from("videos")
-        .update({ file_url: videoUrl })
+        .update({ file_url: mediaUrl })
         .eq("id", post.video_id);
 
-      console.log("R2 upload complete, URL:", videoUrl);
+      console.log("R2 upload complete, URL:", mediaUrl);
     }
 
-    // Use file_url approach - Facebook fetches directly from R2 URL
-    const postRes = await fetch(
-      `https://graph-video.facebook.com/v18.0/${encodeURIComponent(pageId)}/videos`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          file_url: videoUrl,
-          description: (post.caption || "").toString(),
-          access_token: accessToken,
-          published: "true",
-        }).toString(),
-      },
-    );
+    let postRes: Response;
+    let postData: any;
 
-    const postData = await postRes.json();
-    console.log("Facebook upload response:", postRes.status, postData);
+    if (isImage) {
+      // Image posting: use /photos endpoint
+      postRes = await fetch(
+        `https://graph.facebook.com/v25.0/${encodeURIComponent(pageId)}/photos`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            url: mediaUrl,
+            message: (post.caption || "").toString(),
+            access_token: accessToken,
+            published: "true",
+          }).toString(),
+        },
+      );
+    } else {
+      // Video posting: use /videos endpoint
+      postRes = await fetch(
+        `https://graph-video.facebook.com/v18.0/${encodeURIComponent(pageId)}/videos`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            file_url: mediaUrl,
+            description: (post.caption || "").toString(),
+            access_token: accessToken,
+            published: "true",
+          }).toString(),
+        },
+      );
+    }
+
+    postData = await postRes.json();
+    console.log(`Facebook ${isImage ? "image" : "video"} upload response:`, postRes.status, postData);
     if (!postRes.ok || !postData?.id) {
-      console.error("Facebook file_url upload failed", postRes.status, postData);
+      console.error(`Facebook ${isImage ? "image" : "video"} file_url upload failed`, postRes.status, postData);
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
       // Update sheet status to "failed"
       try {
@@ -270,7 +306,7 @@ Deno.serve(async (req) => {
       console.error("Failed to update sheet status", sheetErr);
     }
 
-    return json({ success: true, postId, facebook_video_id: postData.id });
+    return json({ success: true, postId, facebook_id: postData.id });
   } catch (err) {
     console.error("facebook-upload error", err);
     try {
