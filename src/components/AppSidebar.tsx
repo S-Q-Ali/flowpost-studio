@@ -5,7 +5,6 @@ import {
   Calendar,
   ListTodo,
   Link2,
-  Zap,
   Lock,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -27,6 +26,7 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { Logo } from "@/components/Logo";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -45,14 +45,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
       <div className="flex items-center gap-2 px-4 py-5 border-b border-border">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary">
-          <Zap size={18} className="text-primary-foreground" />
-        </div>
-        {!collapsed && (
-          <span className="text-lg font-bold tracking-tight text-foreground">
-            FlowPost
-          </span>
-        )}
+        <Logo size={collapsed ? "sm" : "md"} />
       </div>
 
       <SidebarContent className="px-2 py-4">

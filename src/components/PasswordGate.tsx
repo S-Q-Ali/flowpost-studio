@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { Zap, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { Logo } from "@/components/Logo";
 
 const TOKEN_KEY = "flowpost_token";
 
@@ -312,8 +313,7 @@ export function PasswordGate({ onSuccess }: PasswordGateProps) {
               <Button
                 type="submit"
                 disabled={verifying}
-                className="w-full h-10"
-                style={{ backgroundColor: "#7C3AED" }}
+                className="w-full h-10 bg-primary text-primary-foreground"
               >
                 {verifying ? (
                   <>
@@ -359,12 +359,7 @@ export function PasswordGate({ onSuccess }: PasswordGateProps) {
         )}
       >
         <div className="flex flex-col items-center gap-3">
-          <div
-            className="flex h-14 w-14 items-center justify-center rounded-2xl"
-            style={{ background: "linear-gradient(135deg, #7C3AED, #A78BFA)" }}
-          >
-            <Zap size={28} className="text-white" />
-          </div>
+          <Logo size="lg" />
           <h1 className="text-2xl font-bold tracking-tight text-white">
             FlowPost
           </h1>
@@ -390,7 +385,7 @@ export function PasswordGate({ onSuccess }: PasswordGateProps) {
                   placeholder="Admin Password"
                   autoFocus
                   disabled={verifying}
-                  className="h-12 rounded-xl border-zinc-700 bg-zinc-900/80 pl-4 pr-12 text-white placeholder:text-zinc-500 focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:border-[#7C3AED]"
+                  className="h-12 rounded-xl border-zinc-700 bg-zinc-900/80 pl-4 pr-12 text-white placeholder:text-zinc-500 focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
                   autoComplete="current-password"
                 />
                 <button
@@ -411,8 +406,7 @@ export function PasswordGate({ onSuccess }: PasswordGateProps) {
               <Button
                 type="submit"
                 disabled={verifying}
-                className="w-full h-12 rounded-xl font-medium text-white transition-all hover:opacity-90 disabled:opacity-70"
-                style={{ backgroundColor: "#7C3AED" }}
+                className="w-full h-12 rounded-xl font-medium bg-primary text-primary-foreground transition-all hover:opacity-90 disabled:opacity-70"
               >
                 {verifying ? (
                   <>

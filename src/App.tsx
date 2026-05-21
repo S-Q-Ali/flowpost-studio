@@ -14,7 +14,8 @@ import QueuePage from "./pages/QueuePage";
 import AccountsPage from "./pages/AccountsPage";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { Logo } from "@/components/Logo";
 
 const queryClient = new QueryClient();
 
@@ -27,12 +28,7 @@ function AppRoutes() {
         className="min-h-screen flex flex-col items-center justify-center gap-6 p-6"
         style={{ backgroundColor: "#0F0F0F" }}
       >
-        <div
-          className="flex h-14 w-14 items-center justify-center rounded-2xl"
-          style={{ background: "linear-gradient(135deg, #7C3AED, #A78BFA)" }}
-        >
-          <Zap size={28} className="text-white" />
-        </div>
+        <Logo size="lg" />
         <p className="text-sm text-zinc-500 flex items-center gap-2">
           <Loader2 size={18} className="animate-spin" />
           Verifying...
