@@ -982,7 +982,7 @@ export default function WorkflowsPage() {
               <Plus size={16} /> Create Workflow
             </Button>
           </SheetTrigger>
-          <SheetContent className="bg-card border-border flex flex-col p-0 gap-0">
+          <SheetContent className="bg-card border-border flex flex-col p-0 gap-0 sm:max-w-xl">
             <SheetHeader className="p-4 sm:p-6 pb-0 shrink-0">
               <SheetTitle className="text-foreground">
                 {mode === "create" ? "New Workflow" : "Edit Workflow"}
