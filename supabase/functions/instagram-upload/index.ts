@@ -251,11 +251,18 @@ Deno.serve(async (req) => {
 
     console.log("Container created:", container.id);
 
+    const { data: existingPost } = await supabase
+      .from("posts")
+      .select("metadata")
+      .eq("id", postId)
+      .single();
+
     await supabase
       .from("posts")
       .update({
         status: "processing",
         metadata: {
+          ...(existingPost?.metadata as Record<string, unknown> || {}),
           instagram_container_id: container.id,
           r2_url: mediaUrl,
         },

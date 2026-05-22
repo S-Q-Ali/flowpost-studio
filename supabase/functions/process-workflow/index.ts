@@ -573,6 +573,23 @@ Deno.serve(async (req) => {
           console.error("Failed to mark posts as processing", processingUpdateError);
         }
 
+        // Store sheet info in post metadata before triggering uploads
+        const { error: metadataUpdateError } = await supabase
+          .from("posts")
+          .update({
+            metadata: {
+              ...((insertedPosts as any[])[0]?.metadata || {}),
+              sheet_id: sheetId,
+              sheet_row_index: rowIndex,
+              sheet_col_index: statusIdx,
+            },
+          })
+          .in("id", (insertedPosts as { id: string }[]).map((p) => p.id));
+
+        if (metadataUpdateError) {
+          console.error("Failed to update post metadata with sheet info", metadataUpdateError);
+        }
+
         // Kick off uploads via existing Edge Functions
         for (const post of insertedPosts as { id: string; platform: string; account_id: string | null }[]) {
           if (post.platform === "youtube") {
@@ -711,22 +728,6 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Store sheet info in post metadata
-            const { error: metadataUpdateError } = await supabase
-              .from("posts")
-              .update({
-                metadata: {
-                  ...((insertedPosts as any[])[0]?.metadata || {}),
-                  sheet_id: sheetId,
-                  sheet_row_index: rowIndex,
-                  sheet_col_index: statusIdx,
-                },
-              })
-              .in("id", (insertedPosts as { id: string }[]).map((p) => p.id));
-
-            if (metadataUpdateError) {
-              console.error("Failed to update post metadata with sheet info", metadataUpdateError);
-            }
           }
         }
 
