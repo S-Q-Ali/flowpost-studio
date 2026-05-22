@@ -403,6 +403,8 @@ Deno.serve(async (req) => {
     const descIdx = headerIndex["description"];
     const ytTitleIdx = headerIndex["yt_video_title"];
     const ytDescIdx = headerIndex["yt_video_description"];
+    const fbCaptionIdx = headerIndex["fb_caption"];
+    const igCaptionIdx = headerIndex["ig_caption"];
     const platformsIdx = headerIndex["platforms"];
     const statusIdx = headerIndex["status"];
     const ytChannelsIdx = headerIndex["youtube_channels"];
@@ -518,12 +520,13 @@ Deno.serve(async (req) => {
             }
           } else if (p === "facebook") {
             for (const accountId of fbAccounts) {
+              const fbCaption = fbCaptionIdx !== undefined && row[fbCaptionIdx] ? row[fbCaptionIdx] : description;
               postsPayload.push({
                 user_id: PERSONAL_USER_ID,
                 video_id: videoRecord.id,
                 platform: "facebook",
                 account_id: accountId,
-                caption: description || null,
+                caption: fbCaption,
                 hashtags: null,
                 scheduled_at: nowIso,
                 status: "processing",
@@ -532,12 +535,13 @@ Deno.serve(async (req) => {
             }
           } else if (p === "instagram") {
             for (const accountId of igAccounts) {
+              const igCaption = igCaptionIdx !== undefined && row[igCaptionIdx] ? row[igCaptionIdx] : description;
               postsPayload.push({
                 user_id: PERSONAL_USER_ID,
                 video_id: videoRecord.id,
                 platform: "instagram",
                 account_id: accountId,
-                caption: description || null,
+                caption: igCaption,
                 hashtags: null,
                 scheduled_at: nowIso,
                 status: "processing",
