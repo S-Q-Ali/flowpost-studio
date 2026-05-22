@@ -812,7 +812,7 @@ export default function WorkflowsPage() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Videos per run</Label>
+              <Label>{mediaType === "image" ? "Images" : "Videos"} per run</Label>
               <Select
                 value={videosPerRun.toString()}
                 onValueChange={(v) => setVideosPerRun(Number(v))}
@@ -821,15 +821,16 @@ export default function WorkflowsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">1 video</SelectItem>
-                  <SelectItem value="2">2 videos</SelectItem>
+                  <SelectItem value="1">1 {mediaType === "image" ? "image" : "video"}</SelectItem>
+                  <SelectItem value="2">2 {mediaType === "image" ? "images" : "videos"}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Total: {Math.floor((24 / runIntervalHours) * videosPerRun)} videos per day
+            Total: {Math.floor((24 / runIntervalHours) * videosPerRun)} {mediaType === "image" ? "images" : "videos"} per day
           </p>
+          {mediaType === "video" && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
@@ -844,6 +845,7 @@ export default function WorkflowsPage() {
               />
             </div>
           </div>
+          )}
         </div>
       );
     }
@@ -855,7 +857,7 @@ export default function WorkflowsPage() {
           <Label>Google Sheet URL</Label>
           <p className="text-xs text-muted-foreground">
             Sheet must include these required columns:{" "}
-            <code className="text-[10px]">video_url, title, description, status</code>
+            <code className="text-[10px]">{mediaType === "image" ? "image_url" : "video_url"}, title, description, status</code>
           </p>
           <p className="text-xs text-muted-foreground">
             Optional columns:{" "}
