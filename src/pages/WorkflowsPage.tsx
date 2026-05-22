@@ -861,7 +861,7 @@ export default function WorkflowsPage() {
           </p>
           <p className="text-xs text-muted-foreground">
             Optional columns:{" "}
-            <code className="text-[10px]">platforms, scheduled_time, youtube_channels, facebook_pages</code>
+            <code className="text-[10px]">platforms, scheduled_time, yt_video_title, yt_video_description, youtube_channels, facebook_pages</code>
           </p>
         </div>
         <Input

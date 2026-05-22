@@ -401,6 +401,8 @@ Deno.serve(async (req) => {
     const videoUrlIdx = headerIndex["video_url"];
     const titleIdx = headerIndex["title"];
     const descIdx = headerIndex["description"];
+    const ytTitleIdx = headerIndex["yt_video_title"];
+    const ytDescIdx = headerIndex["yt_video_description"];
     const platformsIdx = headerIndex["platforms"];
     const statusIdx = headerIndex["status"];
     const ytChannelsIdx = headerIndex["youtube_channels"];
@@ -498,17 +500,20 @@ Deno.serve(async (req) => {
         for (const p of platforms) {
           if (p === "youtube") {
             for (const accountId of ytAccounts) {
+              const ytCaption = ytDescIdx !== undefined && row[ytDescIdx] ? row[ytDescIdx] : description;
+              const ytVideoTitle = ytTitleIdx !== undefined && row[ytTitleIdx] ? row[ytTitleIdx] : title;
               postsPayload.push({
                 user_id: PERSONAL_USER_ID,
                 video_id: videoRecord.id,
                 platform: "youtube",
                 account_id: accountId,
-                caption: description || null,
+                caption: ytCaption,
                 hashtags: null,
                 scheduled_at: nowIso,
                 status: "processing",
                 captions_enabled: true,
                 contains_altered_content: wf.youtube_altered_content ?? true,
+                metadata: { youtube_video_title: ytVideoTitle },
               });
             }
           } else if (p === "facebook") {

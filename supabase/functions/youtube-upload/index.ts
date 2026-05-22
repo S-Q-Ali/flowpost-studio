@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
   try {
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, video_id, account_id, caption, hashtags, status, platform, contains_altered_content")
+      .select("id, video_id, account_id, caption, hashtags, status, platform, contains_altered_content, metadata")
       .eq("id", postId)
       .single();
 
@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
 
     const metadata = {
       snippet: {
-        title: video.title || "Uploaded Video",
+        title: (post.metadata as any)?.youtube_video_title || video.title || "Uploaded Video",
         description: (post.caption || "").slice(0, 5000),
         tags,
         categoryId: "22",
