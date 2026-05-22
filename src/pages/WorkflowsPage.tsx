@@ -436,37 +436,46 @@ export default function WorkflowsPage() {
           />
           <div className="space-y-2">
             <Label>Media Type</Label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="mediaType"
-                  checked={mediaType === "video"}
-                  onChange={() => {
-                    setMediaType("video");
-                    // Don't remove YouTube from selection, it will be hidden
-                  }}
-                  className="accent-primary"
-                />
-                <span className="text-sm text-foreground">Video</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="mediaType"
-                  checked={mediaType === "image"}
-                  onChange={() => {
-                    setMediaType("image");
-                    // Remove YouTube when switching to image
-                    setSelectedPlatforms((prev) => prev.filter((p) => p !== "youtube"));
-                    setSelectedYoutubeIds([]);
-                  }}
-                  className="accent-primary"
-                />
-                <span className="text-sm text-foreground">Image</span>
-              </label>
-            </div>
-            {mediaType === "image" && (
+            {mode === "edit" ? (
+              <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-border">
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                  {mediaType === "video" ? "Video" : "Image"}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Media type cannot be changed after creation.
+                </span>
+              </div>
+            ) : (
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="mediaType"
+                    checked={mediaType === "video"}
+                    onChange={() => {
+                      setMediaType("video");
+                    }}
+                    className="accent-primary"
+                  />
+                  <span className="text-sm text-foreground">Video</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="mediaType"
+                    checked={mediaType === "image"}
+                    onChange={() => {
+                      setMediaType("image");
+                      setSelectedPlatforms((prev) => prev.filter((p) => p !== "youtube"));
+                      setSelectedYoutubeIds([]);
+                    }}
+                    className="accent-primary"
+                  />
+                  <span className="text-sm text-foreground">Image</span>
+                </label>
+              </div>
+            )}
+            {mediaType === "image" && mode === "create" && (
               <p className="text-xs text-muted-foreground">
                 Image workflows support Facebook and Instagram only. YouTube does not support image posts.
               </p>
