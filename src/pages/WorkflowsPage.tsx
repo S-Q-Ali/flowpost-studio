@@ -388,7 +388,7 @@ export default function WorkflowsPage() {
             <div key={step.id} className="flex-1 flex items-center">
               <div
                 className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-full border text-xs",
+                  "flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-full border text-xs",
                   isActiveStep
                     ? "border-primary text-primary bg-primary/10"
                     : isCompleted
@@ -396,13 +396,13 @@ export default function WorkflowsPage() {
                     : "border-border text-muted-foreground",
                 )}
               >
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-current text-[10px]">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-current text-[10px] shrink-0">
                   {step.id}
                 </span>
-                <span>{step.label}</span>
+                <span className="hidden sm:inline">{step.label}</span>
               </div>
               {step.id !== 4 && (
-                <div className="flex-1 h-px mx-2 bg-border" />
+                <div className="flex-1 h-px mx-1 sm:mx-2 bg-border" />
               )}
             </div>
           );
@@ -509,7 +509,7 @@ export default function WorkflowsPage() {
                     </div>
                   </label>
                   {selected && id === "youtube" && (
-                    <div className="ml-7 space-y-1">
+                    <div className="pl-6 sm:pl-7 space-y-1">
                       {youtubeAccounts.length === 0 ? (
                         <p className="text-xs text-muted-foreground">
                           No YouTube channels connected. Connect them in Accounts.
@@ -539,7 +539,7 @@ export default function WorkflowsPage() {
                     </div>
                   )}
                   {selected && id === "facebook" && (
-                    <div className="ml-7 space-y-1">
+                    <div className="pl-6 sm:pl-7 space-y-1">
                       {facebookAccounts.length === 0 ? (
                         <p className="text-xs text-muted-foreground">
                           No Facebook Pages connected. Connect them in Accounts.
@@ -569,7 +569,7 @@ export default function WorkflowsPage() {
                     </div>
                   )}
                   {selected && id === "instagram" && (
-                    <div className="ml-7 space-y-1">
+                    <div className="pl-6 sm:pl-7 space-y-1">
                       {instagramAccounts.length === 0 ? (
                         <p className="text-xs text-muted-foreground">
                           No Instagram Business accounts connected.
@@ -602,7 +602,7 @@ export default function WorkflowsPage() {
               );
             })}
           </div>
-          <div className="mt-4 rounded-lg border border-border/80 bg-muted/5 px-3 py-3 flex items-center justify-between gap-4">
+          <div className="mt-4 rounded-lg border border-border/80 bg-muted/5 px-3 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div className="space-y-1">
               <Label>Also Post as Story</Label>
               <p className="text-xs text-muted-foreground">
@@ -627,7 +627,7 @@ export default function WorkflowsPage() {
               FlowPost will pick a random time within this window each day.
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 space-y-1">
               <Label>Start hour</Label>
               <select
@@ -701,7 +701,7 @@ export default function WorkflowsPage() {
                         : [...prev, day.value].sort()
                     )
                   }
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${
                     runDays.includes(day.value)
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -745,8 +745,8 @@ export default function WorkflowsPage() {
                   const dayEnd = dayTimeWindows[dayKey]?.end ?? triggerEndHour;
                   if (!isEnabled) return null;
                   return (
-                    <div key={day.value} className="flex items-center gap-2 text-sm">
-                      <span className="w-20 text-muted-foreground">{day.label}</span>
+                    <div key={day.value} className="flex items-center gap-2 text-sm flex-wrap">
+                      <span className="w-16 sm:w-20 text-muted-foreground">{day.label}</span>
                       <select
                         className="rounded border border-border bg-background px-1 py-0.5 text-xs"
                         value={dayStart}
@@ -789,7 +789,7 @@ export default function WorkflowsPage() {
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Run every</Label>
               <Select
@@ -982,16 +982,18 @@ export default function WorkflowsPage() {
               <Plus size={16} /> Create Workflow
             </Button>
           </SheetTrigger>
-          <SheetContent className="bg-card border-border overflow-auto">
-            <SheetHeader>
+          <SheetContent className="bg-card border-border flex flex-col p-0 gap-0">
+            <SheetHeader className="p-4 sm:p-6 pb-0 shrink-0">
               <SheetTitle className="text-foreground">
                 {mode === "create" ? "New Workflow" : "Edit Workflow"}
               </SheetTitle>
             </SheetHeader>
-            <div className="mt-6 space-y-6">
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 space-y-6">
               {renderStepIndicator()}
               {renderStepContent()}
-              <div className="flex justify-between pt-4 border-t border-border/70">
+            </div>
+            <div className="sticky bottom-0 bg-card border-t border-border/70 px-4 sm:px-6 py-3 shrink-0">
+              <div className="flex justify-between">
                 <Button
                   type="button"
                   variant="ghost"
