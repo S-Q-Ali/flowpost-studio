@@ -400,11 +400,9 @@ Deno.serve(async (req) => {
 
     const videoUrlIdx = headerIndex["video_url"];
     const titleIdx = headerIndex["title"];
-    const descIdx = headerIndex["description"];
     const ytTitleIdx = headerIndex["yt_video_title"];
     const ytDescIdx = headerIndex["yt_video_description"];
-    const fbCaptionIdx = headerIndex["fb_caption"];
-    const igCaptionIdx = headerIndex["ig_caption"];
+    const fbIgCaptionIdx = headerIndex["fb_ig_caption"];
     const platformsIdx = headerIndex["platforms"];
     const statusIdx = headerIndex["status"];
     const ytChannelsIdx = headerIndex["youtube_channels"];
@@ -449,15 +447,16 @@ Deno.serve(async (req) => {
           `https://drive.google.com/uc?export=download&id=${fileId}`;
 
         const title = titleIdx !== undefined ? row[titleIdx] || "" : "";
-        const description = descIdx !== undefined ? row[descIdx] || "" : "";
-        const baseName = (title || `workflow-video-${fileId}`).replace(/\.mp4$/i, "");
+        const ytVideoTitle = ytTitleIdx !== undefined && row[ytTitleIdx] ? row[ytTitleIdx] : "";
+        const videoDisplayName = ytVideoTitle || title || `workflow-video-${fileId}`;
+        const baseName = videoDisplayName.replace(/\.(mp4|mov|jpg|jpeg|png)$/i, "");
         const fileName = `${baseName}.mp4`;
 
         const { data: videoRecord, error: videoError } = await supabase
           .from("videos")
           .insert({
             user_id: PERSONAL_USER_ID,
-            title: title || fileName,
+            title: videoDisplayName,
             file_url: driveDownloadUrl,
             media_type: (wf as any).media_type ?? "video",
           })
@@ -502,8 +501,7 @@ Deno.serve(async (req) => {
         for (const p of platforms) {
           if (p === "youtube") {
             for (const accountId of ytAccounts) {
-              const ytCaption = ytDescIdx !== undefined && row[ytDescIdx] ? row[ytDescIdx] : description;
-              const ytVideoTitle = ytTitleIdx !== undefined && row[ytTitleIdx] ? row[ytTitleIdx] : title;
+              const ytCaption = ytDescIdx !== undefined && row[ytDescIdx] ? row[ytDescIdx] : "";
               postsPayload.push({
                 user_id: PERSONAL_USER_ID,
                 video_id: videoRecord.id,
@@ -520,7 +518,7 @@ Deno.serve(async (req) => {
             }
           } else if (p === "facebook") {
             for (const accountId of fbAccounts) {
-              const fbCaption = fbCaptionIdx !== undefined && row[fbCaptionIdx] ? row[fbCaptionIdx] : description;
+              const fbCaption = fbIgCaptionIdx !== undefined && row[fbIgCaptionIdx] ? row[fbIgCaptionIdx] : "";
               postsPayload.push({
                 user_id: PERSONAL_USER_ID,
                 video_id: videoRecord.id,
@@ -535,7 +533,7 @@ Deno.serve(async (req) => {
             }
           } else if (p === "instagram") {
             for (const accountId of igAccounts) {
-              const igCaption = igCaptionIdx !== undefined && row[igCaptionIdx] ? row[igCaptionIdx] : description;
+              const igCaption = fbIgCaptionIdx !== undefined && row[fbIgCaptionIdx] ? row[fbIgCaptionIdx] : "";
               postsPayload.push({
                 user_id: PERSONAL_USER_ID,
                 video_id: videoRecord.id,
