@@ -42,7 +42,8 @@ Deno.serve(async (req) => {
       .from("posts")
       .select("id, platform")
       .eq("status", "scheduled")
-      .lte("scheduled_at", now);
+      .lte("scheduled_at", now)
+      .limit(10);
 
     if (fetchError) {
       console.error("Failed to fetch scheduled posts", fetchError);
