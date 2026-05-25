@@ -504,6 +504,7 @@ Deno.serve(async (req) => {
 
         const postsPayload: any[] = [];
         const nowIso = new Date().toISOString();
+        let slotIndex = 0;
 
         for (const p of platforms) {
           if (p === "youtube") {
@@ -516,12 +517,13 @@ Deno.serve(async (req) => {
                 account_id: accountId,
                 caption: ytCaption,
                 hashtags: null,
-                scheduled_at: nowIso,
-                status: "processing",
+                scheduled_at: slotIndex === 0 ? nowIso : new Date(Date.now() + slotIndex * runIntervalHours * 3600000).toISOString(),
+                status: slotIndex === 0 ? "processing" : "scheduled",
                 captions_enabled: true,
                 contains_altered_content: wf.youtube_altered_content ?? true,
                 metadata: { youtube_video_title: ytVideoTitle },
               });
+              slotIndex++;
             }
           } else if (p === "facebook") {
             for (const accountId of fbAccounts) {
@@ -533,10 +535,11 @@ Deno.serve(async (req) => {
                 account_id: accountId,
                 caption: fbCaption,
                 hashtags: null,
-                scheduled_at: nowIso,
-                status: "processing",
+                scheduled_at: slotIndex === 0 ? nowIso : new Date(Date.now() + slotIndex * runIntervalHours * 3600000).toISOString(),
+                status: slotIndex === 0 ? "processing" : "scheduled",
                 captions_enabled: true,
               });
+              slotIndex++;
             }
           } else if (p === "instagram") {
             for (const accountId of igAccounts) {
@@ -548,10 +551,11 @@ Deno.serve(async (req) => {
                 account_id: accountId,
                 caption: igCaption,
                 hashtags: null,
-                scheduled_at: nowIso,
-                status: "processing",
+                scheduled_at: slotIndex === 0 ? nowIso : new Date(Date.now() + slotIndex * runIntervalHours * 3600000).toISOString(),
+                status: slotIndex === 0 ? "processing" : "scheduled",
                 captions_enabled: true,
               });
+              slotIndex++;
             }
           }
         }
@@ -564,21 +568,11 @@ Deno.serve(async (req) => {
         const { data: insertedPosts, error: postsError } = await supabase
           .from("posts")
           .insert(postsPayload)
-          .select("id, platform, account_id");
+          .select("id, platform, account_id, status");
 
         if (postsError || !insertedPosts) {
           errors.push(`Row ${rowIndex}: failed to insert posts: ${postsError?.message || "no records returned"}`);
           continue;
-        }
-
-        // Mark posts as processing
-        const { error: processingUpdateError } = await supabase
-          .from("posts")
-          .update({ status: "processing" })
-          .in("id", (insertedPosts as { id: string }[]).map((p) => p.id));
-
-        if (processingUpdateError) {
-          console.error("Failed to mark posts as processing", processingUpdateError);
         }
 
         // Store sheet info in post metadata before triggering uploads
@@ -598,8 +592,9 @@ Deno.serve(async (req) => {
           console.error("Failed to update post metadata with sheet info", metadataUpdateError);
         }
 
-        // Kick off uploads via existing Edge Functions (fire-and-forget)
-        for (const post of insertedPosts as { id: string; platform: string; account_id: string | null }[]) {
+        // Kick off uploads via existing Edge Functions (fire-and-forget) — only for immediate slot
+        for (const post of insertedPosts as { id: string; platform: string; account_id: string | null; status: string }[]) {
+          if (post.status !== "processing") continue;
           if (post.platform === "youtube") {
             void fetch(`${SB_URL}/functions/v1/youtube-upload`, {
               method: "POST",
