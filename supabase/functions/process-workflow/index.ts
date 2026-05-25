@@ -248,111 +248,139 @@ Deno.serve(async (req) => {
     console.log("UTC minute:", utcMinute);
     console.log("Workflow window (UTC):", start, "-", end);
 
-    // Only check trigger window for scheduled runs (not manual)
     if (!isManualRun) {
-      // Check run_days - skip if today is not in the allowed days
-      const runDays = (wf.run_days as number[] | null) ?? [0, 1, 2, 3, 4, 5, 6];
-      const todayDay = now.getUTCDay();
-      if (!runDays.includes(todayDay)) {
-        console.log(`Workflow ${wf.name} not scheduled for today (UTC day ${todayDay}), run_days:`, runDays);
-        continue;
-      }
+      const schedulingMode = (wf.scheduling_mode as string) || "once_daily";
 
-      // Trigger window check in UTC - end hour is EXCLUSIVE to prevent running in next hour
-      // If window is 21-22, only runs during hour 21 (21:00 - 21:59)
-      // Check per-day time windows if configured, otherwise use default
-      let windowStart = start;
-      let windowEnd = end;
-      const dayTimeWindows = wf.day_time_windows as Record<string, { start: number; end: number }> | null;
-      if (dayTimeWindows && dayTimeWindows[todayDay.toString()]) {
-        windowStart = dayTimeWindows[todayDay.toString()].start;
-        windowEnd = dayTimeWindows[todayDay.toString()].end;
-        console.log(`Workflow ${wf.name}: using per-day time window for day ${todayDay}: ${windowStart}-${windowEnd}`);
-      }
-      if (utcHour < windowStart || utcHour >= windowEnd) {
-        continue;
-      }
+      if (schedulingMode === "custom_ranges") {
+        // === CUSTOM RANGES: per-day hour ranges with random minute per range ===
+        const todayDay = now.getUTCDay();
+        const customSchedule = wf.custom_schedule as Record<string, { start: number; end: number }[]> | null;
+        const todayRanges = customSchedule?.[todayDay.toString()] ?? [];
+        if (todayRanges.length === 0) continue;
 
-      const runIntervalHours = (wf.run_interval_hours as number) ?? 1;
+        const todayUtc = now.toISOString().slice(0, 10);
+        let matched = false;
+        const currentMinutes = utcHour * 60 + utcMinute;
 
-      if (runIntervalHours > 1) {
-        // === INTERVAL-BASED with random stagger ===
+        for (let ri = 0; ri < todayRanges.length; ri++) {
+          const range = todayRanges[ri];
+          const rangeWindowSize = Math.max(range.end - range.start, 1);
 
-        // Deterministic offset within the interval (persistent per workflow)
-        const seed = String(wf.id ?? "");
-        let hash = 0;
-        for (let i = 0; i < seed.length; i++) {
-          hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-          hash |= 0;
-        }
-        const intervalMinutes = runIntervalHours * 60;
-        const offsetMinutes = Math.abs(hash) % intervalMinutes;
+          // Deterministic random minute within this range (per range index)
+          const seed = String(wf.id ?? "") + todayUtc + ri;
+          let hash = 0;
+          for (let i = 0; i < seed.length; i++) {
+            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+            hash |= 0;
+          }
+          const randomMinute = Math.abs(hash) % (rangeWindowSize * 60);
+          const rangeStartMinutes = range.start * 60;
+          const targetMinutes = rangeStartMinutes + randomMinute;
 
-        // Current position within the interval, anchored to windowStart
-        const currentMinute = utcHour * 60 + utcMinute;
-        const windowStartMinute = windowStart * 60;
-        const posInInterval = (currentMinute - windowStartMinute) % intervalMinutes;
+          console.log(
+            `Workflow ${wf.name}: custom range #${ri} target ${Math.floor(targetMinutes / 60)}:${(targetMinutes % 60).toString().padStart(2, "0")} UTC, current ${utcHour}:${utcMinute}`,
+          );
 
-        console.log(
-          `Workflow ${wf.name}: interval ${runIntervalHours}h, offset ${offsetMinutes}min, current pos ${posInInterval}min`,
-        );
-
-        if (posInInterval !== offsetMinutes) {
-          continue;
+          if (currentMinutes >= targetMinutes - 1 && currentMinutes <= targetMinutes + 1) {
+            matched = true;
+            break;
+          }
         }
 
-        // Don't re-trigger if less than interval has passed
+        if (!matched) continue;
+
+        // Dedup: skip if already triggered within 60 min
         if (wf.last_triggered_at) {
-          const hoursSince = (now.getTime() - new Date(wf.last_triggered_at).getTime()) / 3600000;
-          if (hoursSince < runIntervalHours) {
-            console.log(`Workflow ${wf.name}: last triggered ${hoursSince.toFixed(1)}h ago, skipping`);
+          const minutesSince = (now.getTime() - new Date(wf.last_triggered_at).getTime()) / 60000;
+          if (minutesSince < 60) {
+            console.log(`Workflow ${wf.name}: custom ranges last triggered ${Math.round(minutesSince)}min ago, skipping`);
             continue;
           }
         }
       } else {
-        // === ONCE-DAILY: deterministic random trigger time within window ===
-
-        const todayUtc = now.toISOString().slice(0, 10);
-        const seed = String(wf.id ?? "") + todayUtc;
-        let hash = 0;
-        for (let i = 0; i < seed.length; i++) {
-          hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-          hash |= 0;
-        }
-
-        const randomMinute = Math.abs(hash) % 60;
-        const windowSizeRaw = windowEnd - windowStart;
-        const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
-        const randomHourOffset = Math.abs(hash >> 8) % windowSize;
-        const randomHour = windowStart + randomHourOffset;
-
-        console.log(
-          `Workflow ${wf.name}: random trigger time set to ${randomHour}:${
-            randomMinute.toString().padStart(2, "0")
-          } UTC`,
-        );
-
-        // Skip until random trigger time reached in UTC
-        if (
-          utcHour < randomHour ||
-          (utcHour === randomHour && utcMinute < randomMinute) ||
-          (utcHour > randomHour && utcHour < windowEnd)
-        ) {
+        // Common for once_daily and interval: run_days check
+        const runDays = (wf.run_days as number[] | null) ?? [0, 1, 2, 3, 4, 5, 6];
+        const todayDay = now.getUTCDay();
+        if (!runDays.includes(todayDay)) {
+          console.log(`Workflow ${wf.name} not scheduled for today (UTC day ${todayDay}), run_days:`, runDays);
           continue;
         }
 
-        const lastTriggered = wf.last_triggered_at
-          ? new Date(wf.last_triggered_at)
-          : null;
-
-        const todayUTC = now.toISOString().slice(0, 10);
-        const lastTriggeredDate = lastTriggered
-          ? lastTriggered.toISOString().slice(0, 10)
-          : null;
-
-        if (lastTriggeredDate === todayUTC) {
-          console.log(`Workflow ${wf.name} already triggered today, skipping`);
+        // Common: trigger window with optional per-day override
+        let windowStart = start;
+        let windowEnd = end;
+        const dayTimeWindows = wf.day_time_windows as Record<string, { start: number; end: number }> | null;
+        if (dayTimeWindows && dayTimeWindows[todayDay.toString()]) {
+          windowStart = dayTimeWindows[todayDay.toString()].start;
+          windowEnd = dayTimeWindows[todayDay.toString()].end;
+          console.log(`Workflow ${wf.name}: using per-day time window for day ${todayDay}: ${windowStart}-${windowEnd}`);
+        }
+        if (utcHour < windowStart || utcHour >= windowEnd) {
           continue;
+        }
+
+        if (schedulingMode === "interval") {
+          // === INTERVAL-BASED with random stagger ===
+          const runIntervalHours = (wf.run_interval_hours as number) ?? 2;
+
+          const seed = String(wf.id ?? "");
+          let hash = 0;
+          for (let i = 0; i < seed.length; i++) {
+            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+            hash |= 0;
+          }
+          const intervalMinutes = runIntervalHours * 60;
+          const offsetMinutes = Math.abs(hash) % intervalMinutes;
+
+          const currentMinute = utcHour * 60 + utcMinute;
+          const windowStartMinute = windowStart * 60;
+          const posInInterval = (currentMinute - windowStartMinute) % intervalMinutes;
+
+          console.log(
+            `Workflow ${wf.name}: interval ${runIntervalHours}h, offset ${offsetMinutes}min, current pos ${posInInterval}min`,
+          );
+
+          if (posInInterval !== offsetMinutes) continue;
+
+          if (wf.last_triggered_at) {
+            const hoursSince = (now.getTime() - new Date(wf.last_triggered_at).getTime()) / 3600000;
+            if (hoursSince < runIntervalHours) {
+              console.log(`Workflow ${wf.name}: last triggered ${hoursSince.toFixed(1)}h ago, skipping`);
+              continue;
+            }
+          }
+        } else {
+          // === ONCE-DAILY: deterministic random trigger time within window ===
+          const todayUtc = now.toISOString().slice(0, 10);
+          const seed = String(wf.id ?? "") + todayUtc;
+          let hash = 0;
+          for (let i = 0; i < seed.length; i++) {
+            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+            hash |= 0;
+          }
+
+          const randomMinute = Math.abs(hash) % 60;
+          const windowSizeRaw = windowEnd - windowStart;
+          const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
+          const randomHourOffset = Math.abs(hash >> 8) % windowSize;
+          const randomHour = windowStart + randomHourOffset;
+
+          console.log(
+            `Workflow ${wf.name}: random trigger time set to ${randomHour}:${randomMinute.toString().padStart(2, "0")} UTC`,
+          );
+
+          if (utcHour < randomHour || (utcHour === randomHour && utcMinute < randomMinute) || (utcHour > randomHour && utcHour < windowEnd)) {
+            continue;
+          }
+
+          const lastTriggered = wf.last_triggered_at ? new Date(wf.last_triggered_at) : null;
+          const todayUTC = now.toISOString().slice(0, 10);
+          const lastTriggeredDate = lastTriggered ? lastTriggered.toISOString().slice(0, 10) : null;
+
+          if (lastTriggeredDate === todayUTC) {
+            console.log(`Workflow ${wf.name} already triggered today, skipping`);
+            continue;
+          }
         }
       }
     }
