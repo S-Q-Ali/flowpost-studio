@@ -172,50 +172,34 @@ Deno.serve(async (req) => {
     // ignore invalid JSON when called without body
   }
 
-  try {
-  // For manual runs, use a GLOBAL lock to prevent concurrent manual executions
-  if (isManualRun) {
-    const manualLockKey = "manual-workflow-global-running";
-    
-    // Clean up old expired locks first
-    await supabase
-      .from("workflow_locks")
-      .delete()
-      .lt("expires_at", new Date().toISOString());
-    
-    // Try to acquire global manual run lock (30 min expiry)
-    const { error: lockError } = await supabase.from("workflow_locks").insert({
-      lock_key: manualLockKey,
-      locked_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-    });
+  // Clean up expired locks
+  await supabase.from("workflow_locks").delete().lt("expires_at", new Date().toISOString());
 
-    if (lockError) {
-      console.log("Another manual workflow is currently running");
-      return json({ error: "Another workflow is currently running. Please wait for it to complete." }, 409);
-    }
-    console.log("Global manual run lock acquired");
-  }
-  
-  // Use a per-minute lock to prevent duplicate execution (both scheduled and manual)
-  await supabase
-    .from("workflow_locks")
-    .delete()
-    .lt("expires_at", new Date().toISOString());
-
-  const lockKey =
-    "process-workflow-" + new Date().toISOString().slice(0, 16);
-  const { error: lockError } = await supabase.from("workflow_locks").insert({
-    lock_key: lockKey,
+  // Global processing lock — only one invocation runs at a time
+  const globalLockKey = "global-workflow-processing";
+  const { error: globalLockError } = await supabase.from("workflow_locks").insert({
+    lock_key: globalLockKey,
     locked_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
   });
 
-  if (lockError) {
-    console.log("Another instance is running, exiting");
+  if (globalLockError) {
+    if (isManualRun) {
+      return json({ error: "Another workflow is currently running. Please wait for it to complete." }, 409);
+    }
+    console.log("Global lock held by another invocation, exiting");
     return json({ message: "Another workflow is currently running. Please wait." });
   }
-  console.log("Lock acquired:", lockKey);
+  console.log("Global processing lock acquired");
+
+  let globalLockReleased = false;
+  function releaseGlobalLock() {
+    if (globalLockReleased) return;
+    globalLockReleased = true;
+    supabase.from("workflow_locks").delete().eq("lock_key", globalLockKey).then().catch(() => {});
+  }
+
+  try {
 
   const filters: Record<string, unknown> = { is_active: true };
   if (workflowId) {
@@ -290,58 +274,86 @@ Deno.serve(async (req) => {
       }
 
       const runIntervalHours = (wf.run_interval_hours as number) ?? 1;
-      if (runIntervalHours > 1 && !isManualRun) {
-        if (utcHour % runIntervalHours !== 0) {
-          const nextRunHour = Math.ceil(utcHour / runIntervalHours) * runIntervalHours;
-          console.log(`Workflow ${wf.name}: interval ${runIntervalHours}h, skipping (next run at ${nextRunHour % 24}:00 UTC)`);
+
+      if (runIntervalHours > 1) {
+        // === INTERVAL-BASED with random stagger ===
+
+        // Deterministic offset within the interval (persistent per workflow)
+        const seed = String(wf.id ?? "");
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+          hash |= 0;
+        }
+        const intervalMinutes = runIntervalHours * 60;
+        const offsetMinutes = Math.abs(hash) % intervalMinutes;
+
+        // Current position within the interval, anchored to windowStart
+        const currentMinute = utcHour * 60 + utcMinute;
+        const windowStartMinute = windowStart * 60;
+        const posInInterval = (currentMinute - windowStartMinute) % intervalMinutes;
+
+        console.log(
+          `Workflow ${wf.name}: interval ${runIntervalHours}h, offset ${offsetMinutes}min, current pos ${posInInterval}min`,
+        );
+
+        if (posInInterval !== offsetMinutes) {
           continue;
         }
-      }
 
-      // Deterministic random minute and hour within window (UTC)
-      const todayUtc = now.toISOString().slice(0, 10);
-      const seed = String(wf.id ?? "") + todayUtc;
-      let hash = 0;
-      for (let i = 0; i < seed.length; i++) {
-        hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-        hash |= 0;
-      }
+        // Don't re-trigger if less than interval has passed
+        if (wf.last_triggered_at) {
+          const hoursSince = (now.getTime() - new Date(wf.last_triggered_at).getTime()) / 3600000;
+          if (hoursSince < runIntervalHours) {
+            console.log(`Workflow ${wf.name}: last triggered ${hoursSince.toFixed(1)}h ago, skipping`);
+            continue;
+          }
+        }
+      } else {
+        // === ONCE-DAILY: deterministic random trigger time within window ===
 
-      const randomMinute = Math.abs(hash) % 60;
-      const windowSizeRaw = windowEnd - windowStart;
-      const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
-      const randomHourOffset = Math.abs(hash >> 8) % windowSize;
-      const randomHour = windowStart + randomHourOffset;
+        const todayUtc = now.toISOString().slice(0, 10);
+        const seed = String(wf.id ?? "") + todayUtc;
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+          hash |= 0;
+        }
 
-      console.log(
-        `Workflow ${wf.name}: random trigger time set to ${randomHour}:${
-          randomMinute.toString().padStart(2, "0")
-        } UTC`,
-      );
+        const randomMinute = Math.abs(hash) % 60;
+        const windowSizeRaw = windowEnd - windowStart;
+        const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
+        const randomHourOffset = Math.abs(hash >> 8) % windowSize;
+        const randomHour = windowStart + randomHourOffset;
 
-      // Skip until random trigger time reached in UTC
-      if (
-        utcHour < randomHour ||
-        (utcHour === randomHour && utcMinute < randomMinute) ||
-        (utcHour > randomHour && utcHour < windowEnd)
-      ) {
-        continue;
-      }
+        console.log(
+          `Workflow ${wf.name}: random trigger time set to ${randomHour}:${
+            randomMinute.toString().padStart(2, "0")
+          } UTC`,
+        );
 
-      const lastTriggered = wf.last_triggered_at
-        ? new Date(wf.last_triggered_at)
-        : null;
+        // Skip until random trigger time reached in UTC
+        if (
+          utcHour < randomHour ||
+          (utcHour === randomHour && utcMinute < randomMinute) ||
+          (utcHour > randomHour && utcHour < windowEnd)
+        ) {
+          continue;
+        }
 
-      const todayUTC = now.toISOString().slice(0, 10);
-      const lastTriggeredDate = lastTriggered
-        ? lastTriggered.toISOString().slice(0, 10)
-        : null;
+        const lastTriggered = wf.last_triggered_at
+          ? new Date(wf.last_triggered_at)
+          : null;
 
-      const alreadyTriggeredToday = lastTriggeredDate === todayUTC;
+        const todayUTC = now.toISOString().slice(0, 10);
+        const lastTriggeredDate = lastTriggered
+          ? lastTriggered.toISOString().slice(0, 10)
+          : null;
 
-      if (alreadyTriggeredToday) {
-        console.log(`Workflow ${wf.name} already triggered today, skipping`);
-        continue;
+        if (lastTriggeredDate === todayUTC) {
+          console.log(`Workflow ${wf.name} already triggered today, skipping`);
+          continue;
+        }
       }
     }
 
@@ -769,6 +781,8 @@ Deno.serve(async (req) => {
       },
       500,
     );
+  } finally {
+    releaseGlobalLock();
   }
 });
 
