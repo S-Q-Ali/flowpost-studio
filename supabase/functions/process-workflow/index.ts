@@ -359,23 +359,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Update trigger tracking
-    const triggerUpdate = isManualRun
-      ? { last_manual_triggered_at: new Date().toISOString() }
-      : { last_triggered_at: new Date().toISOString() };
-    
-    const { error: earlyTriggerError } = await supabase
-      .from("workflows")
-      .update(triggerUpdate)
-      .eq("id", wf.id);
-
-    if (earlyTriggerError) {
-      console.error("Failed to update trigger time", wf.id, earlyTriggerError);
-      errors.push(
-        `Failed to claim workflow ${wf.id}: ${earlyTriggerError.message}`,
-      );
-      continue;
-    }
+     // Update trigger tracking will happen AFTER successful processing
+     // to avoid marking as triggered if processing fails
 
     // Read sheet
     const sheetRes = await fetch(
@@ -390,13 +375,32 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    const sheetData = (await sheetRes.json()) as SheetValuesResponse;
-    const rows = sheetData.values ?? [];
-    if (rows.length < 2) continue;
+     const sheetData = (await sheetRes.json()) as SheetValuesResponse;
+     const rows = sheetData.values ?? [];
+     if (rows.length < 2) continue;
+
+     // Update trigger tracking now that we know we can read the sheet
+     const triggerUpdate = isManualRun
+       ? { last_manual_triggered_at: new Date().toISOString() }
+       : { last_triggered_at: new Date().toISOString() };
+     const { error: triggerError } = await supabase
+       .from("workflows")
+       .update(triggerUpdate)
+       .eq("id", wf.id);
+     if (triggerError) {
+       console.error("Failed to update trigger time", wf.id, triggerError);
+       errors.push(
+         `Failed to claim workflow ${wf.id}: ${triggerError.message}`,
+       );
+       continue;
+     }
 
     const headers = rows[0] ?? [];
     const headerIndex: Record<string, number> = {};
-    headers.forEach((h, idx) => { headerIndex[h.toLowerCase()] = idx; });
+    headers.forEach((h, idx) => { 
+      const key = h.toLowerCase();
+      if (!(key in headerIndex)) headerIndex[key] = idx;
+    });
 
     const videoUrlIdx = headerIndex["video_url"];
     const titleIdx = headerIndex["title"];
@@ -433,12 +437,15 @@ Deno.serve(async (req) => {
     for (const { row, rowIndex } of toProcess) {
       try {
         const driveUrl = row[videoUrlIdx];
-        if (!driveUrl) continue;
+        if (!driveUrl) {
+          errors.push(`Row ${rowIndex}: empty video_url`);
+          continue;
+        }
 
         const match = driveUrl.match(/\/d\/([^/]+)/);
         const fileId = match?.[1];
         if (!fileId) {
-          console.warn("Could not extract fileId from Drive URL", driveUrl);
+          errors.push(`Row ${rowIndex}: could not extract fileId from Drive URL: ${driveUrl}`);
           continue;
         }
         const driveDownloadUrl =
@@ -464,7 +471,7 @@ Deno.serve(async (req) => {
           .single();
 
         if (videoError || !videoRecord) {
-          console.error("Failed to insert video", videoError);
+          errors.push(`Row ${rowIndex}: failed to insert video: ${videoError?.message || "no record returned"}`);
           continue;
         }
 
@@ -484,7 +491,7 @@ Deno.serve(async (req) => {
         }
 
         if (platforms.length === 0) {
-          console.warn("No platforms resolved for workflow", wf.id);
+          errors.push(`Row ${rowIndex}: no platforms resolved`);
           continue;
         }
 
@@ -549,7 +556,10 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (postsPayload.length === 0) continue;
+        if (postsPayload.length === 0) {
+          errors.push(`Row ${rowIndex}: no accounts resolved for platforms, posts payload empty`);
+          continue;
+        }
 
         const { data: insertedPosts, error: postsError } = await supabase
           .from("posts")
@@ -557,7 +567,7 @@ Deno.serve(async (req) => {
           .select("id, platform, account_id");
 
         if (postsError || !insertedPosts) {
-          console.error("Failed to insert posts", postsError);
+          errors.push(`Row ${rowIndex}: failed to insert posts: ${postsError?.message || "no records returned"}`);
           continue;
         }
 
@@ -588,7 +598,7 @@ Deno.serve(async (req) => {
           console.error("Failed to update post metadata with sheet info", metadataUpdateError);
         }
 
-        // Kick off uploads via existing Edge Functions
+        // Kick off uploads via existing Edge Functions (fire-and-forget)
         for (const post of insertedPosts as { id: string; platform: string; account_id: string | null }[]) {
           if (post.platform === "youtube") {
             void fetch(`${SB_URL}/functions/v1/youtube-upload`, {
@@ -620,28 +630,6 @@ Deno.serve(async (req) => {
               },
               body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
             });
-            for (let igAttempt = 0; igAttempt < 30; igAttempt++) {
-              await new Promise((r) => setTimeout(r, 2000));
-              const { data: postData } = await supabase
-                .from("posts")
-                .select("metadata")
-                .eq("id", post.id)
-                .single();
-              const containerId = postData?.metadata?.instagram_container_id;
-              if (containerId) {
-                void fetch(`${SB_URL}/functions/v1/instagram-publish`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                    apikey: SB_SERVICE_ROLE_KEY!,
-                  },
-                  body: JSON.stringify({ postId: post.id }),
-                });
-                console.log("Instagram publish triggered for post:", post.id);
-                break;
-              }
-            }
           }
         }
 
@@ -674,23 +662,22 @@ Deno.serve(async (req) => {
                   .eq("platform", "facebook")
                   .single();
 
-                if (fbAcc?.access_token && !usedStoryTokens.has(fbAcc.access_token)) {
-                  usedStoryTokens.add(fbAcc.access_token);
-                  void fetch(`${SB_URL}/functions/v1/post-story`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                    },
-                    body: JSON.stringify({
-                      platform: "facebook",
-                      accountId: post.account_id,
-                      videoUrl: storyVideoUrl,
-                      accessToken: fbAcc.access_token,
-                    }),
-                  });
-                  console.log("Facebook story posted:", post.id);
-                }
+                 if (fbAcc?.access_token && !usedStoryTokens.has(fbAcc.access_token)) {
+                    usedStoryTokens.add(fbAcc.access_token);
+                    void fetch(`${SB_URL}/functions/v1/post-story`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                      },
+                      body: JSON.stringify({
+                        platform: "facebook",
+                        accountId: post.account_id,
+                        videoUrl: storyVideoUrl,
+                        accessToken: fbAcc.access_token,
+                      }),
+                    });
+                 }
               }
 
               if (post.platform === "instagram") {
@@ -705,24 +692,21 @@ Deno.serve(async (req) => {
                   .eq("platform", "instagram")
                   .single();
 
-                if (igAcc?.access_token) {
-                  void fetch(`${SB_URL}/functions/v1/post-story`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                    },
-                    body: JSON.stringify({
-                      platform: "instagram",
-                      accountId: post.account_id,
-                      videoUrl: storyVideoUrl,
-                      accessToken: igAcc.access_token,
-                    }),
-                  });
-                  console.log("Instagram story posted:", post.id);
-                } else {
-                  console.warn("Instagram story skipped: no access_token for account", post.account_id);
-                }
+                 if (igAcc?.access_token) {
+                    void fetch(`${SB_URL}/functions/v1/post-story`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                      },
+                      body: JSON.stringify({
+                        platform: "instagram",
+                        accountId: post.account_id,
+                        videoUrl: storyVideoUrl,
+                        accessToken: igAcc.access_token,
+                      }),
+                    });
+                  }
               }
             }
 

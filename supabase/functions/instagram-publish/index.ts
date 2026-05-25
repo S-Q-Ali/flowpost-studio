@@ -96,19 +96,37 @@ Deno.serve(async (req) => {
 
     const accessToken = account.access_token as string;
     console.log("Account found:", account?.account_id);
+    const existingPollCount = (post.metadata?.instagram_poll_count as number) ?? 0;
     console.log(
       "Starting poll for container:",
       post.metadata.instagram_container_id,
+      "poll count so far:",
+      existingPollCount,
     );
 
+    if (existingPollCount >= 90) {
+      console.log("Container stuck at UNKNOWN for 90+ polls, marking as failed");
+      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      return json({ error: "Container timed out in UNKNOWN status" }, 502);
+    }
+
     let status = "UNKNOWN";
+    let fullStatusData: Record<string, unknown> = {};
     for (let attempt = 0; attempt < 30; attempt++) {
       const statusRes = await fetch(
-        `https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${accessToken}`,
+        `https://graph.facebook.com/v25.0/${containerId}?fields=status_code&access_token=${accessToken}`,
       );
-      const statusData = await statusRes.json();
-      status = statusData?.status_code || "UNKNOWN";
-      console.log("Container status:", status);
+      fullStatusData = await statusRes.json() as Record<string, unknown>;
+
+      // If Meta returns an API error (expired token, auth error, etc.), treat as terminal
+      if (fullStatusData?.error) {
+        console.error("Meta API error for container", containerId, JSON.stringify(fullStatusData.error));
+        status = "ERROR";
+        break;
+      }
+
+      status = (fullStatusData?.status_code as string) || "UNKNOWN";
+      console.log("Container status:", status, JSON.stringify(fullStatusData));
 
       if (status === "FINISHED") {
         break;
@@ -121,6 +139,17 @@ Deno.serve(async (req) => {
     }
 
     if (status === "FINISHED") {
+      // Reset poll count on success
+      await supabase
+        .from("posts")
+        .update({
+          metadata: {
+            ...(post.metadata as Record<string, unknown> || {}),
+            instagram_poll_count: 0,
+          },
+        })
+        .eq("id", postId);
+
       // Try to claim this publish atomically (only one worker proceeds)
       const { data: claimed, error: claimError } = await supabase
         .from("posts")
@@ -147,7 +176,7 @@ Deno.serve(async (req) => {
       publishForm.append("access_token", accessToken);
 
       const publishRes = await fetch(
-        `https://graph.facebook.com/v18.0/${post.account_id}/media_publish`,
+        `https://graph.facebook.com/v25.0/${post.account_id}/media_publish`,
         {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -215,9 +244,20 @@ Deno.serve(async (req) => {
       return json({ error: "Container processing failed" }, 502);
     }
 
-    // Still IN_PROGRESS (or some other code). Return immediately.
-    // `process-scheduled-posts` will retry on next cron tick.
-    console.log("Container still processing, will retry");
+    // Still UNKNOWN/IN_PROGRESS. Increment poll count in metadata.
+    const newPollCount = existingPollCount + 30;
+    await supabase
+      .from("posts")
+      .update({
+        metadata: {
+          ...(post.metadata as Record<string, unknown> || {}),
+          instagram_poll_count: newPollCount,
+          last_unknown_response: fullStatusData,
+        },
+      })
+      .eq("id", postId);
+
+    console.log("Container still processing (UNKNOWN), poll count:", newPollCount, "full response:", JSON.stringify(fullStatusData));
     return json({
       success: false,
       status: "processing",

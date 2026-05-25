@@ -223,11 +223,13 @@ Deno.serve(async (req) => {
     } else {
       containerForm.append("video_url", mediaUrl);
     }
-    containerForm.append("caption", post.caption || "");
+    // Instagram caption limit is 2,200 characters
+    const caption = (post.caption || "").substring(0, 2200);
+    containerForm.append("caption", caption);
     containerForm.append("access_token", accessToken);
 
     const containerRes = await fetch(
-      `https://graph.facebook.com/v18.0/${igUserId}/media`,
+      `https://graph.facebook.com/v25.0/${igUserId}/media`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },

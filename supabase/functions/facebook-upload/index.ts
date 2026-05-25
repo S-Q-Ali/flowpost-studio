@@ -240,20 +240,20 @@ Deno.serve(async (req) => {
         },
       );
     } else {
-      // Video posting: use /videos endpoint
-      postRes = await fetch(
-        `https://graph-video.facebook.com/v18.0/${encodeURIComponent(pageId)}/videos`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            file_url: mediaUrl,
-            description: (post.caption || "").toString(),
-            access_token: accessToken,
-            published: "true",
-          }).toString(),
-        },
-      );
+// Video posting: use /videos endpoint
+       postRes = await fetch(
+         `https://graph-video.facebook.com/v25.0/${encodeURIComponent(pageId)}/videos`,
+         {
+           method: "POST",
+           headers: { "Content-Type": "application/x-www-form-urlencoded" },
+           body: new URLSearchParams({
+             file_url: mediaUrl,
+             description: (post.caption || "").toString(),
+             access_token: accessToken,
+             published: "true",
+           }).toString(),
+         },
+       );
     }
 
     postData = await postRes.json();

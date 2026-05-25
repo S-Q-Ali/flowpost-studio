@@ -67,10 +67,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const ALLOWED_TYPES = ["video/mp4", "video/quicktime"];
+    const ALLOWED_TYPES = ["video/mp4", "video/quicktime", "image/jpeg", "image/png"];
     if (!ALLOWED_TYPES.includes(fileType)) {
       return new Response(
-        JSON.stringify({ error: "Invalid file type. Only MP4 and MOV are allowed." }),
+        JSON.stringify({ error: "Invalid file type. Only MP4, MOV, JPEG, and PNG are allowed." }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
