@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     console.log("Token prefix:", accessToken.substring(0, 20));
     console.log("Instagram story using URL:", videoUrl);
     const containerRes = await fetch(
-      `https://graph.facebook.com/v21.0/${accountId}/media`,
+      `https://graph.facebook.com/v18.0/${accountId}/media`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -184,30 +184,18 @@ Deno.serve(async (req) => {
       throw new Error(JSON.stringify(container));
     }
 
-    // Reel/story containers often need 60+ seconds — wait 30s first, then poll
-    await new Promise((r) => setTimeout(r, 30000));
+    // Wait for container processing, then try to publish directly
+    await new Promise((r) => setTimeout(r, 15000));
 
-    let containerStatus = "";
-    for (let i = 0; i < 4; i++) {
-      const statusRes = await fetch(
-        `https://graph.facebook.com/v21.0/${container.id}?fields=status_code&access_token=${accessToken}`,
-      );
-      const pollData = await statusRes.json();
-      containerStatus = pollData.status_code;
-      console.log(
-        `Story container status (attempt ${i + 1}):`,
-        containerStatus,
-      );
+    let publishResult: Record<string, unknown> | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        console.log(`Story publish attempt ${attempt + 1}...`);
+        await new Promise((r) => setTimeout(r, 12000));
+      }
 
-      if (containerStatus === "FINISHED") break;
-      if (containerStatus === "ERROR") break;
-
-      await new Promise((r) => setTimeout(r, 15000));
-    }
-
-    if (containerStatus === "FINISHED") {
       const publishRes = await fetch(
-        `https://graph.facebook.com/v21.0/${accountId}/media_publish`,
+        `https://graph.facebook.com/v18.0/${accountId}/media_publish`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -217,15 +205,20 @@ Deno.serve(async (req) => {
           })
         }
       );
-      const publishData = await publishRes.json();
-      if (!publishData.id) throw new Error(JSON.stringify(publishData));
-      return json({ success: true, storyId: publishData.id });
-
-    } else {
-      // IN_PROGRESS or ERROR - just log and return
-      console.log('Story container not ready:', containerStatus);
-      return json({ success: false, status: containerStatus });
+      publishResult = await publishRes.json() as Record<string, unknown>;
+      if (publishResult?.id) {
+        console.log("Story publish succeeded:", JSON.stringify(publishResult));
+        break;
+      }
+      console.log(`Story publish attempt ${attempt + 1} failed:`, JSON.stringify(publishResult));
     }
+
+    if (!publishResult?.id) {
+      console.log('Story publish failed after 3 attempts:', JSON.stringify(publishResult));
+      return json({ success: false, error: 'Publish failed' });
+    }
+
+    return json({ success: true, storyId: publishResult.id as string });
   } catch (err) {
     console.error("post-story error", err);
     return json(

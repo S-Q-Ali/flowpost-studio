@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
     containerForm.append("access_token", accessToken);
 
     const containerRes = await fetch(
-      `https://graph.facebook.com/v25.0/${igUserId}/media`,
+      `https://graph.facebook.com/v18.0/${igUserId}/media`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -253,27 +253,62 @@ Deno.serve(async (req) => {
 
     console.log("Container created:", container.id);
 
-    const { data: existingPost } = await supabase
-      .from("posts")
-      .select("metadata")
-      .eq("id", postId)
-      .single();
+    await new Promise((r) => setTimeout(r, 30000));
+
+    let publishResult: Record<string, unknown> | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        console.log(`Publish attempt ${attempt + 1}...`);
+        await new Promise((r) => setTimeout(r, 12000));
+      }
+
+      const publishForm = new URLSearchParams();
+      publishForm.append("creation_id", container.id);
+      publishForm.append("access_token", accessToken);
+
+      const publishRes = await fetch(
+        `https://graph.facebook.com/v18.0/${igUserId}/media_publish`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: publishForm.toString(),
+        },
+      );
+      publishResult = await publishRes.json() as Record<string, unknown>;
+
+      if (publishResult?.id) {
+        console.log("Publish succeeded:", JSON.stringify(publishResult));
+        break;
+      }
+      console.log(`Publish attempt ${attempt + 1} failed:`, JSON.stringify(publishResult));
+    }
+
+    if (!publishResult?.id) {
+      console.error("Publish failed after 3 attempts");
+      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      return json({ error: `Publish failed after 3 attempts: ${JSON.stringify(publishResult)}` }, 502);
+    }
 
     await supabase
       .from("posts")
-      .update({
-        status: "processing",
-        metadata: {
-          ...(existingPost?.metadata as Record<string, unknown> || {}),
-          instagram_container_id: container.id,
-          r2_url: mediaUrl,
-        },
-      })
+      .update({ status: "published", published_at: new Date().toISOString() })
       .eq("id", postId);
 
-    console.log("Metadata saved, returning success");
+    try {
+      await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+          apikey: SB_SERVICE_ROLE_KEY!,
+        },
+        body: JSON.stringify({ postId, status: "posted" }),
+      });
+    } catch (sheetErr) {
+      console.error("Failed to update sheet status", sheetErr);
+    }
 
-    return json({ success: true, container_id: container.id });
+    return json({ success: true, instagram_post_id: publishResult.id as string, container_id: container.id });
   } catch (err) {
     console.error("instagram-upload error", err);
     try {
