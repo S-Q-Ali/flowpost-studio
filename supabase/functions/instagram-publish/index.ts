@@ -95,13 +95,16 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = account.access_token as string;
-    console.log("Account found:", account?.account_id);
+    const igUserId = account.account_id as string;
+    console.log("Account found:", igUserId);
     const existingPollCount = (post.metadata?.instagram_poll_count as number) ?? 0;
     console.log(
       "Starting poll for container:",
       post.metadata.instagram_container_id,
       "poll count so far:",
       existingPollCount,
+      "igUserId:",
+      igUserId,
     );
 
     if (existingPollCount >= 90) {
@@ -114,7 +117,7 @@ Deno.serve(async (req) => {
     let fullStatusData: Record<string, unknown> = {};
     for (let attempt = 0; attempt < 30; attempt++) {
       const statusRes = await fetch(
-        `https://graph.facebook.com/v25.0/${containerId}?fields=status_code&access_token=${accessToken}`,
+        `https://graph.facebook.com/v25.0/${igUserId}/media?ids=${containerId}&fields=status_code&access_token=${accessToken}`,
       );
       fullStatusData = await statusRes.json() as Record<string, unknown>;
 

@@ -544,9 +544,9 @@ Deno.serve(async (req) => {
 
         const postsPayload: any[] = [];
         const nowIso = new Date().toISOString();
-        let slotIndex = 0;
 
         for (const p of platforms) {
+          let slotIndex = 0;
           if (p === "youtube") {
             for (const accountId of ytAccounts) {
               const ytCaption = ytDescIdx !== undefined && row[ytDescIdx] ? row[ytDescIdx] : "";
