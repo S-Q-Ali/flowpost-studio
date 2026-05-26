@@ -126,6 +126,7 @@ export default function AccountsPage() {
     try {
       const { data, error } = await supabase.functions.invoke("youtube-auth?action=url", {
         method: "GET",
+        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
 
       if (error) throw new Error(error.message || "Failed to start YouTube OAuth");
@@ -185,6 +186,7 @@ export default function AccountsPage() {
     try {
       const { data, error } = await supabase.functions.invoke("facebook-auth?action=url", {
         method: "GET",
+        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
 
       if (error) throw new Error(error.message || "Failed to start Facebook OAuth");
