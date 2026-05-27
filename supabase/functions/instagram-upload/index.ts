@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
     containerForm.append("access_token", accessToken);
 
     const containerRes = await fetch(
-      `https://graph.facebook.com/v18.0/${igUserId}/media`,
+      `https://graph.facebook.com/v25.0/${igUserId}/media`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -253,13 +253,13 @@ Deno.serve(async (req) => {
 
     console.log("Container created:", container.id);
 
-    await new Promise((r) => setTimeout(r, 30000));
+    await new Promise((r) => setTimeout(r, 45000));
 
     let publishResult: Record<string, unknown> | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) {
         console.log(`Publish attempt ${attempt + 1}...`);
-        await new Promise((r) => setTimeout(r, 12000));
+        await new Promise((r) => setTimeout(r, 20000));
       }
 
       const publishForm = new URLSearchParams();
@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
       publishForm.append("access_token", accessToken);
 
       const publishRes = await fetch(
-        `https://graph.facebook.com/v18.0/${igUserId}/media_publish`,
+        `https://graph.facebook.com/v25.0/${igUserId}/media_publish`,
         {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },

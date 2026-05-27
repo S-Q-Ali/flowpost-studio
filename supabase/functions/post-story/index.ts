@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     console.log("Token prefix:", accessToken.substring(0, 20));
     console.log("Instagram story using URL:", videoUrl);
     const containerRes = await fetch(
-      `https://graph.facebook.com/v18.0/${accountId}/media`,
+      `https://graph.facebook.com/v25.0/${accountId}/media`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
       }
 
       const publishRes = await fetch(
-        `https://graph.facebook.com/v18.0/${accountId}/media_publish`,
+        `https://graph.facebook.com/v25.0/${accountId}/media_publish`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

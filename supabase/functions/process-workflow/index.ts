@@ -344,7 +344,7 @@ Deno.serve(async (req) => {
 
           if (wf.last_triggered_at) {
             const hoursSince = (now.getTime() - new Date(wf.last_triggered_at).getTime()) / 3600000;
-            if (hoursSince < runIntervalHours) {
+            if (hoursSince + (1 / 60) < runIntervalHours) {
               console.log(`Workflow ${wf.name}: last triggered ${hoursSince.toFixed(1)}h ago, skipping`);
               continue;
             }
