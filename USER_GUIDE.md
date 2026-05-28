@@ -196,13 +196,15 @@ Create a Google Sheet with these columns (header row is required):
 
 | Column Name | Required | Description |
 |-------------|----------|-------------|
-| `video_url` | Yes | Google Drive sharing URL of the video |
-| `title` | No | Title for the video |
-| `description` | No | Description/caption text |
+| `video_url` or `image_url` | Yes | Google Drive sharing URL (use `video_url` for video workflows, `image_url` for image workflows) |
+| `title` | No | Title for the video/image |
+| `yt_video_title` | No | YouTube-specific video title (overrides `title`) |
+| `yt_video_description` | No | YouTube video description |
+| `fb_ig_caption` | No | Caption for both Facebook and Instagram posts |
 | `platforms` | No | Comma-separated list: `youtube`, `facebook`, `instagram` |
 | `status` | Yes | Set to `ready to post` to trigger publishing |
-| `youtube_channels` | No | Specific YouTube channel IDs |
-| `facebook_pages` | No | Specific Facebook page IDs |
+| `youtube_channels` | No | Specific YouTube channel IDs (row-level override) |
+| `facebook_pages` | No | Specific Facebook page IDs (row-level override) |
 
 #### Step 2 — Create a Workflow
 
@@ -319,8 +321,8 @@ If you see CORS errors in the browser developer console:
 | Workflow is active but nothing happens | Check that the trigger window includes the current UTC hour |
 | "Failed to read sheet" error | Verify the service account has access to the Google Sheet |
 | Rows not being processed | Ensure row status is exactly `ready to post` (lowercase) |
-| Video not found | Verify the Drive URL is correct and the service account has access |
-| `video_url` column empty | Add the Google Drive sharing URL |
+| Media not found | Verify the Drive URL is correct and the service account has access |
+| `video_url` or `image_url` column empty | Add the Google Drive sharing URL matching your workflow's media type |
 
 ### Getting Help
 

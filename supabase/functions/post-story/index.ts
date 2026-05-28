@@ -24,6 +24,7 @@ interface PostStoryPayload {
   accountId: string;
   videoUrl: string;
   accessToken: string;
+  mediaType?: "video" | "image";
 }
 
 Deno.serve(async (req) => {
@@ -68,6 +69,7 @@ Deno.serve(async (req) => {
       accountId: body.accountId,
       videoUrl: body.videoUrl,
       accessToken: body.accessToken,
+      mediaType: body.mediaType,
     };
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
@@ -160,16 +162,22 @@ Deno.serve(async (req) => {
     console.log("Instagram account ID:", accountId);
     console.log("Token prefix:", accessToken.substring(0, 20));
     console.log("Instagram story using URL:", videoUrl);
+    const isImageStory = payload.mediaType === "image";
+    const storyBody: Record<string, unknown> = {
+      media_type: "STORIES",
+      access_token: accessToken,
+    };
+    if (isImageStory) {
+      storyBody.image_url = videoUrl;
+    } else {
+      storyBody.video_url = videoUrl;
+    }
     const containerRes = await fetch(
       `https://graph.facebook.com/v25.0/${accountId}/media`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          media_type: "STORIES",
-          video_url: videoUrl,
-          access_token: accessToken,
-        }),
+        body: JSON.stringify(storyBody),
       },
     );
 

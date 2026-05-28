@@ -49,6 +49,9 @@ export interface Workflow {
   total_posted: number | null;
   scheduling_mode: string | null;
   custom_schedule: Record<string, { start: number; end: number }[]> | null;
+  media_type: "video" | "image";
+  post_as_story: boolean;
+  youtube_altered_content: boolean;
   created_at: string;
   updated_at: string;
 }

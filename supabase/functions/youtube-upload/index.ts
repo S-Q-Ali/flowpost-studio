@@ -116,12 +116,16 @@ Deno.serve(async (req) => {
 
     const { data: video, error: videoError } = await supabase
       .from("videos")
-      .select("id, title, file_url")
+      .select("id, title, file_url, media_type")
       .eq("id", post.video_id)
       .single();
 
     if (videoError || !video?.file_url) {
       return json({ error: "Video not found or missing file_url" }, 404);
+    }
+
+    if ((video as any).media_type === "image") {
+      return json({ error: "YouTube does not support image posts" }, 400);
     }
 
     const { data: account, error: accountError } = await supabase

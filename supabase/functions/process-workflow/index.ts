@@ -435,25 +435,28 @@ Deno.serve(async (req) => {
        continue;
      }
 
-    const headers = rows[0] ?? [];
-    const headerIndex: Record<string, number> = {};
-    headers.forEach((h, idx) => { 
-      const key = h.toLowerCase();
-      if (!(key in headerIndex)) headerIndex[key] = idx;
-    });
+     const headers = rows[0] ?? [];
+     const headerIndex: Record<string, number> = {};
+     headers.forEach((h, idx) => { 
+       const key = h.toLowerCase();
+       if (!(key in headerIndex)) headerIndex[key] = idx;
+     });
 
-    const videoUrlIdx = headerIndex["video_url"];
-    const titleIdx = headerIndex["title"];
-    const ytTitleIdx = headerIndex["yt_video_title"];
-    const ytDescIdx = headerIndex["yt_video_description"];
-    const fbIgCaptionIdx = headerIndex["fb_ig_caption"];
-    const platformsIdx = headerIndex["platforms"];
-    const statusIdx = headerIndex["status"];
-    const ytChannelsIdx = headerIndex["youtube_channels"];
-    const fbPagesIdx = headerIndex["facebook_pages"];
+     const mediaType = (wf as any).media_type ?? "video";
+     const isImageWorkflow = mediaType === "image";
+     const urlColumn = isImageWorkflow ? "image_url" : "video_url";
+     const urlIdx = headerIndex[urlColumn];
+     const titleIdx = headerIndex["title"];
+     const ytTitleIdx = headerIndex["yt_video_title"];
+     const ytDescIdx = headerIndex["yt_video_description"];
+     const fbIgCaptionIdx = headerIndex["fb_ig_caption"];
+     const platformsIdx = headerIndex["platforms"];
+     const statusIdx = headerIndex["status"];
+     const ytChannelsIdx = headerIndex["youtube_channels"];
+     const fbPagesIdx = headerIndex["facebook_pages"];
 
-    if (videoUrlIdx === undefined || statusIdx === undefined) {
-      errors.push(`Sheet for workflow ${wf.id} is missing required columns (video_url/status)`);
+    if (urlIdx === undefined || statusIdx === undefined) {
+      errors.push(`Sheet for workflow ${wf.id} is missing required columns (${urlColumn}/status)`);
       continue;
     }
 
@@ -474,13 +477,13 @@ Deno.serve(async (req) => {
     const toProcess = readyRows.slice(0, videosPerRun);
     let workflowVideoCount = 0;
 
-    for (const { row, rowIndex } of toProcess) {
-      try {
-        const driveUrl = row[videoUrlIdx];
-        if (!driveUrl) {
-          errors.push(`Row ${rowIndex}: empty video_url`);
-          continue;
-        }
+     for (const { row, rowIndex } of toProcess) {
+       try {
+         const driveUrl = row[urlIdx];
+         if (!driveUrl) {
+           errors.push(`Row ${rowIndex}: empty ${urlColumn}`);
+           continue;
+         }
 
         const match = driveUrl.match(/\/d\/([^/]+)/);
         const fileId = match?.[1];
@@ -497,7 +500,8 @@ Deno.serve(async (req) => {
         const ytVideoTitle = ytTitleIdx !== undefined && row[ytTitleIdx] ? row[ytTitleIdx] : "";
         const videoDisplayName = ytVideoTitle || title || `workflow-video-${fileId}`;
         const baseName = videoDisplayName.replace(/\.(mp4|mov|jpg|jpeg|png)$/i, "");
-        const fileName = `${baseName}.mp4`;
+        const fileExt = isImageWorkflow ? ".jpg" : ".mp4";
+        const fileName = `${baseName}${fileExt}`;
 
         const { data: videoRecord, error: videoError } = await supabase
           .from("videos")
@@ -505,7 +509,7 @@ Deno.serve(async (req) => {
             user_id: PERSONAL_USER_ID,
             title: videoDisplayName,
             file_url: driveDownloadUrl,
-            media_type: (wf as any).media_type ?? "video",
+            media_type: mediaType,
           })
           .select("id")
           .single();
@@ -541,6 +545,10 @@ Deno.serve(async (req) => {
         const ytAccounts = rowYtChannels.length ? rowYtChannels : (wf.youtube_channel_ids ?? []);
         const fbAccounts = rowFbPages.length ? rowFbPages : (wf.facebook_page_ids ?? []);
         const igAccounts = wf.instagram_account_ids ?? [];
+
+        if (isImageWorkflow) {
+          platforms = platforms.filter((p) => p !== "youtube");
+        }
 
         const postsPayload: any[] = [];
         const nowIso = new Date().toISOString();
@@ -668,7 +676,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (wf.post_as_story) {
+        if (wf.post_as_story && !isImageWorkflow) {
           let storyVideoUrl: string | null = null;
           for (let attempt = 0; attempt < 30; attempt++) {
             await new Promise((r) => setTimeout(r, 2000));
@@ -710,6 +718,7 @@ Deno.serve(async (req) => {
                         accountId: post.account_id,
                         videoUrl: storyVideoUrl,
                         accessToken: fbAcc.access_token,
+                        mediaType,
                       }),
                     });
                  }
@@ -739,6 +748,7 @@ Deno.serve(async (req) => {
                         accountId: post.account_id,
                         videoUrl: storyVideoUrl,
                         accessToken: igAcc.access_token,
+                        mediaType,
                       }),
                     });
                   }
