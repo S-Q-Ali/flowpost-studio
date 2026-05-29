@@ -449,7 +449,9 @@ Deno.serve(async (req) => {
      const titleIdx = headerIndex["title"];
      const ytTitleIdx = headerIndex["yt_video_title"];
      const ytDescIdx = headerIndex["yt_video_description"];
-     const fbIgCaptionIdx = headerIndex["fb_ig_caption"];
+      const fbIgCaptionIdx = isImageWorkflow
+        ? headerIndex["image_fb_ig_caption"]
+        : headerIndex["fb_ig_caption"];
      const platformsIdx = headerIndex["platforms"];
      const statusIdx = headerIndex["status"];
      const ytChannelsIdx = headerIndex["youtube_channels"];
