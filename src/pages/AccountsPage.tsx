@@ -13,10 +13,12 @@ import type { ConnectedAccount, Platform } from "@/lib/types";
 export default function AccountsPage() {
   const [isYouTubeConnecting, setIsYouTubeConnecting] = useState(false);
   const [isFacebookConnecting, setIsFacebookConnecting] = useState(false);
+  const [isTikTokConnecting, setIsTikTokConnecting] = useState(false);
 
   const [facebookPages, setFacebookPages] = useState<ConnectedAccount[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [youtubeConnectedAccounts, setYoutubeConnectedAccounts] = useState<ConnectedAccount[]>([]);
+  const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
 
   const fetchFacebook = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
@@ -72,8 +74,26 @@ export default function AccountsPage() {
     return list;
   };
 
+  const fetchTikTok = async (): Promise<ConnectedAccount[]> => {
+    const { data, error } = await supabase
+      .from("connected_accounts")
+      .select("*")
+      .eq("user_id", PERSONAL_USER_ID)
+      .eq("platform", "tiktok")
+      .eq("is_connected", true);
+
+    if (error) {
+      toast.error(error.message);
+      return [];
+    }
+
+    const list = (data as ConnectedAccount[]) ?? [];
+    setTiktokAccounts(list);
+    return list;
+  };
+
   const refreshAll = async () => {
-    await Promise.all([fetchFacebook(), fetchInstagram(), fetchYouTube()]);
+    await Promise.all([fetchFacebook(), fetchInstagram(), fetchYouTube(), fetchTikTok()]);
   };
 
   useEffect(() => {
@@ -241,6 +261,66 @@ export default function AccountsPage() {
     }
   };
 
+  const connectTikTok = async () => {
+    setIsTikTokConnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("tiktok-auth?action=url", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      });
+
+      if (error) throw new Error(error.message || "Failed to start TikTok OAuth");
+      if (!data?.url) throw new Error("Missing OAuth URL");
+
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const channel = supabase
+        .channel("tiktok-connected")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "connected_accounts",
+            filter: "platform=eq.tiktok",
+          },
+          () => {
+            clearTimeout(timeoutId);
+            channel.unsubscribe();
+            fetchTikTok();
+            toast.success("TikTok connected!");
+            setIsTikTokConnecting(false);
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "connected_accounts",
+            filter: "platform=eq.tiktok",
+          },
+          () => {
+            clearTimeout(timeoutId);
+            channel.unsubscribe();
+            fetchTikTok();
+            toast.success("TikTok connected!");
+            setIsTikTokConnecting(false);
+          },
+        )
+        .subscribe();
+
+      timeoutId = setTimeout(() => {
+        channel.unsubscribe();
+        setIsTikTokConnecting(false);
+      }, 5 * 60 * 1000);
+
+      window.open(data.url, "_blank");
+    } catch (e: any) {
+      toast.error(e.message || "TikTok connection failed");
+      setIsTikTokConnecting(false);
+    }
+  };
+
   const disconnectYouTube = async (accountId: string | null | undefined) => {
     if (!accountId) return;
     const { error } = await supabase
@@ -274,6 +354,24 @@ export default function AccountsPage() {
     }
 
     refreshAll();
+  };
+
+  const disconnectTikTok = async (accountId: string | null | undefined) => {
+    if (!accountId) return;
+    const { error } = await supabase
+      .from("connected_accounts")
+      .update({ is_connected: false })
+      .eq("user_id", PERSONAL_USER_ID)
+      .eq("platform", "tiktok")
+      .eq("account_id", accountId);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("TikTok disconnected");
+    fetchTikTok();
   };
 
   return (
@@ -394,6 +492,58 @@ export default function AccountsPage() {
                   "Connect YouTube Account"
                 )}
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* TikTok */}
+        <Card className="bg-card border-border shadow-card">
+          <CardContent className="flex items-center justify-between py-5">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+                <PlatformIcon platform="tiktok" size={24} />
+              </div>
+              <div>
+                <h3 className="font-medium text-foreground">TikTok</h3>
+                <p className="text-xs text-muted-foreground">
+                  {tiktokAccounts.length > 0 ? `${tiktokAccounts[0].account_name ?? "Connected"}` : "Not connected"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge
+                variant="outline"
+                className={tiktokAccounts.length > 0
+                  ? "bg-status-published/20 text-status-published border-status-published/30"
+                  : "bg-secondary text-muted-foreground border-border"}
+              >
+                {tiktokAccounts.length > 0 ? "Connected" : "Not Connected"}
+              </Badge>
+              {tiktokAccounts.length > 0 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => disconnectTikTok(tiktokAccounts[0].account_id)}
+                >
+                  Disconnect
+                </Button>
+              ) : (
+                <Button
+                  className="gradient-primary text-primary-foreground"
+                  size="sm"
+                  onClick={connectTikTok}
+                  disabled={isTikTokConnecting}
+                >
+                  {isTikTokConnecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting…
+                    </>
+                  ) : (
+                    "Connect TikTok Account"
+                  )}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

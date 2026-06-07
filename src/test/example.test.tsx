@@ -40,6 +40,12 @@ describe("PlatformIcon", () => {
     const svg = document.querySelector("svg");
     expect(svg).toBeDefined();
   });
+
+  it("renders TikTok icon", () => {
+    render(<PlatformIcon platform="tiktok" />);
+    const svg = document.querySelector("svg");
+    expect(svg).toBeDefined();
+  });
 });
 
 describe("NotFound page", () => {

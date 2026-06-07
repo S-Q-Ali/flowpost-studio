@@ -66,6 +66,8 @@ Deno.serve(async (req) => {
         functionName = "facebook-upload";
       } else if (post.platform === "instagram") {
         functionName = "instagram-upload";
+      } else if (post.platform === "tiktok") {
+        functionName = "tiktok-upload";
       } else {
         console.log(`Skipping scheduled post ${post.id} for platform ${post.platform}`);
         continue;

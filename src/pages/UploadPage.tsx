@@ -20,6 +20,7 @@ import type { Platform } from "@/lib/types";
 import type { ConnectedAccount } from "@/lib/types";
 import { uploadToR2 } from "@/lib/r2";
 import { Progress } from "@/components/ui/progress";
+import { PlatformIcon } from "@/components/PlatformIcon";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -27,6 +28,7 @@ const platforms: { id: Platform; label: string }[] = [
   { id: "facebook", label: "Facebook Page" },
   { id: "instagram", label: "Instagram Reels" },
   { id: "youtube", label: "YouTube Shorts" },
+  { id: "tiktok", label: "TikTok" },
 ];
 
 export default function UploadPage() {
@@ -36,15 +38,18 @@ export default function UploadPage() {
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [instagramCaption, setInstagramCaption] = useState("");
   const [facebookCaption, setFacebookCaption] = useState("");
+  const [tiktokCaption, setTiktokCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
   const [selectedYouTubeAccountIds, setSelectedYouTubeAccountIds] = useState<string[]>([]);
   const [selectedFacebookPageIds, setSelectedFacebookPageIds] = useState<string[]>([]);
   const [selectedInstagramAccountIds, setSelectedInstagramAccountIds] = useState<string[]>([]);
+  const [selectedTikTokAccountIds, setSelectedTikTokAccountIds] = useState<string[]>([]);
   const [youtubeAccounts, setYoutubeAccounts] = useState<ConnectedAccount[]>([]);
   const [facebookAccounts, setFacebookAccounts] = useState<ConnectedAccount[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
+  const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
   const [publishMode, setPublishMode] = useState<"now" | "schedule">("now");
   const getDefaultScheduleDate = () => {
     const date = new Date();
@@ -83,9 +88,17 @@ export default function UploadPage() {
         .eq("platform", "instagram")
         .eq("is_connected", true);
 
+      const { data: tt } = await supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", PERSONAL_USER_ID)
+        .eq("platform", "tiktok")
+        .eq("is_connected", true);
+
       setYoutubeAccounts((yt as ConnectedAccount[]) ?? []);
       setFacebookAccounts((fb as ConnectedAccount[]) ?? []);
       setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
+      setTiktokAccounts((tt as ConnectedAccount[]) ?? []);
     };
     load();
   }, []);
@@ -109,6 +122,7 @@ export default function UploadPage() {
       if (p === "youtube" && !next.includes("youtube")) setSelectedYouTubeAccountIds([]);
       if (p === "facebook" && !next.includes("facebook")) setSelectedFacebookPageIds([]);
       if (p === "instagram" && !next.includes("instagram")) setSelectedInstagramAccountIds([]);
+      if (p === "tiktok" && !next.includes("tiktok")) setSelectedTikTokAccountIds([]);
       return next;
     });
   };
@@ -127,6 +141,12 @@ export default function UploadPage() {
 
   const toggleInstagramAccount = (accountId: string) => {
     setSelectedInstagramAccountIds((prev) =>
+      prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
+    );
+  };
+
+  const toggleTikTokAccount = (accountId: string) => {
+    setSelectedTikTokAccountIds((prev) =>
       prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
     );
   };
@@ -172,6 +192,11 @@ export default function UploadPage() {
       const instagramSelected = selectedPlatforms.includes("instagram");
       if (instagramSelected && selectedInstagramAccountIds.length === 0) {
         toast.error("Select at least one Instagram account");
+        return;
+      }
+      const tiktokSelected = selectedPlatforms.includes("tiktok");
+      if (tiktokSelected && selectedTikTokAccountIds.length === 0) {
+        toast.error("Select a TikTok account");
         return;
       }
       let videoId = uploadedVideoId;
@@ -291,6 +316,33 @@ export default function UploadPage() {
               captions_enabled: captionsEnabled,
             });
           }
+        } else if (platform === "tiktok") {
+          for (const accountId of selectedTikTokAccountIds) {
+            const { data: existing } = await supabase
+              .from("posts")
+              .select("id")
+              .eq("video_id", videoId)
+              .eq("platform", platform)
+              .eq("account_id", accountId)
+              .eq("status", "scheduled")
+              .maybeSingle();
+            if (existing) {
+              console.log("Post already exists, skipping", { videoId, platform, accountId });
+              continue;
+            }
+            const platformCaption = tiktokCaption.trim() || null;
+            posts.push({
+              user_id: PERSONAL_USER_ID,
+              video_id: videoId,
+              platform: "tiktok",
+              account_id: accountId,
+              caption: platformCaption,
+              hashtags,
+              scheduled_at: scheduledAt,
+              status: isPublishNow ? "processing" : "scheduled",
+              captions_enabled: captionsEnabled,
+            });
+          }
         }
       }
 
@@ -311,7 +363,7 @@ export default function UploadPage() {
 
       if (workflows && workflows.length > 0) {
         const workflowPosts: any[] = [];
-        const baseCaption = youtubeDescription || instagramCaption || facebookCaption || "";
+        const baseCaption = youtubeDescription || instagramCaption || facebookCaption || tiktokCaption || "";
         for (const wf of workflows) {
           const wfPlatforms = (wf.destination_platforms as string[]).filter(
             (p) => !selectedPlatforms.includes(p as Platform)
@@ -352,6 +404,8 @@ export default function UploadPage() {
           insertedPosts.filter((p: any) => p.platform === "facebook") ?? [];
         const instagramPosts =
           insertedPosts.filter((p: any) => p.platform === "instagram") ?? [];
+        const tiktokPosts =
+          insertedPosts.filter((p: any) => p.platform === "tiktok") ?? [];
 
         if (youtubePosts.length > 0) {
           toast.info("Uploading to YouTube...");
@@ -428,7 +482,37 @@ export default function UploadPage() {
           }
         }
 
-        if (youtubePosts.length > 0 || facebookPosts.length > 0 || instagramPosts.length > 0) {
+        if (tiktokPosts.length > 0) {
+          toast.info("Uploading to TikTok...");
+          let allOk = true;
+          for (const post of tiktokPosts) {
+            const res = await fetch(
+              `${supabaseUrl}/functions/v1/tiktok-upload`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${anonKey}`,
+                  apikey: anonKey,
+                },
+                body: JSON.stringify({ postId: post.id }),
+              },
+            );
+            if (!res.ok) {
+              allOk = false;
+            }
+          }
+          if (!allOk) {
+            toast.error("Some TikTok uploads failed, check Queue");
+          }
+        }
+
+        if (
+          youtubePosts.length > 0 ||
+          facebookPosts.length > 0 ||
+          instagramPosts.length > 0 ||
+          tiktokPosts.length > 0
+        ) {
           toast.success("Video publishing triggered!");
         }
       }
@@ -551,6 +635,27 @@ export default function UploadPage() {
                   )}
                 </div>
               )}
+              {p.id === "tiktok" && selectedPlatforms.includes("tiktok") && (
+                <div className="ml-6 mt-2 space-y-2">
+                  {tiktokAccounts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No TikTok account connected. Connect in Accounts.
+                    </p>
+                  ) : (
+                    tiktokAccounts.map((acc) => (
+                      <label key={acc.id} className="flex items-center gap-3 cursor-pointer">
+                        <Checkbox
+                          checked={selectedTikTokAccountIds.includes(acc.account_id ?? "")}
+                          onCheckedChange={() => toggleTikTokAccount(acc.account_id ?? "")}
+                        />
+                        <span className="text-sm text-foreground">
+                          {acc.account_name ?? "TikTok"} ({acc.account_id})
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </CardContent>
@@ -618,6 +723,25 @@ export default function UploadPage() {
                     placeholder="Caption for Facebook Page"
                     value={facebookCaption}
                     onChange={(e) => setFacebookCaption(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedPlatforms.includes("tiktok") && (
+              <div className="space-y-3 border border-border/60 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <PlatformIcon platform="tiktok" size={16} />
+                  <span className="text-sm font-medium text-foreground">TikTok</span>
+                </div>
+                <div className="space-y-2">
+                  <Label>TikTok Caption (optional)</Label>
+                  <Textarea
+                    placeholder="Caption for TikTok"
+                    value={tiktokCaption}
+                    onChange={(e) => setTiktokCaption(e.target.value)}
                     rows={4}
                     className="resize-none"
                   />

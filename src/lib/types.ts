@@ -1,4 +1,4 @@
-export type Platform = 'facebook' | 'instagram' | 'youtube';
+export type Platform = 'facebook' | 'instagram' | 'youtube' | 'tiktok';
 export type PostStatus = 'scheduled' | 'processing' | 'published' | 'failed';
 
 export interface Video {
@@ -9,6 +9,7 @@ export interface Video {
   thumbnail_url: string | null;
   duration: number | null;
   media_type: "video" | "image";
+  video_size: number | null;
   uploaded_at: string;
 }
 
@@ -40,6 +41,7 @@ export interface Workflow {
   youtube_channel_ids: string[] | null;
   facebook_page_ids: string[] | null;
   instagram_account_ids: string[] | null;
+  tiktok_account_ids: string[] | null;
   trigger_hour_start: number;
   trigger_hour_end: number;
   run_interval_hours: number | null;

@@ -201,7 +201,9 @@ Create a Google Sheet with these columns (header row is required):
 | `yt_video_title` | No | YouTube-specific video title (overrides `title`) |
 | `yt_video_description` | No | YouTube video description |
 | `fb_ig_caption` | No | Caption for both Facebook and Instagram posts |
-| `platforms` | No | Comma-separated list: `youtube`, `facebook`, `instagram` |
+| `image_fb_ig_caption` | No | Caption for image workflows (Facebook + Instagram only). Takes precedence over `fb_ig_caption` for image workflows. |
+| `tiktok_caption` | No | Caption for TikTok posts (separate from `fb_ig_caption` so you can write TikTok-specific copy) |
+| `platforms` | No | Comma-separated list: `youtube`, `facebook`, `instagram`, `tiktok` |
 | `status` | Yes | Set to `ready to post` to trigger publishing |
 | `youtube_channels` | No | Specific YouTube channel IDs (row-level override) |
 | `facebook_pages` | No | Specific Facebook page IDs (row-level override) |
@@ -254,6 +256,12 @@ The Accounts page manages all your social media connections.
 | **YouTube** | Publish Shorts to your channel(s) |
 | **Facebook** | Publish videos to your Page(s) |
 | **Instagram** | Publish Reels to your Business account(s) |
+| **TikTok** | Publish videos to your TikTok account (video only, no images) |
+
+### TikTok Notes
+- TikTok only supports **video** posts. Image workflows automatically exclude TikTok.
+- Each TikTok account uses a `tiktok_caption` column in your sheet (falls back to empty if absent — there's no automatic fallback to `fb_ig_caption`).
+- The TikTok app must be connected with the `video.publish` scope. For development/testing, add your TikTok handle to the developer allowlist in the TikTok app dashboard.
 
 ### Connecting an Account
 

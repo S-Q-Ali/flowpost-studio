@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PasswordGate } from "@/components/PasswordGate";
 import { AppLayout } from "@/components/AppLayout";
@@ -14,13 +14,19 @@ import QueuePage from "./pages/QueuePage";
 import AccountsPage from "./pages/AccountsPage";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
 const queryClient = new QueryClient();
 
+const PUBLIC_PATHS = new Set(["/terms", "/privacy"]);
+
 function AppRoutes() {
   const { isAuthenticated, isVerifying, login } = useAuth();
+  const location = useLocation();
+  const isPublicRoute = PUBLIC_PATHS.has(location.pathname);
 
   if (isVerifying) {
     return (
@@ -37,7 +43,7 @@ function AppRoutes() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isPublicRoute) {
     return <PasswordGate onSuccess={login} />;
   }
 
@@ -45,6 +51,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
       <Route element={<AppLayout />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/upload" element={<UploadPage />} />

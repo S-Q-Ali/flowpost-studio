@@ -44,6 +44,7 @@ type WorkflowRow = {
   youtube_channel_ids: string[] | null;
   facebook_page_ids: string[] | null;
   instagram_account_ids: string[] | null;
+  tiktok_account_ids: string[] | null;
   youtube_altered_content: boolean | null;
   post_as_story: boolean | null;
   trigger_hour_start: number;
@@ -68,10 +69,25 @@ type Step = 1 | 2 | 3 | 4;
 
 const hourOptions = Array.from({ length: 24 }, (_, i) => i); // 0-23 UTC
 
+const TikTokWorkflowIcon = ({ size = 16, className = "" }: { size?: number; className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    aria-label="TikTok"
+  >
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V8.65a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.84-.08Z" />
+  </svg>
+);
+
 const platformOptions: { id: Platform; label: string; icon: React.ComponentType<any>; color: string }[] = [
   { id: "youtube", label: "YouTube Shorts", icon: Youtube, color: "text-red-500" },
   { id: "facebook", label: "Facebook Page", icon: Facebook, color: "text-blue-500" },
   { id: "instagram", label: "Instagram Reels", icon: Instagram, color: "text-pink-500" },
+  { id: "tiktok", label: "TikTok", icon: TikTokWorkflowIcon, color: "text-foreground" },
 ];
 
 export default function WorkflowsPage() {
@@ -79,6 +95,7 @@ export default function WorkflowsPage() {
   const [youtubeAccounts, setYoutubeAccounts] = useState<ConnectedAccount[]>([]);
   const [facebookAccounts, setFacebookAccounts] = useState<ConnectedAccount[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
+  const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("create");
@@ -93,6 +110,7 @@ export default function WorkflowsPage() {
   const [selectedYoutubeIds, setSelectedYoutubeIds] = useState<string[]>([]);
   const [selectedFacebookIds, setSelectedFacebookIds] = useState<string[]>([]);
   const [selectedInstagramIds, setSelectedInstagramIds] = useState<string[]>([]);
+  const [selectedTiktokIds, setSelectedTiktokIds] = useState<string[]>([]);
   const [triggerStartHour, setTriggerStartHour] = useState<number>(0);
   const [triggerEndHour, setTriggerEndHour] = useState<number>(1);
   const [runIntervalHours, setRunIntervalHours] = useState<number>(1);
@@ -125,7 +143,7 @@ export default function WorkflowsPage() {
   };
 
   const loadAccounts = async () => {
-    const [{ data: yt }, { data: fb }, { data: ig }] = await Promise.all([
+    const [{ data: yt }, { data: fb }, { data: ig }, { data: tt }] = await Promise.all([
       supabase
         .from("connected_accounts")
         .select("*")
@@ -144,11 +162,18 @@ export default function WorkflowsPage() {
         .eq("user_id", PERSONAL_USER_ID)
         .eq("platform", "instagram")
         .eq("is_connected", true),
+      supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", PERSONAL_USER_ID)
+        .eq("platform", "tiktok")
+        .eq("is_connected", true),
     ]);
 
     setYoutubeAccounts((yt as ConnectedAccount[]) ?? []);
     setFacebookAccounts((fb as ConnectedAccount[]) ?? []);
     setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
+    setTiktokAccounts((tt as ConnectedAccount[]) ?? []);
   };
 
   useEffect(() => {
@@ -164,6 +189,7 @@ export default function WorkflowsPage() {
     setSelectedYoutubeIds([]);
     setSelectedFacebookIds([]);
     setSelectedInstagramIds([]);
+    setSelectedTiktokIds([]);
     setTriggerStartHour(0);
     setTriggerEndHour(1);
     setRunIntervalHours(1);
@@ -194,6 +220,7 @@ export default function WorkflowsPage() {
     setSelectedYoutubeIds(wf.youtube_channel_ids ?? []);
     setSelectedFacebookIds(wf.facebook_page_ids ?? []);
     setSelectedInstagramIds(wf.instagram_account_ids ?? []);
+    setSelectedTiktokIds(wf.tiktok_account_ids ?? []);
     setTriggerStartHour(wf.trigger_hour_start ?? 0);
     setTriggerEndHour(wf.trigger_hour_end ?? 1);
     setRunIntervalHours(wf.run_interval_hours ?? 1);
@@ -275,6 +302,7 @@ export default function WorkflowsPage() {
         youtube_channel_ids: selectedYoutubeIds,
         facebook_page_ids: selectedFacebookIds,
         instagram_account_ids: selectedInstagramIds,
+        tiktok_account_ids: selectedTiktokIds,
         youtube_altered_content: youtubeAlteredContent,
         post_as_story: postAsStory,
         trigger_hour_start: triggerStartHour,
@@ -476,8 +504,9 @@ export default function WorkflowsPage() {
                     checked={mediaType === "image"}
                     onChange={() => {
                       setMediaType("image");
-                      setSelectedPlatforms((prev) => prev.filter((p) => p !== "youtube"));
+                      setSelectedPlatforms((prev) => prev.filter((p) => p !== "youtube" && p !== "tiktok"));
                       setSelectedYoutubeIds([]);
+                      setSelectedTiktokIds([]);
                     }}
                     className="accent-primary"
                   />
@@ -487,7 +516,7 @@ export default function WorkflowsPage() {
             )}
             {mediaType === "image" && mode === "create" && (
               <p className="text-xs text-muted-foreground">
-                Image workflows support Facebook and Instagram only. YouTube does not support image posts.
+                Image workflows support Facebook and Instagram only. YouTube and TikTok do not support image posts.
               </p>
             )}
           </div>
@@ -506,7 +535,7 @@ export default function WorkflowsPage() {
           </div>
           <div className="space-y-3">
             {platformOptions
-              .filter((p) => mediaType !== "image" || p.id !== "youtube")
+              .filter((p) => mediaType !== "image" || (p.id !== "youtube" && p.id !== "tiktok"))
               .map(({ id, label, icon: Icon, color }) => {
               const selected = selectedPlatforms.includes(id);
               return (
@@ -611,6 +640,36 @@ export default function WorkflowsPage() {
                             />
                             <span className="text-foreground">
                               {acc.account_name ?? "Instagram"} ({acc.account_id})
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {selected && id === "tiktok" && (
+                    <div className="pl-6 sm:pl-7 space-y-1">
+                      {tiktokAccounts.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No TikTok account connected. Connect one in Accounts.
+                        </p>
+                      ) : (
+                        tiktokAccounts.map((acc) => (
+                          <label
+                            key={acc.id}
+                            className="flex items-center gap-2 cursor-pointer text-xs"
+                          >
+                            <Checkbox
+                              checked={selectedTiktokIds.includes(acc.account_id ?? "")}
+                              onCheckedChange={() =>
+                                toggleAccount(
+                                  selectedTiktokIds,
+                                  setSelectedTiktokIds,
+                                  acc.account_id ?? "",
+                                )
+                              }
+                            />
+                            <span className="text-foreground">
+                              {acc.account_name ?? "TikTok"} ({acc.account_id})
                             </span>
                           </label>
                         ))
@@ -1088,11 +1147,11 @@ export default function WorkflowsPage() {
           <Label>Google Sheet URL</Label>
           <p className="text-xs text-muted-foreground">
             Sheet must include these required columns:{" "}
-            <code className="text-[10px]">{mediaType === "image" ? "image_url" : "video_url"}, title, description, status</code>
+            <code className="text-[10px]">{mediaType === "image" ? "image_url" : "video_url"}, title, description, status, {mediaType === "image" ? "image_fb_ig_caption" : "fb_ig_caption"}</code>
           </p>
           <p className="text-xs text-muted-foreground">
             Optional columns:{" "}
-            <code className="text-[10px]">platforms, scheduled_time, yt_video_title, yt_video_description, fb_ig_caption, youtube_channels, facebook_pages</code>
+            <code className="text-[10px]">platforms, scheduled_time, yt_video_title, yt_video_description, fb_ig_caption, tiktok_caption, youtube_channels, facebook_pages</code>
           </p>
         </div>
         <Input
