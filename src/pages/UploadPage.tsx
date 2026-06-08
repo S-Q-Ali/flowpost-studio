@@ -365,7 +365,7 @@ export default function UploadPage() {
         const workflowPosts: any[] = [];
         const baseCaption = youtubeDescription || instagramCaption || facebookCaption || tiktokCaption || "";
         for (const wf of workflows) {
-          const wfPlatforms = (wf.destination_platforms as string[]).filter(
+          const wfPlatforms = ((wf.destination_platforms as string[]) ?? []).filter(
             (p) => !selectedPlatforms.includes(p as Platform)
           );
           for (const p of wfPlatforms) {

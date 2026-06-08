@@ -37,8 +37,13 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = req.headers.get("Authorization");
-  const validKeys = [Deno.env.get("SB_SERVICE_ROLE_KEY")];
   const token = authHeader?.replace("Bearer ", "");
+  const validKeys = [
+    Deno.env.get("SB_SERVICE_ROLE_KEY"),
+    Deno.env.get("SB_ANON_KEY"),
+    Deno.env.get("SUPABASE_ANON_KEY"),
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+  ].filter(Boolean) as string[];
   if (!token || !validKeys.includes(token)) {
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),

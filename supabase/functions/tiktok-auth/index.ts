@@ -99,26 +99,6 @@ async function refreshAccessToken(refreshToken: string) {
   };
 }
 
-async function fetchUserInfo(accessToken: string) {
-  const res = await fetch(
-    "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,display_name,avatar_url,profile_deep_link",
-    {
-      method: "GET",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    },
-  );
-  const data = await res.json();
-  if (!res.ok || data.error) {
-    throw new Error(`TikTok user info failed: ${JSON.stringify(data)}`);
-  }
-  return (data?.data?.user ?? {}) as {
-    open_id?: string;
-    union_id?: string;
-    display_name?: string;
-    avatar_url?: string;
-  };
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -187,12 +167,17 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from("tiktok_oauth_states").delete().eq("state", state);
 
       const tokenData = await exchangeCodeForToken(code);
-      const userInfo = await fetchUserInfo(tokenData.access_token);
+      console.log("TikTok token scope:", tokenData.scope);
+      console.log("TikTok token open_id:", tokenData.open_id);
 
-      const openId = userInfo.open_id || tokenData.open_id;
+      const openId = tokenData.open_id;
       if (!openId) {
         return html("<html><body>No open_id returned from TikTok</body></html>", 500);
       }
+
+      const display_name = "TikTok Account";
+      const avatar_url = null;
+      const union_id = null;
 
       const now = Date.now();
       const expiresAtIso = new Date(now + tokenData.expires_in * 1000).toISOString();
@@ -204,7 +189,7 @@ Deno.serve(async (req) => {
           {
             user_id: PERSONAL_USER_ID,
             platform: "tiktok",
-            account_name: userInfo.display_name || "TikTok Account",
+            account_name: display_name,
             account_id: openId,
             access_token: tokenData.access_token,
             is_connected: true,
@@ -214,8 +199,8 @@ Deno.serve(async (req) => {
               refresh_token: tokenData.refresh_token,
               refresh_expires_at: refreshExpiresAtIso,
               scope: tokenData.scope,
-              union_id: userInfo.union_id ?? null,
-              avatar_url: userInfo.avatar_url ?? null,
+              union_id: union_id,
+              avatar_url: avatar_url,
             },
           },
           { onConflict: "user_id,platform,account_id" },
