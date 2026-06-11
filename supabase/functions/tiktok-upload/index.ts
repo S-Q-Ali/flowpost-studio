@@ -265,17 +265,17 @@ Deno.serve(async (req) => {
       console.log("R2 upload complete, URL:", fileUrl);
     }
 
-    if (!video.video_size) {
-      const headRes = await fetch(fileUrl, { method: "HEAD" });
-      const size = parseInt(headRes.headers.get("content-length") || "0", 10);
-      if (size > 0) {
-        video.video_size = size;
-        await supabase
-          .from("videos")
-          .update({ video_size: size })
-          .eq("id", post.video_id);
-      }
+    console.log("Getting video size from R2...");
+    const headRes = await fetch(fileUrl, { method: "HEAD" });
+    const videoSize = parseInt(headRes.headers.get("content-length") || "0", 10);
+    if (!videoSize) {
+      throw new Error("Could not determine video size from R2");
     }
+    video.video_size = videoSize;
+    await supabase
+      .from("videos")
+      .update({ video_size: videoSize })
+      .eq("id", post.video_id);
 
     const caption = (post.caption ?? "").slice(0, 2200);
 
@@ -390,20 +390,12 @@ Deno.serve(async (req) => {
       return json({ error: "TikTok did not return publish_id or upload_url" }, 500);
     }
 
-    console.log("Downloading video from R2 for TikTok upload...");
-    const videoRes = await fetch(fileUrl);
-    if (!videoRes.ok || !videoRes.body) {
-      throw new Error(`R2 fetch failed: ${videoRes.status}`);
+    console.log(`Streaming video to TikTok (${videoSize} bytes)...`);
+    const videoStream = await fetch(fileUrl);
+    if (!videoStream.ok || !videoStream.body) {
+      throw new Error(`R2 fetch failed: ${videoStream.status}`);
     }
 
-    const videoSize = (typeof video.video_size === "number" && video.video_size > 0)
-      ? video.video_size
-      : parseInt(videoRes.headers.get("content-length") || "0", 10);
-    if (!videoSize) {
-      throw new Error("Cannot determine video size for TikTok upload");
-    }
-
-    console.log(`Uploading video to TikTok (${videoSize} bytes)...`);
     const uploadController = new AbortController();
     const uploadTimeout = setTimeout(() => uploadController.abort(), 120000);
 
@@ -413,7 +405,7 @@ Deno.serve(async (req) => {
         "Content-Type": "video/mp4",
         "Content-Range": `bytes 0-${videoSize - 1}/${videoSize}`,
       },
-      body: videoRes.body,
+      body: videoStream.body,
       signal: uploadController.signal,
       // @ts-ignore
       duplex: "half",
