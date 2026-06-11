@@ -7,6 +7,7 @@ const corsHeaders = {
 
 const SB_URL = Deno.env.get("SB_URL");
 const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
+const SB_ANON_KEY = Deno.env.get("SB_ANON_KEY");
 const TIKTOK_CLIENT_KEY = Deno.env.get("TIKTOK_CLIENT_KEY");
 
 if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
@@ -59,14 +60,72 @@ async function refreshTikTokToken(openId: string): Promise<string> {
   return openId;
 }
 
+type GetUploadUrlResponse = {
+  uploadUrl: string;
+  publicUrl: string;
+};
+
+async function uploadDriveMediaToR2(
+  driveUrl: string,
+  googleToken: string,
+  mediaId: string,
+  title: string,
+): Promise<string> {
+  const ext = ".mp4";
+  const contentType = "video/mp4";
+  const baseName = (title || mediaId).replace(/\.(mp4|mov|jpg|jpeg|png)$/i, "");
+  const { data: uploadData, error } = await supabase.functions.invoke<
+    GetUploadUrlResponse
+  >(
+    "get-upload-url",
+    {
+      body: {
+        fileName: `${baseName}${ext}`,
+        fileType: contentType,
+        userId: "00000000-0000-0000-0000-000000000000",
+      },
+    },
+  );
+
+  if (error || !uploadData?.uploadUrl || !uploadData?.publicUrl) {
+    throw new Error(error?.message || "Failed to get R2 upload URL");
+  }
+
+  if (!validateUrl(driveUrl)) {
+    throw new Error(`Blocked fetch to disallowed URL: ${driveUrl}`);
+  }
+
+  const driveRes = await fetch(driveUrl, {
+    headers: { Authorization: `Bearer ${googleToken}` },
+  });
+  if (!driveRes.ok || !driveRes.body) {
+    throw new Error(`Drive fetch failed: ${driveRes.status}`);
+  }
+
+  const putRes = await fetch(uploadData.uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: driveRes.body,
+    // @ts-ignore - duplex needed for streaming
+    duplex: "half",
+  });
+
+  if (!putRes.ok) {
+    throw new Error(`R2 upload failed: ${putRes.status}`);
+  }
+
+  return uploadData.publicUrl;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   const authHeader = req.headers.get("Authorization");
-  const validKeys = [SB_SERVICE_ROLE_KEY];
   const token = authHeader?.replace("Bearer ", "");
+  const validKeys = [SB_SERVICE_ROLE_KEY, SB_ANON_KEY];
+
   if (!token || !validKeys.includes(token)) {
     return json({ error: "Unauthorized" }, 401);
   }
@@ -75,24 +134,40 @@ Deno.serve(async (req) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
-  try {
-    const body = (await req.json().catch(() => null)) as { postId?: string } | null;
-    if (!body?.postId) {
-      return json({ error: "postId is required" }, 400);
-    }
+  let postId: string;
+  let driveDownloadUrl: string | undefined;
+  let googleAccessToken: string | undefined;
 
+  try {
+    const body = await req.json();
+    postId = body?.postId;
+    if (!postId) return json({ error: "postId required" }, 400);
+    driveDownloadUrl = typeof body?.driveDownloadUrl === "string"
+      ? body.driveDownloadUrl
+      : undefined;
+    googleAccessToken = typeof body?.googleAccessToken === "string"
+      ? body.googleAccessToken
+      : undefined;
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  try {
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, account_id, caption, video_id, metadata")
-      .eq("id", body.postId)
+      .select("id, account_id, caption, video_id, metadata, platform")
+      .eq("id", postId)
       .single();
 
     if (postError || !post) {
-      return json({ error: `Post not found: ${postError?.message}` }, 404);
+      return json({ error: "Post not found" }, 404);
     }
 
-    const accountId = post.account_id;
-    if (!accountId) {
+    if (post.platform !== "tiktok") {
+      return json({ error: "Post is not for TikTok" }, 400);
+    }
+
+    if (!post.account_id) {
       return json({ error: "Post has no account_id" }, 400);
     }
 
@@ -102,45 +177,37 @@ Deno.serve(async (req) => {
       .eq("id", post.video_id)
       .single();
 
-    if (videoError || !video) {
-      return json({ error: `Video not found: ${videoError?.message}` }, 404);
+    if (videoError || !video || !video.file_url) {
+      return json({ error: "Video not found or missing file_url" }, 404);
     }
 
-    const mediaType = (video.media_type as string) ?? "video";
+    const mediaType = video.media_type ?? "video";
     if (mediaType === "image") {
       await supabase
         .from("posts")
         .update({ status: "failed" })
-        .eq("id", post.id);
+        .eq("id", postId);
       return json({ error: "TikTok does not support image uploads" }, 400);
     }
 
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
-      .select("id, access_token, token_expiry, metadata, is_connected, platform")
+      .select("id, access_token, token_expiry, is_connected")
       .eq("user_id", "00000000-0000-0000-0000-000000000000")
       .eq("platform", "tiktok")
-      .eq("account_id", accountId)
+      .eq("account_id", post.account_id)
       .maybeSingle();
 
     if (accountError || !account) {
       return json({ error: "TikTok account not connected" }, 404);
     }
 
-    if (!account.is_connected) {
+    if (!account.is_connected || !account.access_token) {
       await supabase
         .from("posts")
         .update({ status: "failed" })
-        .eq("id", post.id);
+        .eq("id", postId);
       return json({ error: "TikTok account is disconnected" }, 400);
-    }
-
-    if (!account.access_token) {
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", post.id);
-      return json({ error: "Missing TikTok access token" }, 400);
     }
 
     let accessToken = account.access_token;
@@ -148,13 +215,13 @@ Deno.serve(async (req) => {
     const tokenExpiry = account.token_expiry ? new Date(account.token_expiry) : null;
     if (!tokenExpiry || tokenExpiry <= new Date()) {
       console.log("TikTok token expired, refreshing");
-      await refreshTikTokToken(accountId);
+      await refreshTikTokToken(post.account_id);
       const { data: refreshed } = await supabase
         .from("connected_accounts")
         .select("access_token, token_expiry")
         .eq("user_id", "00000000-0000-0000-0000-000000000000")
         .eq("platform", "tiktok")
-        .eq("account_id", accountId)
+        .eq("account_id", post.account_id)
         .single();
       if (refreshed?.access_token) {
         accessToken = refreshed.access_token;
@@ -162,24 +229,46 @@ Deno.serve(async (req) => {
         await supabase
           .from("posts")
           .update({ status: "failed" })
-          .eq("id", post.id);
+          .eq("id", postId);
         return json({ error: "Token refresh did not return new access token" }, 500);
       }
     }
 
-    const fileUrl = video.file_url;
+    let fileUrl = video.file_url as string;
     if (!fileUrl || !validateUrl(fileUrl)) {
       await supabase
         .from("posts")
         .update({ status: "failed" })
-        .eq("id", post.id);
-      return json({ error: "Invalid video URL — must be on R2 / Google Drive" }, 400);
+        .eq("id", postId);
+      return json({ error: "Invalid video URL" }, 400);
+    }
+
+    if (
+      (driveDownloadUrl || fileUrl.includes("googleapis.com")) &&
+      googleAccessToken
+    ) {
+      const driveSource = driveDownloadUrl || fileUrl;
+      console.log("Uploading Drive video to R2 first...");
+
+      fileUrl = await uploadDriveMediaToR2(
+        driveSource,
+        googleAccessToken,
+        post.video_id,
+        post.video_id,
+      );
+
+      await supabase
+        .from("videos")
+        .update({ file_url: fileUrl })
+        .eq("id", post.video_id);
+
+      console.log("R2 upload complete, URL:", fileUrl);
     }
 
     const caption = (post.caption ?? "").slice(0, 2200);
 
     const sourceInfo: Record<string, unknown> = {
-      source: "FILE_URL",
+      source: "PULL_FROM_URL",
       video_url: fileUrl,
     };
     if (typeof video.video_size === "number" && video.video_size > 0) {
@@ -198,25 +287,50 @@ Deno.serve(async (req) => {
       post_mode: "DIRECT_POST",
     };
 
-    const initRes = await fetch(
-      "https://open.tiktokapis.com/v2/post/publish/video/init/",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json; charset=UTF-8",
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    let initRes: Response;
+    try {
+      initRes = await fetch(
+        "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json; charset=UTF-8",
+          },
+          body: JSON.stringify(body_payload),
+          signal: controller.signal,
         },
-        body: JSON.stringify(body_payload),
-      },
-    );
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
 
     const initData = await initRes.json().catch(() => ({}));
+    console.log("TikTok init response:", initRes.status, JSON.stringify(initData));
+
     if (!initRes.ok) {
       const errMsg = JSON.stringify(initData);
       await supabase
         .from("posts")
         .update({ status: "failed" })
-        .eq("id", post.id);
+        .eq("id", postId);
+      // Update sheet status to "failed"
+      try {
+        await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+            apikey: SB_SERVICE_ROLE_KEY!,
+          },
+          body: JSON.stringify({ postId, status: "failed" }),
+        });
+      } catch (sheetErr) {
+        console.error("Failed to update sheet status", sheetErr);
+      }
       return json({ error: `TikTok publish init failed: ${errMsg}` }, initRes.status);
     }
 
@@ -225,7 +339,21 @@ Deno.serve(async (req) => {
       await supabase
         .from("posts")
         .update({ status: "failed" })
-        .eq("id", post.id);
+        .eq("id", postId);
+      // Update sheet status to "failed"
+      try {
+        await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+            apikey: SB_SERVICE_ROLE_KEY!,
+          },
+          body: JSON.stringify({ postId, status: "failed" }),
+        });
+      } catch (sheetErr) {
+        console.error("Failed to update sheet status", sheetErr);
+      }
       return json({ error: `TikTok publish init error: ${errMsg}` }, 400);
     }
 
@@ -234,11 +362,25 @@ Deno.serve(async (req) => {
       await supabase
         .from("posts")
         .update({ status: "failed" })
-        .eq("id", post.id);
+        .eq("id", postId);
+      // Update sheet status to "failed"
+      try {
+        await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+            apikey: SB_SERVICE_ROLE_KEY!,
+          },
+          body: JSON.stringify({ postId, status: "failed" }),
+        });
+      } catch (sheetErr) {
+        console.error("Failed to update sheet status", sheetErr);
+      }
       return json({ error: "TikTok did not return publish_id" }, 500);
     }
 
-    await supabase
+    const { error: updateError } = await supabase
       .from("posts")
       .update({
         status: "published",
@@ -248,13 +390,50 @@ Deno.serve(async (req) => {
           tiktok_publish_id: publishId,
         },
       })
-      .eq("id", post.id);
+      .eq("id", postId);
+
+    if (updateError) {
+      console.error("Failed to update post status", updateError);
+      return json({ error: "Upload succeeded but status update failed" }, 500);
+    }
+
+    // Update Google Sheet status to "posted"
+    try {
+      await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+          apikey: SB_SERVICE_ROLE_KEY!,
+        },
+        body: JSON.stringify({ postId, status: "posted" }),
+      });
+    } catch (sheetErr) {
+      console.error("Failed to update sheet status", sheetErr);
+    }
 
     return json({ success: true, publish_id: publishId });
   } catch (err) {
     console.error("tiktok-upload error", err);
+    try {
+      if (typeof postId === "string") {
+        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+        // Update sheet status to "failed"
+        await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+            apikey: SB_SERVICE_ROLE_KEY!,
+          },
+          body: JSON.stringify({ postId, status: "failed" }),
+        });
+      }
+    } catch {
+      // ignore
+    }
     return json(
-      { error: err instanceof Error ? err.message : "Unknown error" },
+      { error: err instanceof Error ? err.message : "Upload failed" },
       500,
     );
   }

@@ -7,6 +7,7 @@ const corsHeaders = {
 
 const SB_URL = Deno.env.get("SB_URL");
 const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
+const SB_ANON_KEY = Deno.env.get("SB_ANON_KEY");
 
 if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
   console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for facebook-upload");
@@ -116,7 +117,7 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.replace("Bearer ", "");
-  const validKeys = [SB_SERVICE_ROLE_KEY];
+  const validKeys = [SB_SERVICE_ROLE_KEY, SB_ANON_KEY];
 
   if (!token || !validKeys.includes(token)) {
     return json({ error: "Unauthorized" }, 401);

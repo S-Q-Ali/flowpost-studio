@@ -416,9 +416,13 @@ Deno.serve(async (req) => {
       continue;
     }
 
-     const sheetData = (await sheetRes.json()) as SheetValuesResponse;
-     const rows = sheetData.values ?? [];
-     if (rows.length < 2) continue;
+      const sheetData = (await sheetRes.json()) as SheetValuesResponse;
+      const rows = sheetData.values ?? [];
+      console.log(`Sheet rows count: ${rows.length}, headers: ${JSON.stringify(rows[0] ?? [])}`);
+      if (rows.length < 2) {
+        console.log(`Sheet for workflow ${wf.name} has fewer than 2 rows, skipping`);
+        continue;
+      }
 
      // Update trigger tracking now that we know we can read the sheet
      const triggerUpdate = isManualRun
@@ -436,12 +440,13 @@ Deno.serve(async (req) => {
        continue;
      }
 
-     const headers = rows[0] ?? [];
-     const headerIndex: Record<string, number> = {};
-     headers.forEach((h, idx) => { 
-       const key = h.toLowerCase();
-       if (!(key in headerIndex)) headerIndex[key] = idx;
-     });
+      const headers = rows[0] ?? [];
+      const headerIndex: Record<string, number> = {};
+      headers.forEach((h, idx) => { 
+        const key = h.toLowerCase();
+        if (!(key in headerIndex)) headerIndex[key] = idx;
+      });
+      console.log(`Header index for workflow ${wf.name}: ${JSON.stringify(headerIndex)}`);
 
      const mediaType = (wf as any).media_type ?? "video";
      const isImageWorkflow = mediaType === "image";
@@ -455,6 +460,7 @@ Deno.serve(async (req) => {
         : headerIndex["fb_ig_caption"];
      const platformsIdx = headerIndex["platforms"];
      const statusIdx = headerIndex["status"];
+     console.log(`Columns for ${wf.name}: urlColumn=${urlColumn}, urlIdx=${urlIdx}, statusIdx=${statusIdx}`);
       const ytChannelsIdx = headerIndex["youtube_channels"];
       const fbPagesIdx = headerIndex["facebook_pages"];
       const tiktokCaptionIdx = headerIndex["tiktok_caption"];
@@ -467,14 +473,20 @@ Deno.serve(async (req) => {
     const dataRows = rows.slice(1);
     const readyRows: { row: string[]; rowIndex: number }[] = [];
 
+    console.log(`Data rows count for workflow ${wf.name}: ${dataRows.length}`);
     dataRows.forEach((row, i) => {
       const statusVal = row[statusIdx]?.toLowerCase().trim();
+      console.log(`Row ${i + 2}: status value = "${row[statusIdx]}", trimmed = "${statusVal}", match = ${statusVal === "ready to post"}`);
       if (statusVal === "ready to post") {
         readyRows.push({ row, rowIndex: i + 2 });
       }
     });
 
-    if (readyRows.length === 0) continue;
+    console.log(`Ready rows for workflow ${wf.name}: ${readyRows.length}`);
+    if (readyRows.length === 0) {
+      console.log(`No ready rows found for workflow ${wf.name}, skipping`);
+      continue;
+    }
 
     const runIntervalHours = (wf.run_interval_hours as number) ?? 1;
     const videosPerRun = (wf.videos_per_run as number) ?? 1;
@@ -702,7 +714,7 @@ Deno.serve(async (req) => {
                 Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
                 apikey: SB_SERVICE_ROLE_KEY!,
               },
-              body: JSON.stringify({ postId: post.id }),
+              body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
             });
           }
         }
