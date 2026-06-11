@@ -268,8 +268,7 @@ Deno.serve(async (req) => {
     const caption = (post.caption ?? "").slice(0, 2200);
 
     const sourceInfo: Record<string, unknown> = {
-      source: "PULL_FROM_URL",
-      video_url: fileUrl,
+      source: "FILE_UPLOAD",
     };
     if (typeof video.video_size === "number" && video.video_size > 0) {
       sourceInfo.video_size = video.video_size;
@@ -334,13 +333,12 @@ Deno.serve(async (req) => {
       return json({ error: `TikTok publish init failed: ${errMsg}` }, initRes.status);
     }
 
-    if (initData?.error?.code) {
+    if (initData?.error?.code && initData.error.code !== "ok") {
       const errMsg = JSON.stringify(initData.error);
       await supabase
         .from("posts")
         .update({ status: "failed" })
         .eq("id", postId);
-      // Update sheet status to "failed"
       try {
         await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
           method: "POST",
@@ -358,12 +356,12 @@ Deno.serve(async (req) => {
     }
 
     const publishId = initData?.data?.publish_id;
-    if (!publishId) {
+    const uploadUrl = initData?.data?.upload_url;
+    if (!publishId || !uploadUrl) {
       await supabase
         .from("posts")
         .update({ status: "failed" })
         .eq("id", postId);
-      // Update sheet status to "failed"
       try {
         await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
           method: "POST",
@@ -377,7 +375,60 @@ Deno.serve(async (req) => {
       } catch (sheetErr) {
         console.error("Failed to update sheet status", sheetErr);
       }
-      return json({ error: "TikTok did not return publish_id" }, 500);
+      return json({ error: "TikTok did not return publish_id or upload_url" }, 500);
+    }
+
+    console.log("Downloading video from R2 for TikTok upload...");
+    const videoRes = await fetch(fileUrl);
+    if (!videoRes.ok || !videoRes.body) {
+      throw new Error(`R2 fetch failed: ${videoRes.status}`);
+    }
+
+    const videoSize = (typeof video.video_size === "number" && video.video_size > 0)
+      ? video.video_size
+      : parseInt(videoRes.headers.get("content-length") || "0", 10);
+    if (!videoSize) {
+      throw new Error("Cannot determine video size for TikTok upload");
+    }
+
+    console.log(`Uploading video to TikTok (${videoSize} bytes)...`);
+    const uploadController = new AbortController();
+    const uploadTimeout = setTimeout(() => uploadController.abort(), 120000);
+
+    const uploadRes = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "video/mp4",
+        "Content-Range": `bytes 0-${videoSize - 1}/${videoSize}`,
+      },
+      body: videoRes.body,
+      signal: uploadController.signal,
+      // @ts-ignore
+      duplex: "half",
+    });
+    clearTimeout(uploadTimeout);
+
+    console.log("TikTok upload status:", uploadRes.status);
+    if (!uploadRes.ok) {
+      const uploadErr = await uploadRes.text().catch(() => "unknown");
+      await supabase
+        .from("posts")
+        .update({ status: "failed" })
+        .eq("id", postId);
+      try {
+        await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+            apikey: SB_SERVICE_ROLE_KEY!,
+          },
+          body: JSON.stringify({ postId, status: "failed" }),
+        });
+      } catch (sheetErr) {
+        console.error("Failed to update sheet status", sheetErr);
+      }
+      return json({ error: `TikTok upload failed: ${uploadRes.status} ${uploadErr}` }, 502);
     }
 
     const { error: updateError } = await supabase
@@ -397,7 +448,6 @@ Deno.serve(async (req) => {
       return json({ error: "Upload succeeded but status update failed" }, 500);
     }
 
-    // Update Google Sheet status to "posted"
     try {
       await fetch(`${SB_URL}/functions/v1/update-sheet-status`, {
         method: "POST",
