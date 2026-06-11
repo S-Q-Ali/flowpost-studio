@@ -265,6 +265,18 @@ Deno.serve(async (req) => {
       console.log("R2 upload complete, URL:", fileUrl);
     }
 
+    if (!video.video_size) {
+      const headRes = await fetch(fileUrl, { method: "HEAD" });
+      const size = parseInt(headRes.headers.get("content-length") || "0", 10);
+      if (size > 0) {
+        video.video_size = size;
+        await supabase
+          .from("videos")
+          .update({ video_size: size })
+          .eq("id", post.video_id);
+      }
+    }
+
     const caption = (post.caption ?? "").slice(0, 2200);
 
     const sourceInfo: Record<string, unknown> = {
