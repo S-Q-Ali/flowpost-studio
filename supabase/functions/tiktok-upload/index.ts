@@ -60,63 +60,6 @@ async function refreshTikTokToken(openId: string): Promise<string> {
   return openId;
 }
 
-type GetUploadUrlResponse = {
-  uploadUrl: string;
-  publicUrl: string;
-};
-
-async function uploadDriveMediaToR2(
-  driveUrl: string,
-  googleToken: string,
-  mediaId: string,
-  title: string,
-): Promise<string> {
-  const ext = ".mp4";
-  const contentType = "video/mp4";
-  const baseName = (title || mediaId).replace(/\.(mp4|mov|jpg|jpeg|png)$/i, "");
-  const { data: uploadData, error } = await supabase.functions.invoke<
-    GetUploadUrlResponse
-  >(
-    "get-upload-url",
-    {
-      body: {
-        fileName: `${baseName}${ext}`,
-        fileType: contentType,
-        userId: "00000000-0000-0000-0000-000000000000",
-      },
-    },
-  );
-
-  if (error || !uploadData?.uploadUrl || !uploadData?.publicUrl) {
-    throw new Error(error?.message || "Failed to get R2 upload URL");
-  }
-
-  if (!validateUrl(driveUrl)) {
-    throw new Error(`Blocked fetch to disallowed URL: ${driveUrl}`);
-  }
-
-  const driveRes = await fetch(driveUrl, {
-    headers: { Authorization: `Bearer ${googleToken}` },
-  });
-  if (!driveRes.ok || !driveRes.body) {
-    throw new Error(`Drive fetch failed: ${driveRes.status}`);
-  }
-
-  const putRes = await fetch(uploadData.uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: driveRes.body,
-    // @ts-ignore - duplex needed for streaming
-    duplex: "half",
-  });
-
-  if (!putRes.ok) {
-    throw new Error(`R2 upload failed: ${putRes.status}`);
-  }
-
-  return uploadData.publicUrl;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -243,38 +186,28 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid video URL" }, 400);
     }
 
-    if (
-      (driveDownloadUrl || fileUrl.includes("googleapis.com")) &&
-      googleAccessToken
-    ) {
+    const isDriveSource = (driveDownloadUrl || fileUrl.includes("googleapis.com")) && googleAccessToken;
+    if (isDriveSource) {
       const driveSource = driveDownloadUrl || fileUrl;
-      console.log("Uploading Drive video to R2 first...");
-
-      fileUrl = await uploadDriveMediaToR2(
-        driveSource,
-        googleAccessToken,
-        post.video_id,
-        post.video_id,
-      );
-
-      await supabase
-        .from("videos")
-        .update({ file_url: fileUrl })
-        .eq("id", post.video_id);
-
-      console.log("R2 upload complete, URL:", fileUrl);
+      console.log("Getting video size from Drive...");
+      const headRes = await fetch(driveSource, {
+        method: "HEAD",
+        headers: { Authorization: `Bearer ${googleAccessToken}` },
+      });
+      const videoSize = parseInt(headRes.headers.get("content-length") || "0", 10);
+      if (!videoSize) throw new Error("Could not determine video size from Drive");
+      video.video_size = videoSize;
+    } else {
+      console.log("Getting video size from R2/public URL...");
+      const headRes = await fetch(fileUrl, { method: "HEAD" });
+      const videoSize = parseInt(headRes.headers.get("content-length") || "0", 10);
+      if (!videoSize) throw new Error("Could not determine video size");
+      video.video_size = videoSize;
     }
 
-    console.log("Getting video size from R2...");
-    const headRes = await fetch(fileUrl, { method: "HEAD" });
-    const videoSize = parseInt(headRes.headers.get("content-length") || "0", 10);
-    if (!videoSize) {
-      throw new Error("Could not determine video size from R2");
-    }
-    video.video_size = videoSize;
     await supabase
       .from("videos")
-      .update({ video_size: videoSize })
+      .update({ video_size: video.video_size })
       .eq("id", post.video_id);
 
     const caption = (post.caption ?? "").slice(0, 2200);
@@ -298,6 +231,7 @@ Deno.serve(async (req) => {
       post_mode: "DIRECT_POST",
     };
 
+    console.log("Init payload:", JSON.stringify(body_payload));
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
 
@@ -390,10 +324,18 @@ Deno.serve(async (req) => {
       return json({ error: "TikTok did not return publish_id or upload_url" }, 500);
     }
 
-    console.log(`Streaming video to TikTok (${videoSize} bytes)...`);
-    const videoStream = await fetch(fileUrl);
-    if (!videoStream.ok || !videoStream.body) {
-      throw new Error(`R2 fetch failed: ${videoStream.status}`);
+    console.log(`Streaming video to TikTok (${video.video_size} bytes)...`);
+    let videoRes: Response;
+    if (isDriveSource) {
+      const driveSource = driveDownloadUrl || fileUrl;
+      videoRes = await fetch(driveSource, {
+        headers: { Authorization: `Bearer ${googleAccessToken}` },
+      });
+    } else {
+      videoRes = await fetch(fileUrl);
+    }
+    if (!videoRes.ok || !videoRes.body) {
+      throw new Error(`Video fetch failed: ${videoRes.status}`);
     }
 
     const uploadController = new AbortController();
@@ -403,9 +345,9 @@ Deno.serve(async (req) => {
       method: "PUT",
       headers: {
         "Content-Type": "video/mp4",
-        "Content-Range": `bytes 0-${videoSize - 1}/${videoSize}`,
+        "Content-Range": `bytes 0-${video.video_size - 1}/${video.video_size}`,
       },
-      body: videoStream.body,
+      body: videoRes.body,
       signal: uploadController.signal,
       // @ts-ignore
       duplex: "half",
