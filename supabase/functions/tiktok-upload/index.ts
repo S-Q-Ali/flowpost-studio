@@ -212,13 +212,6 @@ Deno.serve(async (req) => {
 
     const caption = (post.caption ?? "").slice(0, 2200);
 
-    const sourceInfo: Record<string, unknown> = {
-      source: "FILE_UPLOAD",
-    };
-    if (typeof video.video_size === "number" && video.video_size > 0) {
-      sourceInfo.video_size = video.video_size;
-    }
-
     const body_payload = {
       post_info: {
         title: caption,
@@ -227,8 +220,12 @@ Deno.serve(async (req) => {
         disable_comment: false,
         disable_stitch: false,
       },
-      source_info: sourceInfo,
-      post_mode: "DIRECT_POST",
+      source_info: {
+        source: "FILE_UPLOAD",
+        video_size: video.video_size,
+        chunk_size: video.video_size,
+        total_chunk_count: 1,
+      },
     };
 
     console.log("Init payload:", JSON.stringify(body_payload));
