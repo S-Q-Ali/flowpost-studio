@@ -749,19 +749,19 @@ export default function UploadPage() {
               </div>
             )}
 
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label>Hashtags (optional, shared)</Label>
               <Input
                 placeholder="#viral #shorts #reels"
                 value={hashtags}
                 onChange={(e) => setHashtags(e.target.value)}
               />
-            </div>
+            </div> */}
           </CardContent>
         </Card>
       )}
 
-      <Card className="bg-card border-border shadow-card">
+      {/* <Card className="bg-card border-border shadow-card">
         <CardHeader><CardTitle className="text-foreground">Content settings</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className={cn("rounded-lg border p-4", containsAlteredContent ? "border-amber-500/50 bg-amber-500/10" : "border-border")}>
@@ -792,7 +792,7 @@ export default function UploadPage() {
             <Switch checked={captionsEnabled} onCheckedChange={setCaptionsEnabled} />
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       <Card className="bg-card border-border shadow-card">
         <CardHeader><CardTitle className="text-foreground">Publish Options</CardTitle></CardHeader>
