@@ -215,7 +215,7 @@ Deno.serve(async (req) => {
     const body_payload = {
       post_info: {
         title: caption,
-        privacy_level: "PUBLIC_TO_EVERYONE",
+        privacy_level: "SELF_ONLY",
         disable_duet: false,
         disable_comment: false,
         disable_stitch: false,
