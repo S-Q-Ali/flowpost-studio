@@ -254,13 +254,13 @@ Deno.serve(async (req) => {
 
     console.log("Container created:", container.id);
 
-    await new Promise((r) => setTimeout(r, 45000));
+    await new Promise((r) => setTimeout(r, 60000));
 
     let publishResult: Record<string, unknown> | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 5; attempt++) {
       if (attempt > 0) {
         console.log(`Publish attempt ${attempt + 1}...`);
-        await new Promise((r) => setTimeout(r, 20000));
+        await new Promise((r) => setTimeout(r, 30000));
       }
 
       const publishForm = new URLSearchParams();
