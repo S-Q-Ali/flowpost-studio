@@ -38,22 +38,24 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function ensureUserRecord(sessionUserId: string, session: any) {
-  const { data: existing } = await supabase
-    .from("users")
-    .select("id")
-    .eq("id", sessionUserId)
-    .maybeSingle();
+const CACHE_KEY = "flowpost_auth";
+const SIGNUP_CLOSED_KEY = "flowpost_signup_closed";
 
-  if (!existing) {
-    await supabase.from("users").insert({
-      id: sessionUserId,
-      email: session.user.email,
-      name: session.user.user_metadata?.full_name || session.user.email,
-      avatar_url: session.user.user_metadata?.avatar_url,
-      is_admin: false,
-    });
+function getCache() {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
   }
+}
+
+function setCache(data: { userId: string; isAdmin: boolean }) {
+  sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+}
+
+function clearCache() {
+  sessionStorage.removeItem(CACHE_KEY);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -93,30 +95,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // 2. No custom token → subscribe to Supabase auth state
+    // 2. Check sessionStorage cache (reduces API calls)
+    const cached = getCache();
+    if (cached?.userId) {
+      setIsAuthenticated(true);
+      setUserId(cached.userId);
+      setIsAdmin(cached.isAdmin);
+      setPendingSecurityVerification(cached.isAdmin);
+      resolve();
+    }
+
+    // 3. Subscribe to Supabase auth state for fresh logins / session recovery
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (cancelled) return;
 
         if (event === "SIGNED_IN" && session) {
-          await ensureUserRecord(session.user.id, session);
-
-          if (cancelled) return;
-
-          const { data: userData } = await supabase
+          const { data: existing } = await supabase
             .from("users")
-            .select("is_admin")
+            .select("id, is_admin")
             .eq("id", session.user.id)
             .maybeSingle();
 
-          if (userData?.is_admin) {
+          if (!existing) {
+            localStorage.setItem(SIGNUP_CLOSED_KEY, "true");
+            await supabase.auth.signOut();
+            clearCache();
+            resolve();
+            return;
+          }
+
+          setCache({ userId: existing.id, isAdmin: existing.is_admin });
+
+          if (existing.is_admin) {
             setIsAdmin(true);
             setPendingSecurityVerification(true);
             setIsAuthenticated(true);
-            setUserId(session.user.id);
+            setUserId(existing.id);
           } else {
             setIsAuthenticated(true);
-            setUserId(session.user.id);
+            setUserId(existing.id);
           }
 
           resolve();
@@ -125,6 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event === "SIGNED_OUT") {
           const t = getStoredToken();
           if (!t) {
+            clearCache();
             setIsAuthenticated(false);
             setUserId(null);
             setIsAdmin(false);
@@ -201,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     setStoredToken(null);
+    clearCache();
     setIsAuthenticated(false);
     setUserId(null);
     setIsAdmin(false);

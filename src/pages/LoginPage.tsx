@@ -1,6 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,14 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+
+  useEffect(() => {
+    const signupClosed = localStorage.getItem("flowpost_signup_closed");
+    if (signupClosed) {
+      localStorage.removeItem("flowpost_signup_closed");
+      toast.error("Sign up is closed. Contact the admin.", { duration: 5000 });
+    }
+  }, []);
 
   const handleSignIn = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
