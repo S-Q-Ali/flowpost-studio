@@ -7,11 +7,20 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const ADMIN_USER_ID = "00000000-0000-0000-0000-000000000000";
+const ADMIN_USER_ID_FALLBACK = "00000000-0000-0000-0000-000000000000";
 
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
+
+async function getAdminUserId(): Promise<string> {
+  const { data } = await supabase
+    .from("users")
+    .select("id")
+    .eq("is_admin", true)
+    .maybeSingle();
+  return data?.id ?? ADMIN_USER_ID_FALLBACK;
+}
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MINUTES = 15;
@@ -92,7 +101,7 @@ async function createAdminSession(): Promise<string> {
 
   const { error } = await supabase
     .from("sessions")
-    .insert({ token, expires_at: expiresAt, user_id: ADMIN_USER_ID });
+    .insert({ token, expires_at: expiresAt, user_id: await getAdminUserId() });
 
   if (error) {
     console.error("Failed to create admin session:", error);
@@ -144,7 +153,7 @@ Deno.serve(async (req) => {
             fav_teacher: favTeacher.trim().toLowerCase(),
             best_night_date: bestNightDate,
           })
-          .eq("id", ADMIN_USER_ID);
+          .eq("id", await getAdminUserId());
 
         if (updateError) {
           console.error("Failed to set security questions:", updateError);
@@ -162,7 +171,7 @@ Deno.serve(async (req) => {
         const { data: admin, error: fetchError } = await supabase
           .from("users")
           .select("fav_teacher, best_night_date")
-          .eq("id", ADMIN_USER_ID)
+          .eq("id", await getAdminUserId())
           .single();
 
         if (fetchError || !admin) {
@@ -197,7 +206,7 @@ Deno.serve(async (req) => {
       const { data: admin } = await supabase
         .from("users")
         .select("fav_teacher, best_night_date")
-        .eq("id", ADMIN_USER_ID)
+        .eq("id", await getAdminUserId())
         .single();
 
       const hasQuestions = !!(admin?.fav_teacher && admin?.best_night_date);
