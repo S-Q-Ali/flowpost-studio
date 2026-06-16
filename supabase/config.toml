@@ -2,3 +2,15 @@ project_id = "pgnwazhcmanzpaavvhun"
 
 [functions.get-upload-url]
 verify_jwt = false
+
+[functions.tiktok-auth]
+verify_jwt = false
+
+[functions.facebook-auth]
+verify_jwt = false
+
+[functions.youtube-auth]
+verify_jwt = false
+
+[functions.google-oauth]
+verify_jwt = false
