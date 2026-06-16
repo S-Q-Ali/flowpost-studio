@@ -4,7 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { PasswordGate } from "@/components/PasswordGate";
+import { SecurityQuestionsGate } from "@/components/SecurityQuestionsGate";
+import LoginPage from "./pages/LoginPage";
 import { AppLayout } from "@/components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import UploadPage from "./pages/UploadPage";
@@ -21,10 +22,10 @@ import { Logo } from "@/components/Logo";
 
 const queryClient = new QueryClient();
 
-const PUBLIC_PATHS = new Set(["/terms", "/privacy"]);
+const PUBLIC_PATHS = new Set(["/terms", "/privacy", "/auth/callback"]);
 
 function AppRoutes() {
-  const { isAuthenticated, isVerifying, login } = useAuth();
+  const { isAuthenticated, isVerifying, pendingSecurityVerification } = useAuth();
   const location = useLocation();
   const isPublicRoute = PUBLIC_PATHS.has(location.pathname);
 
@@ -44,7 +45,11 @@ function AppRoutes() {
   }
 
   if (!isAuthenticated && !isPublicRoute) {
-    return <PasswordGate onSuccess={login} />;
+    return <LoginPage />;
+  }
+
+  if (isAuthenticated && pendingSecurityVerification) {
+    return <SecurityQuestionsGate />;
   }
 
   return (

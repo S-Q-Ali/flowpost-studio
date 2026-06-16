@@ -5,177 +5,156 @@ import {
   useCallback,
   useEffect,
 } from "react";
-import { getStoredToken, setStoredToken } from "@/components/PasswordGate";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AuthMode = "none" | "password" | "security-questions" | "google";
+const TOKEN_KEY = "flowpost_token";
+
+function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setStoredToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+}
 
 type AuthContextValue = {
   isAuthenticated: boolean;
   isVerifying: boolean;
   userId: string | null;
-  authMode: AuthMode;
-  login: () => void;
-  logout: () => void;
-  setAuthMode: (mode: AuthMode) => void;
-  loginWithGoogle: () => Promise<void>;
-  checkSecurityQuestions: () => Promise<boolean>;
-  verifySecurityQuestions: (favTeacher: string, bestNightDate: string) => Promise<boolean>;
-  setSecurityQuestions: (favTeacher: string, bestNightDate: string) => Promise<boolean>;
+  isAdmin: boolean;
+  pendingSecurityVerification: boolean;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, name: string) => Promise<void>;
+  login: (userId?: string) => void;
+  logout: () => Promise<void>;
+  setPendingSecurityVerification: (v: boolean) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [authMode, setAuthMode] = useState<AuthMode>("none");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [pendingSecurityVerification, setPendingSecurityVerification] = useState(false);
 
   useEffect(() => {
-    const token = getStoredToken();
-    if (!token) {
-      setIsVerifying(false);
-      return;
-    }
-
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase.functions.invoke<{
-        valid?: boolean;
-        userId?: string;
-      }>("verify-session", { body: { token } });
+      // 1. Check custom token (admin)
+      const token = getStoredToken();
+      if (token) {
+        const { data, error } = await supabase.functions.invoke<{
+          valid?: boolean;
+          userId?: string;
+        }>("verify-session", { body: { token } });
 
-      if (cancelled) return;
-
-      if (!error && data?.valid) {
-        setIsAuthenticated(true);
-        setUserId(data.userId ?? null);
-      } else {
-        setStoredToken(null);
-        setIsAuthenticated(false);
-        setUserId(null);
+        if (!cancelled) {
+          if (!error && data?.valid) {
+            setIsAuthenticated(true);
+            setUserId(data.userId ?? "00000000-0000-0000-0000-000000000000");
+            setIsAdmin(true);
+          } else {
+            setStoredToken(null);
+          }
+          setIsVerifying(false);
+        }
+        return;
       }
-      setIsVerifying(false);
+
+      // 2. Check Supabase session (regular users)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!cancelled && session) {
+        const { data: userData } = await supabase
+          .from("users")
+          .select("is_admin")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (userData?.is_admin) {
+          // Admin logged in via email but no custom token yet
+          setIsAdmin(true);
+          setPendingSecurityVerification(true);
+          setUserId(session.user.id);
+        } else {
+          setIsAuthenticated(true);
+          setUserId(session.user.id);
+        }
+      }
+
+      if (!cancelled) setIsVerifying(false);
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  const checkSecurityQuestions = useCallback(async (): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase.functions.invoke<{
-        hasQuestions?: boolean;
-        questionsConfigured?: boolean;
-      }>("verify-security-questions", { method: "GET" });
+  const loginWithEmail = useCallback(async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
 
-      if (error) throw error;
-      return data?.questionsConfigured || false;
-    } catch (err) {
-      console.error("Failed to check security questions:", err);
-      return false;
+    if (data.session) {
+      const { data: userData } = await supabase
+        .from("users")
+        .select("is_admin")
+        .eq("id", data.session.user.id)
+        .maybeSingle();
+
+      if (userData?.is_admin) {
+        setIsAdmin(true);
+        setPendingSecurityVerification(true);
+        setIsAuthenticated(true);
+        setUserId(data.session.user.id);
+      } else {
+        setIsAuthenticated(true);
+        setUserId(data.session.user.id);
+      }
     }
   }, []);
 
-  const verifySecurityQuestions = useCallback(async (
-    favTeacher: string, 
-    bestNightDate: string
-  ): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase.functions.invoke<{
-        success?: boolean;
-        verified?: boolean;
-      }>("verify-security-questions", { 
-        body: { 
-          action: "verify", 
-          favTeacher, 
-          bestNightDate 
-        } 
-      });
-
-      if (error) throw error;
-      return data?.verified || false;
-    } catch (err) {
-      console.error("Failed to verify security questions:", err);
-      return false;
-    }
-  }, []);
-
-  const setSecurityQuestions = useCallback(async (
-    favTeacher: string, 
-    bestNightDate: string
-  ): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase.functions.invoke<{
-        success?: boolean;
-      }>("verify-security-questions", { 
-        body: { 
-          setQuestions: true, 
-          favTeacher, 
-          bestNightDate 
-        } 
-      });
-
-      if (error) throw error;
-      return data?.success || false;
-    } catch (err) {
-      console.error("Failed to set security questions:", err);
-      return false;
-    }
-  }, []);
-
-  const handleGoogleLogin = useCallback(async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-        },
-      },
+  const signup = useCallback(async (email: string, password: string, name: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name } },
     });
-
-    if (error) {
-      console.error("Google OAuth error:", error);
-      throw error;
-    }
-
-    if (data.url) {
-      window.location.href = data.url;
-    }
+    if (error) throw error;
   }, []);
 
-  const login = useCallback(() => {
+  const login = useCallback((adminUserId?: string) => {
     setIsAuthenticated(true);
+    setPendingSecurityVerification(false);
+    if (adminUserId) setUserId(adminUserId);
   }, []);
 
   const logout = useCallback(async () => {
     setStoredToken(null);
     setIsAuthenticated(false);
     setUserId(null);
-    setAuthMode("none");
+    setIsAdmin(false);
+    setPendingSecurityVerification(false);
     await supabase.auth.signOut();
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ 
-        isAuthenticated, 
-        isVerifying, 
+      value={{
+        isAuthenticated,
+        isVerifying,
         userId,
-        authMode,
-        login, 
+        isAdmin,
+        pendingSecurityVerification,
+        loginWithEmail,
+        signup,
+        login,
         logout,
-        setAuthMode,
-        loginWithGoogle: handleGoogleLogin,
-        checkSecurityQuestions,
-        verifySecurityQuestions,
-        setSecurityQuestions
+        setPendingSecurityVerification,
       }}
     >
       {children}

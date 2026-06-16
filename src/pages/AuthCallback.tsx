@@ -8,10 +8,13 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleCallback = async () => {
+    let cancelled = false;
+    (async () => {
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
+
+        if (cancelled) return;
+
         if (sessionError) {
           console.error("Session error:", sessionError);
           setError("Failed to complete sign in");
@@ -23,10 +26,10 @@ export default function AuthCallback() {
             .from("users")
             .select("id")
             .eq("id", session.user.id)
-            .single();
+            .maybeSingle();
 
           if (!existingUser) {
-            const { error: insertError } = await supabase
+            await supabase
               .from("users")
               .insert({
                 id: session.user.id,
@@ -35,24 +38,8 @@ export default function AuthCallback() {
                 avatar_url: session.user.user_metadata?.avatar_url,
                 is_admin: false,
               });
-
-            if (insertError) {
-              console.error("Failed to create user record:", insertError);
-            }
           }
 
-          const token = crypto.randomUUID() + crypto.randomUUID();
-          const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-          await supabase
-            .from("sessions")
-            .insert({ 
-              token, 
-              expires_at: expiresAt,
-              user_id: session.user.id 
-            });
-
-          localStorage.setItem("flowpost_token", token);
           navigate("/dashboard");
         } else {
           setError("No session found");
@@ -61,9 +48,9 @@ export default function AuthCallback() {
         console.error("Auth callback error:", err);
         setError("Sign in failed");
       }
-    };
+    })();
 
-    handleCallback();
+    return () => { cancelled = true; };
   }, [navigate]);
 
   if (error) {
@@ -71,7 +58,7 @@ export default function AuthCallback() {
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0F0F0F" }}>
         <div className="text-center">
           <p className="text-red-400 mb-4">{error}</p>
-          <a href="/" className="text-primary hover:underline">Go back to login</a>
+          <a href="/" className="text-[#5BB5C4] hover:underline">Go back to login</a>
         </div>
       </div>
     );
@@ -80,7 +67,7 @@ export default function AuthCallback() {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0F0F0F" }}>
       <div className="flex flex-col items-center gap-4">
-        <Loader2 size={32} className="animate-spin text-primary" />
+        <Loader2 size={32} className="animate-spin text-[#5BB5C4]" />
         <p className="text-zinc-400">Completing sign in...</p>
       </div>
     </div>
