@@ -30,13 +30,31 @@ type AuthContextValue = {
   isAdmin: boolean;
   pendingSecurityVerification: boolean;
   loginWithEmail: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   login: (userId?: string) => void;
   logout: () => Promise<void>;
   setPendingSecurityVerification: (v: boolean) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+async function ensureUserRecord(sessionUserId: string, session: any) {
+  const { data: existing } = await supabase
+    .from("users")
+    .select("id")
+    .eq("id", sessionUserId)
+    .maybeSingle();
+
+  if (!existing) {
+    await supabase.from("users").insert({
+      id: sessionUserId,
+      email: session.user.email,
+      name: session.user.user_metadata?.full_name || session.user.email,
+      avatar_url: session.user.user_metadata?.avatar_url,
+      is_admin: false,
+    });
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -69,9 +87,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 2. Check Supabase session (regular users)
+      // 2. Check Supabase session (Google OAuth users)
       const { data: { session } } = await supabase.auth.getSession();
       if (!cancelled && session) {
+        // Auto-create user record if this is their first login via Google OAuth
+        await ensureUserRecord(session.user.id, session);
+
         const { data: userData } = await supabase
           .from("users")
           .select("is_admin")
@@ -79,9 +100,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
 
         if (userData?.is_admin) {
-          // Admin logged in via email but no custom token yet
           setIsAdmin(true);
           setPendingSecurityVerification(true);
+          setIsAuthenticated(true);
           setUserId(session.user.id);
         } else {
           setIsAuthenticated(true);
@@ -118,13 +139,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const signup = useCallback(async (email: string, password: string, name: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: name } },
+  const loginWithGoogle = useCallback(async () => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
     });
+
     if (error) throw error;
+
+    if (data.url) {
+      window.location.href = data.url;
+    }
   }, []);
 
   const login = useCallback((adminUserId?: string) => {
@@ -151,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         pendingSecurityVerification,
         loginWithEmail,
-        signup,
+        loginWithGoogle,
         login,
         logout,
         setPendingSecurityVerification,

@@ -9,48 +9,52 @@ export default function AuthCallback() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    let timeoutId: ReturnType<typeof setTimeout>;
 
-        if (cancelled) return;
+    const handleSession = async (session: any) => {
+      if (!session) return;
 
-        if (sessionError) {
-          console.error("Session error:", sessionError);
-          setError("Failed to complete sign in");
-          return;
-        }
+      const { data: existingUser } = await supabase
+        .from("users")
+        .select("id")
+        .eq("id", session.user.id)
+        .maybeSingle();
 
-        if (session) {
-          const { data: existingUser } = await supabase
-            .from("users")
-            .select("id")
-            .eq("id", session.user.id)
-            .maybeSingle();
-
-          if (!existingUser) {
-            await supabase
-              .from("users")
-              .insert({
-                id: session.user.id,
-                email: session.user.email,
-                name: session.user.user_metadata?.full_name || session.user.email,
-                avatar_url: session.user.user_metadata?.avatar_url,
-                is_admin: false,
-              });
-          }
-
-          navigate("/dashboard");
-        } else {
-          setError("No session found");
-        }
-      } catch (err) {
-        console.error("Auth callback error:", err);
-        setError("Sign in failed");
+      if (!existingUser) {
+        await supabase.from("users").insert({
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.full_name || session.user.email,
+          avatar_url: session.user.user_metadata?.avatar_url,
+          is_admin: false,
+        });
       }
-    })();
 
-    return () => { cancelled = true; };
+      if (!cancelled) navigate("/dashboard");
+    };
+
+    // Listen for SIGNED_IN event (fires when Supabase recovers session from URL hash)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        handleSession(session);
+      }
+    });
+
+    // Also try getSession() as immediate fallback
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) handleSession(session);
+    });
+
+    // Timeout fallback after 10s
+    timeoutId = setTimeout(() => {
+      if (!cancelled) setError("Sign in timed out. Please try again.");
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
   if (error) {
