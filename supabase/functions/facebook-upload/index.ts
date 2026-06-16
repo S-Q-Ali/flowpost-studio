@@ -27,8 +27,9 @@ async function uploadDriveVideoToR2(
   googleToken: string,
   videoId: string,
   title: string,
+  userId: string,
 ): Promise<string> {
-  return uploadDriveMediaToR2(driveUrl, googleToken, videoId, title, false);
+  return uploadDriveMediaToR2(driveUrl, googleToken, videoId, title, false, userId);
 }
 
 async function uploadDriveMediaToR2(
@@ -37,6 +38,7 @@ async function uploadDriveMediaToR2(
   mediaId: string,
   title: string,
   isImage: boolean,
+  userId: string,
 ): Promise<string> {
   const ext = isImage ? ".jpg" : ".mp4";
   const contentType = isImage ? "image/jpeg" : "video/mp4";
@@ -49,7 +51,7 @@ async function uploadDriveMediaToR2(
       body: {
         fileName: `${baseName}${ext}`,
         fileType: contentType,
-        userId: "00000000-0000-0000-0000-000000000000",
+        userId,
       },
     },
   );
@@ -149,7 +151,7 @@ Deno.serve(async (req) => {
     const { data: post, error: postError } = await supabase
       .from("posts")
       .select(
-        "id, video_id, account_id, caption, status, platform",
+        "id, video_id, account_id, caption, status, platform, user_id",
       )
       .eq("id", postId)
       .single();
@@ -199,6 +201,8 @@ Deno.serve(async (req) => {
     let mediaUrl = video.file_url as string;
     const isImage = mediaType === "image";
 
+    const userId = post.user_id ?? "00000000-0000-0000-0000-000000000000";
+
     if (
       (driveDownloadUrl || mediaUrl.includes("googleapis.com")) &&
       googleAccessToken
@@ -212,6 +216,7 @@ Deno.serve(async (req) => {
         post.video_id,
         video.title || post.video_id,
         isImage,
+        userId,
       );
 
       await supabase
