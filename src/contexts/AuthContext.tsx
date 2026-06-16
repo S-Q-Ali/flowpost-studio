@@ -135,8 +135,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Timeout fallback — if no session, stop verifying after 5s
-    timeoutId = setTimeout(resolve, 5000);
+    // Fresh visit (no OAuth hash) → resolve immediately, no 5s delay
+    const hasOAuthHash = window.location.hash.includes("access_token");
+    if (!hasOAuthHash) {
+      resolve();
+    } else {
+      // OAuth callback — wait up to 5s for SIGNED_IN
+      timeoutId = setTimeout(resolve, 5000);
+    }
 
     return () => {
       cancelled = true;
