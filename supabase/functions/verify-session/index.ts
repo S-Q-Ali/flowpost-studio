@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
 
     const { data: session, error } = await supabase
       .from("sessions")
-      .select("id")
+      .select("id, user_id")
       .eq("token", token)
       .gt("expires_at", new Date().toISOString())
       .maybeSingle();
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     }
 
     if (session) {
-      return json({ valid: true });
+      return json({ valid: true, userId: session.user_id });
     }
 
     return json({ valid: false }, 401);

@@ -13,6 +13,7 @@ export type AuthMode = "none" | "password" | "security-questions" | "google";
 type AuthContextValue = {
   isAuthenticated: boolean;
   isVerifying: boolean;
+  userId: string | null;
   authMode: AuthMode;
   login: () => void;
   logout: () => void;
@@ -30,6 +31,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("none");
 
   useEffect(() => {
@@ -43,15 +45,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       const { data, error } = await supabase.functions.invoke<{
         valid?: boolean;
+        userId?: string;
       }>("verify-session", { body: { token } });
 
       if (cancelled) return;
 
       if (!error && data?.valid) {
         setIsAuthenticated(true);
+        setUserId(data.userId ?? null);
       } else {
         setStoredToken(null);
         setIsAuthenticated(false);
+        setUserId(null);
       }
       setIsVerifying(false);
     })();
@@ -152,6 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     setStoredToken(null);
     setIsAuthenticated(false);
+    setUserId(null);
     setAuthMode("none");
     await supabase.auth.signOut();
   }, []);
@@ -161,6 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{ 
         isAuthenticated, 
         isVerifying, 
+        userId,
         authMode,
         login, 
         logout,
