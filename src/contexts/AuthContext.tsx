@@ -171,12 +171,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loginWithEmail = useCallback(async (email: string, password: string) => {
-    let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; }, 15000);
-
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    clearTimeout(timer);
-    if (timedOut) throw new Error("Sign in timed out. Try again.");
+    const result = await Promise.race([
+      supabase.auth.signInWithPassword({ email, password }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timed out. Check your network or try again.")), 15000)
+      ),
+    ]);
+    const { data, error } = result;
     if (error) throw error;
 
     if (data.session) {
