@@ -10,7 +10,7 @@ const YT_CLIENT_SECRET = Deno.env.get("YT_CLIENT_SECRET");
 const SUPABASE_URL = Deno.env.get("SB_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
 
-const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
+const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 if (!YT_CLIENT_ID || !YT_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing required secrets for youtube-auth function");
@@ -132,11 +132,13 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/youtube-auth?action=callback`;
 
     if (action === "url") {
+      const reqUserId = url.searchParams.get("userId") || FALLBACK_USER_ID;
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", YT_CLIENT_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("access_type", "offline");
+      authUrl.searchParams.set("state", reqUserId);
       authUrl.searchParams.set("prompt", "consent");
       authUrl.searchParams.set(
         "scope",
@@ -159,6 +161,7 @@ Deno.serve(async (req) => {
       }
 
       const code = url.searchParams.get("code");
+      const userId = url.searchParams.get("state") || FALLBACK_USER_ID;
       if (!code) return html("<html><body>Missing code</body></html>", 400);
 
       const tokens = await exchangeCodeForTokens(code, redirectUri);
@@ -172,7 +175,7 @@ Deno.serve(async (req) => {
         const { data: existing } = await supabaseAdmin
           .from("connected_accounts")
           .select("refresh_token")
-          .eq("user_id", PERSONAL_USER_ID)
+          .eq("user_id", userId)
           .eq("platform", "youtube")
           .eq("account_id", channelId)
           .maybeSingle();
@@ -183,7 +186,7 @@ Deno.serve(async (req) => {
         .from("connected_accounts")
         .upsert(
           {
-            user_id: PERSONAL_USER_ID,
+            user_id: userId,
             platform: "youtube",
             account_name: channelTitle,
             account_id: channelId,

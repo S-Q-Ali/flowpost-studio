@@ -145,7 +145,7 @@ export default function AccountsPage() {
   const connectYouTube = async () => {
     setIsYouTubeConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("youtube-auth?action=url", {
+      const { data, error } = await supabase.functions.invoke(`youtube-auth?action=url&userId=${userId}`, {
         method: "GET",
         headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
@@ -205,7 +205,7 @@ export default function AccountsPage() {
   const connectFacebook = async () => {
     setIsFacebookConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("facebook-auth?action=url", {
+      const { data, error } = await supabase.functions.invoke(`facebook-auth?action=url&userId=${userId}`, {
         method: "GET",
         headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
@@ -265,7 +265,7 @@ export default function AccountsPage() {
   const connectTikTok = async () => {
     setIsTikTokConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("tiktok-auth?action=url", {
+      const { data, error } = await supabase.functions.invoke(`tiktok-auth?action=url&userId=${userId}`, {
         method: "GET",
         headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });

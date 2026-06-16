@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SB_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SB_ANON_KEY");
 
-const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
+const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 if (!FB_APP_ID || !FB_APP_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
   console.error("Missing required secrets for facebook-auth function");
@@ -120,9 +120,11 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/facebook-auth?action=callback`;
 
     if (action === "url") {
+      const reqUserId = url.searchParams.get("userId") || FALLBACK_USER_ID;
       const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
       authUrl.searchParams.set("client_id", FB_APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
+      authUrl.searchParams.set("state", reqUserId);
       const scope = [
         'public_profile',
         'pages_show_list',
@@ -148,6 +150,7 @@ Deno.serve(async (req) => {
       }
 
       const code = url.searchParams.get("code");
+      const userId = url.searchParams.get("state") || FALLBACK_USER_ID;
       if (!code) return html("<html><body>Missing code</body></html>", 400);
 
       const shortLived = await exchangeCodeForUserToken(code, redirectUri);
@@ -164,7 +167,7 @@ Deno.serve(async (req) => {
           .from("connected_accounts")
           .upsert(
             {
-              user_id: PERSONAL_USER_ID,
+              user_id: userId,
               platform: "facebook",
               account_name: page.name ?? "Facebook Page",
               account_id: page.id,
@@ -194,7 +197,7 @@ Deno.serve(async (req) => {
             .from("connected_accounts")
             .upsert(
               {
-                user_id: PERSONAL_USER_ID,
+                user_id: userId,
                 platform: "instagram",
                 account_name: igAccount.username || igAccount.name || "Instagram",
                 account_id: igAccount.id,
