@@ -35,13 +35,14 @@ import { Trash2, Pencil, ListTodo, Video, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { PERSONAL_USER_ID } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Post, Platform, PostStatus } from "@/lib/types";
 const filters = ["all", "scheduled", "processing", "published", "failed"] as const;
 
 type PostWithDetails = Post & { channelName?: string | null };
 
 export default function QueuePage() {
+  const { userId } = useAuth();
   const [posts, setPosts] = useState<PostWithDetails[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -57,10 +58,11 @@ export default function QueuePage() {
   const [saving, setSaving] = useState(false);
 
   const fetchPosts = async () => {
+    if (!userId) return;
     const { data: postsData } = await supabase
       .from("posts")
       .select("*, videos(id, title, file_url, thumbnail_url)")
-      .eq("user_id", PERSONAL_USER_ID)
+      .eq("user_id", userId)
       .order("scheduled_at", { ascending: true });
 
     let list = (postsData as PostWithDetails[]) ?? [];
@@ -72,7 +74,7 @@ export default function QueuePage() {
       const { data: accounts } = await supabase
         .from("connected_accounts")
         .select("account_id, account_name")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .in("account_id", accountIds);
       if (accounts) {
         accountMap = Object.fromEntries(accounts.map((a) => [a.account_id, a.account_name ?? ""]));

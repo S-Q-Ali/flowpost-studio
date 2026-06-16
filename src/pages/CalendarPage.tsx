@@ -7,23 +7,25 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChevronLeft, ChevronRight, List, CalendarDays } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from "date-fns";
-import { PERSONAL_USER_ID } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Post, Platform, PostStatus } from "@/lib/types";
 import { toast } from "sonner";
 
 export default function CalendarPage() {
+  const { userId } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [view, setView] = useState<"month" | "list">("month");
 
   const fetchPosts = async () => {
+    if (!userId) return;
     const start = startOfMonth(currentMonth).toISOString();
     const end = endOfMonth(currentMonth).toISOString();
     const { data } = await supabase
       .from("posts")
       .select("*, videos(*)")
-      .eq("user_id", PERSONAL_USER_ID)
+      .eq("user_id", userId)
       .gte("scheduled_at", start)
       .lte("scheduled_at", end)
       .order("scheduled_at", { ascending: true });

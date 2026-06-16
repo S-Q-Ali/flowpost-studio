@@ -7,10 +7,11 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { PERSONAL_USER_ID } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 import type { ConnectedAccount, Platform } from "@/lib/types";
 
 export default function AccountsPage() {
+  const { userId } = useAuth();
   const [isYouTubeConnecting, setIsYouTubeConnecting] = useState(false);
   const [isFacebookConnecting, setIsFacebookConnecting] = useState(false);
   const [isTikTokConnecting, setIsTikTokConnecting] = useState(false);
@@ -24,7 +25,7 @@ export default function AccountsPage() {
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("*")
-      .eq("user_id", PERSONAL_USER_ID)
+      .eq("user_id", userId)
       .eq("platform", "facebook")
       .eq("is_connected", true);
 
@@ -42,7 +43,7 @@ export default function AccountsPage() {
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("*")
-      .eq("user_id", PERSONAL_USER_ID)
+      .eq("user_id", userId)
       .eq("platform", "instagram")
       .eq("is_connected", true);
 
@@ -60,7 +61,7 @@ export default function AccountsPage() {
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("*")
-      .eq("user_id", PERSONAL_USER_ID)
+      .eq("user_id", userId)
       .eq("platform", "youtube")
       .eq("is_connected", true);
 
@@ -78,7 +79,7 @@ export default function AccountsPage() {
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("*")
-      .eq("user_id", PERSONAL_USER_ID)
+      .eq("user_id", userId)
       .eq("platform", "tiktok")
       .eq("is_connected", true);
 
@@ -109,7 +110,7 @@ export default function AccountsPage() {
           event: "INSERT",
           schema: "public",
           table: "connected_accounts",
-          filter: `user_id=eq.${PERSONAL_USER_ID}`,
+          filter: `user_id=eq.${userId}`,
         },
         () => {
           refreshAll();
@@ -121,7 +122,7 @@ export default function AccountsPage() {
           event: "UPDATE",
           schema: "public",
           table: "connected_accounts",
-          filter: `user_id=eq.${PERSONAL_USER_ID}`,
+          filter: `user_id=eq.${userId}`,
         },
         () => {
           refreshAll();
@@ -326,7 +327,7 @@ export default function AccountsPage() {
     const { error } = await supabase
       .from("connected_accounts")
       .update({ is_connected: false })
-      .eq("user_id", PERSONAL_USER_ID)
+      .eq("user_id", userId)
       .eq("platform", "youtube")
       .eq("account_id", accountId);
 
@@ -344,7 +345,7 @@ export default function AccountsPage() {
     const { error } = await supabase
       .from("connected_accounts")
       .update({ is_connected: next })
-      .eq("user_id", PERSONAL_USER_ID)
+      .eq("user_id", userId)
       .eq("platform", platform)
       .eq("account_id", accountId);
 
@@ -361,7 +362,7 @@ export default function AccountsPage() {
     const { error } = await supabase
       .from("connected_accounts")
       .update({ is_connected: false })
-      .eq("user_id", PERSONAL_USER_ID)
+      .eq("user_id", userId)
       .eq("platform", "tiktok")
       .eq("account_id", accountId);
 

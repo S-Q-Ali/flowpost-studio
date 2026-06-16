@@ -15,7 +15,7 @@ import { Upload, CalendarIcon, Loader2, Youtube, Instagram, Facebook } from "luc
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { PERSONAL_USER_ID } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Platform } from "@/lib/types";
 import type { ConnectedAccount } from "@/lib/types";
 import { uploadToR2 } from "@/lib/r2";
@@ -32,6 +32,7 @@ const platforms: { id: Platform; label: string }[] = [
 ];
 
 export default function UploadPage() {
+  const { userId } = useAuth();
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [youtubeTitle, setYoutubeTitle] = useState("");
@@ -70,28 +71,28 @@ export default function UploadPage() {
       const { data: yt } = await supabase
         .from("connected_accounts")
         .select("*")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("platform", "youtube")
         .eq("is_connected", true);
 
       const { data: fb } = await supabase
         .from("connected_accounts")
         .select("*")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("platform", "facebook")
         .eq("is_connected", true);
 
       const { data: ig } = await supabase
         .from("connected_accounts")
         .select("*")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("platform", "instagram")
         .eq("is_connected", true);
 
       const { data: tt } = await supabase
         .from("connected_accounts")
         .select("*")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("platform", "tiktok")
         .eq("is_connected", true);
 
@@ -203,14 +204,14 @@ export default function UploadPage() {
       const youtubeSelectedNow = selectedPlatforms.includes("youtube");
 
       if (!videoId) {
-        const publicUrl = await uploadToR2(file, PERSONAL_USER_ID, (percent) => setUploadProgress(percent));
+        const publicUrl = await uploadToR2(file, userId, (percent) => setUploadProgress(percent));
 
         const computedTitle =
           youtubeSelectedNow && youtubeTitle.trim().length > 0 ? youtubeTitle.trim() : file.name;
 
         const { data: video, error: videoError } = await supabase
           .from("videos")
-          .insert({ user_id: PERSONAL_USER_ID, title: computedTitle, file_url: publicUrl })
+          .insert({ user_id: userId, title: computedTitle, file_url: publicUrl })
           .select()
           .single();
         if (videoError) throw videoError;
@@ -248,7 +249,7 @@ export default function UploadPage() {
             }
             const platformCaption = youtubeDescription.trim() || null;
             posts.push({
-              user_id: PERSONAL_USER_ID,
+              user_id: userId,
               video_id: videoId,
               platform: "youtube",
               account_id: accountId,
@@ -276,7 +277,7 @@ export default function UploadPage() {
             }
             const platformCaption = instagramCaption.trim() || null;
             posts.push({
-              user_id: PERSONAL_USER_ID,
+              user_id: userId,
               video_id: videoId,
               platform: "instagram",
               account_id: accountId,
@@ -305,7 +306,7 @@ export default function UploadPage() {
             }
             const platformCaption = facebookCaption.trim() || null;
             posts.push({
-              user_id: PERSONAL_USER_ID,
+              user_id: userId,
               video_id: videoId,
               platform: "facebook",
               account_id: accountId,
@@ -332,7 +333,7 @@ export default function UploadPage() {
             }
             const platformCaption = tiktokCaption.trim() || null;
             posts.push({
-              user_id: PERSONAL_USER_ID,
+              user_id: userId,
               video_id: videoId,
               platform: "tiktok",
               account_id: accountId,
@@ -358,7 +359,7 @@ export default function UploadPage() {
       const { data: workflows } = await supabase
         .from("workflows")
         .select("*")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("is_active", true);
 
       if (workflows && workflows.length > 0) {
@@ -374,7 +375,7 @@ export default function UploadPage() {
               ? wf.caption_template.replace("{{title}}", youtubeTitle || file.name).replace("{{hashtags}}", hashtags)
               : baseCaption;
             workflowPosts.push({
-              user_id: PERSONAL_USER_ID,
+              user_id: userId,
               video_id: videoId,
               platform: p,
               caption: wfCaption,

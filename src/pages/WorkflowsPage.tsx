@@ -30,7 +30,7 @@ import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Cl
 import { toast } from "sonner";
 import type { Platform, ConnectedAccount } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { PERSONAL_USER_ID } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
 
 type WorkflowRow = {
@@ -91,6 +91,7 @@ const platformOptions: { id: Platform; label: string; icon: React.ComponentType<
 ];
 
 export default function WorkflowsPage() {
+  const { userId } = useAuth();
   const [workflows, setWorkflows] = useState<WorkflowRow[]>([]);
   const [youtubeAccounts, setYoutubeAccounts] = useState<ConnectedAccount[]>([]);
   const [facebookAccounts, setFacebookAccounts] = useState<ConnectedAccount[]>([]);
@@ -133,7 +134,7 @@ export default function WorkflowsPage() {
     const { data, error } = await supabase
       .from("workflows")
       .select("*")
-      .eq("user_id", PERSONAL_USER_ID)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
     if (error) {
       toast.error(error.message);
@@ -147,25 +148,25 @@ export default function WorkflowsPage() {
       supabase
         .from("connected_accounts")
         .select("*")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("platform", "youtube")
         .eq("is_connected", true),
       supabase
         .from("connected_accounts")
         .select("*")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("platform", "facebook")
         .eq("is_connected", true),
       supabase
         .from("connected_accounts")
         .select("*")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("platform", "instagram")
         .eq("is_connected", true),
       supabase
         .from("connected_accounts")
         .select("*")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("platform", "tiktok")
         .eq("is_connected", true),
     ]);
@@ -294,7 +295,7 @@ export default function WorkflowsPage() {
     setIsSaving(true);
     try {
       const payload = {
-        user_id: PERSONAL_USER_ID,
+        user_id: userId,
         name: workflowName.trim(),
         is_active: isActive,
         media_type: mediaType,
