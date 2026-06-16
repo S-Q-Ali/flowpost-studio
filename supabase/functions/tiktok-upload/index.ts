@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
   try {
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, account_id, caption, video_id, metadata, platform")
+      .select("id, account_id, caption, video_id, metadata, platform, user_id")
       .eq("id", postId)
       .single();
 
@@ -133,10 +133,12 @@ Deno.serve(async (req) => {
       return json({ error: "TikTok does not support image uploads" }, 400);
     }
 
+    const userId = post.user_id ?? "00000000-0000-0000-0000-000000000000";
+
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
       .select("id, access_token, token_expiry, is_connected")
-      .eq("user_id", "00000000-0000-0000-0000-000000000000")
+      .eq("user_id", userId)
       .eq("platform", "tiktok")
       .eq("account_id", post.account_id)
       .maybeSingle();
@@ -162,7 +164,7 @@ Deno.serve(async (req) => {
       const { data: refreshed } = await supabase
         .from("connected_accounts")
         .select("access_token, token_expiry")
-        .eq("user_id", "00000000-0000-0000-0000-000000000000")
+        .eq("user_id", userId)
         .eq("platform", "tiktok")
         .eq("account_id", post.account_id)
         .single();
