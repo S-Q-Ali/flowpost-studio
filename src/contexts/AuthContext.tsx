@@ -65,16 +65,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      // 1. Check custom token (admin)
-      const token = getStoredToken();
-      if (token) {
-        const { data, error } = await supabase.functions.invoke<{
-          valid?: boolean;
-          userId?: string;
-        }>("verify-session", { body: { token } });
+    let resolved = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
-        if (!cancelled) {
+    const resolve = () => {
+      if (!resolved && !cancelled) {
+        resolved = true;
+        setIsVerifying(false);
+      }
+    };
+
+    // 1. Check custom token (admin)
+    const token = getStoredToken();
+    if (token) {
+      supabase.functions.invoke<{ valid?: boolean; userId?: string }>("verify-session", { body: { token } })
+        .then(({ data, error }) => {
+          if (cancelled) return;
           if (!error && data?.valid) {
             setIsAuthenticated(true);
             setUserId(data.userId ?? "00000000-0000-0000-0000-000000000000");
@@ -82,38 +88,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             setStoredToken(null);
           }
-          setIsVerifying(false);
+          resolve();
+        });
+      return;
+    }
+
+    // 2. No custom token → subscribe to Supabase auth state
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (cancelled) return;
+
+        if (event === "SIGNED_IN" && session) {
+          await ensureUserRecord(session.user.id, session);
+
+          if (cancelled) return;
+
+          const { data: userData } = await supabase
+            .from("users")
+            .select("is_admin")
+            .eq("id", session.user.id)
+            .maybeSingle();
+
+          if (userData?.is_admin) {
+            setIsAdmin(true);
+            setPendingSecurityVerification(true);
+            setIsAuthenticated(true);
+            setUserId(session.user.id);
+          } else {
+            setIsAuthenticated(true);
+            setUserId(session.user.id);
+          }
+
+          resolve();
         }
-        return;
-      }
 
-      // 2. Check Supabase session (Google OAuth users)
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!cancelled && session) {
-        // Auto-create user record if this is their first login via Google OAuth
-        await ensureUserRecord(session.user.id, session);
-
-        const { data: userData } = await supabase
-          .from("users")
-          .select("is_admin")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
-        if (userData?.is_admin) {
-          setIsAdmin(true);
-          setPendingSecurityVerification(true);
-          setIsAuthenticated(true);
-          setUserId(session.user.id);
-        } else {
-          setIsAuthenticated(true);
-          setUserId(session.user.id);
+        if (event === "SIGNED_OUT") {
+          const t = getStoredToken();
+          if (!t) {
+            setIsAuthenticated(false);
+            setUserId(null);
+            setIsAdmin(false);
+            setPendingSecurityVerification(false);
+          }
+          resolve();
         }
       }
+    );
 
-      if (!cancelled) setIsVerifying(false);
-    })();
+    // Timeout fallback — if no session, stop verifying after 5s
+    timeoutId = setTimeout(resolve, 5000);
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loginWithEmail = useCallback(async (email: string, password: string) => {
