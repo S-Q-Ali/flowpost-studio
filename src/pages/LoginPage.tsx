@@ -16,7 +16,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
+  const [emailVerifying, setEmailVerifying] = useState(false);
+  const [googleVerifying, setGoogleVerifying] = useState(false);
 
   useEffect(() => {
     const signupClosed = localStorage.getItem("flowpost_signup_closed");
@@ -33,7 +34,7 @@ export default function LoginPage() {
       return;
     }
     setError(null);
-    setVerifying(true);
+    setEmailVerifying(true);
 
     try {
       await loginWithEmail(email, password);
@@ -42,19 +43,19 @@ export default function LoginPage() {
       const msg = err?.message || "Sign in failed";
       setError(msg);
     } finally {
-      setVerifying(false);
+      setEmailVerifying(false);
     }
   }, [email, password, loginWithEmail, navigate]);
 
   const handleGoogle = useCallback(async () => {
     setError(null);
-    setVerifying(true);
+    setGoogleVerifying(true);
     try {
       await loginWithGoogle();
     } catch (err: any) {
       const msg = err?.message || "Google sign-in failed";
       setError(msg);
-      setVerifying(false);
+      setGoogleVerifying(false);
     }
   }, [loginWithGoogle]);
 
@@ -76,13 +77,14 @@ export default function LoginPage() {
           <CardContent className="pt-6 space-y-4">
             <Button
               onClick={handleGoogle}
-              disabled={verifying}
+              disabled={googleVerifying}
               className="w-full h-12 rounded-xl font-medium bg-white text-gray-900 hover:bg-gray-100 disabled:opacity-70"
             >
-              {verifying ? (
-                <Loader2 size={18} className="animate-spin mr-2" />
-              ) : null}
-              Continue with Google
+              {googleVerifying ? (
+                <><Loader2 size={18} className="animate-spin mr-2" /> Signing in...</>
+              ) : (
+                "Continue with Google"
+              )}
             </Button>
 
             <div className="relative">
@@ -106,7 +108,7 @@ export default function LoginPage() {
                     onChange={(e) => { setEmail(e.target.value); setError(null); }}
                     placeholder="admin@example.com"
                     autoFocus
-                    disabled={verifying}
+                    disabled={emailVerifying}
                     className="h-11 pl-10 rounded-xl border-zinc-700 bg-zinc-900/80 text-white placeholder:text-zinc-500 focus-visible:ring-2 focus-visible:ring-[#5BB5C4] focus-visible:border-[#5BB5C4]"
                     autoComplete="email"
                   />
@@ -123,7 +125,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(null); }}
                     placeholder="Enter password"
-                    disabled={verifying}
+                    disabled={emailVerifying}
                     className="h-11 pl-10 pr-12 rounded-xl border-zinc-700 bg-zinc-900/80 text-white placeholder:text-zinc-500 focus-visible:ring-2 focus-visible:ring-[#5BB5C4] focus-visible:border-[#5BB5C4]"
                     autoComplete="current-password"
                   />
@@ -145,10 +147,10 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                disabled={verifying || !email || !password}
+                disabled={emailVerifying || !email || !password}
                 className="w-full h-11 rounded-xl font-medium bg-[#5BB5C4] text-white transition-all hover:opacity-90 disabled:opacity-50"
               >
-                {verifying ? (
+                {emailVerifying ? (
                   <><Loader2 size={18} className="animate-spin mr-2" /> Signing in...</>
                 ) : (
                   "Sign In"
