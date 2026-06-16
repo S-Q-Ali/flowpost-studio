@@ -9,7 +9,7 @@ const SB_URL = Deno.env.get("SB_URL");
 const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
 const GOOGLE_FALLBACK_SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID") || undefined;
 
-const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
+const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
   console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for process-workflow");
@@ -205,8 +205,6 @@ Deno.serve(async (req) => {
   const filters: Record<string, unknown> = { is_active: true };
   if (workflowId) {
     filters.id = workflowId;
-  } else {
-    filters.user_id = PERSONAL_USER_ID;
   }
 
   const { data: workflows, error: wfError } = await supabase
@@ -519,10 +517,11 @@ Deno.serve(async (req) => {
         const fileExt = isImageWorkflow ? ".jpg" : ".mp4";
         const fileName = `${baseName}${fileExt}`;
 
+        const currentUserId = wf.user_id ?? FALLBACK_USER_ID;
         const { data: videoRecord, error: videoError } = await supabase
           .from("videos")
           .insert({
-            user_id: PERSONAL_USER_ID,
+            user_id: currentUserId,
             title: videoDisplayName,
             file_url: driveDownloadUrl,
             media_type: mediaType,
@@ -576,7 +575,7 @@ Deno.serve(async (req) => {
             for (const accountId of ytAccounts) {
               const ytCaption = ytDescIdx !== undefined && row[ytDescIdx] ? row[ytDescIdx] : "";
               postsPayload.push({
-                user_id: PERSONAL_USER_ID,
+                user_id: currentUserId,
                 video_id: videoRecord.id,
                 platform: "youtube",
                 account_id: accountId,
@@ -594,7 +593,7 @@ Deno.serve(async (req) => {
             for (const accountId of fbAccounts) {
               const fbCaption = fbIgCaptionIdx !== undefined && row[fbIgCaptionIdx] ? row[fbIgCaptionIdx] : "";
               postsPayload.push({
-                user_id: PERSONAL_USER_ID,
+                user_id: currentUserId,
                 video_id: videoRecord.id,
                 platform: "facebook",
                 account_id: accountId,
@@ -610,7 +609,7 @@ Deno.serve(async (req) => {
             for (const accountId of igAccounts) {
               const igCaption = fbIgCaptionIdx !== undefined && row[fbIgCaptionIdx] ? row[fbIgCaptionIdx] : "";
               postsPayload.push({
-                user_id: PERSONAL_USER_ID,
+                user_id: currentUserId,
                 video_id: videoRecord.id,
                 platform: "instagram",
                 account_id: accountId,
@@ -626,7 +625,7 @@ Deno.serve(async (req) => {
             for (const accountId of ttAccounts) {
               const ttCaption = tiktokCaptionIdx !== undefined && row[tiktokCaptionIdx] ? row[tiktokCaptionIdx] : "";
               postsPayload.push({
-                user_id: PERSONAL_USER_ID,
+                user_id: currentUserId,
                 video_id: videoRecord.id,
                 platform: "tiktok",
                 account_id: accountId,
