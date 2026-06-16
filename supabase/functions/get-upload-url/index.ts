@@ -45,10 +45,10 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_ANON_KEY"),
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
   ].filter(Boolean) as string[];
-  const isAuthorized =
+  const hasValidKey =
     (bearerToken && validKeys.includes(bearerToken)) ||
     (apikeyHeader && validKeys.includes(apikeyHeader));
-  if (!isAuthorized) {
+  if (!hasValidKey && !bearerToken) {
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
       { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
