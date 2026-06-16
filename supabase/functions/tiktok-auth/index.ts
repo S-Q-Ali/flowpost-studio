@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SB_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SB_ANON_KEY");
 
-const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000000";
+const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 if (!TIKTOK_CLIENT_KEY || !TIKTOK_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing required secrets for tiktok-auth function");
@@ -44,6 +44,22 @@ function generateState(): string {
   const arr = new Uint8Array(24);
   crypto.getRandomValues(arr);
   return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function encodeStateParam(userId: string): string {
+  const rawState = generateState();
+  const obj = JSON.stringify({ r: rawState, u: userId });
+  return btoa(obj).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function decodeUserIdFromState(encoded: string): string | null {
+  try {
+    const json = atob(encoded.replace(/-/g, "+").replace(/_/g, "/"));
+    const obj = JSON.parse(json);
+    return obj?.u || null;
+  } catch {
+    return null;
+  }
 }
 
 async function exchangeCodeForToken(code: string) {
@@ -131,6 +147,7 @@ Deno.serve(async (req) => {
 
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
+      const userId = decodeUserIdFromState(state ?? "") || FALLBACK_USER_ID;
       if (!code || !state) {
         return html("<html><body>Missing code or state</body></html>", 400);
       }
@@ -187,7 +204,7 @@ Deno.serve(async (req) => {
         .from("connected_accounts")
         .upsert(
           {
-            user_id: PERSONAL_USER_ID,
+            user_id: userId,
             platform: "tiktok",
             account_name: display_name,
             account_id: openId,
@@ -216,7 +233,8 @@ Deno.serve(async (req) => {
     const actionFromQuery = url.searchParams.get("action");
 
     if (actionFromQuery === "url") {
-      const state = generateState();
+      const reqUserId = url.searchParams.get("userId") || FALLBACK_USER_ID;
+      const state = encodeStateParam(reqUserId);
       const expiresAtIso = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
       const { error: stateInsertError } = await supabaseAdmin
@@ -240,12 +258,13 @@ Deno.serve(async (req) => {
 
     if (actionFromQuery === "refresh") {
       const openId = url.searchParams.get("open_id");
+      const userId = url.searchParams.get("userId") || FALLBACK_USER_ID;
       if (!openId) return json({ error: "Missing open_id" }, 400);
 
       const { data: account, error: accountError } = await supabaseAdmin
         .from("connected_accounts")
         .select("metadata, token_expiry")
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("platform", "tiktok")
         .eq("account_id", openId)
         .maybeSingle();
@@ -277,7 +296,7 @@ Deno.serve(async (req) => {
             scope: refreshed.scope,
           },
         })
-        .eq("user_id", PERSONAL_USER_ID)
+        .eq("user_id", userId)
         .eq("platform", "tiktok")
         .eq("account_id", openId);
 

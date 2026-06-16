@@ -44,8 +44,8 @@ function validateUrl(url: string): boolean {
   }
 }
 
-async function refreshTikTokToken(openId: string): Promise<string> {
-  const url = `${SB_URL}/functions/v1/tiktok-auth?action=refresh&open_id=${encodeURIComponent(openId)}`;
+async function refreshTikTokToken(openId: string, userId: string): Promise<string> {
+  const url = `${SB_URL}/functions/v1/tiktok-auth?action=refresh&open_id=${encodeURIComponent(openId)}&userId=${encodeURIComponent(userId)}`;
   const res = await fetch(url, {
     method: "GET",
     headers: {
@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
     const tokenExpiry = account.token_expiry ? new Date(account.token_expiry) : null;
     if (!tokenExpiry || tokenExpiry <= new Date()) {
       console.log("TikTok token expired, refreshing");
-      await refreshTikTokToken(post.account_id);
+      await refreshTikTokToken(post.account_id, userId);
       const { data: refreshed } = await supabase
         .from("connected_accounts")
         .select("access_token, token_expiry")
