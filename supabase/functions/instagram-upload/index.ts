@@ -258,40 +258,60 @@ Deno.serve(async (req) => {
 
     console.log("Container created:", container.id);
 
-    await new Promise((r) => setTimeout(r, 60000));
-
+    const MAX_POLL_ATTEMPTS = 8;
+    const POLL_INTERVAL = 30000;
     let publishResult: Record<string, unknown> | null = null;
-    for (let attempt = 0; attempt < 5; attempt++) {
+
+    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
       if (attempt > 0) {
-        console.log(`Publish attempt ${attempt + 1}...`);
-        await new Promise((r) => setTimeout(r, 30000));
+        console.log(`Container status poll attempt ${attempt + 1}...`);
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL));
       }
 
-      const publishForm = new URLSearchParams();
-      publishForm.append("creation_id", container.id);
-      publishForm.append("access_token", accessToken);
-
-      const publishRes = await fetch(
-        `https://graph.facebook.com/v25.0/${igUserId}/media_publish`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: publishForm.toString(),
-        },
+      // Check container processing status
+      const statusRes = await fetch(
+        `https://graph.facebook.com/v25.0/${container.id}?fields=status_code&access_token=${accessToken}`,
       );
-      publishResult = await publishRes.json() as Record<string, unknown>;
+      const statusData = await statusRes.json() as Record<string, unknown>;
 
-      if (publishResult?.id) {
-        console.log("Publish succeeded:", JSON.stringify(publishResult));
+      if (statusData.status_code === "FINISHED") {
+        // Container is ready — publish
+        const publishForm = new URLSearchParams();
+        publishForm.append("creation_id", container.id);
+        publishForm.append("access_token", accessToken);
+
+        const publishRes = await fetch(
+          `https://graph.facebook.com/v25.0/${igUserId}/media_publish`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: publishForm.toString(),
+          },
+        );
+        publishResult = await publishRes.json() as Record<string, unknown>;
+
+        if (publishResult?.id) {
+          console.log("Publish succeeded:", JSON.stringify(publishResult));
+          break;
+        }
+        console.log(`Publish attempt ${attempt + 1} failed:`, JSON.stringify(publishResult));
+        if (publishResult.error) {
+          // Non-retryable errors (e.g. expired container)
+          console.error("Non-retryable publish error, giving up");
+          break;
+        }
+      } else if (statusData.status_code === "EXPIRED") {
+        console.error("Container expired");
         break;
+      } else {
+        console.log(`Container status: ${statusData.status_code || JSON.stringify(statusData)} (attempt ${attempt + 1})`);
       }
-      console.log(`Publish attempt ${attempt + 1} failed:`, JSON.stringify(publishResult));
     }
 
     if (!publishResult?.id) {
-      console.error("Publish failed after 3 attempts");
+      console.error("Publish failed after 8 attempts");
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json({ error: `Publish failed after 3 attempts: ${JSON.stringify(publishResult)}` }, 502);
+      return json({ error: `Publish failed after 8 attempts: ${JSON.stringify(publishResult)}` }, 502);
     }
 
     await supabase
