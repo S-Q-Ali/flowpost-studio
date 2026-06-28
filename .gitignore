@@ -26,4 +26,6 @@ dist-ssr
 # Environment and secrets
 .env
 flowpost-wrokflow.json
+zinc-bucksaw-489020-n0-d456522f61c7.json
 *.local
+supabase/.temp/

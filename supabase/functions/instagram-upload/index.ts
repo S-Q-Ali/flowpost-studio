@@ -8,6 +8,7 @@ const corsHeaders = {
 const SB_URL = Deno.env.get("SB_URL");
 const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
 const SB_ANON_KEY = Deno.env.get("SB_ANON_KEY");
+const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "pub-1d4bcccec36046308147315db8637398.r2.dev";
 
 if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
   console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for instagram-upload");
@@ -20,7 +21,7 @@ const supabase = createClient(SB_URL!, SB_SERVICE_ROLE_KEY!, {
 const ALLOWED_DOMAINS = [
   "www.googleapis.com",
   "drive.google.com",
-  "pub-1d4bcccec36046308147315db8637398.r2.dev",
+  R2_PUBLIC_URL,
   "graph.facebook.com",
 ];
 
