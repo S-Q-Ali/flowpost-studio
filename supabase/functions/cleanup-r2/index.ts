@@ -186,7 +186,6 @@ Deno.serve(async (req) => {
     const { data: r2Videos, error: fetchError } = await supabase
       .from("videos")
       .select("id, file_url, title, uploaded_at")
-      .eq("user_id", "00000000-0000-0000-0000-000000000000")
       .like("file_url", "%pub-%");
 
     if (fetchError) {

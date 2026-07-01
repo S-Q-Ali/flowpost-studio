@@ -5,21 +5,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const ADMIN_USER_ID_FALLBACK = "00000000-0000-0000-0000-000000000000";
+const SB_URL = Deno.env.get("SB_URL");
+const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
 
-const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
+const supabase = createClient(SB_URL!, SB_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
 
 async function getAdminUserId(): Promise<string> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("users")
     .select("id")
     .eq("is_admin", true)
     .maybeSingle();
-  return data?.id ?? ADMIN_USER_ID_FALLBACK;
+  if (error || !data?.id) {
+    throw new Error("No admin user found");
+  }
+  return data.id;
 }
 
 const MAX_ATTEMPTS = 5;

@@ -11,8 +11,6 @@ const SUPABASE_URL = Deno.env.get("SB_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SB_ANON_KEY");
 
-const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
-
 if (!TIKTOK_CLIENT_KEY || !TIKTOK_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing required secrets for tiktok-auth function");
 }
@@ -147,7 +145,7 @@ Deno.serve(async (req) => {
 
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
-      const userId = decodeUserIdFromState(state ?? "") || FALLBACK_USER_ID;
+      const userId = decodeUserIdFromState(state ?? "") ?? "";
       if (!code || !state) {
         return html("<html><body>Missing code or state</body></html>", 400);
       }
@@ -233,7 +231,7 @@ Deno.serve(async (req) => {
     const actionFromQuery = url.searchParams.get("action");
 
     if (actionFromQuery === "url") {
-      const reqUserId = url.searchParams.get("userId") || FALLBACK_USER_ID;
+      const reqUserId = url.searchParams.get("userId") ?? "";
       const state = encodeStateParam(reqUserId);
       const expiresAtIso = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
@@ -258,7 +256,7 @@ Deno.serve(async (req) => {
 
     if (actionFromQuery === "refresh") {
       const openId = url.searchParams.get("open_id");
-      const userId = url.searchParams.get("userId") || FALLBACK_USER_ID;
+      const userId = url.searchParams.get("userId") ?? "";
       if (!openId) return json({ error: "Missing open_id" }, 400);
 
       const { data: account, error: accountError } = await supabaseAdmin

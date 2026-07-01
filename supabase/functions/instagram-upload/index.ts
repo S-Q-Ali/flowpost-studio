@@ -187,10 +187,26 @@ Deno.serve(async (req) => {
       return json({ error: "Connected Instagram account not found" }, 404);
     }
 
-    const accessToken = account.access_token as string;
+    let accessToken = account.access_token as string;
     const igUserId = account.account_id as string;
 
-    const userId = post.user_id ?? "00000000-0000-0000-0000-000000000000";
+    if (account.token_expiry && new Date(account.token_expiry) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) {
+      try {
+        const refreshRes = await fetch(`${SB_URL}/functions/v1/facebook-auth`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "refresh", account_id: post.account_id }),
+        });
+        const refreshData = await refreshRes.json();
+        if (refreshData.access_token) {
+          accessToken = refreshData.access_token;
+        }
+      } catch (e) {
+        console.error("Facebook token refresh failed, continuing with existing token:", e);
+      }
+    }
+
+    const userId = post.user_id ?? "";
     let mediaUrl = video.file_url as string;
 
     if (
@@ -259,7 +275,7 @@ Deno.serve(async (req) => {
 
     console.log("Container created:", container.id);
 
-    const MAX_POLL_ATTEMPTS = 8;
+    const MAX_POLL_ATTEMPTS = 20;
     const POLL_INTERVAL = 30000;
     let publishResult: Record<string, unknown> | null = null;
 

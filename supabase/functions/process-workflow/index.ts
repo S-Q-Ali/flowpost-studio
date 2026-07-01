@@ -9,8 +9,6 @@ const SB_URL = Deno.env.get("SB_URL");
 const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
 const GOOGLE_FALLBACK_SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID") || undefined;
 
-const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
-
 if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
   console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for process-workflow");
 }
@@ -181,7 +179,7 @@ Deno.serve(async (req) => {
   const { error: globalLockError } = await supabase.from("workflow_locks").insert({
     lock_key: globalLockKey,
     locked_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
   });
 
   if (globalLockError) {
@@ -194,11 +192,12 @@ Deno.serve(async (req) => {
   console.log("Global processing lock acquired");
 
   let globalLockReleased = false;
-  function releaseGlobalLock() {
-    if (globalLockReleased) return;
-    globalLockReleased = true;
-    supabase.from("workflow_locks").delete().eq("lock_key", globalLockKey).then().catch(() => {});
-  }
+async function releaseGlobalLock() {
+  if (globalLockReleased) return;
+  globalLockReleased = true;
+  const { error } = await supabase.from("workflow_locks").delete().eq("lock_key", globalLockKey);
+  if (error) console.error("Failed to release workflow lock:", error);
+}
 
   try {
 
@@ -517,7 +516,7 @@ Deno.serve(async (req) => {
         const fileExt = isImageWorkflow ? ".jpg" : ".mp4";
         const fileName = `${baseName}${fileExt}`;
 
-        const currentUserId = wf.user_id ?? FALLBACK_USER_ID;
+        const currentUserId = wf.user_id;
         const { data: videoRecord, error: videoError } = await supabase
           .from("videos")
           .insert({
@@ -684,6 +683,8 @@ Deno.serve(async (req) => {
                 apikey: SB_SERVICE_ROLE_KEY!,
               },
               body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+            }).catch((err) => {
+              console.error(`[youtube] Upload failed for post ${post.id}:`, err);
             });
           } else if (post.platform === "facebook") {
             void fetch(`${SB_URL}/functions/v1/facebook-upload`, {
@@ -694,6 +695,8 @@ Deno.serve(async (req) => {
                 apikey: SB_SERVICE_ROLE_KEY!,
               },
               body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+            }).catch((err) => {
+              console.error(`[facebook] Upload failed for post ${post.id}:`, err);
             });
           } else if (post.platform === "instagram") {
             void fetch(`${SB_URL}/functions/v1/instagram-upload`, {
@@ -704,6 +707,8 @@ Deno.serve(async (req) => {
                 apikey: SB_SERVICE_ROLE_KEY!,
               },
               body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+            }).catch((err) => {
+              console.error(`[instagram] Upload failed for post ${post.id}:`, err);
             });
           } else if (post.platform === "tiktok") {
             void fetch(`${SB_URL}/functions/v1/tiktok-upload`, {
@@ -714,6 +719,8 @@ Deno.serve(async (req) => {
                 apikey: SB_SERVICE_ROLE_KEY!,
               },
               body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+            }).catch((err) => {
+              console.error(`[tiktok] Upload failed for post ${post.id}:`, err);
             });
           }
         }
@@ -762,6 +769,8 @@ Deno.serve(async (req) => {
                         accessToken: fbAcc.access_token,
                         mediaType,
                       }),
+                    }).catch((err) => {
+                      console.error(`[facebook-story] Post failed for post ${post.id}:`, err);
                     });
                  }
               }
@@ -792,6 +801,8 @@ Deno.serve(async (req) => {
                         accessToken: igAcc.access_token,
                         mediaType,
                       }),
+                    }).catch((err) => {
+                      console.error(`[instagram-story] Post failed for post ${post.id}:`, err);
                     });
                   }
               }
@@ -862,7 +873,7 @@ Deno.serve(async (req) => {
       500,
     );
   } finally {
-    releaseGlobalLock();
+    await releaseGlobalLock();
   }
 });
 
