@@ -7,8 +7,8 @@ const corsHeaders = {
 
 const YT_CLIENT_ID = Deno.env.get("YT_CLIENT_ID");
 const YT_CLIENT_SECRET = Deno.env.get("YT_CLIENT_SECRET");
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const SUPABASE_URL = Deno.env.get("SB_URL");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
 
 const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
 
   if (action !== "callback" && action !== "url") {
     const authHeader = req.headers.get("Authorization");
-    const validKeys = [Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")];
+    const validKeys = [Deno.env.get("SB_SERVICE_ROLE_KEY")];
     const token = authHeader?.replace("Bearer ", "");
     if (!token || !validKeys.includes(token)) {
       return json({ error: "Unauthorized" }, 401);
