@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
       return json({ error: "TikTok does not support image uploads" }, 400);
     }
 
-    const userId = post.user_id ?? "";
+    const userId = post.user_id ?? "00000000-0000-0000-0000-000000000000";
 
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")

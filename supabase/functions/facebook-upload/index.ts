@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
 
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
-      .select("account_id, access_token, token_expiry")
+      .select("account_id, access_token")
       .eq("platform", "facebook")
       .eq("account_id", post.account_id)
       .eq("is_connected", true)
@@ -193,25 +193,8 @@ Deno.serve(async (req) => {
       return json({ error: "Connected Facebook Page not found" }, 404);
     }
 
-    let accessToken = account.access_token;
-
-    if (account.token_expiry && new Date(account.token_expiry) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) {
-      try {
-        const refreshRes = await fetch(`${SB_URL}/functions/v1/facebook-auth`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "refresh", account_id: post.account_id }),
-        });
-        const refreshData = await refreshRes.json();
-        if (refreshData.access_token) {
-          accessToken = refreshData.access_token;
-        }
-      } catch (e) {
-        console.error("Facebook token refresh failed, continuing with existing token:", e);
-      }
-    }
-
     const pageId = account.account_id;
+    const accessToken = account.access_token;
 
     // Support either:
     // - Traditional flow: video.file_url points to R2/public storage
@@ -219,7 +202,7 @@ Deno.serve(async (req) => {
     let mediaUrl = video.file_url as string;
     const isImage = mediaType === "image";
 
-    const userId = post.user_id ?? "";
+    const userId = post.user_id ?? "00000000-0000-0000-0000-000000000000";
 
     if (
       (driveDownloadUrl || mediaUrl.includes("googleapis.com")) &&

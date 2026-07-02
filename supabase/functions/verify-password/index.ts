@@ -6,13 +6,13 @@ const corsHeaders = {
 };
 
 const APP_PASSWORD = Deno.env.get("APP_PASSWORD");
-const SB_URL = Deno.env.get("SB_URL");
-const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MINUTES = 15;
 
-const supabase = createClient(SB_URL!, SB_SERVICE_ROLE_KEY!, {
+const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
 

@@ -11,6 +11,8 @@ const SUPABASE_URL = Deno.env.get("SB_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SB_ANON_KEY");
 
+const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
+
 if (!FB_APP_ID || !FB_APP_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
   console.error("Missing required secrets for facebook-auth function");
 }
@@ -118,7 +120,7 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/facebook-auth?action=callback`;
 
     if (action === "url") {
-      const reqUserId = url.searchParams.get("userId") ?? "";
+      const reqUserId = url.searchParams.get("userId") || FALLBACK_USER_ID;
       const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
       authUrl.searchParams.set("client_id", FB_APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
@@ -148,7 +150,7 @@ Deno.serve(async (req) => {
       }
 
       const code = url.searchParams.get("code");
-      const userId = url.searchParams.get("state") ?? "";
+      const userId = url.searchParams.get("state") || FALLBACK_USER_ID;
       if (!code) return html("<html><body>Missing code</body></html>", 400);
 
       const shortLived = await exchangeCodeForUserToken(code, redirectUri);
@@ -228,52 +230,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "refresh") {
-      const { account_id } = await req.json();
-      if (!account_id) return json({ error: "account_id required" }, 400);
-
-      const { data: account, error: fetchError } = await supabaseAdmin
-        .from("connected_accounts")
-        .select("id, access_token, platform")
-        .eq("account_id", account_id)
-        .in("platform", ["facebook", "instagram"])
-        .single();
-
-      if (fetchError || !account?.access_token) {
-        return json({ error: "Account not found" }, 404);
-      }
-
-      const res = await fetch("https://graph.facebook.com/v21.0/oauth/access_token?" +
-        new URLSearchParams({
-          grant_type: "fb_exchange_token",
-          client_id: FB_APP_ID!,
-          client_secret: FB_APP_SECRET!,
-          fb_exchange_token: account.access_token,
-        }));
-      const data = await res.json();
-
-      if (!res.ok || !data.access_token) {
-        console.error("Facebook token refresh failed:", data);
-        return json({ error: "Token refresh failed" }, 500);
-      }
-
-      const expiresAt = data.expires_in
-        ? new Date(Date.now() + data.expires_in * 1000).toISOString()
-        : null;
-
-      const { error: updateError } = await supabaseAdmin
-        .from("connected_accounts")
-        .update({
-          access_token: data.access_token,
-          token_expiry: expiresAt,
-        })
-        .eq("id", account.id);
-
-      if (updateError) {
-        console.error("Failed to save refreshed token:", updateError);
-        return json({ error: "Failed to save token" }, 500);
-      }
-
-      return json({ success: true, access_token: data.access_token, expires_at: expiresAt });
+      return json({ success: true });
     }
 
     return json({ error: "Invalid action" }, 400);
