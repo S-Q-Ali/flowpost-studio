@@ -10,8 +10,8 @@ const R2_ACCESS_KEY = Deno.env.get("R2_ACCESS_KEY");
 const R2_SECRET_KEY = Deno.env.get("R2_SECRET_KEY");
 const R2_BUCKET = Deno.env.get("R2_BUCKET");
 const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL");
-const SB_URL = Deno.env.get("SB_URL");
-const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
+const SB_URL = Deno.env.get("SUPABASE_URL");
+const SB_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 if (
   !R2_ENDPOINT || !R2_ACCESS_KEY || !R2_SECRET_KEY ||

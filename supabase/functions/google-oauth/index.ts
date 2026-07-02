@@ -5,8 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SB_URL = Deno.env.get("SB_URL");
-const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
+const SB_URL = Deno.env.get("SUPABASE_URL");
+const SB_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
   console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for google-oauth");

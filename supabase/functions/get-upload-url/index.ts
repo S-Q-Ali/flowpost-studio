@@ -40,8 +40,8 @@ Deno.serve(async (req) => {
   const apikeyHeader = req.headers.get("apikey");
   const bearerToken = authHeader?.replace("Bearer ", "");
   const validKeys = [
-    Deno.env.get("SB_SERVICE_ROLE_KEY"),
-    Deno.env.get("SB_ANON_KEY"),
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+    Deno.env.get("SUPABASE_ANON_KEY"),
     Deno.env.get("SUPABASE_ANON_KEY"),
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
   ].filter(Boolean) as string[];
