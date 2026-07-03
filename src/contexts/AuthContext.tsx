@@ -92,6 +92,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setStoredToken(null);
           }
           resolve();
+        })
+        .catch(() => {
+          setStoredToken(null);
+          resolve();
         });
       return;
     }
