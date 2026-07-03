@@ -4,10 +4,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-if (!SB_SERVICE_ROLE_KEY) {
-  console.error("Missing SB_SERVICE_ROLE_KEY for post-story function");
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("Missing SUPABASE_SERVICE_ROLE_KEY for post-story function");
 }
 
 function json(data: unknown, status = 200) {
@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.replace("Bearer ", "");
-  const validKeys = [SB_SERVICE_ROLE_KEY];
+  const validKeys = [SUPABASE_SERVICE_ROLE_KEY];
 
   if (!token || !validKeys.includes(token)) {
     return json({ error: "Unauthorized" }, 401);
@@ -237,4 +237,6 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+
 

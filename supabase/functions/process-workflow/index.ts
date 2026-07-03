@@ -5,17 +5,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-token",
 };
 
-const SB_URL = Deno.env.get("SB_URL");
-const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const GOOGLE_FALLBACK_SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID") || undefined;
 
 const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
 
-if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
-  console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for process-workflow");
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for process-workflow");
 }
 
-const supabase = createClient(SB_URL!, SB_SERVICE_ROLE_KEY!, {
+const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
 
@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
   const bearerToken = authHeader?.replace("Bearer ", "");
 
-  const isServiceRole = bearerToken === SB_SERVICE_ROLE_KEY;
+  const isServiceRole = bearerToken === SUPABASE_SERVICE_ROLE_KEY;
 
   let isSessionValid = false;
   if (!isServiceRole) {
@@ -676,42 +676,42 @@ Deno.serve(async (req) => {
         for (const post of insertedPosts as { id: string; platform: string; account_id: string | null; status: string }[]) {
           if (post.status !== "processing") continue;
           if (post.platform === "youtube") {
-            void fetch(`${SB_URL}/functions/v1/youtube-upload`, {
+            void fetch(`${SUPABASE_URL}/functions/v1/youtube-upload`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                apikey: SB_SERVICE_ROLE_KEY!,
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                apikey: SUPABASE_SERVICE_ROLE_KEY!,
               },
               body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
             });
           } else if (post.platform === "facebook") {
-            void fetch(`${SB_URL}/functions/v1/facebook-upload`, {
+            void fetch(`${SUPABASE_URL}/functions/v1/facebook-upload`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                apikey: SB_SERVICE_ROLE_KEY!,
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                apikey: SUPABASE_SERVICE_ROLE_KEY!,
               },
               body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
             });
           } else if (post.platform === "instagram") {
-            void fetch(`${SB_URL}/functions/v1/instagram-upload`, {
+            void fetch(`${SUPABASE_URL}/functions/v1/instagram-upload`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                apikey: SB_SERVICE_ROLE_KEY!,
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                apikey: SUPABASE_SERVICE_ROLE_KEY!,
               },
               body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
             });
           } else if (post.platform === "tiktok") {
-            void fetch(`${SB_URL}/functions/v1/tiktok-upload`, {
+            void fetch(`${SUPABASE_URL}/functions/v1/tiktok-upload`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
-                apikey: SB_SERVICE_ROLE_KEY!,
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                apikey: SUPABASE_SERVICE_ROLE_KEY!,
               },
               body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
             });
@@ -749,11 +749,11 @@ Deno.serve(async (req) => {
 
                  if (fbAcc?.access_token && !usedStoryTokens.has(fbAcc.access_token)) {
                     usedStoryTokens.add(fbAcc.access_token);
-                    void fetch(`${SB_URL}/functions/v1/post-story`, {
+                    void fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
-                        Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
                       },
                       body: JSON.stringify({
                         platform: "facebook",
@@ -779,11 +779,11 @@ Deno.serve(async (req) => {
                   .single();
 
                  if (igAcc?.access_token) {
-                    void fetch(`${SB_URL}/functions/v1/post-story`, {
+                    void fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
-                        Authorization: `Bearer ${SB_SERVICE_ROLE_KEY}`,
+                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
                       },
                       body: JSON.stringify({
                         platform: "instagram",
@@ -865,4 +865,6 @@ Deno.serve(async (req) => {
     releaseGlobalLock();
   }
 });
+
+
 

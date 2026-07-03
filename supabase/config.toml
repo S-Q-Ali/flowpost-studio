@@ -1,4 +1,4 @@
-project_id = "pgnwazhcmanzpaavvhun"
+project_id = "ximorwzknbizpceaoflw"
 
 [functions.get-upload-url]
 verify_jwt = false
@@ -16,4 +16,34 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.instagram-upload]
+verify_jwt = false
+
+[functions.facebook-upload]
+verify_jwt = false
+
+[functions.tiktok-upload]
+verify_jwt = false
+
+[functions.youtube-upload]
+verify_jwt = false
+
+[functions.post-story]
+verify_jwt = false
+
+[functions.process-workflow]
+verify_jwt = false
+
+[functions.process-scheduled-posts]
+verify_jwt = false
+
+[functions.update-sheet-status]
+verify_jwt = false
+
+[functions.verify-password]
+verify_jwt = false
+
+[functions.verify-security-questions]
+verify_jwt = false
+
+[functions.verify-session]
 verify_jwt = false

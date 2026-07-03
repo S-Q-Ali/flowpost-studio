@@ -5,14 +5,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SB_URL = Deno.env.get("SB_URL");
-const SB_SERVICE_ROLE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-if (!SB_URL || !SB_SERVICE_ROLE_KEY) {
-  console.error("Missing SB_URL or SB_SERVICE_ROLE_KEY for process-scheduled-posts");
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for process-scheduled-posts");
 }
 
-const supabase = createClient(SB_URL!, SB_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = req.headers.get("Authorization");
-  const validKeys = [Deno.env.get("SB_SERVICE_ROLE_KEY")];
+  const validKeys = [Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")];
   const token = authHeader?.replace("Bearer ", "");
   if (!token || !validKeys.includes(token)) {
     return new Response(
@@ -54,8 +54,8 @@ Deno.serve(async (req) => {
     }
 
     const scheduledPosts = posts ?? [];
-    const supabaseUrl = SB_URL!;
-    const serviceRoleKey = SB_SERVICE_ROLE_KEY!;
+    const supabaseUrl = SUPABASE_URL!;
+    const serviceRoleKey = SUPABASE_SERVICE_ROLE_KEY!;
 
     let processed = 0;
     for (const post of scheduledPosts) {
@@ -114,3 +114,5 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+
