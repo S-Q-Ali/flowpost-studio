@@ -12,16 +12,41 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       connected_accounts: {
         Row: {
           access_token: string | null
-          account_name: string | null
           account_id: string | null
+          account_name: string | null
           connected_at: string | null
           id: string
-          is_connected: boolean
+          is_connected: boolean | null
           metadata: Json | null
           platform: string
           refresh_token: string | null
@@ -30,11 +55,11 @@ export type Database = {
         }
         Insert: {
           access_token?: string | null
-          account_name?: string | null
           account_id?: string | null
+          account_name?: string | null
           connected_at?: string | null
           id?: string
-          is_connected?: boolean
+          is_connected?: boolean | null
           metadata?: Json | null
           platform: string
           refresh_token?: string | null
@@ -43,11 +68,11 @@ export type Database = {
         }
         Update: {
           access_token?: string | null
-          account_name?: string | null
           account_id?: string | null
+          account_name?: string | null
           connected_at?: string | null
           id?: string
-          is_connected?: boolean
+          is_connected?: boolean | null
           metadata?: Json | null
           platform?: string
           refresh_token?: string | null
@@ -60,47 +85,53 @@ export type Database = {
         Row: {
           account_id: string | null
           caption: string | null
-          captions_enabled: boolean
-          contains_altered_content: boolean
-          created_at: string
+          captions_enabled: boolean | null
+          contains_altered_content: boolean | null
+          created_at: string | null
+          fb_ai_label: boolean | null
           hashtags: string | null
           id: string
+          metadata: Json | null
           platform: string
           published_at: string | null
           scheduled_at: string | null
-          status: string
+          status: string | null
           user_id: string
-          video_id: string
+          video_id: string | null
         }
         Insert: {
           account_id?: string | null
           caption?: string | null
-          captions_enabled?: boolean
-          contains_altered_content?: boolean
-          created_at?: string
+          captions_enabled?: boolean | null
+          contains_altered_content?: boolean | null
+          created_at?: string | null
+          fb_ai_label?: boolean | null
           hashtags?: string | null
           id?: string
+          metadata?: Json | null
           platform: string
           published_at?: string | null
           scheduled_at?: string | null
-          status?: string
+          status?: string | null
           user_id: string
-          video_id: string
+          video_id?: string | null
         }
         Update: {
           account_id?: string | null
           caption?: string | null
-          captions_enabled?: boolean
-          contains_altered_content?: boolean
-          created_at?: string
+          captions_enabled?: boolean | null
+          contains_altered_content?: boolean | null
+          created_at?: string | null
+          fb_ai_label?: boolean | null
           hashtags?: string | null
           id?: string
+          metadata?: Json | null
           platform?: string
           published_at?: string | null
           scheduled_at?: string | null
-          status?: string
+          status?: string | null
           user_id?: string
-          video_id?: string
+          video_id?: string | null
         }
         Relationships: [
           {
@@ -112,69 +143,261 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          attempts: number | null
+          created_at: string | null
+          id: string
+          key: string
+          reset_at: string
+        }
+        Insert: {
+          attempts?: number | null
+          created_at?: string | null
+          id?: string
+          key: string
+          reset_at: string
+        }
+        Update: {
+          attempts?: number | null
+          created_at?: string | null
+          id?: string
+          key?: string
+          reset_at?: string
+        }
+        Relationships: []
+      }
+      sessions: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          token: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          token: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          token?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      tiktok_oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          state: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          state: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          state?: string
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          avatar_url: string | null
+          best_night_date: string | null
+          created_at: string | null
+          email: string | null
+          failed_login_attempts: number | null
+          fav_teacher: string | null
+          id: string
+          is_admin: boolean | null
+          lockout_until: string | null
+          name: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          best_night_date?: string | null
+          created_at?: string | null
+          email?: string | null
+          failed_login_attempts?: number | null
+          fav_teacher?: string | null
+          id?: string
+          is_admin?: boolean | null
+          lockout_until?: string | null
+          name?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          best_night_date?: string | null
+          created_at?: string | null
+          email?: string | null
+          failed_login_attempts?: number | null
+          fav_teacher?: string | null
+          id?: string
+          is_admin?: boolean | null
+          lockout_until?: string | null
+          name?: string | null
+        }
+        Relationships: []
+      }
       videos: {
         Row: {
           duration: number | null
           file_url: string | null
           id: string
+          media_type: string
           thumbnail_url: string | null
           title: string
-          uploaded_at: string
+          uploaded_at: string | null
           user_id: string
+          video_size: number | null
         }
         Insert: {
           duration?: number | null
           file_url?: string | null
           id?: string
+          media_type?: string
           thumbnail_url?: string | null
           title: string
-          uploaded_at?: string
+          uploaded_at?: string | null
           user_id: string
+          video_size?: number | null
         }
         Update: {
           duration?: number | null
           file_url?: string | null
           id?: string
+          media_type?: string
           thumbnail_url?: string | null
           title?: string
-          uploaded_at?: string
+          uploaded_at?: string | null
           user_id?: string
+          video_size?: number | null
+        }
+        Relationships: []
+      }
+      workflow_locks: {
+        Row: {
+          expires_at: string
+          lock_key: string
+          locked_at: string | null
+        }
+        Insert: {
+          expires_at: string
+          lock_key: string
+          locked_at?: string | null
+        }
+        Update: {
+          expires_at?: string
+          lock_key?: string
+          locked_at?: string | null
         }
         Relationships: []
       }
       workflows: {
         Row: {
-          caption_template: string | null
-          created_at: string
-          delay_hours: number
-          destination_platforms: string[]
+          created_at: string | null
+          custom_schedule: Json | null
+          day_time_windows: Json | null
+          facebook_ai_generated: boolean | null
+          facebook_page_ids: string[] | null
           id: string
-          is_active: boolean
+          instagram_account_ids: string[] | null
+          instagram_ai_generated: boolean | null
+          is_active: boolean | null
+          last_manual_triggered_at: string | null
+          last_triggered_at: string | null
+          max_videos_per_trigger: number | null
+          media_type: string
           name: string
-          updated_at: string
+          platforms: string[] | null
+          post_as_story: boolean | null
+          run_days: number[] | null
+          run_interval_hours: number | null
+          scheduling_mode: string
+          sheet_id: string | null
+          sheet_url: string | null
+          tiktok_account_ids: string[] | null
+          total_posted: number | null
+          trigger_hour_end: number
+          trigger_hour_start: number
+          updated_at: string | null
           user_id: string
+          videos_per_run: number | null
+          youtube_altered_content: boolean | null
+          youtube_channel_ids: string[] | null
         }
         Insert: {
-          caption_template?: string | null
-          created_at?: string
-          delay_hours?: number
-          destination_platforms?: string[]
+          created_at?: string | null
+          custom_schedule?: Json | null
+          day_time_windows?: Json | null
+          facebook_ai_generated?: boolean | null
+          facebook_page_ids?: string[] | null
           id?: string
-          is_active?: boolean
+          instagram_account_ids?: string[] | null
+          instagram_ai_generated?: boolean | null
+          is_active?: boolean | null
+          last_manual_triggered_at?: string | null
+          last_triggered_at?: string | null
+          max_videos_per_trigger?: number | null
+          media_type?: string
           name: string
-          updated_at?: string
+          platforms?: string[] | null
+          post_as_story?: boolean | null
+          run_days?: number[] | null
+          run_interval_hours?: number | null
+          scheduling_mode?: string
+          sheet_id?: string | null
+          sheet_url?: string | null
+          tiktok_account_ids?: string[] | null
+          total_posted?: number | null
+          trigger_hour_end?: number
+          trigger_hour_start?: number
+          updated_at?: string | null
           user_id: string
+          videos_per_run?: number | null
+          youtube_altered_content?: boolean | null
+          youtube_channel_ids?: string[] | null
         }
         Update: {
-          caption_template?: string | null
-          created_at?: string
-          delay_hours?: number
-          destination_platforms?: string[]
+          created_at?: string | null
+          custom_schedule?: Json | null
+          day_time_windows?: Json | null
+          facebook_ai_generated?: boolean | null
+          facebook_page_ids?: string[] | null
           id?: string
-          is_active?: boolean
+          instagram_account_ids?: string[] | null
+          instagram_ai_generated?: boolean | null
+          is_active?: boolean | null
+          last_manual_triggered_at?: string | null
+          last_triggered_at?: string | null
+          max_videos_per_trigger?: number | null
+          media_type?: string
           name?: string
-          updated_at?: string
+          platforms?: string[] | null
+          post_as_story?: boolean | null
+          run_days?: number[] | null
+          run_interval_hours?: number | null
+          scheduling_mode?: string
+          sheet_id?: string | null
+          sheet_url?: string | null
+          tiktok_account_ids?: string[] | null
+          total_posted?: number | null
+          trigger_hour_end?: number
+          trigger_hour_start?: number
+          updated_at?: string | null
           user_id?: string
+          videos_per_run?: number | null
+          youtube_altered_content?: boolean | null
+          youtube_channel_ids?: string[] | null
         }
         Relationships: []
       }
@@ -312,6 +535,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
