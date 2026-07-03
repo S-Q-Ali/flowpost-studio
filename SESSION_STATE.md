@@ -1,12 +1,12 @@
 # FlowPost Studio — Session State (2026-07-03)
 
-## Current HEAD: `fd272fa`
+## Current HEAD: `a7cb412`
 
 ---
 
 ## What Works
 - Auth flow (Google OAuth + email/password + security questions)
-- All 17 edge functions deployed and functional
+- All 16 edge functions deployed and functional
 - TikTok integration (FILE_UPLOAD + DIRECT_POST)
 - Instagram status polling instead of blind wait
 - Scheduling (cron every 5min for 2 jobs)
@@ -15,31 +15,22 @@
 
 ---
 
-## Verified Audit: Phase 1 & 2 Remnants
+## Cleanup Status — All Phase 1 & 2 Remnants Resolved
 
-### Env Vars — 14 Functions Still Use `SB_*` Reads
-Everything works because SB_* secrets exist in Supabase dashboard, but this is inconsistent with the 3 verify functions that correctly use SUPABASE_*. Fix: sed + redeploy.
-
-**Full `SB_*` (10):** cleanup-r2, facebook-upload, google-oauth, instagram-upload, post-story, process-scheduled-posts, process-workflow, tiktok-upload, update-sheet-status, youtube-upload
-
-**Hybrid `SB_*` read + `SUPABASE_*` var (3):** facebook-auth, tiktok-auth, youtube-auth
-
-**Both patterns:** get-upload-url
-
-**Correct `SUPABASE_*`:** verify-password, verify-security-questions, verify-session
-
-### config.toml
-- project_id = "pgnwazhcmanzpaavvhun" → should be "ximorwzknbizpceaoflw"
-- Only 6/17 functions listed (missing: process-workflow, process-scheduled-posts, verify-password, verify-session, verify-security-questions, update-sheet-status, cleanup-r2, post-story, etc.)
-
-### Stale Directories
-- supabase/functions/instagram-publish/ → empty dir, delete
-- supabase/functions/cleanup-r2/ → full code, delete (R2 lifecycle handles cleanup)
+- **Env vars** — 14 functions normalized from `SB_*` to `SUPABASE_*`; `SB_*` secrets deleted from dashboard
+- **config.toml** — project_id fixed to `ximorwzknbizpceaoflw`; all 16 functions listed with `verify_jwt = false`
+- **Stale dirs** — `cleanup-r2/` and `instagram-publish/` deleted
+- **All 16 functions redeployed** — no Node.js deprecation warnings (supabase-js pinned to v2.49.0)
+- **`connected_accounts_public` view dropped** — was a security definer view exposing OAuth tokens to `anon`, never used by any code
+- **`SB_*` custom secrets deleted** — all functions use auto-injected `SUPABASE_*` secrets
+- **Post-story polling** replaced blind 15s wait + retry with status polling
+- **Auth race condition fixed** — `setPendingSecurityVerification(false)` + `.catch()` in AuthContext
 
 ### Migration
-- 20260616000000_add_multi_user_rls.sql still on disk (Phase 2)
-- 20260703000000_restore_backdoor_rls.sql exists (Phase 3 restore)
-- ~80+ RLS policies total (backdoor + _own coexist)
+- 20260616000000_add_multi_user_rls.sql on disk — harmless, kept for reference
+- 20260703000000_restore_backdoor_rls.sql on disk — applied
+- ~80+ RLS policies total (backdoor + _own coexist; _own are redundant but harmless)
+- 20260703010000_drop_connected_accounts_public_view.sql — new
 
 ### Clean
 - _shared/constants.ts — gone
@@ -51,47 +42,29 @@ Everything works because SB_* secrets exist in Supabase dashboard, but this is i
 
 ---
 
-## Next Steps (Priority)
-1. Fix env vars in 14 functions (SB_* → SUPABASE_*)
-2. Fix config.toml project_id
-3. Add missing function sections to config.toml
-4. Delete cleanup-r2/ and instagram-publish/
-5. Decide on multi-user RLS migration retention
-6. Redeploy all 17 edge functions
-7. Push to GitHub → trigger Vercel auto-deploy
-
----
+## Next Steps
+1. **Phase 3 — Cleanup**: regenerate DB types, extract shared JWT signing code, remove stale env var fallbacks in `get-upload-url`
+2. **Phase 4 — Feature gaps**: encrypt OAuth tokens at rest, TikTok chunked upload for large files, retry UI for failed posts, YouTube daily quota warning
+3. **TikTok app review** — resubmit with test account credentials; blocked on paid domain (Vercel Pro $20/mo + $12/yr domain)
+4. **After TikTok approval** — switch `privacy_level` from `SELF_ONLY` to `PUBLIC_TO_EVERYONE`
+5. **Snapchat integration** — blocked by API allowlist; requires Snap approval
 
 ## Key Commands
 ```powershell
-# Fix env vars in all 14 functions
-$files = @(
-  "cleanup-r2", "facebook-auth", "facebook-upload", "google-oauth",
-  "instagram-upload", "post-story", "process-scheduled-posts",
-  "process-workflow", "tiktok-auth", "tiktok-upload",
-  "update-sheet-status", "youtube-auth", "youtube-upload", "get-upload-url"
-)
-foreach ($f in $files) {
-  $path = "supabase/functions/$f/index.ts"
-  if (Test-Path $path) {
-    (Get-Content $path) -replace 'Deno\.env\.get\("SB_URL"\)', 'Deno.env.get("SUPABASE_URL")' -replace 'Deno\.env\.get\("SB_SERVICE_ROLE_KEY"\)', 'Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")' -replace 'Deno\.env\.get\("SB_ANON_KEY"\)', 'Deno.env.get("SUPABASE_ANON_KEY")' | Set-Content $path
-  }
-}
-
-# Fix config.toml
-# Edit project_id + add missing function sections
-
-# Delete stale directories
-Remove-Item -Recurse -Force supabase/functions/cleanup-r2
-Remove-Item -Recurse -Force supabase/functions/instagram-publish
-
 # Deploy all functions
 foreach ($f in Get-ChildItem -Directory supabase/functions/*/index.ts | ForEach-Object { $_.Directory.Name }) { npx.cmd supabase functions deploy $f }
 
-# Commit and push
-git add -A
-git commit -m "fix: normalize all edge functions to SUPABASE_* env vars, fix config.toml, cleanup stale dirs"
-git push origin main
+# Run SQL query against linked DB
+npx.cmd supabase db query --linked "SELECT * FROM pg_views WHERE viewname LIKE '%public%';"
+
+# Create new migration
+npx.cmd supabase migration new <name>
+
+# Apply local migrations (in local dev)
+npx.cmd supabase db push
+
+# Re-pull DB types
+npx.cmd supabase gen types typescript --linked > src/integrations/supabase/types.ts
 ```
 
 ---
@@ -108,8 +81,10 @@ git push origin main
 
 ## Admin Users
 | ID | Email | is_admin | Questions |
-|---|---|---|---|
+|---|---|---|---|---|
 | 0d19e852-... | syedqasim963@gmail.com | true | fav_teacher: amna mushtaq, best_night_date: 2026-01-03 |
-| 00000000-... | admin@flowpost.local | false | fav_teacher: amna mushtaq, best_night_date: 2026-01-03 |
 | ca417e70-... | qasimvamatters@gmail.com | false | (no questions) |
 | f485999c-... | testuser@flowpost.app | false | (no questions) |
+
+### Cleanup Notes
+- **`00000000-...` backdoor user deleted** — `FALLBACK_USER_ID` removed from 4 edge functions (youtube-auth, facebook-auth, tiktok-auth, process-workflow); functions redeployed; zero-UUID user dropped from `public.users`

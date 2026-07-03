@@ -11,8 +11,6 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
-const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
-
 if (!FB_APP_ID || !FB_APP_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
   console.error("Missing required secrets for facebook-auth function");
 }
@@ -120,7 +118,8 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/facebook-auth?action=callback`;
 
     if (action === "url") {
-      const reqUserId = url.searchParams.get("userId") || FALLBACK_USER_ID;
+      const reqUserId = url.searchParams.get("userId");
+      if (!reqUserId) return json({ error: "Missing userId" }, 400);
       const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
       authUrl.searchParams.set("client_id", FB_APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
@@ -150,8 +149,9 @@ Deno.serve(async (req) => {
       }
 
       const code = url.searchParams.get("code");
-      const userId = url.searchParams.get("state") || FALLBACK_USER_ID;
+      const userId = url.searchParams.get("state");
       if (!code) return html("<html><body>Missing code</body></html>", 400);
+      if (!userId) return html("<html><body>Missing user ID in state</body></html>", 400);
 
       const shortLived = await exchangeCodeForUserToken(code, redirectUri);
       const longLived = await getLongLivedUserToken(shortLived.access_token);

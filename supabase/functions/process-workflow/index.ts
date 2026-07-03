@@ -9,8 +9,6 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const GOOGLE_FALLBACK_SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID") || undefined;
 
-const FALLBACK_USER_ID = "00000000-0000-0000-0000-000000000000";
-
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for process-workflow");
 }
@@ -517,7 +515,11 @@ Deno.serve(async (req) => {
         const fileExt = isImageWorkflow ? ".jpg" : ".mp4";
         const fileName = `${baseName}${fileExt}`;
 
-        const currentUserId = wf.user_id ?? FALLBACK_USER_ID;
+        const currentUserId = wf.user_id;
+        if (!currentUserId) {
+          errors.push(`Row ${rowIndex}: workflow has no user_id, skipping`);
+          continue;
+        }
         const { data: videoRecord, error: videoError } = await supabase
           .from("videos")
           .insert({
