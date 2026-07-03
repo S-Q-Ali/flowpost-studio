@@ -143,6 +143,13 @@ export default function QueuePage() {
     });
   };
 
+  const selectAll = () => setSelected(new Set(posts.map((p) => p.id)));
+
+  const selectCount = (n: number) =>
+    setSelected(new Set(posts.slice(0, n).map((p) => p.id)));
+
+  const clearSelection = () => setSelected(new Set());
+
   const bulkDelete = async () => {
     if (selected.size === 0) return;
     const { error } = await supabase.from("posts").delete().in("id", Array.from(selected));
@@ -160,6 +167,7 @@ export default function QueuePage() {
     else {
       toast.success("Post deleted");
       setDeletePostId(null);
+      setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
       fetchPosts();
     }
   };
@@ -192,10 +200,25 @@ export default function QueuePage() {
           <h1 className="text-2xl font-bold text-foreground">Post Queue</h1>
           <p className="text-sm text-muted-foreground">{posts.length} posts</p>
         </div>
-        {selected.size > 0 && (
-          <Button variant="destructive" size="sm" onClick={bulkDelete} className="gap-2">
-            <Trash2 size={14} /> Delete {selected.size}
-          </Button>
+        {posts.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={selectAll}>
+              Select All
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => selectCount(20)}>
+              Select 20
+            </Button>
+            {selected.size > 0 && (
+              <>
+                <Button variant="outline" size="sm" onClick={clearSelection}>
+                  Clear
+                </Button>
+                <Button variant="destructive" size="sm" onClick={bulkDelete} className="gap-2">
+                  <Trash2 size={14} /> Delete {selected.size}
+                </Button>
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -206,7 +229,7 @@ export default function QueuePage() {
             variant={filter === f ? "default" : "outline"}
             size="sm"
             className={filter === f ? "gradient-primary text-primary-foreground" : ""}
-            onClick={() => setFilter(f)}
+            onClick={() => { setFilter(f); setSelected(new Set()); }}
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </Button>
