@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { uploadDriveMediaToR2 } from "../_shared/drive-to-r2.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -25,92 +26,11 @@ const ALLOWED_DOMAINS = [
   "graph.facebook.com",
 ];
 
-function validateUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:") return false;
-    return ALLOWED_DOMAINS.some(
-      (domain) => parsed.hostname === domain || parsed.hostname.endsWith("." + domain),
-    );
-  } catch {
-    return false;
-  }
-}
-
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-type GetUploadUrlResponse = {
-  uploadUrl: string;
-  publicUrl: string;
-};
-
-async function uploadDriveVideoToR2(
-  driveUrl: string,
-  googleToken: string,
-  videoId: string,
-  title: string,
-  userId: string,
-): Promise<string> {
-  return uploadDriveMediaToR2(driveUrl, googleToken, videoId, title, false, userId);
-}
-
-async function uploadDriveMediaToR2(
-  driveUrl: string,
-  googleToken: string,
-  mediaId: string,
-  title: string,
-  isImage: boolean,
-  userId: string,
-): Promise<string> {
-  const ext = isImage ? ".jpg" : ".mp4";
-  const contentType = isImage ? "image/jpeg" : "video/mp4";
-  const baseName = (title || mediaId).replace(/\.(mp4|mov|jpg|jpeg|png)$/i, "");
-  const { data: uploadData, error } = await supabase.functions.invoke<
-    GetUploadUrlResponse
-  >(
-    "get-upload-url",
-    {
-      body: {
-        fileName: `${baseName}${ext}`,
-        fileType: contentType,
-        userId,
-      },
-    },
-  );
-
-  if (error || !uploadData?.uploadUrl || !uploadData?.publicUrl) {
-    throw new Error(error?.message || "Failed to get R2 upload URL");
-  }
-
-  if (!validateUrl(driveUrl)) {
-    throw new Error(`Blocked fetch to disallowed URL: ${driveUrl}`);
-  }
-
-  const driveRes = await fetch(driveUrl, {
-    headers: { Authorization: `Bearer ${googleToken}` },
-  });
-  if (!driveRes.ok || !driveRes.body) {
-    throw new Error(`Drive fetch failed: ${driveRes.status}`);
-  }
-
-  const putRes = await fetch(uploadData.uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: driveRes.body,
-    // @ts-ignore - duplex needed for streaming
-    duplex: "half",
-  });
-
-  if (!putRes.ok) {
-    throw new Error(`R2 upload failed: ${putRes.status}`);
-  }
-
-  return uploadData.publicUrl;
 }
 
 Deno.serve(async (req) => {
@@ -207,6 +127,8 @@ Deno.serve(async (req) => {
         (video.title as string) || (post.video_id as string),
         isImage,
         userId,
+        supabase,
+        ALLOWED_DOMAINS,
       );
 
       await supabase

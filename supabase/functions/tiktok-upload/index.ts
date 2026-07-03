@@ -8,7 +8,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-const TIKTOK_CLIENT_KEY = Deno.env.get("TIKTOK_CLIENT_KEY");
 const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "pub-1d4bcccec36046308147315db8637398.r2.dev";
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
