@@ -31,7 +31,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Trash2, Pencil, ListTodo, Video, CalendarIcon } from "lucide-react";
+import { Trash2, Pencil, ListTodo, Video, CalendarIcon, RotateCw } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -164,6 +164,24 @@ export default function QueuePage() {
     }
   };
 
+  const handleRetry = async (postId: string) => {
+    const { error } = await supabase
+      .from("posts")
+      .update({
+        status: "scheduled",
+        scheduled_at: new Date(Date.now() + 60000).toISOString(),
+      })
+      .eq("id", postId)
+      .eq("status", "failed");
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Post rescheduled for retry");
+      fetchPosts();
+    }
+  };
+
   const videoTitle = (post: PostWithDetails) => (post as { videos?: { title?: string } }).videos?.title ?? "Untitled";
   const videoThumb = (post: PostWithDetails) => (post as { videos?: { thumbnail_url?: string | null; file_url?: string | null } }).videos?.thumbnail_url ?? (post as { videos?: { file_url?: string | null } }).videos?.file_url;
 
@@ -262,6 +280,17 @@ export default function QueuePage() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    {post.status === "failed" && post.platform === "instagram" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRetry(post.id)}
+                        className="text-muted-foreground hover:text-green-500"
+                        title="Retry"
+                      >
+                        <RotateCw size={16} />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

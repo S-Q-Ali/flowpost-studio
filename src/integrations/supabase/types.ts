@@ -93,6 +93,7 @@ export type Database = {
           id: string
           metadata: Json | null
           platform: string
+          post_type: string
           published_at: string | null
           scheduled_at: string | null
           status: string | null
@@ -110,6 +111,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           platform: string
+          post_type?: string
           published_at?: string | null
           scheduled_at?: string | null
           status?: string | null
@@ -127,6 +129,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           platform?: string
+          post_type?: string
           published_at?: string | null
           scheduled_at?: string | null
           status?: string | null

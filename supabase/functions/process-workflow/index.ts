@@ -698,20 +698,41 @@ Deno.serve(async (req) => {
                   .single();
 
                  if (igAcc?.access_token) {
-                    void fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                      },
-                      body: JSON.stringify({
+                    // Insert a story post row to track the story outcome
+                    const { data: storyPost } = await supabase
+                      .from("posts")
+                      .insert({
+                        user_id: currentUserId,
+                        video_id: videoRecord.id,
                         platform: "instagram",
-                        accountId: post.account_id,
-                        videoUrl: storyVideoUrl,
-                        accessToken: igAcc.access_token,
-                        mediaType,
-                      }),
-                    });
+                        account_id: post.account_id,
+                        caption: "",
+                        hashtags: null,
+                        scheduled_at: null,
+                        status: "publishing",
+                        captions_enabled: true,
+                        post_type: "story",
+                      })
+                      .select("id")
+                      .single();
+
+                    if (storyPost) {
+                      void fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                        },
+                        body: JSON.stringify({
+                          platform: "instagram",
+                          accountId: post.account_id,
+                          videoUrl: storyVideoUrl,
+                          accessToken: igAcc.access_token,
+                          mediaType,
+                          postId: storyPost.id,
+                        }),
+                      });
+                    }
                   }
               }
             }

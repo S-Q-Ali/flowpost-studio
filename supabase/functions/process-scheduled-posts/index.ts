@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     const now = new Date().toISOString();
     const { data: posts, error: fetchError } = await supabase
       .from("posts")
-      .select("id, platform")
+      .select("id, platform, post_type")
       .eq("status", "scheduled")
       .lte("scheduled_at", now)
       .limit(10);
@@ -59,8 +59,10 @@ Deno.serve(async (req) => {
 
     let processed = 0;
     for (const post of scheduledPosts) {
-      let functionName = "";
-      if (post.platform === "youtube") {
+    let functionName = "";
+      if (post.platform === "instagram" && (post as any).post_type === "story") {
+        functionName = "post-story";
+      } else if (post.platform === "youtube") {
         functionName = "youtube-upload";
       } else if (post.platform === "facebook") {
         functionName = "facebook-upload";
