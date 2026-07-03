@@ -87,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsAuthenticated(true);
             setUserId(data.userId ?? "00000000-0000-0000-0000-000000000000");
             setIsAdmin(true);
+            setPendingSecurityVerification(false);
           } else {
             setStoredToken(null);
           }
