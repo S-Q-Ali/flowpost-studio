@@ -75,13 +75,11 @@ flowpost-studio/
 │   │   ├── facebook-upload/
 │   │   ├── facebook-auth/
 │   │   ├── instagram-upload/
-│   │   ├── instagram-publish/
 │   │   ├── post-story/
 │   │   ├── process-workflow/
 │   │   ├── process-scheduled-posts/
 │   │   ├── update-sheet-status/
 │   │   ├── google-oauth/
-│   │   └── cleanup-r2/
 │   └── migrations/          # Database migration files
 ├── public/                  # Static assets
 ├── .env.example             # Environment variable template
@@ -154,7 +152,7 @@ npm install supabase --save-dev
 npx supabase link
 
 # Deploy all functions
-npx supabase functions deploy verify-password verify-session verify-security-questions get-upload-url youtube-upload youtube-auth facebook-upload facebook-auth instagram-upload instagram-publish post-story process-workflow process-scheduled-posts update-sheet-status google-oauth cleanup-r2
+npx supabase functions deploy verify-password verify-session verify-security-questions get-upload-url youtube-upload youtube-auth facebook-upload facebook-auth instagram-upload post-story process-workflow process-scheduled-posts update-sheet-status google-oauth
 ```
 
 ### Deploy Database Migrations
