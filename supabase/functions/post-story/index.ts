@@ -192,38 +192,50 @@ Deno.serve(async (req) => {
       throw new Error(JSON.stringify(container));
     }
 
-    // Wait for container processing, then try to publish directly
-    await new Promise((r) => setTimeout(r, 15000));
+    // Poll container status until ready
+    const MAX_POLL_ATTEMPTS = 15;
+    let containerReady = false;
+    for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
 
-    let publishResult: Record<string, unknown> | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt > 0) {
-        console.log(`Story publish attempt ${attempt + 1}...`);
-        await new Promise((r) => setTimeout(r, 12000));
-      }
-
-      const publishRes = await fetch(
-        `https://graph.facebook.com/v25.0/${accountId}/media_publish`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            creation_id: container.id,
-            access_token: accessToken
-          })
-        }
+      const statusRes = await fetch(
+        `https://graph.facebook.com/v25.0/${container.id}?fields=status_code&access_token=${accessToken}`
       );
-      publishResult = await publishRes.json() as Record<string, unknown>;
-      if (publishResult?.id) {
-        console.log("Story publish succeeded:", JSON.stringify(publishResult));
+      const statusData = await statusRes.json() as { status_code?: string; error?: { message: string } };
+
+      if (statusData?.status_code === "FINISHED") {
+        containerReady = true;
         break;
       }
-      console.log(`Story publish attempt ${attempt + 1} failed:`, JSON.stringify(publishResult));
+
+      if (statusData?.status_code === "ERROR") {
+        throw new Error(`Container processing failed: ${statusData?.error?.message || "unknown"}`);
+      }
+
+      console.log(`Container status check ${i + 1}/${MAX_POLL_ATTEMPTS}: ${statusData?.status_code || "unknown"}`);
     }
 
+    if (!containerReady) {
+      console.log("Container did not become ready within poll limit");
+      return json({ success: false, error: "Container processing timed out" });
+    }
+
+    const publishRes = await fetch(
+      `https://graph.facebook.com/v25.0/${accountId}/media_publish`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          creation_id: container.id,
+          access_token: accessToken
+        })
+      }
+    );
+    const publishResult = await publishRes.json() as Record<string, unknown>;
+
     if (!publishResult?.id) {
-      console.log('Story publish failed after 3 attempts:', JSON.stringify(publishResult));
-      return json({ success: false, error: 'Publish failed' });
+      console.log("Story publish failed:", JSON.stringify(publishResult));
+      return json({ success: false, error: "Publish failed" });
     }
 
     return json({ success: true, storyId: publishResult.id as string });
