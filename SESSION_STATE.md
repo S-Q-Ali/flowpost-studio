@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State (2026-07-04)
 
-## Current HEAD: `f8cbe1d`
+## Current HEAD: `bd24b71`
 
 ---
 
