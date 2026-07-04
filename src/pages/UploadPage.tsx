@@ -22,6 +22,7 @@ import { uploadToR2 } from "@/lib/r2";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { BetaBadge } from "@/components/BetaBadge";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -591,6 +592,7 @@ export default function UploadPage() {
               <label className="flex items-center gap-3 cursor-pointer">
                 <Checkbox checked={selectedPlatforms.includes(p.id)} onCheckedChange={() => togglePlatform(p.id)} />
                 <span className="text-sm text-foreground">{p.label}</span>
+                {p.id === "tiktok" && <BetaBadge />}
               </label>
               {p.id === "youtube" && selectedPlatforms.includes("youtube") && (
                 <div className="ml-6 mt-2 space-y-2">
@@ -765,6 +767,7 @@ export default function UploadPage() {
                 <div className="flex items-center gap-2">
                   <PlatformIcon platform="tiktok" size={16} />
                   <span className="text-sm font-medium text-foreground">TikTok</span>
+                  <BetaBadge />
                 </div>
                 <div className="space-y-2">
                   <Label>TikTok Caption (optional)</Label>

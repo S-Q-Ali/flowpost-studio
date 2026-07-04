@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { BetaBadge } from "@/components/BetaBadge";
 import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Clock3, Play, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Platform, ConnectedAccount } from "@/lib/types";
@@ -555,6 +556,7 @@ export default function WorkflowsPage() {
                     <div className="flex items-center gap-2">
                       <Icon className={cn("h-4 w-4", color)} />
                       <span className="text-sm text-foreground">{label}</span>
+                      {id === "tiktok" && <BetaBadge />}
                     </div>
                   </label>
                   {selected && id === "youtube" && (

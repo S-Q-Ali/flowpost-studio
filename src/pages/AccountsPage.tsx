@@ -7,6 +7,7 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { BetaBadge } from "@/components/BetaBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ConnectedAccount, Platform } from "@/lib/types";
 
@@ -518,7 +519,7 @@ export default function AccountsPage() {
                 <PlatformIcon platform="tiktok" size={24} />
               </div>
               <div>
-                <h3 className="font-medium text-foreground">TikTok</h3>
+                <h3 className="font-medium text-foreground">TikTok <BetaBadge /></h3>
                 <p className="text-xs text-muted-foreground">
                   {tiktokAccounts.length > 0 ? `${tiktokAccounts[0].account_name ?? "Connected"}` : "Not connected"}
                 </p>
