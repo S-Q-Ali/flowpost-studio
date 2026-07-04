@@ -61,7 +61,7 @@ export default function QueuePage() {
     if (!userId) return;
     const { data: postsData } = await supabase
       .from("posts")
-      .select("*, videos(id, title, file_url, thumbnail_url)")
+      .select("*, videos(id, title, file_url, thumbnail_url, uploaded_at)")
       .eq("user_id", userId)
       .order("scheduled_at", { ascending: true });
 
@@ -193,6 +193,12 @@ export default function QueuePage() {
   const videoTitle = (post: PostWithDetails) => (post as { videos?: { title?: string } }).videos?.title ?? "Untitled";
   const videoThumb = (post: PostWithDetails) => (post as { videos?: { thumbnail_url?: string | null; file_url?: string | null } }).videos?.thumbnail_url ?? (post as { videos?: { file_url?: string | null } }).videos?.file_url;
 
+  const isVideoExpired = (post: PostWithDetails) => {
+    const uploadedAt = (post as { videos?: { uploaded_at?: string } }).videos?.uploaded_at;
+    if (!uploadedAt) return true;
+    return Date.now() - new Date(uploadedAt).getTime() > 24 * 60 * 60 * 1000;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -303,7 +309,7 @@ export default function QueuePage() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    {post.status === "failed" && post.platform === "instagram" && (
+                    {post.status === "failed" && post.platform === "instagram" && !isVideoExpired(post) && (
                       <Button
                         variant="ghost"
                         size="icon"
