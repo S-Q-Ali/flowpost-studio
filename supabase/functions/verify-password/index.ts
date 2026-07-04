@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { checkRateLimit, recordFailedAttempt, resetRateLimit, MAX_ATTEMPTS } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -9,9 +10,6 @@ const APP_PASSWORD = Deno.env.get("APP_PASSWORD");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MINUTES = 15;
-
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
@@ -21,82 +19,6 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-async function checkRateLimit(ip: string): Promise<{ allowed: boolean; remainingAttempts?: number; lockoutUntil?: string }> {
-  const now = new Date().toISOString();
-  
-  const { data: rateLimit, error } = await supabase
-    .from("rate_limits")
-    .select("*")
-    .eq("key", `verify-password:${ip}`)
-    .single();
-
-  if (error && error.code !== 'PGRST116') {
-    console.error("Rate limit check error:", error);
-    return { allowed: true };
-  }
-
-  if (!rateLimit) {
-    return { allowed: true, remainingAttempts: MAX_ATTEMPTS };
-  }
-
-  if (new Date(rateLimit.reset_at) > new Date()) {
-    return { 
-      allowed: false, 
-      lockoutUntil: rateLimit.reset_at,
-      remainingAttempts: 0 
-    };
-  }
-
-  const remaining = MAX_ATTEMPTS - rateLimit.attempts;
-  return { allowed: remaining > 0, remainingAttempts: remaining };
-}
-
-async function recordFailedAttempt(ip: string) {
-  const now = new Date();
-  const key = `verify-password:${ip}`;
-  
-  const { data: existing } = await supabase
-    .from("rate_limits")
-    .select("*")
-    .eq("key", key)
-    .single();
-
-  if (existing) {
-    const newAttempts = existing.attempts + 1;
-    if (newAttempts >= MAX_ATTEMPTS) {
-      const lockoutUntil = new Date(now.getTime() + LOCKOUT_DURATION_MINUTES * 60 * 1000);
-      await supabase
-        .from("rate_limits")
-        .update({ 
-          attempts: newAttempts, 
-          reset_at: lockoutUntil.toISOString() 
-        })
-        .eq("key", key);
-    } else {
-      await supabase
-        .from("rate_limits")
-        .update({ attempts: newAttempts })
-        .eq("key", key);
-    }
-  } else {
-    await supabase
-      .from("rate_limits")
-      .insert({ 
-        key, 
-        attempts: 1, 
-        reset_at: now.toISOString() 
-      });
-  }
-}
-
-async function resetRateLimit(ip: string) {
-  const key = `verify-password:${ip}`;
-  await supabase
-    .from("rate_limits")
-    .delete()
-    .eq("key", key);
 }
 
 Deno.serve(async (req) => {
@@ -113,7 +35,7 @@ Deno.serve(async (req) => {
     || "unknown";
 
   try {
-    const rateCheck = await checkRateLimit(ip);
+    const rateCheck = await checkRateLimit(supabase, "verify-password", ip);
     
     if (!rateCheck.allowed) {
       const lockoutDate = new Date(rateCheck.lockoutUntil!);
@@ -139,7 +61,7 @@ Deno.serve(async (req) => {
     }
 
     if (password === correctPassword) {
-      await resetRateLimit(ip);
+      await resetRateLimit(supabase, "verify-password", ip);
 
       const token = crypto.randomUUID() + crypto.randomUUID();
 
@@ -159,7 +81,7 @@ Deno.serve(async (req) => {
       return json({ success: true, token });
     }
 
-    await recordFailedAttempt(ip);
+    await recordFailedAttempt(supabase, "verify-password", ip);
     
     return json({ 
       success: false, 

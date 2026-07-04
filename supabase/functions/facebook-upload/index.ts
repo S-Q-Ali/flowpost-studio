@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { uploadDriveMediaToR2 } from "../_shared/drive-to-r2.ts";
+import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -190,20 +191,7 @@ Deno.serve(async (req) => {
     if (!postRes.ok || !postData?.id) {
       console.error(`Facebook ${isImage ? "image" : "video"} file_url upload failed`, postRes.status, postData);
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      // Update sheet status to "failed"
-      try {
-        await fetch(`${SUPABASE_URL}/functions/v1/update-sheet-status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            apikey: SUPABASE_SERVICE_ROLE_KEY!,
-          },
-          body: JSON.stringify({ postId, status: "failed" }),
-        });
-      } catch (sheetErr) {
-        console.error("Failed to update sheet status", sheetErr);
-      }
+      await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed");
       return json({ error: `Facebook upload failed: ${JSON.stringify(postData)}` }, 502);
     }
 
@@ -220,20 +208,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update Google Sheet status to "posted"
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/update-sheet-status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          apikey: SUPABASE_SERVICE_ROLE_KEY!,
-        },
-        body: JSON.stringify({ postId, status: "posted" }),
-      });
-    } catch (sheetErr) {
-      console.error("Failed to update sheet status", sheetErr);
-    }
+    await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted");
 
     return json({ success: true, postId, facebook_id: postData.id });
   } catch (err) {
@@ -241,16 +216,7 @@ Deno.serve(async (req) => {
     try {
       if (typeof postId === "string") {
         await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-        // Update sheet status to "failed"
-        await fetch(`${SUPABASE_URL}/functions/v1/update-sheet-status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            apikey: SUPABASE_SERVICE_ROLE_KEY!,
-          },
-          body: JSON.stringify({ postId, status: "failed" }),
-        });
+        await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed");
       }
     } catch {
       // ignore

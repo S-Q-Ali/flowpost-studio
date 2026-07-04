@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { uploadDriveMediaToR2 } from "../_shared/drive-to-r2.ts";
+import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -242,19 +243,7 @@ Deno.serve(async (req) => {
       .update({ status: "published", published_at: new Date().toISOString() })
       .eq("id", postId);
 
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/update-sheet-status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          apikey: SUPABASE_SERVICE_ROLE_KEY!,
-        },
-        body: JSON.stringify({ postId, status: "posted" }),
-      });
-    } catch (sheetErr) {
-      console.error("Failed to update sheet status", sheetErr);
-    }
+    await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted");
 
     return json({ success: true, instagram_post_id: publishResult.id as string, container_id: container.id });
   } catch (err) {

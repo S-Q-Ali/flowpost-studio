@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -261,20 +262,7 @@ Deno.serve(async (req) => {
         .from("posts")
         .update({ status: "failed" })
         .eq("id", postId);
-      // Update sheet status to "failed"
-      try {
-        await fetch(`${SUPABASE_URL}/functions/v1/update-sheet-status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            apikey: SUPABASE_SERVICE_ROLE_KEY!,
-          },
-          body: JSON.stringify({ postId, status: "failed" }),
-        });
-      } catch (sheetErr) {
-        console.error("Failed to update sheet status", sheetErr);
-      }
+      await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed");
       return json({ error: `TikTok publish init failed: ${errMsg}` }, initRes.status);
     }
 
@@ -393,19 +381,7 @@ Deno.serve(async (req) => {
       return json({ error: "Upload succeeded but status update failed" }, 500);
     }
 
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/update-sheet-status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          apikey: SUPABASE_SERVICE_ROLE_KEY!,
-        },
-        body: JSON.stringify({ postId, status: "posted" }),
-      });
-    } catch (sheetErr) {
-      console.error("Failed to update sheet status", sheetErr);
-    }
+    await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted");
 
     return json({ success: true, publish_id: publishId });
   } catch (err) {
@@ -413,16 +389,7 @@ Deno.serve(async (req) => {
     try {
       if (typeof postId === "string") {
         await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-        // Update sheet status to "failed"
-        await fetch(`${SUPABASE_URL}/functions/v1/update-sheet-status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            apikey: SUPABASE_SERVICE_ROLE_KEY!,
-          },
-          body: JSON.stringify({ postId, status: "failed" }),
-        });
+        await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed");
       }
     } catch {
       // ignore
