@@ -1,6 +1,6 @@
-# FlowPost Studio — Session State (2026-07-03)
+# FlowPost Studio — Session State (2026-07-04)
 
-## Current HEAD: `627c7e9`
+## Current HEAD: `0ad03ae`
 
 ---
 
@@ -26,47 +26,33 @@
 - **Post-story polling** replaced blind 15s wait + retry with status polling
 - **Auth race condition fixed** — `setPendingSecurityVerification(false)` + `.catch()` in AuthContext
 
-## This Session (2026-07-04) — Commits: a7cb412 → 627c7e9
+## This Session (2026-07-04) — Commits: `627c7e9` → `0ad03ae`
 
 ### Changes made
-- **README.md** — removed stale refs to `cleanup-r2/` and `instagram-publish/`
-- **DB types regenerated** — `supabase gen types typescript --linked`; now includes `scheduling_mode`, `custom_schedule`, `media_type`, `users` table, `sessions`, `rate_limits`, etc.
-- **`connected_accounts_public` view dropped** — security definer view exposing OAuth tokens to anon; migration `20260703010000_drop_connected_accounts_public_view.sql` created
-- **`FALLBACK_USER_ID` removed** from `youtube-auth`, `facebook-auth`, `tiktok-auth`, `process-workflow` — returns 400 instead of falling back to zero-UUID; all 4 redeployed
-- **Backdoor user `00000000-...` deleted** from `public.users` — no data rows reference it
-- **`_shared/` code extracted**:
-  - `_shared/google-jwt.ts` — `getGoogleAccessToken()` extracted from `process-workflow` + `update-sheet-status` (~70 lines × 2 → 1 shared file)
-  - `_shared/drive-to-r2.ts` — `uploadDriveMediaToR2()` extracted from `instagram-upload` + `facebook-upload` (~60 lines × 2 → 1 shared file)
-- **Dead code removed** (zero callers): `GetUploadUrlResponse` in process-workflow, `SUPABASE_ANON_KEY` in youtube-upload, `TIKTOK_CLIENT_KEY` in tiktok-upload, `uploadDriveVideoToR2()` wrappers in instagram-upload + facebook-upload
-- **6 functions deployed** (process-workflow, update-sheet-status, instagram-upload, facebook-upload, youtube-upload, tiktok-upload) — all respond HTTP 401 (alive, module imports resolved)
-- **4 commits pushed** to `origin/main`
+- **Migration `20260704000000_add_post_type.sql`** — adds `post_type TEXT NOT NULL DEFAULT 'feed' CHECK (post_type IN ('feed', 'story'))` to `posts` table; applied
+- **`post-story/index.ts`** — accepts optional `postId`; retry path does DB lookup (video URL + access token) when raw fields absent; writes `published`/`failed` status to `posts` via `postId`; IG polling increased from 15→20 attempts (75s→100s)
+- **`process-workflow/index.ts`** — before firing `post-story` for Instagram stories, inserts a story `posts` row (`post_type='story'`, `status='publishing'`) and passes `postId` in the request body
+- **`process-scheduled-posts/index.ts`** — selects `post_type`; dispatches IG story posts (`post_type='story'` + `platform='instagram'`) to `post-story` instead of `instagram-upload`
+- **`src/pages/QueuePage.tsx`** — retry button (RotateCw icon) on failed IG posts; resets status to `'scheduled'` + `now+1min`; Select All / Select 20 / Clear selection controls in all Queue tabs; auto-clear on tab switch; 24h guard (hides retry button if `uploaded_at > 24h`)
+- **DB types regenerated** — `post_type` now in auto-generated types
+- **3 edge functions deployed** — `post-story`, `process-workflow`, `process-scheduled-posts`
 
-### Outstanding from this session
-- `checkRateLimit()` + `recordFailedAttempt()` still duplicated in `verify-password` + `verify-security-questions` (~40 lines)
+### Outstanding
+- TikTok in beta — excluded from retry UI; posts platform CHECK still missing `'tiktok'`
+- `checkRateLimit()` + `recordFailedAttempt()` duplicated in `verify-password` + `verify-security-questions`
 - `update-sheet-status` fetch call duplicated ~12 times across 4 upload functions
 
 ### Migration
-- 20260616000000_add_multi_user_rls.sql on disk — harmless, kept for reference
-- 20260703000000_restore_backdoor_rls.sql on disk — applied
-- ~80+ RLS policies total (backdoor + _own coexist; _own are redundant but harmless)
-- 20260703010000_drop_connected_accounts_public_view.sql — new
-
-### Clean
-- _shared/constants.ts — gone
-- PHASES.md — gone
-- admin_sessions migration — gone
-- No Phase references in frontend code
-- AuthContext has both fixes (setPendingSecurityVerification(false) + .catch())
-- Working tree is clean (no uncommitted changes)
+- `20260704000000_add_post_type.sql` — new, applied
 
 ---
 
 ## Next Steps
-1. **Extract `checkRateLimit()` + `recordFailedAttempt()`** to `_shared/rate-limit.ts` — duplicated in verify-password + verify-security-questions
+1. **Extract `checkRateLimit()` + `recordFailedAttempt()`** to `_shared/rate-limit.ts` — duplicated in `verify-password` + `verify-security-questions`
 2. **Extract `update-sheet-status` fetch block** — duplicated ~12 times across 4 upload functions
-3. **Phase 4 — Feature gaps**: encrypt OAuth tokens at rest, TikTok chunked upload for large files, retry UI for failed posts, YouTube daily quota warning
+3. **Phase 4 — Feature gaps**: encrypt OAuth tokens at rest, TikTok chunked upload for large files, YouTube daily quota warning
 4. **TikTok app review** — blocked on paid domain (Vercel Pro $20/mo + $12/yr domain)
-5. **After TikTok approval** — switch `privacy_level` from `SELF_ONLY` to `PUBLIC_TO_EVERYONE`
+5. **After TikTok approval** — switch TikTok `privacy_level` from `SELF_ONLY` to `PUBLIC_TO_EVERYONE`; add `'tiktok'` to `posts` platform CHECK
 6. **Snapchat integration** — blocked by API allowlist; requires Snap approval
 
 ## Key Commands
