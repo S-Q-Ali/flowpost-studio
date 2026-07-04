@@ -20,6 +20,7 @@ import type { Platform } from "@/lib/types";
 import type { ConnectedAccount } from "@/lib/types";
 import { uploadToR2 } from "@/lib/r2";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/PlatformIcon";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -48,6 +49,7 @@ export default function UploadPage() {
   const [selectedInstagramAccountIds, setSelectedInstagramAccountIds] = useState<string[]>([]);
   const [selectedTikTokAccountIds, setSelectedTikTokAccountIds] = useState<string[]>([]);
   const [youtubeAccounts, setYoutubeAccounts] = useState<ConnectedAccount[]>([]);
+  const [youtubeQuota, setYoutubeQuota] = useState<{ used: number; percentage: number; uploadCount: number; estimatedUploadsRemaining: number } | null>(null);
   const [facebookAccounts, setFacebookAccounts] = useState<ConnectedAccount[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
@@ -103,6 +105,19 @@ export default function UploadPage() {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    if (selectedPlatforms.includes("youtube")) {
+      (async () => {
+        try {
+          const res = await fetch(`${supabaseUrl}/functions/v1/get-quota-usage?platform=youtube`, {
+            headers: { Authorization: `Bearer ${anonKey}` },
+          });
+          if (res.ok) setYoutubeQuota(await res.json());
+        } catch { /* ignore */ }
+      })();
+    }
+  }, [selectedPlatforms]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -671,6 +686,20 @@ export default function UploadPage() {
                 <div className="flex items-center gap-2">
                   <Youtube className="h-4 w-4 text-red-500" />
                   <span className="text-sm font-medium text-foreground">YouTube</span>
+                  {youtubeQuota && youtubeQuota.percentage >= 50 && (
+                    <Badge
+                      variant="outline"
+                      className={
+                        youtubeQuota.percentage >= 80
+                          ? "bg-red-500/20 text-red-400 border-red-500/30 text-[10px]"
+                          : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px]"
+                      }
+                    >
+                      {youtubeQuota.percentage >= 80
+                        ? `${youtubeQuota.estimatedUploadsRemaining} uploads left today`
+                        : `${youtubeQuota.percentage}% quota used`}
+                    </Badge>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Video Title</Label>

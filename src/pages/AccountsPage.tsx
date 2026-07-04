@@ -20,6 +20,7 @@ export default function AccountsPage() {
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [youtubeConnectedAccounts, setYoutubeConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
+  const [youtubeQuota, setYoutubeQuota] = useState<{ percentage: number; uploadCount: number; estimatedUploadsRemaining: number } | null>(null);
 
   const fetchFacebook = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
@@ -99,6 +100,18 @@ export default function AccountsPage() {
 
   useEffect(() => {
     refreshAll();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-quota-usage?platform=youtube`,
+          { headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` } },
+        );
+        if (res.ok) setYoutubeQuota(await res.json());
+      } catch { /* ignore */ }
+    })();
   }, []);
 
   useEffect(() => {
@@ -572,6 +585,20 @@ export default function AccountsPage() {
                     <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
                       Connected
                     </Badge>
+                    {youtubeQuota && youtubeQuota.percentage >= 50 && (
+                      <Badge
+                        variant="outline"
+                        className={
+                          youtubeQuota.percentage >= 80
+                            ? "bg-red-500/20 text-red-400 border-red-500/30 text-[10px]"
+                            : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px]"
+                        }
+                      >
+                        {youtubeQuota.percentage >= 80
+                          ? `${youtubeQuota.estimatedUploadsRemaining} uploads left today`
+                          : `${youtubeQuota.percentage}% quota used`}
+                      </Badge>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => disconnectYouTube(a.account_id)}>
                       Disconnect
                     </Button>

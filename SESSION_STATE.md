@@ -6,7 +6,7 @@
 
 ## What Works
 - Auth flow (Google OAuth + email/password + security questions)
-- All 16 edge functions deployed and functional
+- All 17 edge functions deployed and functional
 - TikTok integration (FILE_UPLOAD + DIRECT_POST)
 - Instagram status polling instead of blind wait
 - Scheduling (cron every 5min for 2 jobs)
@@ -49,10 +49,12 @@
 - **`decrypt()` backward compatible** — catches errors, returns plaintext for legacy tokens
 - **9 functions redeployed** — tiktok-auth, youtube-auth, facebook-auth, youtube-upload, tiktok-upload, facebook-upload, instagram-upload, post-story, process-workflow
 - **Legal links added** — Terms & Privacy links in LoginPage footer, AppSidebar footer (FileText/Shield icons), and cross-links between TermsPage and PrivacyPage
+- **`get-quota-usage`** — NEW edge function: counts daily YouTube posts, returns estimated quota (1,600 units/upload, 10,000 limit)
+- **UploadPage** — shows yellow/red quota badge when YouTube selected
+- **AccountsPage** — shows quota badge next to YouTube "Connected" badge
 
 ## Next Steps
-1. **YouTube daily quota warning** — frontend badge/notification
-2. **Add `'tiktok'` to `posts` platform CHECK** — simple migration (TikTok in beta)
+1. **Add `'tiktok'` to `posts` platform CHECK** — simple migration (TikTok in beta)
 3. **TikTok app review** — blocked on paid domain (Vercel Pro $20/mo + $12/yr domain)
 4. **After TikTok approval** — switch TikTok `privacy_level` from `SELF_ONLY` to `PUBLIC_TO_EVERYONE`
 5. **Snapchat integration** — blocked by API allowlist; requires Snap approval
