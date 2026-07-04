@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State (2026-07-04)
 
-## Current HEAD: `a221822`
+## Current HEAD: `64376a5`
 
 ---
 
@@ -26,7 +26,7 @@
 - **Post-story polling** replaced blind 15s wait + retry with status polling
 - **Auth race condition fixed** — `setPendingSecurityVerification(false)` + `.catch()` in AuthContext
 
-## This Session (2026-07-04) — Commits: `627c7e9` → `a221822`
+## This Session (2026-07-04) — Commits: `627c7e9` → `64376a5`
 
 ### Changes made
 - **Migration `20260704000000_add_post_type.sql`** — adds `post_type TEXT NOT NULL DEFAULT 'feed' CHECK (post_type IN ('feed', 'story'))` to `posts` table; applied
@@ -36,7 +36,7 @@
 - **`src/pages/QueuePage.tsx`** — retry button (RotateCw icon) on failed IG posts; resets status to `'scheduled'` + `now+1min`; Select All / Select 20 / Clear selection controls in all Queue tabs; auto-clear on tab switch; 24h guard (hides retry button if `uploaded_at > 24h`)
 - **DB types regenerated** — `post_type` now in auto-generated types
 - **3 edge functions deployed** — `post-story`, `process-workflow`, `process-scheduled-posts`
-- **4 commits pushed** — `58cd751` (retry feature), `8e57750` (selection controls), `0ad03ae` (24h guard), `a221822` (session state update)
+- **5 commits pushed** — `58cd751` (retry feature), `8e57750` (selection controls), `0ad03ae` (24h guard), `a221822` (session state), `64376a5` (session state with duplication analysis)
 
 ### Verified Duplications
 - **`checkRateLimit()` + `recordFailedAttempt()`** — confirmed: 2 functions × 2 files, identical logic (only key prefix differs: `verify-password:` vs `verify-security-questions:`). `resetRateLimit()` exists only in `verify-password`. Constants `MAX_ATTEMPTS=5`, `LOCKOUT_DURATION_MINUTES=15` also duplicated. No `_shared/rate-limit.ts` exists.
