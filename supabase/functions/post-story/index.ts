@@ -249,7 +249,7 @@ Deno.serve(async (req) => {
       const MAX_POLL_ATTEMPTS = 20;
       let containerReady = false;
       for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
-        await new Promise((r) => setTimeout(r, 5000));
+        await new Promise((r) => setTimeout(r, 2000));
 
         const statusRes = await fetch(
           `https://graph.facebook.com/v25.0/${container.id}?fields=status_code&access_token=${accessToken}`
