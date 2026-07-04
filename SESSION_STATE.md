@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State (2026-07-04)
 
-## Current HEAD: `0ad03ae`
+## Current HEAD: `a221822`
 
 ---
 
@@ -26,7 +26,7 @@
 - **Post-story polling** replaced blind 15s wait + retry with status polling
 - **Auth race condition fixed** — `setPendingSecurityVerification(false)` + `.catch()` in AuthContext
 
-## This Session (2026-07-04) — Commits: `627c7e9` → `0ad03ae`
+## This Session (2026-07-04) — Commits: `627c7e9` → `a221822`
 
 ### Changes made
 - **Migration `20260704000000_add_post_type.sql`** — adds `post_type TEXT NOT NULL DEFAULT 'feed' CHECK (post_type IN ('feed', 'story'))` to `posts` table; applied
@@ -36,11 +36,11 @@
 - **`src/pages/QueuePage.tsx`** — retry button (RotateCw icon) on failed IG posts; resets status to `'scheduled'` + `now+1min`; Select All / Select 20 / Clear selection controls in all Queue tabs; auto-clear on tab switch; 24h guard (hides retry button if `uploaded_at > 24h`)
 - **DB types regenerated** — `post_type` now in auto-generated types
 - **3 edge functions deployed** — `post-story`, `process-workflow`, `process-scheduled-posts`
+- **4 commits pushed** — `58cd751` (retry feature), `8e57750` (selection controls), `0ad03ae` (24h guard), `a221822` (session state update)
 
-### Outstanding
-- TikTok in beta — excluded from retry UI; posts platform CHECK still missing `'tiktok'`
-- `checkRateLimit()` + `recordFailedAttempt()` duplicated in `verify-password` + `verify-security-questions`
-- `update-sheet-status` fetch call duplicated ~12 times across 4 upload functions
+### Verified Duplications
+- **`checkRateLimit()` + `recordFailedAttempt()`** — confirmed: 2 functions × 2 files, identical logic (only key prefix differs: `verify-password:` vs `verify-security-questions:`). `resetRateLimit()` exists only in `verify-password`. Constants `MAX_ATTEMPTS=5`, `LOCKOUT_DURATION_MINUTES=15` also duplicated. No `_shared/rate-limit.ts` exists.
+- **`update-sheet-status` fetch block** — confirmed: 12 identical fetch blocks across 4 upload functions (insta:1, fb:3, yt:2, tt:6). Only variance is `status: "posted"` vs `"failed"`. 3 minor wrapping variants (own try/catch, outer catch with log, outer catch silent).
 
 ### Migration
 - `20260704000000_add_post_type.sql` — new, applied
@@ -48,8 +48,8 @@
 ---
 
 ## Next Steps
-1. **Extract `checkRateLimit()` + `recordFailedAttempt()`** to `_shared/rate-limit.ts` — duplicated in `verify-password` + `verify-security-questions`
-2. **Extract `update-sheet-status` fetch block** — duplicated ~12 times across 4 upload functions
+1. **Extract `_shared/rate-limit.ts`** — export `checkRateLimit(supabase, namespace, ip)`, `recordFailedAttempt(supabase, namespace, ip)`, `resetRateLimit(supabase, namespace, ip)` + `MAX_ATTEMPTS`, `LOCKOUT_DURATION_MINUTES`. Modify `verify-password` + `verify-security-questions` to import and use. Net: ~75 lines removed.
+2. **Extract `_shared/sheet-status.ts`** — export `updateSheetStatus(supabaseUrl, serviceRoleKey, postId, status)`. Replace 12 duplicated fetch blocks across 4 upload functions. Net: ~95 lines removed.
 3. **Phase 4 — Feature gaps**: encrypt OAuth tokens at rest, TikTok chunked upload for large files, YouTube daily quota warning
 4. **TikTok app review** — blocked on paid domain (Vercel Pro $20/mo + $12/yr domain)
 5. **After TikTok approval** — switch TikTok `privacy_level` from `SELF_ONLY` to `PUBLIC_TO_EVERYONE`; add `'tiktok'` to `posts` platform CHECK
