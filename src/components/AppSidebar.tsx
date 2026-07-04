@@ -6,6 +6,8 @@ import {
   ListTodo,
   Link2,
   Lock,
+  FileText,
+  Shield,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -73,6 +75,28 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-2 border-t border-border">
+        <div className={`flex ${collapsed ? 'flex-col items-center' : 'justify-center'} gap-1 mb-1`}>
+          <SidebarMenuButton asChild>
+            <NavLink
+              to="/terms"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground w-full"
+              activeClassName="bg-primary/10 text-primary font-medium"
+            >
+              <FileText size={18} />
+              {!collapsed && <span>Terms</span>}
+            </NavLink>
+          </SidebarMenuButton>
+          <SidebarMenuButton asChild>
+            <NavLink
+              to="/privacy"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground w-full"
+              activeClassName="bg-primary/10 text-primary font-medium"
+            >
+              <Shield size={18} />
+              {!collapsed && <span>Privacy</span>}
+            </NavLink>
+          </SidebarMenuButton>
+        </div>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

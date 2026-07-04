@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { decrypt } from "../_shared/crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -105,7 +106,7 @@ Deno.serve(async (req) => {
 
       accountId = storyPost.account_id;
       videoUrl = video.file_url;
-      accessToken = acc.access_token;
+      accessToken = await decrypt(acc.access_token);
       if (!mediaTypeInput) mediaTypeInput = video.media_type;
     } else if (!body.videoUrl || !body.accessToken || !body.accountId) {
       // First attempt from process-workflow — raw fields required

@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
 const corsHeaders = {
@@ -156,7 +157,7 @@ Deno.serve(async (req) => {
       return json({ error: "TikTok account is disconnected" }, 400);
     }
 
-    let accessToken = account.access_token;
+    let accessToken = await decrypt(account.access_token);
 
     const tokenExpiry = account.token_expiry ? new Date(account.token_expiry) : null;
     if (!tokenExpiry || tokenExpiry <= new Date()) {
@@ -170,7 +171,7 @@ Deno.serve(async (req) => {
         .eq("account_id", post.account_id)
         .single();
       if (refreshed?.access_token) {
-        accessToken = refreshed.access_token;
+        accessToken = await decrypt(refreshed.access_token);
       } else {
         await supabase
           .from("posts")

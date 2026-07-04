@@ -159,6 +159,17 @@ export default function LoginPage() {
             </form>
           </CardContent>
         </Card>
+
+        <p className="text-xs text-zinc-600">
+          By signing in, you agree to the{" "}
+          <a href="/terms" className="text-zinc-400 hover:text-zinc-300 underline underline-offset-2">
+            Terms of Service
+          </a>{" "}
+          and{" "}
+          <a href="/privacy" className="text-zinc-400 hover:text-zinc-300 underline underline-offset-2">
+            Privacy Policy
+          </a>
+        </p>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { decrypt } from "../_shared/crypto.ts";
 import { uploadDriveMediaToR2 } from "../_shared/drive-to-r2.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
@@ -115,7 +116,7 @@ Deno.serve(async (req) => {
     }
 
     const pageId = account.account_id;
-    const accessToken = account.access_token;
+    const accessToken = await decrypt(account.access_token);
 
     // Support either:
     // - Traditional flow: video.file_url points to R2/public storage

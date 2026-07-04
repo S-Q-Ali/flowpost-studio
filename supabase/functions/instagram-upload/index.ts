@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { decrypt } from "../_shared/crypto.ts";
 import { uploadDriveMediaToR2 } from "../_shared/drive-to-r2.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
       return json({ error: "Connected Instagram account not found" }, 404);
     }
 
-    const accessToken = account.access_token as string;
+    const accessToken = await decrypt(account.access_token as string);
     const igUserId = account.account_id as string;
 
     const userId = post.user_id ?? "00000000-0000-0000-0000-000000000000";

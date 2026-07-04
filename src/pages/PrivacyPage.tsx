@@ -179,6 +179,12 @@ export default function PrivacyPage() {
               syedqasim963@gmail.com
             </a>
           </p>
+          <p>
+            See also:{" "}
+            <Link to="/terms" className="text-primary hover:underline">
+              Terms of Service
+            </Link>
+          </p>
         </section>
       </div>
     </div>

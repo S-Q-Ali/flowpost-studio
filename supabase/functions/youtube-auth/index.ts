@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { encrypt, decrypt } from "../_shared/crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -190,8 +191,8 @@ Deno.serve(async (req) => {
             platform: "youtube",
             account_name: channelTitle,
             account_id: channelId,
-            access_token: tokens.access_token,
-            refresh_token: refreshTokenToStore,
+            access_token: await encrypt(tokens.access_token),
+            refresh_token: refreshTokenToStore ? await encrypt(refreshTokenToStore) : null,
             token_expiry: tokenExpiry,
             metadata: { subscriber_count: subscriberCount },
             is_connected: true,
@@ -226,15 +227,16 @@ Deno.serve(async (req) => {
         .single();
 
       if (fetchError || !account) return json({ error: "Account not found" }, 404);
-      if (!account.refresh_token) return json({ error: "Missing refresh token" }, 400);
+      const rawRefreshToken = await decrypt(account.refresh_token);
+      if (!rawRefreshToken) return json({ error: "Missing refresh token" }, 400);
 
-      const refreshed = await refreshAccessToken(account.refresh_token);
+      const refreshed = await refreshAccessToken(rawRefreshToken);
       const tokenExpiry = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
 
       const { error: updateError } = await supabaseAdmin
         .from("connected_accounts")
         .update({
-          access_token: refreshed.access_token,
+          access_token: await encrypt(refreshed.access_token),
           token_expiry: tokenExpiry,
         })
         .eq("platform", "youtube")

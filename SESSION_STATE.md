@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State (2026-07-04)
 
-## Current HEAD: `bd24b71`
+## Current HEAD: `b76823a`
 
 ---
 
@@ -25,41 +25,37 @@
 - **`SB_*` custom secrets deleted** — all functions use auto-injected `SUPABASE_*` secrets
 - **Post-story polling** replaced blind 15s wait + retry with status polling (20×2s=40s)
 - **Auth race condition fixed** — `setPendingSecurityVerification(false)` + `.catch()` in AuthContext
-- **Code extraction** — `_shared/rate-limit.ts`, `_shared/sheet-status.ts`, `_shared/google-jwt.ts`, `_shared/drive-to-r2.ts` all active
+- **Code extraction** — `_shared/` has 5 modules: `rate-limit.ts`, `sheet-status.ts`, `google-jwt.ts`, `drive-to-r2.ts`, `crypto.ts`
 
-## This Session (2026-07-04) — Commits: `627c7e9` → `f8cbe1d`
+## This Session (2026-07-04) — Uncommitted (HEAD `b76823a`)
 
-### Changes made
+### Changes made (batch 1 — committed `627c7e9`→`f8cbe1d`, 7 commits)
 - **Migration `20260704000000_add_post_type.sql`** — adds `post_type` column to `posts`; applied
-- **`post-story/index.ts`** — accepts `postId`; retry DB lookup; writes `published`/`failed` status; IG polling 15→20 attempts; poll interval 5s→2s (fix: 20×2s=40s fits within Supabase 60s timeout)
-- **`process-workflow/index.ts`** — inserts story `posts` row (`post_type='story'`) before firing `post-story` with `postId`
-- **`process-scheduled-posts/index.ts`** — dispatches IG story posts to `post-story` instead of `instagram-upload`
-- **`src/pages/QueuePage.tsx`** — retry button on failed IG posts; Select All/20/Clear; 24h guard
-- **`_shared/rate-limit.ts`** — NEW: exports `checkRateLimit(supabase, namespace, ip)`, `recordFailedAttempt()`, `resetRateLimit()`, `MAX_ATTEMPTS`, `LOCKOUT_DURATION_MINUTES`. Replaces 3 duplicated functions in `verify-password` + `verify-security-questions`. Net -48 lines.
-- **`_shared/sheet-status.ts`** — NEW: exports `updateSheetStatus(supabaseUrl, serviceRoleKey, postId, status)`. Replaces 12 duplicated fetch blocks across 4 upload functions. Net -79 lines.
-- **`verify-password/index.ts`** — removed local `checkRateLimit`, `recordFailedAttempt`, `resetRateLimit`, `MAX_ATTEMPTS`, `LOCKOUT_DURATION_MINUTES` → imported from `_shared/rate-limit.ts`
-- **`verify-security-questions/index.ts`** — same extraction as verify-password
-- **`instagram-upload/index.ts`** — 1 fetch block → `updateSheetStatus(...)` call
-- **`facebook-upload/index.ts`** — 3 fetch blocks → `updateSheetStatus(...)` calls
-- **`youtube-upload/index.ts`** — 2 fetch blocks → `updateSheetStatus(...)` calls
-- **`tiktok-upload/index.ts`** — 6 fetch blocks → `updateSheetStatus(...)` calls
-- **8 edge functions deployed** — `verify-password`, `verify-security-questions`, `instagram-upload`, `facebook-upload`, `youtube-upload`, `tiktok-upload`, plus previously deployed `post-story`, `process-workflow`, `process-scheduled-posts` from earlier this session
-- **7 commits pushed** — `58cd751` (retry), `8e57750` (selection), `0ad03ae` (24h), `a221822` (session), `64376a5` (analysis), `6dbecb6` (extractions), `f8cbe1d` (2s poll fix)
+- **`post-story/index.ts`** — accepts `postId`; retry DB lookup; writes `published`/`failed` status; IG polling 20×2s=40s
+- **`process-workflow/index.ts`** — inserts story `posts` row before firing `post-story`
+- **`process-scheduled-posts/index.ts`** — dispatches IG story posts to `post-story`
+- **`src/pages/QueuePage.tsx`** — retry button; Select All/20/Clear; 24h guard
+- **`_shared/rate-limit.ts`** — NEW: rate limiting for verify endpoints (-48 lines)
+- **`_shared/sheet-status.ts`** — NEW: deduplicated sheet status update (-79 lines)
+- **Module extraction** — rate-limit + sheet-status extracted; all 4 upload + 2 verify functions updated
+- **8 functions deployed** — verify-password, verify-security-questions, instagram-upload, facebook-upload, youtube-upload, tiktok-upload, post-story, process-workflow, process-scheduled-posts
 
-### Duplications resolved
-- ✅ `checkRateLimit()` + `recordFailedAttempt()` — extracted to `_shared/rate-limit.ts`, both files updated, deployed
-- ✅ `update-sheet-status` — extracted to `_shared/sheet-status.ts`, all 4 upload files updated, deployed
-
-### Migration
-- `20260704000000_add_post_type.sql` — applied
-
----
+### Changes made (batch 2 — uncommitted)
+- **`_shared/crypto.ts`** — NEW: AES-GCM encrypt/decrypt via Deno `crypto.subtle`. Key from env `TOKEN_ENCRYPTION_KEY`
+- **Write paths encrypted** — `tiktok-auth`, `youtube-auth`, `facebook-auth` (9 encrypt calls across access_token, refresh_token, metadata.refresh_token)
+- **Read paths decrypted** — `youtube-upload`, `tiktok-upload`, `facebook-upload`, `instagram-upload`, `post-story`, `process-workflow`, `youtube-auth`, `tiktok-auth` (~16 decrypt calls)
+- **Backfill** — one-shot function encrypted all 38 existing tokens, then deleted
+- **Key** — `TOKEN_ENCRYPTION_KEY` set as Supabase secret (256-bit AES-GCM)
+- **`decrypt()` backward compatible** — catches errors, returns plaintext for legacy tokens
+- **9 functions redeployed** — tiktok-auth, youtube-auth, facebook-auth, youtube-upload, tiktok-upload, facebook-upload, instagram-upload, post-story, process-workflow
+- **Legal links added** — Terms & Privacy links in LoginPage footer, AppSidebar footer (FileText/Shield icons), and cross-links between TermsPage and PrivacyPage
 
 ## Next Steps
-1. **Phase 4 — Feature gaps**: encrypt OAuth tokens at rest, TikTok chunked upload for large files, YouTube daily quota warning
-2. **TikTok app review** — blocked on paid domain (Vercel Pro $20/mo + $12/yr domain)
-3. **After TikTok approval** — switch TikTok `privacy_level` from `SELF_ONLY` to `PUBLIC_TO_EVERYONE`; add `'tiktok'` to `posts` platform CHECK
-4. **Snapchat integration** — blocked by API allowlist; requires Snap approval
+1. **YouTube daily quota warning** — frontend badge/notification
+2. **Add `'tiktok'` to `posts` platform CHECK** — simple migration (TikTok in beta)
+3. **TikTok app review** — blocked on paid domain (Vercel Pro $20/mo + $12/yr domain)
+4. **After TikTok approval** — switch TikTok `privacy_level` from `SELF_ONLY` to `PUBLIC_TO_EVERYONE`
+5. **Snapchat integration** — blocked by API allowlist; requires Snap approval
 
 ## Key Commands
 ```powershell

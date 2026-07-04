@@ -114,6 +114,12 @@ export default function TermsPage() {
               syedqasim963@gmail.com
             </a>
           </p>
+          <p>
+            See also:{" "}
+            <Link to="/privacy" className="text-primary hover:underline">
+              Privacy Policy
+            </Link>
+          </p>
         </section>
       </div>
     </div>

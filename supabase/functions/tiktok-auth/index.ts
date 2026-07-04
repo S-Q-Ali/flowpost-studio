@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { encrypt, decrypt } from "../_shared/crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -207,12 +208,12 @@ Deno.serve(async (req) => {
             platform: "tiktok",
             account_name: display_name,
             account_id: openId,
-            access_token: tokenData.access_token,
+            access_token: await encrypt(tokenData.access_token),
             is_connected: true,
             connected_at: new Date().toISOString(),
             token_expiry: expiresAtIso,
             metadata: {
-              refresh_token: tokenData.refresh_token,
+              refresh_token: await encrypt(tokenData.refresh_token),
               refresh_expires_at: refreshExpiresAtIso,
               scope: tokenData.scope,
               union_id: union_id,
@@ -274,10 +275,11 @@ Deno.serve(async (req) => {
         return json({ error: "TikTok account not found" }, 404);
       }
 
-      const refreshToken = (account.metadata as any)?.refresh_token;
-      if (!refreshToken) {
+      const encryptedRefreshToken = (account.metadata as any)?.refresh_token;
+      if (!encryptedRefreshToken) {
         return json({ error: "No refresh token available" }, 400);
       }
+      const refreshToken = await decrypt(encryptedRefreshToken);
 
       const refreshed = await refreshAccessToken(refreshToken);
       const expiresAtIso = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
@@ -288,11 +290,11 @@ Deno.serve(async (req) => {
       const { error: updateError } = await supabaseAdmin
         .from("connected_accounts")
         .update({
-          access_token: refreshed.access_token,
+          access_token: await encrypt(refreshed.access_token),
           token_expiry: expiresAtIso,
           metadata: {
             ...(account.metadata as any),
-            refresh_token: refreshed.refresh_token,
+            refresh_token: await encrypt(refreshed.refresh_token),
             refresh_expires_at: refreshExpiresAtIso,
             scope: refreshed.scope,
           },

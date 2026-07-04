@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
 const corsHeaders = {
@@ -142,7 +143,7 @@ Deno.serve(async (req) => {
       return json({ error: "Connected account not found" }, 404);
     }
 
-    let accessToken = account.access_token;
+    let accessToken = await decrypt(account.access_token);
     if (isTokenExpired(account.token_expiry) && account.refresh_token) {
       await refreshYouTubeToken(post.account_id);
       const { data: updated } = await supabase
@@ -151,7 +152,7 @@ Deno.serve(async (req) => {
         .eq("account_id", post.account_id)
         .eq("platform", "youtube")
         .single();
-      accessToken = updated?.access_token ?? accessToken;
+      accessToken = updated?.access_token ? await decrypt(updated.access_token) : accessToken;
     }
 
     // Support either:

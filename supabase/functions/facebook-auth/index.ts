@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { encrypt } from "../_shared/crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -171,7 +172,7 @@ Deno.serve(async (req) => {
               platform: "facebook",
               account_name: page.name ?? "Facebook Page",
               account_id: page.id,
-              access_token: pageAccessToken,
+              access_token: await encrypt(pageAccessToken),
               is_connected: true,
               connected_at: new Date().toISOString(),
               metadata: { category, picture_url: pictureUrl },
@@ -201,7 +202,7 @@ Deno.serve(async (req) => {
                 platform: "instagram",
                 account_name: igAccount.username || igAccount.name || "Instagram",
                 account_id: igAccount.id,
-                access_token: pageAccessToken,
+                access_token: await encrypt(pageAccessToken),
                 is_connected: true,
                 connected_at: new Date().toISOString(),
                 metadata: {

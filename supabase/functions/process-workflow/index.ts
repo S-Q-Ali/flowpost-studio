@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { decrypt } from "../_shared/crypto.ts";
 import { getGoogleAccessToken } from "../_shared/google-jwt.ts";
 
 const corsHeaders = {
@@ -666,22 +667,25 @@ Deno.serve(async (req) => {
                   .eq("platform", "facebook")
                   .single();
 
-                 if (fbAcc?.access_token && !usedStoryTokens.has(fbAcc.access_token)) {
-                    usedStoryTokens.add(fbAcc.access_token);
-                    void fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                      },
-                      body: JSON.stringify({
-                        platform: "facebook",
-                        accountId: post.account_id,
-                        videoUrl: storyVideoUrl,
-                        accessToken: fbAcc.access_token,
-                        mediaType,
-                      }),
-                    });
+                 if (fbAcc?.access_token) {
+                    const rawFbToken = await decrypt(fbAcc.access_token);
+                    if (!usedStoryTokens.has(rawFbToken)) {
+                      usedStoryTokens.add(rawFbToken);
+                      void fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                        },
+                        body: JSON.stringify({
+                          platform: "facebook",
+                          accountId: post.account_id,
+                          videoUrl: storyVideoUrl,
+                          accessToken: rawFbToken,
+                          mediaType,
+                        }),
+                      });
+                    }
                  }
               }
 
@@ -698,6 +702,7 @@ Deno.serve(async (req) => {
                   .single();
 
                  if (igAcc?.access_token) {
+                    const rawIgToken = await decrypt(igAcc.access_token);
                     // Insert a story post row to track the story outcome
                     const { data: storyPost } = await supabase
                       .from("posts")
@@ -727,7 +732,7 @@ Deno.serve(async (req) => {
                           platform: "instagram",
                           accountId: post.account_id,
                           videoUrl: storyVideoUrl,
-                          accessToken: igAcc.access_token,
+                          accessToken: rawIgToken,
                           mediaType,
                           postId: storyPost.id,
                         }),
