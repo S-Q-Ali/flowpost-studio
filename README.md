@@ -1,18 +1,21 @@
 # FlowPost Studio
 
-> Multi-platform video scheduling and auto-distribution dashboard. Upload once, publish to YouTube Shorts, Instagram Reels, and Facebook Pages from a single interface.
+> Upload once, publish everywhere. Multi-platform video and image scheduling dashboard supporting YouTube Shorts, Instagram Reels & Stories, Facebook Pages, and TikTok.
 
 ---
 
 ## Features
 
-- **Cross-platform publishing** — Upload a video once and distribute to YouTube, Instagram, and Facebook simultaneously
-- **Scheduled posting** — Set future publish dates per platform
+- **Cross-platform publishing** — Upload a video or image once and distribute to YouTube, Instagram, Facebook, and TikTok simultaneously
+- **Image support** — Publish images to Facebook and Instagram (Photo posts + Stories)
+- **Scheduled posting** — Set future publish dates per platform (cron-driven every 5 minutes)
 - **Content calendar** — Monthly overview of all scheduled and published posts
-- **Queue management** — Edit, reschedule, or delete pending posts
-- **Google Sheets workflows** — Automatically pull videos from a spreadsheet and post on a recurring schedule
-- **Connected accounts** — Manage OAuth connections for all your social channels
-- **Progress tracking** — Real-time upload progress and post status updates
+- **Queue management** — Edit, reschedule, retry, or delete pending posts with bulk operations
+- **Google Sheets workflows** — Automatically pull videos or images from a spreadsheet and post on a recurring schedule (3 scheduling modes)
+- **Connected accounts** — Manage OAuth connections for YouTube, Facebook, Instagram, and TikTok
+- **Progress tracking** — Real-time upload progress and per-platform post status updates
+- **YouTube quota monitoring** — Dashboard badges warn when daily quota reaches 50% / 80%
+- **TikTok integration** — Beta support with FILE_UPLOAD + DIRECT_POST publishing flow
 
 ---
 
@@ -23,7 +26,7 @@
 | **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router v6, TanStack Query |
 | **Backend** | Supabase (PostgreSQL, Auth, Edge Functions running Deno) |
 | **Storage** | Cloudflare R2 (S3-compatible object storage) |
-| **Social APIs** | YouTube Data API v3, Facebook Graph API v18, Instagram Basic Display API |
+| **Social APIs** | YouTube Data API v3, Facebook Graph API v25, Instagram Graph API, TikTok API v2 |
 | **Hosting** | Vercel (frontend), Supabase (edge functions + database) |
 | **Testing** | Vitest, React Testing Library, jsdom |
 | **Linting** | ESLint with typescript-eslint |
@@ -39,8 +42,12 @@ flowpost-studio/
 │   │   ├── ui/             # ~40 shadcn/ui primitives
 │   │   ├── AppLayout.tsx   # Authenticated app shell with sidebar
 │   │   ├── AppSidebar.tsx  # Navigation sidebar
-│   │   ├── PasswordGate.tsx# Login page (app password + Google OAuth)
+│   │   ├── AppSidebar.tsx  # Navigation sidebar
+│   │   ├── BetaBadge.tsx   # Beta indicator badge
+│   │   ├── Logo.tsx        # FlowPost logo
+│   │   ├── NavLink.tsx     # Active-aware nav link
 │   │   ├── PlatformIcon.tsx# Platform icon component
+│   │   ├── SecurityQuestionsGate.tsx # Admin 2FA gate
 │   │   └── StatusBadge.tsx # Post status badge
 │   ├── contexts/
 │   │   └── AuthContext.tsx  # Authentication state management
@@ -49,7 +56,6 @@ flowpost-studio/
 │   │   └── supabase/       # Supabase client + DB types
 │   ├── lib/
 │   │   ├── types.ts        # App type definitions
-│   │   ├── constants.ts    # Shared constants
 │   │   ├── utils.ts        # Utility functions
 │   │   └── r2.ts           # Direct-to-R2 upload via XHR
 │   ├── pages/
@@ -65,22 +71,31 @@ flowpost-studio/
 │   ├── App.tsx             # Root component with router
 │   └── main.tsx            # Entry point
 ├── supabase/
-│   ├── functions/           # 16 Deno Edge Functions
+│   ├── functions/           # 17 Deno Edge Functions
+│   │   ├── _shared/          # Shared modules
+│   │   │   ├── crypto.ts         # AES-GCM token encryption
+│   │   │   ├── google-jwt.ts     # Google JWT assertion
+│   │   │   ├── drive-to-r2.ts    # Drive to R2 media transfer
+│   │   │   ├── rate-limit.ts     # Rate limiting helpers
+│   │   │   └── sheet-status.ts   # Sheet status update helper
 │   │   ├── verify-password/
 │   │   ├── verify-session/
 │   │   ├── verify-security-questions/
 │   │   ├── get-upload-url/
+│   │   ├── get-quota-usage/
 │   │   ├── youtube-upload/
 │   │   ├── youtube-auth/
 │   │   ├── facebook-upload/
 │   │   ├── facebook-auth/
 │   │   ├── instagram-upload/
+│   │   ├── tiktok-upload/
+│   │   ├── tiktok-auth/
 │   │   ├── post-story/
 │   │   ├── process-workflow/
 │   │   ├── process-scheduled-posts/
 │   │   ├── update-sheet-status/
-│   │   ├── google-oauth/
-│   └── migrations/          # Database migration files
+│   │   └── google-oauth/
+│   └── migrations/          # 22 database migration files
 ├── public/                  # Static assets
 ├── .env.example             # Environment variable template
 ├── vercel.json              # Vercel deployment config
@@ -93,12 +108,12 @@ flowpost-studio/
 ## Architecture Overview
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
-│   Browser   │────>│   Supabase   │────>│  YouTube API    │
-│  (React)    │     │ Edge Functions│     │  Facebook API   │
-│             │     │  (Deno)      │     │  Instagram API  │
-│  ┌───────┐  │     │              │     └─────────────────┘
-│  │ R2    │◄─┼────>│  Cloudflare  │
+┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
+│   Browser   │────>│   Supabase   │────>│  YouTube API     │
+│  (React)    │     │ Edge Functions│     │  Facebook API    │
+│             │     │  (Deno)      │     │  Instagram API   │
+│  ┌───────┐  │     │              │     │  TikTok API      │
+│  │ R2    │◄─┼────>│  Cloudflare  │     └──────────────────┘
 │  │ Upload│  │     │  R2 Storage  │
 │  └───────┘  │     └──────────────┘
 └─────────────┘
@@ -106,12 +121,13 @@ flowpost-studio/
 
 **Data flow:**
 
-1. User authenticates via app password or Google OAuth
-2. Video is uploaded directly to Cloudflare R2 via a presigned URL
+1. User authenticates via email/password (admin) or Google OAuth (regular users)
+2. File is uploaded directly to Cloudflare R2 via a presigned URL
 3. A post record is created in Supabase with platform targets
 4. For immediate publishing, the frontend calls the appropriate edge function
-5. For scheduled posts, a cron job (`process-scheduled-posts`) picks up due posts
+5. For scheduled posts, a cron job picks up due posts every 5 minutes
 6. For Google Sheets workflows, `process-workflow` reads sheets and creates posts
+7. TikTok publishes via FILE_UPLOAD + DIRECT_POST flow (SELF_ONLY privacy in Beta)
 
 ---
 
@@ -122,7 +138,7 @@ flowpost-studio/
 - Node.js 18+
 - A Supabase project with the [migrations](supabase/migrations/) applied
 - Cloudflare R2 bucket configured
-- Facebook app, YouTube project, and Instagram Business account with API access
+- Facebook app, YouTube project, Instagram Business account, and TikTok developer app with API access
 
 ### Local Development
 
@@ -152,7 +168,7 @@ npm install supabase --save-dev
 npx supabase link
 
 # Deploy all functions
-npx supabase functions deploy verify-password verify-session verify-security-questions get-upload-url youtube-upload youtube-auth facebook-upload facebook-auth instagram-upload post-story process-workflow process-scheduled-posts update-sheet-status google-oauth
+npx supabase functions deploy verify-password verify-session verify-security-questions get-upload-url get-quota-usage youtube-upload youtube-auth facebook-upload facebook-auth instagram-upload tiktok-upload tiktok-auth post-story process-workflow process-scheduled-posts update-sheet-status google-oauth
 ```
 
 ### Deploy Database Migrations
@@ -169,8 +185,8 @@ Set these in **Supabase Dashboard → Edge Functions → Secrets**:
 
 | Variable | Description |
 |----------|-------------|
-| `SB_URL` | Supabase project URL |
-| `SB_SERVICE_ROLE_KEY` | Supabase service role key |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
 | `ALLOWED_ORIGIN` | Frontend URL for CORS (e.g. `https://flowpost-studio.vercel.app`) |
 | `APP_PASSWORD` | App password for login |
 | `R2_ENDPOINT` | Cloudflare R2 endpoint URL |
@@ -180,6 +196,9 @@ Set these in **Supabase Dashboard → Edge Functions → Secrets**:
 | `R2_PUBLIC_URL` | R2 public URL |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | GCP service account email for Sheets access |
 | `GOOGLE_PRIVATE_KEY` | GCP service account private key |
+| `TOKEN_ENCRYPTION_KEY` | 256-bit key for AES-GCM OAuth token encryption |
+| `TIKTOK_CLIENT_KEY` | TikTok developer app client key |
+| `TIKTOK_CLIENT_SECRET` | TikTok developer app client secret |
 
 Frontend variables (in `.env.local`):
 
@@ -207,12 +226,13 @@ Frontend variables (in `.env.local`):
 
 ## Security
 
-- **Row Level Security** — All tables have RLS enabled. The frontend (anon key) is scoped to the admin UUID via policies
+- **Row Level Security** — All tables have RLS enabled with per-user policies
+- **Token Encryption** — All OAuth tokens encrypted at rest with AES-GCM (`TOKEN_ENCRYPTION_KEY`)
 - **CORS** — Restricted via the `ALLOWED_ORIGIN` environment variable on all edge functions
 - **Rate Limiting** — Login and security question endpoints have rate limiting (5 attempts, 15-minute lockout)
 - **SSRF Protection** — Upload functions validate URLs against a domain whitelist before fetching
-- **Sensitive Columns** — OAuth tokens are hidden behind a database view, accessible only to service role
 - **Secrets Management** — All credentials are stored in Supabase Edge Function secrets, never in the codebase
+- **Admin 2FA** — Admin users must answer security questions after email sign-in
 
 ---
 
@@ -249,8 +269,9 @@ npx supabase db push
 ## API References
 
 - [YouTube Data API v3](https://developers.google.com/youtube/v3)
-- [Facebook Graph API v18](https://developers.facebook.com/docs/graph-api)
-- [Instagram Basic Display API](https://developers.facebook.com/docs/instagram-basic-display-api)
+- [Facebook Graph API](https://developers.facebook.com/docs/graph-api)
+- [Instagram Graph API](https://developers.facebook.com/docs/instagram-api)
+- [TikTok API](https://developers.tiktok.com/)
 - [Supabase Edge Functions](https://supabase.com/docs/guides/functions)
 - [Cloudflare R2](https://developers.cloudflare.com/r2/)
 
