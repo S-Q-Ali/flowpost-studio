@@ -20,7 +20,9 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = req.headers.get("Authorization");
-  const validKeys = [Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")];
+  const cronKey = Deno.env.get("CRON_API_KEY");
+  const validKeys = [Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")]
+    .concat(cronKey ? [cronKey] : []);
   const token = authHeader?.replace("Bearer ", "");
   if (!token || !validKeys.includes(token)) {
     return new Response(

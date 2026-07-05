@@ -9,10 +9,14 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const CRON_API_KEY = Deno.env.get("CRON_API_KEY");
 const GOOGLE_FALLBACK_SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID") || undefined;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for process-workflow");
+}
+if (!CRON_API_KEY) {
+  console.error("Missing CRON_API_KEY for process-workflow — cron calls will be rejected");
 }
 
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
@@ -55,7 +59,8 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
   const bearerToken = authHeader?.replace("Bearer ", "");
 
-  const isServiceRole = bearerToken === SUPABASE_SERVICE_ROLE_KEY;
+  const isCronKey = CRON_API_KEY && bearerToken === CRON_API_KEY;
+  const isServiceRole = bearerToken === SUPABASE_SERVICE_ROLE_KEY || isCronKey;
 
   let isSessionValid = false;
   if (!isServiceRole) {
@@ -749,7 +754,7 @@ Deno.serve(async (req) => {
         }
 
         workflowVideoCount++;
-        staggerOffset += 3600 + Math.floor(Math.random() * 3601);
+        staggerOffset += (3600 + Math.floor(Math.random() * 3601)) * 1000;
       } catch (err) {
         console.error("Error processing sheet row", err);
         errors.push(`Row processing failed for workflow ${wf.id}: ${
