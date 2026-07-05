@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.verify-session]
 verify_jwt = false
+
+[functions.fetch-instagram-insights]
+verify_jwt = false

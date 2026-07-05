@@ -5,6 +5,7 @@ import {
   Calendar,
   ListTodo,
   Link2,
+  BarChart3,
   Lock,
   FileText,
   Shield,
@@ -37,6 +38,7 @@ const navItems = [
   { title: "Calendar", url: "/calendar", icon: Calendar },
   { title: "Queue", url: "/queue", icon: ListTodo },
   { title: "Accounts", url: "/accounts", icon: Link2 },
+  { title: "Insights", url: "/insights", icon: BarChart3 },
 ];
 
 export function AppSidebar() {

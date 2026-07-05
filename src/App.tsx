@@ -13,6 +13,7 @@ import WorkflowsPage from "./pages/WorkflowsPage";
 import CalendarPage from "./pages/CalendarPage";
 import QueuePage from "./pages/QueuePage";
 import AccountsPage from "./pages/AccountsPage";
+import InsightsPage from "./pages/InsightsPage";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
 import TermsPage from "./pages/TermsPage";
@@ -65,6 +66,7 @@ function AppRoutes() {
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/queue" element={<QueuePage />} />
         <Route path="/accounts" element={<AccountsPage />} />
+        <Route path="/insights" element={<InsightsPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
