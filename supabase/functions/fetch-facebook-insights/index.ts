@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
 
   const [profileRes, insightsRes] = await Promise.all([
     fetchMeta(`/${accountId}?fields=id,name,fan_count,picture,about`),
-    fetchMeta(`/${accountId}/insights?metric=page_fans,page_impressions,page_engaged_users,page_views_total&period=day&since=${since}&until=${until}`),
+    fetchMeta(`/${accountId}/insights?metric=page_follows,page_media_view,page_engaged_users,page_views_total&period=day&since=${since}&until=${until}`),
   ]);
 
   if (!profileRes.ok) {
@@ -161,9 +161,9 @@ Deno.serve(async (req) => {
   const totalAttempts = (totalPublished.count || 0) + (failedCount.count || 0);
   const successRate = totalAttempts > 0 ? Math.round(((totalPublished.count || 0) / totalAttempts) * 100) : 0;
 
-  const pageFans = insightsMap["page_fans"] || [];
-  const pageFanGrowth = pageFans.length >= 2
-    ? pageFans[pageFans.length - 1].value - pageFans[0].value
+  const pageFollows = insightsMap["page_follows"] || [];
+  const pageFollowGrowth = pageFollows.length >= 2
+    ? pageFollows[pageFollows.length - 1].value - pageFollows[0].value
     : 0;
 
   return new Response(
@@ -176,8 +176,8 @@ Deno.serve(async (req) => {
         connected_since: account.connected_at,
       },
       insights: {
-        page_fans: pageFans,
-        page_impressions: insightsMap["page_impressions"] || [],
+        page_follows: pageFollows,
+        page_media_view: insightsMap["page_media_view"] || [],
         page_engaged_users: insightsMap["page_engaged_users"] || [],
         page_views_total: insightsMap["page_views_total"] || [],
       },
@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
         this_month: thisMonthCount.count || 0,
         this_week: thisWeekCount.count || 0,
         success_rate: successRate,
-        page_fan_growth_30d: pageFanGrowth,
+        page_follow_growth_30d: pageFollowGrowth,
         posts_by_day: postsByDayArray,
       },
     }),
