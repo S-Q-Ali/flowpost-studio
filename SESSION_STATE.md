@@ -1,57 +1,120 @@
-# FlowPost Studio — Session State (2026-07-04)
+# FlowPost Studio — Session State
 
-## Current HEAD: `52cfea8` (+ BetaBadge indicator added to TikTok UI)
-
----
-
-## What Works
-- Auth flow (Google OAuth + email/password + security questions)
-- All 17 edge functions deployed and functional
-- TikTok integration (FILE_UPLOAD + DIRECT_POST)
-- Instagram status polling instead of blind wait
-- Scheduling (cron every 5min for 2 jobs)
-- Image workflows (image_url/image_fb_ig_caption)
-- R2 lifecycle auto-cleanup (1 day)
+## CURRENT HEAD: `b9643e3` — fix: remove video stagger from once_daily scheduling
 
 ---
 
-## Cleanup Status — All Phase 1 & 2 Remnants Resolved
+## Problems & Solutions Log
 
-- **Env vars** — 14 functions normalized from `SB_*` to `SUPABASE_*`; `SB_*` secrets deleted from dashboard
-- **config.toml** — project_id fixed to `ximorwzknbizpceaoflw`; all 17 functions listed with `verify_jwt = false`
-- **Stale dirs** — `cleanup-r2/` and `instagram-publish/` deleted
-- **All 17 functions redeployed** — no Node.js deprecation warnings (supabase-js pinned to v2.49.0)
-- **`connected_accounts_public` view dropped** — was a security definer view exposing OAuth tokens to `anon`, never used by any code
-- **`SB_*` custom secrets deleted** — all functions use auto-injected `SUPABASE_*` secrets
-- **Post-story polling** replaced blind 15s wait + retry with status polling (20×2s=40s)
-- **Auth race condition fixed** — `setPendingSecurityVerification(false)` + `.catch()` in AuthContext
-- **Code extraction** — `_shared/` has 5 modules: `rate-limit.ts`, `sheet-status.ts`, `google-jwt.ts`, `drive-to-r2.ts`, `crypto.ts`
+### 1. Cron Functions Returning 401 (reserved secrets override)
+**Symptom**: `process-workflow` and `process-scheduled-posts` returning 401 when triggered by cron jobs.
+**Root cause**: `SUPABASE_SERVICE_ROLE_KEY` is a **reserved secret** — Supabase CLI auto-injects it but also allows setting it as a regular secret. The secret value overrides the auto-injected default with a **wrong value** for the project. Same for `SUPABASE_ANON_KEY`. CLI prevents deleting/updating these reserved secrets.
+**Solution**: Created non-reserved secrets:
+- `CRON_API_KEY` (`c395a586428b6f220ac21fa19a05bb824ee5aa4aa314799d71e82aaadf6e1573`) — used by cron-triggered functions. Cron jobs updated to use this key instead of the service role key. Jobs 26/27 deleted, jobs 28/29 created.
+- `FRONTEND_API_KEY` — holds the correct anon key. Used by 6 frontend-called functions: `facebook-auth`, `youtube-upload`, `facebook-upload`, `instagram-upload`, `tiktok-upload`, `tiktok-auth`.
+**Fix in code**: All functions accept `CRON_API_KEY` / `FRONTEND_API_KEY` as additional valid auth tokens alongside `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ANON_KEY`.
 
-## This Session (2026-07-04) — Commits: `627c7e9` → `52cfea8` (9 commits)
+### 2. Staggered Posts Never Posted (missing Google token)
+**Symptom**: Second video's posts in once_daily mode (with stagger) were always created as `"scheduled"` with future `scheduled_at`, but never posted.
+**Root cause**: `process-workflow` generates a Google OAuth token, creates posts, and fires uploads with `{ postId, driveDownloadUrl, googleAccessToken }`. But staggered posts are created as `"scheduled"` and only `process-scheduled-posts` picks them up later — calling upload functions with ONLY `{ postId }`. No Google token → upload function can't access Drive URL → video never uploaded to R2 → platform API can't download the video → fails silently.
+**Solution**: Removed stagger entirely (commit `b9643e3`). All posts now fire immediately with `status: "processing"`.
 
-### Changes made
-- **Migration `20260704000000_add_post_type.sql`** — adds `post_type` column to `posts`; applied
-- **`post-story/index.ts`** — accepts `postId`; retry DB lookup; writes `published`/`failed` status; IG polling 20×2s=40s
-- **`process-workflow/index.ts`** — inserts story `posts` row before firing `post-story`
-- **`process-scheduled-posts/index.ts`** — dispatches IG story posts to `post-story`
-- **`src/pages/QueuePage.tsx`** — retry button; Select All/20/Clear; 24h guard
-- **`src/components/BetaBadge.tsx`** — amber "Beta" badge shown next to all TikTok UI labels in UploadPage, AccountsPage, WorkflowsPage
-- **`_shared/rate-limit.ts`** — NEW: rate limiting for verify endpoints (-48 lines)
-- **`_shared/sheet-status.ts`** — NEW: deduplicated sheet status update (-79 lines)
-- **`_shared/crypto.ts`** — NEW: AES-GCM encrypt/decrypt via Deno `crypto.subtle`
-- **`get-quota-usage/index.ts`** — NEW: daily YouTube quota tracker (1,600 units/upload, 10,000 limit)
-- **Module extraction** — rate-limit, sheet-status, crypto extracted; 4 upload + 2 verify + all auth functions updated
-- **Token encryption** — write paths (3 auth functions) encrypt; read paths (8 functions) decrypt; 38 existing tokens backfilled
-- **Legal links added** — LoginPage footer, AppSidebar footer (Terms/Privacy icons), Terms↔Privacy cross-links
-- **Quota warning** — UploadPage + AccountsPage show yellow/red badge when YouTube quota ≥50%/80%
-- **Key** — `TOKEN_ENCRYPTION_KEY` set as Supabase secret
-- **17 functions deployed** — +1 new (get-quota-usage), 9 redeployed for encryption
+### 3. Instagram Uploads Stuck in "processing" Forever (timeout)
+**Symptom**: Instagram posts get stuck in `"processing"` status — never transition to `"published"` or `"failed"`.
+**Root cause**: `instagram-upload` uses 8×30s = 240s polling for Instagram container status. Supabase Edge Functions have a **60s default runtime timeout** (Pro plan). Deno kills the function during the polling phase, BEFORE the catch block can write `"failed"` status. The post stays in `"processing"` forever.
+**Evidence**: Failed posts from R2 upload failures have `file_url` still pointing to Google Drive. Stuck posts have `file_url` in R2 (R2 upload completed) but Instagram flow never completed.
+**Note**: Same class of bug was already fixed for `post-story` (commit `f8cbe1d` — reduced 5s→2s polling, 20×2s=40s fits within 60s). The reel/image flow in `instagram-upload` was never fixed.
+**Status**: NOT YET FIXED. Still needs polling reduction.
 
-## Next Steps
-1. **Add `'tiktok'` to `posts` platform CHECK** — constraint was already dropped from live DB; adding it back with `'tiktok'` would restore data integrity (optional cleanup)
-2. **TikTok app review** — blocked on paid domain (Vercel Pro $20/mo + $12/yr domain)
-3. **After TikTok approval** — switch TikTok `privacy_level` from `SELF_ONLY` to `PUBLIC_TO_EVERYONE`
-4. **Snapchat integration** — blocked by API allowlist; requires Snap approval
+### 4. Fire-and-forget Ignores Upload Failures
+**Symptom**: Upload functions return errors but posts stay in `"processing"`.
+**Root cause**: `process-workflow` uses `void fetch(...)` for all upload calls — the response is entirely ignored. If the upload function returns an error, nobody captures it.
+**Solution**: None yet — same as #3 (needs fire-and-forget to be replaced with proper error handling).
+
+### 5. "processing" Posts Never Retried
+**Symptom**: Posts stuck in `"processing"` are abandoned forever.
+**Root cause**: `process-scheduled-posts` only queries `status = "scheduled"` — never picks up `"processing"` posts.
+**Solution**: None yet — needs a stale-processing cleanup query added to `process-scheduled-posts`.
+
+### 6. Youtube Video Title Wrongfully in Instagram Caption
+**Symptom**: Instagram posts showing "yt_video_title:" followed by the actual title instead of the intended caption.
+**Root cause**: Caption fallback chain was reading from the wrong column or the sheet row had the wrong index.
+**Solution**: Removed all caption fallback chains — each platform reads exactly one column. Instagram reads `fb_ig_caption` (for video) or `image_fb_ig_caption` (for images). Blank = empty string.
+
+### 7. TikTok Upload Fails
+**Symptom**: TikTok videos stuck in processing.
+**Root cause**: Multiple issues resolved iteratively:
+- Missing Drive→R2 upload step added
+- `FILE_UPLOAD` + `DIRECT_POST` pattern implemented
+- `SELF_ONLY` privacy level required for unaudited client
+- TikTok refresh tokens rotated on each use
+- OAuth flow fixed — removed `fetchUserInfo` call, uses `tokenData.open_id` directly
+**Status**: Working.
+
+### 8. Auth Race Conditions
+**Symptom**: User gets stuck on loading screen during auth.
+**Root cause**: `setPendingSecurityVerification(false)` called after an async operation that could throw — the setter never fired.
+**Solution**: Added `.catch()` handler. Also added `sessionStorage` caching for auth state.
+
+### 9. New Signups Possible
+**Symptom**: Any Google user could sign up.
+**Solution**: All new signups blocked — only existing `public.users` records can authenticate. Google OAuth callback checks `public.users` table and rejects unknown users with a toast error.
+
+### 10. DB Cleanup Issues
+- `cron.job_run_details`: 272 MB → 7.5 MB (purged old entries)
+- `net._http_response`: 86 MB → 0 bytes (purged old entries)
+- 12 unused npm packages uninstalled (173 transitive deps)
+- 26 unused shadcn UI components deleted
+- `supabase/.temp/` gitignored
+
+### 11. Secret Management
+- `GOOGLE_PRIVATE_KEY`: new key `zinc-bucksaw-489020-n0-d456522f61c7.json`, gitignored. `ALLOWED_ORIGIN` confirmed set.
+- `TOKEN_ENCRYPTION_KEY`: set as Supabase secret (256-bit AES-GCM for token encryption at rest).
+- `R2_PUBLIC_URL`: moved to env var in all upload functions.
+
+---
+
+## Current State (2026-07-06)
+
+### What Works
+- Auth: Google OAuth (existing users only) + admin email/password + security questions
+- 17 edge functions deployed with `verify_jwt = false`; `instagram-publish` deleted
+- All functions normalized to `SUPABASE_*` env vars; `SB_*` secrets deleted
+- Cron jobs 28 (process-workflow) and 29 (process-scheduled-posts) running `*/5 * * * *` with `CRON_API_KEY`
+- TikTok: OAuth + upload (FILE_UPLOAD + DIRECT_POST) working; beta mode with BetaBadge
+- Instagram: status polling (8×30s but subject to timeout bug); stories use 20×2s=40s polling (fixed)
+- Facebook: direct upload working
+- Image workflows: dynamic `image_url`/`video_url` based on `media_type`
+- Token encryption at rest (AES-GCM in `_shared/crypto.ts`)
+- YouTube daily quota warning badge
+- QueuePage: retry button, Select All/20/Clear, 24h guard
+- Instagram insights dashboard with Recharts
+- Video stagger removed — all videos fire immediately
+- R2 lifecycle rule auto-deletes after 1 day
+- BetaBadge shown in all 6 TikTok UI locations
+
+### Known Issues
+1. **Instagram upload timeout** (8×30s polling > 60s runtime) — same class of bug as post-story was fixed for, but not yet applied to instagram-upload
+2. **Fire-and-forget swallows errors** — `void fetch(...)` in process-workflow ignores upload failures
+3. **No stale processing cleanup** — posts stuck in "processing" never retried
+4. **Stagger removed** — if stagger is needed in future, must also fix the Google token passthrough issue
+
+### Blocked
+- TikTok app review — needs paid domain (Vercel Pro $20/mo + $12/yr domain)
+- TikTok `privacy_level` → `PUBLIC_TO_EVERYONE` — blocked by app review
+- Snapchat integration — blocked by API allowlist
+- Instagram insights — existing tokens lack `instagram_manage_insights` scope
+
+---
+
+## DB Schema Notes
+- `posts`: id, user_id (text), video_id, platform, caption, hashtags, scheduled_at, published_at, status, captions_enabled, created_at, account_id, contains_altered_content, fb_ai_label, metadata (jsonb), post_type
+- `workflows`: id, user_id, name, is_active, sheet_url, sheet_id, platforms[], youtube_channel_ids[], facebook_page_ids[], instagram_account_ids[], trigger_hour_start, trigger_hour_end, max_videos_per_trigger, last_triggered_at, total_posted, created_at, updated_at, youtube_altered_content, post_as_story, last_manual_triggered_at, run_days[], day_time_windows (jsonb), run_interval_hours, media_type, videos_per_run, facebook_ai_generated, instagram_ai_generated, scheduling_mode, custom_schedule (jsonb), tiktok_account_ids[]
+- `connected_accounts`: id, user_id, platform, account_id, username, avatar_url, is_connected, access_token (encrypted), refresh_token, token_expires_at, metadata (jsonb), created_at, updated_at
+- Migration `20260704000000_add_post_type.sql` applied
+- No `error`, `error_details`, or `attempts` column on posts
+
+---
 
 ## Key Commands
 ```powershell
@@ -59,25 +122,20 @@
 foreach ($f in Get-ChildItem -Directory supabase/functions/*/index.ts | ForEach-Object { $_.Directory.Name }) { npx.cmd supabase functions deploy $f }
 
 # Deploy specific functions
-npx.cmd supabase functions deploy process-workflow update-sheet-status instagram-upload facebook-upload verify-password verify-security-questions post-story
-
-# Smoke test a deployed function
-curl.exe -X POST "https://<ref>.supabase.co/functions/v1/<function-name>" -H "Authorization: Bearer test" -H "Content-Type: application/json" -d "{}"
+npx.cmd supabase functions deploy process-workflow process-scheduled-posts instagram-upload facebook-upload tiktok-upload youtube-upload post-story tiktok-auth facebook-auth youtube-auth verify-password verify-security-questions verify-session get-upload-url update-sheet-status fetch-instagram-insights
 
 # Run SQL query against linked DB
 npx.cmd supabase db query --linked "SELECT * FROM pg_views WHERE viewname LIKE '%public%';"
 
-# Create new migration
-npx.cmd supabase migration new <name>
+# Check cron run details
+npx.cmd supabase db query --linked "SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 10;"
 
-# Apply local migrations (in local dev)
-npx.cmd supabase db push
+# Check cron jobs
+npx.cmd supabase db query --linked "SELECT jobid, schedule, enabled, regular FROM cron.job;"
 
-# Re-pull DB types
-npx.cmd supabase gen types typescript --linked > src/integrations/supabase/types.ts
+# Apply migration
+npx.cmd supabase migration up
 ```
-
----
 
 ## Key URLs
 - App: https://flowpost-studio.vercel.app
@@ -87,11 +145,9 @@ npx.cmd supabase gen types typescript --linked > src/integrations/supabase/types
 - Supabase Project Ref: ximorwzknbizpceaoflw
 - R2 Public URL: pub-1d4bcccec36046308147315db8637398.r2.dev
 
----
-
 ## Admin Users
-| ID | Email | is_admin | Questions |
-|---|---|---|---|---|
+| ID | Email | is_admin | Security Questions |
+|---|---|---|---|
 | 0d19e852-... | syedqasim963@gmail.com | true | fav_teacher: amna mushtaq, best_night_date: 2026-01-03 |
-| ca417e70-... | qasimvamatters@gmail.com | false | (no questions) |
-| f485999c-... | testuser@flowpost.app | false | (no questions) |
+| ca417e70-... | qasimvamatters@gmail.com | false | — |
+| f485999c-... | testuser@flowpost.app | false | — |

@@ -48,15 +48,12 @@ type WorkflowRow = {
   tiktok_account_ids: string[] | null;
   youtube_altered_content: boolean | null;
   post_as_story: boolean | null;
-  trigger_hour_start: number;
-  trigger_hour_end: number;
   max_videos_per_trigger: number | null;
   run_interval_hours: number | null;
   videos_per_run: number | null;
   last_triggered_at: string | null;
   last_manual_triggered_at: string | null;
   run_days: number[] | null;
-  day_time_windows: Record<string, { start: number; end: number }> | null;
   total_posted: number | null;
   media_type: "video" | "image";
   scheduling_mode: string | null;
@@ -113,13 +110,9 @@ export default function WorkflowsPage() {
   const [selectedFacebookIds, setSelectedFacebookIds] = useState<string[]>([]);
   const [selectedInstagramIds, setSelectedInstagramIds] = useState<string[]>([]);
   const [selectedTiktokIds, setSelectedTiktokIds] = useState<string[]>([]);
-  const [triggerStartHour, setTriggerStartHour] = useState<number>(0);
-  const [triggerEndHour, setTriggerEndHour] = useState<number>(1);
   const [runIntervalHours, setRunIntervalHours] = useState<number>(1);
   const [videosPerRun, setVideosPerRun] = useState<number>(1);
   const [runDays, setRunDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
-  const [dayTimeWindows, setDayTimeWindows] = useState<Record<string, { start: number; end: number }>>({});
-  const [usePerDayTimes, setUsePerDayTimes] = useState<boolean>(false);
   const [schedulingMode, setSchedulingMode] = useState<string>("once_daily");
   const [customSchedule, setCustomSchedule] = useState<Record<string, { start: number; end: number }[]>>({});
   const [postAsStory, setPostAsStory] = useState<boolean>(false);
@@ -223,13 +216,9 @@ export default function WorkflowsPage() {
     setSelectedFacebookIds(wf.facebook_page_ids ?? []);
     setSelectedInstagramIds(wf.instagram_account_ids ?? []);
     setSelectedTiktokIds(wf.tiktok_account_ids ?? []);
-    setTriggerStartHour(wf.trigger_hour_start ?? 0);
-    setTriggerEndHour(wf.trigger_hour_end ?? 1);
     setRunIntervalHours(wf.run_interval_hours ?? 1);
     setVideosPerRun(wf.videos_per_run ?? 1);
     setRunDays(wf.run_days ?? [0, 1, 2, 3, 4, 5, 6]);
-    setDayTimeWindows((wf.day_time_windows as Record<string, { start: number; end: number }>) ?? {});
-    setUsePerDayTimes(!!wf.day_time_windows && Object.keys(wf.day_time_windows).length > 0);
     setPostAsStory(wf.post_as_story ?? false);
     setYoutubeAlteredContent(wf.youtube_altered_content ?? true);
     setSheetUrl(wf.sheet_url ?? "");
@@ -288,10 +277,6 @@ export default function WorkflowsPage() {
       toast.error("Invalid Google Sheet URL format");
       return;
     }
-    if (triggerEndHour <= triggerStartHour) {
-      toast.error("End hour must be after start hour");
-      return;
-    }
 
     setIsSaving(true);
     try {
@@ -307,12 +292,9 @@ export default function WorkflowsPage() {
         tiktok_account_ids: selectedTiktokIds,
         youtube_altered_content: youtubeAlteredContent,
         post_as_story: postAsStory,
-        trigger_hour_start: triggerStartHour,
-        trigger_hour_end: triggerEndHour,
         run_interval_hours: runIntervalHours,
         videos_per_run: videosPerRun,
         run_days: runDays,
-        day_time_windows: Object.keys(dayTimeWindows).length > 0 ? dayTimeWindows : null,
         scheduling_mode: schedulingMode,
         custom_schedule: Object.keys(customSchedule).length > 0 ? customSchedule : null,
         sheet_url: sheetUrl.trim(),
@@ -730,64 +712,6 @@ export default function WorkflowsPage() {
           {/* Mode 1: Once Daily */}
           {schedulingMode === "once_daily" && (
             <>
-              <div className="space-y-1">
-                <Label>Post between (UTC time)</Label>
-                <p className="text-xs text-muted-foreground">
-                  FlowPost will pick a random time within this window each day.
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 space-y-1">
-                  <Label>Start hour</Label>
-                  <select
-                    className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    value={triggerStartHour}
-                    onChange={(e) => setTriggerStartHour(Number(e.target.value))}
-                  >
-                    {hourOptions.map((h) => (
-                      <option key={h} value={h}>
-                        {h.toString().padStart(2, "0")}:00 UTC
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex-1 space-y-1">
-                  <Label>End hour</Label>
-                  <select
-                    className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    value={triggerEndHour}
-                    onChange={(e) => setTriggerEndHour(Number(e.target.value))}
-                  >
-                    {hourOptions.map((h) => (
-                      <option key={h} value={h}>
-                        {h.toString().padStart(2, "0")}:00 UTC
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
-                <p className="text-xs font-medium text-primary">Your local time window:</p>
-                <p className="text-sm text-foreground">
-                  {(() => {
-                    const now = new Date();
-                    const startLocal = new Date(now);
-                    startLocal.setUTCHours(triggerStartHour, 0, 0, 0);
-                    const endLocal = new Date(now);
-                    endLocal.setUTCHours(triggerEndHour - 1, 59, 59, 999);
-                    const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    return `${formatTime(startLocal)} - ${formatTime(endLocal)} (your time)`;
-                  })()}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Current your time: {new Date().toLocaleTimeString()}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">
-                  Times are in UTC. Current UTC time: {new Date().toUTCString()}
-                </p>
-              </div>
               <div className="space-y-2">
                 <Label>Run on days</Label>
                 <div className="flex flex-wrap gap-2">
@@ -824,139 +748,12 @@ export default function WorkflowsPage() {
                   Select the days to run the workflow (UTC).
                 </p>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="usePerDayTimes"
-                    checked={usePerDayTimes}
-                    onChange={(e) => setUsePerDayTimes(e.target.checked)}
-                    className="rounded border-border"
-                  />
-                  <Label htmlFor="usePerDayTimes" className="font-normal cursor-pointer">
-                    Set different times for each day
-                  </Label>
-                </div>
-                {usePerDayTimes && (
-                  <div className="space-y-2 pl-2 border-l-2 border-muted">
-                    {[
-                      { value: 0, label: "Sunday" },
-                      { value: 1, label: "Monday" },
-                      { value: 2, label: "Tuesday" },
-                      { value: 3, label: "Wednesday" },
-                      { value: 4, label: "Thursday" },
-                      { value: 5, label: "Friday" },
-                      { value: 6, label: "Saturday" },
-                    ].map((day) => {
-                      const dayKey = day.value.toString();
-                      const isEnabled = runDays.includes(day.value);
-                      const dayStart = dayTimeWindows[dayKey]?.start ?? triggerStartHour;
-                      const dayEnd = dayTimeWindows[dayKey]?.end ?? triggerEndHour;
-                      if (!isEnabled) return null;
-                      return (
-                        <div key={day.value} className="flex items-center gap-2 text-sm flex-wrap">
-                          <span className="w-16 sm:w-20 text-muted-foreground">{day.label}</span>
-                          <select
-                            className="rounded border border-border bg-background px-1 py-0.5 text-xs"
-                            value={dayStart}
-                            onChange={(e) =>
-                              setDayTimeWindows((prev) => ({
-                                ...prev,
-                                [dayKey]: { start: Number(e.target.value), end: prev[dayKey]?.end ?? triggerEndHour },
-                              }))
-                            }
-                          >
-                            {hourOptions.map((h) => (
-                              <option key={h} value={h}>
-                                {h.toString().padStart(2, "0")}:00
-                              </option>
-                            ))}
-                          </select>
-                          <span className="text-muted-foreground">to</span>
-                          <select
-                            className="rounded border border-border bg-background px-1 py-0.5 text-xs"
-                            value={dayEnd}
-                            onChange={(e) =>
-                              setDayTimeWindows((prev) => ({
-                                ...prev,
-                                [dayKey]: { start: prev[dayKey]?.start ?? triggerStartHour, end: Number(e.target.value) },
-                              }))
-                            }
-                          >
-                            {hourOptions.map((h) => (
-                              <option key={h} value={h}>
-                                {h.toString().padStart(2, "0")}:00
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      );
-                    })}
-                    <p className="text-xs text-muted-foreground">
-                      Only selected days above are editable. Unselected days will be ignored.
-                    </p>
-                  </div>
-                )}
-              </div>
             </>
           )}
 
           {/* Mode 2: Every X Hours */}
           {schedulingMode === "interval" && (
             <>
-              <div className="space-y-1">
-                <Label>Post between (UTC time)</Label>
-                <p className="text-xs text-muted-foreground">
-                  Workflow will fire every N hours within this window.
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 space-y-1">
-                  <Label>Start hour</Label>
-                  <select
-                    className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    value={triggerStartHour}
-                    onChange={(e) => setTriggerStartHour(Number(e.target.value))}
-                  >
-                    {hourOptions.map((h) => (
-                      <option key={h} value={h}>
-                        {h.toString().padStart(2, "0")}:00 UTC
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex-1 space-y-1">
-                  <Label>End hour</Label>
-                  <select
-                    className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    value={triggerEndHour}
-                    onChange={(e) => setTriggerEndHour(Number(e.target.value))}
-                  >
-                    {hourOptions.map((h) => (
-                      <option key={h} value={h}>
-                        {h.toString().padStart(2, "0")}:00 UTC
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
-                <p className="text-xs font-medium text-primary">Your local time window:</p>
-                <p className="text-sm text-foreground">
-                  {(() => {
-                    const now = new Date();
-                    const startLocal = new Date(now);
-                    startLocal.setUTCHours(triggerStartHour, 0, 0, 0);
-                    const endLocal = new Date(now);
-                    endLocal.setUTCHours(triggerEndHour - 1, 59, 59, 999);
-                    const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    return `${formatTime(startLocal)} - ${formatTime(endLocal)} (your time)`;
-                  })()}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Current your time: {new Date().toLocaleTimeString()}
-                </p>
-              </div>
               <div className="space-y-2">
                 <Label>Run on days</Label>
                 <div className="flex flex-wrap gap-2">
@@ -1233,25 +1030,11 @@ export default function WorkflowsPage() {
       );
     }
 
-    const start = wf.trigger_hour_start ?? 0;
-    const end = wf.trigger_hour_end ?? 1;
-    const startLabel = `${start.toString().padStart(2, "0")}:00`;
-    const endLabel = `${end.toString().padStart(2, "0")}:00`;
-    
-    const now = new Date();
-    const startLocal = new Date(now);
-    startLocal.setUTCHours(start, 0, 0, 0);
-    const endLocal = new Date(now);
-    endLocal.setUTCHours(end - 1, 59, 59, 999);
-    const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const localTimeWindow = `${formatTime(startLocal)} - ${formatTime(endLocal)}`;
-    
     const modeLabel = mode === "interval" ? `Every ${wf.run_interval_hours ?? 2}h` : "Once Daily";
     
     return (
       <div className="flex flex-col gap-0.5">
-        <span className="text-muted-foreground text-xs">{modeLabel} &middot; {startLabel} - {endLabel} UTC</span>
-        <span className="text-[10px] text-primary/80">{localTimeWindow} your time</span>
+        <span className="text-muted-foreground text-xs">{modeLabel}</span>
       </div>
     );
   };

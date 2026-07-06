@@ -42,12 +42,9 @@ export interface Workflow {
   facebook_page_ids: string[] | null;
   instagram_account_ids: string[] | null;
   tiktok_account_ids: string[] | null;
-  trigger_hour_start: number;
-  trigger_hour_end: number;
   run_interval_hours: number | null;
   videos_per_run: number | null;
   run_days: number[] | null;
-  day_time_windows: Record<string, { start: number; end: number }> | null;
   total_posted: number | null;
   scheduling_mode: string | null;
   custom_schedule: Record<string, { start: number; end: number }[]> | null;

@@ -161,13 +161,6 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    const start = wf.trigger_hour_start ?? 14;
-    const end = wf.trigger_hour_end ?? 15;
-
-    console.log("UTC hour:", utcHour);
-    console.log("UTC minute:", utcMinute);
-    console.log("Workflow window (UTC):", start, "-", end);
-
     if (!isManualRun) {
       const schedulingMode = (wf.scheduling_mode as string) || "once_daily";
 
@@ -226,41 +219,9 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Common: trigger window with optional per-day override
-        let windowStart = start;
-        let windowEnd = end;
-        const dayTimeWindows = wf.day_time_windows as Record<string, { start: number; end: number }> | null;
-        if (dayTimeWindows && dayTimeWindows[todayDay.toString()]) {
-          windowStart = dayTimeWindows[todayDay.toString()].start;
-          windowEnd = dayTimeWindows[todayDay.toString()].end;
-          console.log(`Workflow ${wf.name}: using per-day time window for day ${todayDay}: ${windowStart}-${windowEnd}`);
-        }
-        if (utcHour < windowStart || utcHour >= windowEnd) {
-          continue;
-        }
-
         if (schedulingMode === "interval") {
-          // === INTERVAL-BASED with random stagger ===
+          // === INTERVAL: fire every N hours ===
           const runIntervalHours = (wf.run_interval_hours as number) ?? 2;
-
-          const seed = String(wf.id ?? "");
-          let hash = 0;
-          for (let i = 0; i < seed.length; i++) {
-            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-            hash |= 0;
-          }
-          const intervalMinutes = runIntervalHours * 60;
-          const offsetMinutes = Math.abs(hash) % intervalMinutes;
-
-          const currentMinute = utcHour * 60 + utcMinute;
-          const windowStartMinute = windowStart * 60;
-          const posInInterval = (currentMinute - windowStartMinute) % intervalMinutes;
-
-          console.log(
-            `Workflow ${wf.name}: interval ${runIntervalHours}h, offset ${offsetMinutes}min, current pos ${posInInterval}min`,
-          );
-
-          if (posInInterval !== offsetMinutes) continue;
 
           if (wf.last_triggered_at) {
             const hoursSince = (now.getTime() - new Date(wf.last_triggered_at).getTime()) / 3600000;
@@ -270,31 +231,7 @@ Deno.serve(async (req) => {
             }
           }
         } else {
-          // === ONCE-DAILY: deterministic random trigger time within window ===
-          const todayUtc = now.toISOString().slice(0, 10);
-          const seed = String(wf.id ?? "") + todayUtc;
-          let hash = 0;
-          for (let i = 0; i < seed.length; i++) {
-            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-            hash |= 0;
-          }
-
-          const randomMinute = Math.abs(hash) % 60;
-          const windowSizeRaw = windowEnd - windowStart;
-          const windowSize = windowSizeRaw > 0 ? windowSizeRaw : 1;
-          const randomHourOffset = Math.abs(hash >> 8) % windowSize;
-          const randomHour = windowStart + randomHourOffset;
-
-          console.log(
-            `Workflow ${wf.name}: random trigger time set to ${randomHour}:${randomMinute.toString().padStart(2, "0")} UTC`,
-          );
-
-          const currentMinutes = utcHour * 60 + utcMinute;
-          const triggerMinutes = randomHour * 60 + randomMinute;
-          if (currentMinutes < triggerMinutes) {
-            continue;
-          }
-
+          // === ONCE-DAILY: fire once per day on first cron tick ===
           const lastTriggered = wf.last_triggered_at ? new Date(wf.last_triggered_at) : null;
           const todayUTC = now.toISOString().slice(0, 10);
           const lastTriggeredDate = lastTriggered ? lastTriggered.toISOString().slice(0, 10) : null;
