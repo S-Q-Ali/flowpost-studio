@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
 
   if (action !== "callback") {
     const authHeader = req.headers.get("Authorization");
-    const validKeys = [SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY];
+    const validKeys = [SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
     const token = authHeader?.replace("Bearer ", "");
     if (!token || !validKeys.includes(token)) {
       return json({ error: "Unauthorized" }, 401);

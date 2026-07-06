@@ -413,7 +413,6 @@ Deno.serve(async (req) => {
     const videosPerRun = (wf.videos_per_run as number) ?? 1;
     const toProcess = readyRows.slice(0, videosPerRun);
     let workflowVideoCount = 0;
-    let staggerOffset = 0;
 
      for (const { row, rowIndex } of toProcess) {
        try {
@@ -509,8 +508,8 @@ Deno.serve(async (req) => {
                 account_id: accountId,
                 caption: ytCaption,
                 hashtags: null,
-                scheduled_at: staggerOffset === 0 && slotIndex === 0 ? nowIso : new Date(Date.now() + (staggerOffset || slotIndex * runIntervalHours * 3600000)).toISOString(),
-                status: staggerOffset === 0 && slotIndex === 0 ? "processing" : "scheduled",
+                scheduled_at: nowIso,
+                status: "processing",
                 captions_enabled: true,
                 contains_altered_content: wf.youtube_altered_content ?? true,
                 metadata: { youtube_video_title: ytVideoTitle },
@@ -527,8 +526,8 @@ Deno.serve(async (req) => {
                 account_id: accountId,
                 caption: fbCaption,
                 hashtags: null,
-                scheduled_at: staggerOffset === 0 && slotIndex === 0 ? nowIso : new Date(Date.now() + (staggerOffset || slotIndex * runIntervalHours * 3600000)).toISOString(),
-                status: staggerOffset === 0 && slotIndex === 0 ? "processing" : "scheduled",
+                scheduled_at: nowIso,
+                status: "processing",
                 captions_enabled: true,
               });
               slotIndex++;
@@ -543,8 +542,8 @@ Deno.serve(async (req) => {
                 account_id: accountId,
                 caption: igCaption,
                 hashtags: null,
-                scheduled_at: staggerOffset === 0 && slotIndex === 0 ? nowIso : new Date(Date.now() + (staggerOffset || slotIndex * runIntervalHours * 3600000)).toISOString(),
-                status: staggerOffset === 0 && slotIndex === 0 ? "processing" : "scheduled",
+                scheduled_at: nowIso,
+                status: "processing",
                 captions_enabled: true,
               });
               slotIndex++;
@@ -559,8 +558,8 @@ Deno.serve(async (req) => {
                 account_id: accountId,
                 caption: ttCaption,
                 hashtags: null,
-                scheduled_at: staggerOffset === 0 && slotIndex === 0 ? nowIso : new Date(Date.now() + (staggerOffset || slotIndex * runIntervalHours * 3600000)).toISOString(),
-                status: staggerOffset === 0 && slotIndex === 0 ? "processing" : "scheduled",
+                scheduled_at: nowIso,
+                status: "processing",
                 captions_enabled: true,
               });
               slotIndex++;
@@ -646,7 +645,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (staggerOffset === 0 && wf.post_as_story && !isImageWorkflow) {
+        if (wf.post_as_story && !isImageWorkflow) {
           let storyVideoUrl: string | null = null;
           for (let attempt = 0; attempt < 30; attempt++) {
             await new Promise((r) => setTimeout(r, 2000));
@@ -754,7 +753,6 @@ Deno.serve(async (req) => {
         }
 
         workflowVideoCount++;
-        staggerOffset += (3600 + Math.floor(Math.random() * 3601)) * 1000;
       } catch (err) {
         console.error("Error processing sheet row", err);
         errors.push(`Row processing failed for workflow ${wf.id}: ${
