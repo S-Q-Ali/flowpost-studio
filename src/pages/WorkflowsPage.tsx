@@ -58,6 +58,7 @@ type WorkflowRow = {
   media_type: "video" | "image";
   scheduling_mode: string | null;
   custom_schedule: Record<string, { start: number; end: number }[]> | null;
+  drive_account_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -118,6 +119,8 @@ export default function WorkflowsPage() {
   const [postAsStory, setPostAsStory] = useState<boolean>(false);
   const [sheetUrl, setSheetUrl] = useState("");
   const [youtubeAlteredContent, setYoutubeAlteredContent] = useState<boolean>(true);
+  const [selectedDriveId, setSelectedDriveId] = useState<string>("");
+  const [driveAccounts, setDriveAccounts] = useState<{ id: string; account_name: string | null; account_id: string | null; metadata: unknown }[]>([]);
 
   const [deleteTarget, setDeleteTarget] = useState<WorkflowRow | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -138,7 +141,7 @@ export default function WorkflowsPage() {
   };
 
   const loadAccounts = async () => {
-    const [{ data: yt }, { data: fb }, { data: ig }, { data: tt }] = await Promise.all([
+    const [{ data: yt }, { data: fb }, { data: ig }, { data: tt }, { data: gd }] = await Promise.all([
       supabase
         .from("connected_accounts")
         .select("*")
@@ -163,12 +166,19 @@ export default function WorkflowsPage() {
         .eq("user_id", userId)
         .eq("platform", "tiktok")
         .eq("is_connected", true),
+      supabase
+        .from("connected_accounts")
+        .select("id, account_name, account_id, metadata")
+        .eq("user_id", userId)
+        .eq("platform", "google_drive")
+        .eq("is_connected", true),
     ]);
 
     setYoutubeAccounts((yt as ConnectedAccount[]) ?? []);
     setFacebookAccounts((fb as ConnectedAccount[]) ?? []);
     setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
     setTiktokAccounts((tt as ConnectedAccount[]) ?? []);
+    setDriveAccounts((gd ?? []) as any[]);
   };
 
   useEffect(() => {
@@ -190,15 +200,27 @@ export default function WorkflowsPage() {
     setPostAsStory(false);
     setYoutubeAlteredContent(true);
     setSheetUrl("");
+    setSelectedDriveId("");
     setSelectedWorkflow(null);
     setActiveStep(1);
     setSchedulingMode("once_daily");
     setCustomSchedule({});
   };
 
+  const fetchDriveAccounts = async () => {
+    const { data } = await supabase
+      .from("connected_accounts")
+      .select("id, account_name, account_id, metadata")
+      .eq("user_id", userId)
+      .eq("platform", "google_drive")
+      .eq("is_connected", true);
+    setDriveAccounts((data ?? []) as any[]);
+  };
+
   const openCreate = () => {
     setMode("create");
     resetForm();
+    fetchDriveAccounts();
     setSheetOpen(true);
   };
 
@@ -222,6 +244,8 @@ export default function WorkflowsPage() {
     setSheetUrl(wf.sheet_url ?? "");
     setSchedulingMode(wf.scheduling_mode ?? "once_daily");
     setCustomSchedule((wf.custom_schedule as Record<string, { start: number; end: number }[]>) ?? {});
+    setSelectedDriveId(wf.drive_account_id ?? "");
+    fetchDriveAccounts();
     setActiveStep(1);
     setSheetOpen(true);
   };
@@ -275,6 +299,10 @@ export default function WorkflowsPage() {
       toast.error("Invalid Google Sheet URL format");
       return;
     }
+    if (!selectedDriveId) {
+      toast.error("Select a Google Drive account");
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -297,6 +325,7 @@ export default function WorkflowsPage() {
         custom_schedule: Object.keys(customSchedule).length > 0 ? customSchedule : null,
         sheet_url: sheetUrl.trim(),
         sheet_id: id,
+        drive_account_id: selectedDriveId,
       };
 
       if (mode === "create") {
@@ -500,6 +529,39 @@ export default function WorkflowsPage() {
               <p className="text-xs text-muted-foreground">
                 Image workflows support Facebook and Instagram only. YouTube and TikTok do not support image posts.
               </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Google Drive Account</Label>
+            <p className="text-xs text-muted-foreground">
+              Select the Drive account to access your sheet and media files.
+            </p>
+            {driveAccounts.length === 0 ? (
+              <div className="p-3 rounded-md bg-red-500/10 border border-red-500/30">
+                <p className="text-sm text-red-400">
+                  No Google Drive connected.{' '}
+                  <a href="/accounts" className="underline hover:text-red-300">
+                    Connect one in Accounts
+                  </a>.
+                </p>
+              </div>
+            ) : (
+              <Select
+                value={selectedDriveId}
+                onValueChange={setSelectedDriveId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a Drive account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {driveAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.account_name ?? (a.metadata as any)?.email ?? a.account_id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </div>
         </div>
@@ -1195,6 +1257,25 @@ export default function WorkflowsPage() {
                       )}
                     />
                     {wf.sheet_url ? "Sheet connected" : "Sheet not set"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span />
+                  <span className="flex items-center gap-1">
+                    <span
+                      className={cn(
+                        "inline-block w-2 h-2 rounded-full",
+                        wf.drive_account_id ? "bg-emerald-400" : "bg-red-400",
+                      )}
+                    />
+                    {wf.drive_account_id
+                      ? (() => {
+                          const da = driveAccounts.find((a: any) => a.id === wf.drive_account_id);
+                          return da
+                            ? `Drive: ${da.account_name ?? (da.metadata as any)?.email ?? da.account_id}`
+                            : "Drive connected";
+                        })()
+                      : "Drive not set"}
                   </span>
                 </div>
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/70">

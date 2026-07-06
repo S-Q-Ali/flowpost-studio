@@ -146,17 +146,22 @@ Deno.serve(async (req) => {
   let totalProcessedVideos = 0;
   let workflowsTriggered = 0;
 
-  async function getDriveToken(userId: string): Promise<string | null> {
-    const { data: driveAccount, error: daError } = await supabase
+  async function getDriveToken(userId: string, driveAccountId?: string | null): Promise<string | null> {
+    let query = supabase
       .from("connected_accounts")
       .select("*")
       .eq("user_id", userId)
       .eq("platform", "google_drive")
-      .eq("is_connected", true)
-      .maybeSingle();
+      .eq("is_connected", true);
+
+    if (driveAccountId) {
+      query = query.eq("id", driveAccountId);
+    }
+
+    const { data: driveAccount, error: daError } = await query.maybeSingle();
 
     if (daError || !driveAccount) {
-      console.warn(`No Google Drive connected for user ${userId}`);
+      console.warn(`No Google Drive connected for user ${userId}${driveAccountId ? ` (id=${driveAccountId})` : ""}`);
       return null;
     }
 
@@ -166,18 +171,22 @@ Deno.serve(async (req) => {
       const rawRefresh = await decrypt(driveAccount.refresh_token as string);
       if (rawRefresh) {
         try {
+          const refreshUrl = `${SUPABASE_URL}/functions/v1/google-drive-auth?action=refresh&user_id=${userId}${driveAccountId ? `&account_id=${driveAccountId}` : ""}`;
           const refreshRes = await fetch(
-            `${SUPABASE_URL}/functions/v1/google-drive-auth?action=refresh&user_id=${userId}`,
+            refreshUrl,
             { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
           );
           if (refreshRes.ok) {
             // Re-fetch the updated token
-            const { data: refreshed } = await supabase
+            let refreshQuery = supabase
               .from("connected_accounts")
               .select("access_token")
               .eq("user_id", userId)
-              .eq("platform", "google_drive")
-              .single();
+              .eq("platform", "google_drive");
+            if (driveAccountId) {
+              refreshQuery = refreshQuery.eq("id", driveAccountId);
+            }
+            const { data: refreshed } = await refreshQuery.single();
             if (refreshed?.access_token) return await decrypt(refreshed.access_token as string);
           }
         } catch (e) {
@@ -285,7 +294,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const googleToken = await getDriveToken(wf.user_id);
+    const googleToken = await getDriveToken(wf.user_id, wf.drive_account_id);
     if (!googleToken) {
       errors.push(`No Google Drive connected for workflow ${wf.id} (user ${wf.user_id})`);
       continue;

@@ -205,14 +205,20 @@ Deno.serve(async (req) => {
 
     if (action === "refresh") {
       const userIdParam = url.searchParams.get("user_id");
+      const accountIdParam = url.searchParams.get("account_id");
       if (!userIdParam) return json({ error: "Missing user_id" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+      let query = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("platform", "google_drive")
-        .eq("user_id", userIdParam)
-        .single();
+        .eq("user_id", userIdParam);
+
+      if (accountIdParam) {
+        query = query.eq("id", accountIdParam);
+      }
+
+      const { data: account, error: fetchError } = await query.single();
 
       if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
       const rawRefreshToken = await decrypt(account.refresh_token as string);
@@ -221,7 +227,7 @@ Deno.serve(async (req) => {
       const refreshed = await refreshAccessToken(rawRefreshToken);
       const tokenExpiry = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
 
-      const { error: updateError } = await supabaseAdmin
+      let updateQuery = supabaseAdmin
         .from("connected_accounts")
         .update({
           access_token: await encrypt(refreshed.access_token),
@@ -229,6 +235,12 @@ Deno.serve(async (req) => {
         })
         .eq("platform", "google_drive")
         .eq("user_id", userIdParam);
+
+      if (accountIdParam) {
+        updateQuery = updateQuery.eq("id", accountIdParam);
+      }
+
+      const { error: updateError } = await updateQuery;
 
       if (updateError) throw updateError;
 

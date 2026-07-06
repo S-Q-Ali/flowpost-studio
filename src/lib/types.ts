@@ -51,6 +51,7 @@ export interface Workflow {
   media_type: "video" | "image";
   post_as_story: boolean;
   youtube_altered_content: boolean;
+  drive_account_id: string | null;
   created_at: string;
   updated_at: string;
 }

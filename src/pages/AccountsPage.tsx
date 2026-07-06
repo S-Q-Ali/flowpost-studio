@@ -756,55 +756,64 @@ export default function AccountsPage() {
           )}
         </div>
 
-        {/* Google Drive */}
-        <Card className="bg-card border-border shadow-card">
-          <CardContent className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-green-500">
-                  <path d="M12.24 10.28 7.81 2.57H4.28l4.2 7.71h3.76Z" />
-                  <path d="M16.06 2.57h-4.1l4.2 7.71h4.1l-4.2-7.71Z" />
-                  <path d="M17.56 14.36 19.2 11.4H8.25l-4.3 7.46H13.7l3.86-4.5Z" />
-                  <path d="M17.56 14.36 19.2 11.4H8.25l-4.3 7.46H13.7l3.86-4.5Z" opacity="0.5" />
-                </svg>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-foreground">Google Drive</div>
-                <div className="text-xs text-muted-foreground">
-                  {driveAccounts.length > 0 ? "Connected" : "Not connected"}
-                </div>
-              </div>
+        {/* Google Drive accounts */}
+        <div className="space-y-2">
+          {driveAccounts.length > 0 && (
+            <div className="grid gap-3">
+              {driveAccounts.map((a) => {
+                const email = (a as any)?.metadata?.email as string | undefined;
+                return (
+                  <Card key={a.id} className="bg-card border-border shadow-card">
+                    <CardContent className="flex items-center justify-between py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
+                          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-green-500">
+                            <path d="M12.24 10.28 7.81 2.57H4.28l4.2 7.71h3.76Z" />
+                            <path d="M16.06 2.57h-4.1l4.2 7.71h4.1l-4.2-7.71Z" />
+                            <path d="M17.56 14.36 19.2 11.4H8.25l-4.3 7.46H13.7l3.86-4.5Z" />
+                            <path d="M17.56 14.36 19.2 11.4H8.25l-4.3 7.46H13.7l3.86-4.5Z" opacity="0.5" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-foreground">{a.account_name ?? "Google Drive"}</div>
+                          <div className="text-xs text-muted-foreground">{email ?? a.account_id}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
+                          Connected
+                        </Badge>
+                        <Button variant="outline" size="sm" onClick={async () => {
+                          if (!a.id) return;
+                          await supabase.from("connected_accounts").update({ is_connected: false }).eq("id", a.id);
+                          fetchDrive();
+                          toast.success("Google Drive disconnected");
+                        }}>
+                          Disconnect
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
-            <div className="flex items-center gap-3">
-              {driveAccounts.length > 0 ? (
-                <Button variant="outline" size="sm" onClick={async () => {
-                  const aid = driveAccounts[0].account_id;
-                  await supabase.from("connected_accounts").update({ is_connected: false }).eq("id", aid);
-                  fetchDrive();
-                  toast.success("Google Drive disconnected");
-                }}>
-                  Disconnect
-                </Button>
-              ) : (
-                <Button
-                  className="gradient-primary text-primary-foreground"
-                  size="sm"
-                  onClick={connectDrive}
-                  disabled={isDriveConnecting}
-                >
-                  {isDriveConnecting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Connecting…
-                    </>
-                  ) : (
-                    "Connect Google Drive"
-                  )}
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+          )}
+          <Button
+            className="gradient-primary text-primary-foreground w-full"
+            size="sm"
+            onClick={connectDrive}
+            disabled={isDriveConnecting}
+          >
+            {isDriveConnecting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Connecting…
+              </>
+            ) : (
+              "Connect Google Drive"
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
