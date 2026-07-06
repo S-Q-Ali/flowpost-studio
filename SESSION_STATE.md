@@ -123,6 +123,7 @@
 - YouTube daily quota warning badge
 - QueuePage: retry button, Select All/20/Clear, 24h guard
 - Instagram insights dashboard with Recharts
+- Facebook insights edge function deployed (all 4 metrics returning `(#100)` — diagnostic split applied)
 - Video stagger removed — all videos fire immediately
 - R2 lifecycle rule auto-deletes after 1 day
 - BetaBadge shown in all 6 TikTok UI locations
@@ -132,6 +133,7 @@
 2. **Fire-and-forget swallows errors** — `void fetch(...)` in process-workflow ignores upload failures
 3. **No stale processing cleanup** — posts stuck in "processing" never retried
 4. **Stagger removed** — if stagger is needed in future, must also fix the Google token passthrough issue
+5. **Facebook insights `(#100)` error** — **FIXED** — two root causes: (1) API version v23.0 → v25.0 (`page_media_view`/`page_follows` didn't exist on v23.0), (2) `page_engaged_users` (deprecated March 2024) → `page_post_engagements`
 
 ### Blocked
 - TikTok app review — needs paid domain (Vercel Pro $20/mo + $12/yr domain)
@@ -206,3 +208,51 @@ npx.cmd supabase migration up
 - `page_impressions` → deprecated Nov 15 2025, replaced with `page_media_view`
 - `page_engaged_users`, `page_views_total` — still valid, kept as-is
 - Renamed `page_fan_growth_30d` → `page_follow_growth_30d` in both edge function and frontend
+
+**Still broken (2026-07-06)**: All 4 metrics return `(#100) The value must be a valid insights metric`. Possibly due to June 15 2026 batch deprecation beyond the Nov 2025 one.
+
+**Diagnostic fix (2026-07-06)**: Split batch `/insights?metric=a,b,c,d` into 4 individual calls with per-metric error capture. Response now includes `insights_errors: { page_follows: ..., page_media_view: ..., ... }` to identify exactly which metric name is invalid.
+
+**Root cause identified**: `page_media_view` and `page_follows` were introduced in Graph API v25.0 (Feb 2026). Code was using v23.0 (May 2025) where these metrics don't exist. All 4 metrics failed because v23.0 doesn't recognize newer metric names.
+
+**Fix (2026-07-06)**: Bumped API version `v23.0` → `v25.0` in `fetch-facebook-insights/index.ts`. Also updated frontend `insights_error_detail` → `insights_errors` reference.
+
+**Third fix (2026-07-06)**: Replaced `page_engaged_users` (deprecated March 2024) with `page_post_engagements` — last remaining `(#100)` metric. All 4 metrics now valid.
+
+---
+
+### 15. Google Drive OAuth — Added; Cloudflare R2 — Removed (2026-07-07)
+
+**Problem**: All file uploads relied on a single shared Google service account JWT (`_shared/google-jwt.ts`) to download files from Drive, upload them to Cloudflare R2, then pass the R2 URL to platform APIs. This meant:
+- The service account had access to ALL users' Drive files
+- R2 was an unnecessary intermediate hop
+- Extra latency per upload (Drive → R2 → platform)
+
+**Solution**: Replace shared service account + R2 with per-user Google Drive OAuth + a lightweight `get-file` auth proxy.
+
+**New files**:
+- `supabase/functions/google-drive-auth/index.ts` — OAuth flow (same Google client as YouTube) with `drive.readonly` + `spreadsheets` scopes; token stored in `connected_accounts` with `platform: "google_drive"`
+- `supabase/functions/get-file/index.ts` — file proxy: accepts encrypted token containing `{driveUrl, driveToken, exp}`, fetches from Drive API with Bearer auth, streams response bytes
+
+**Modified files**:
+- `supabase/functions/process-workflow/index.ts` — removed `getGoogleAccessToken()` import; added `getDriveToken(userId)` that fetches/refreshes per-user Drive OAuth token; passes `driveDownloadUrl` + `googleAccessToken` to upload functions instead of R2 URL
+- `supabase/functions/facebook-upload/index.ts` — accepts `driveDownloadUrl` + `googleAccessToken` fields in request body; generates `get-file` proxy token when both provided; passes proxy URL to Facebook API instead of R2 URL; removed old R2 upload logic
+- `supabase/functions/instagram-upload/index.ts` — same pattern as facebook-upload; generates `get-file` proxy URL instead of R2 URL
+- `supabase/config.toml` — added `[functions.google-drive-auth]` and `[functions.get-file]` blocks; removed `[functions.get-upload-url]` and `[functions.google-oauth]` blocks
+- `src/pages/AccountsPage.tsx` — added "Connect Google Drive" button (Drive icon, OAuth via `google-drive-auth` function, real-time subscription, reconnect/disconnect), calls `fetchDrive()` on mount
+
+**Deleted files**:
+- `supabase/functions/_shared/google-jwt.ts` — no longer used
+- `supabase/functions/_shared/drive-to-r2.ts` — no longer used
+- `supabase/functions/get-upload-url/index.ts` — no longer used
+- `supabase/functions/cleanup-r2/` — already deleted in a previous session
+
+**Secrets to remove (user action)**:
+- `supabase secrets unset R2_PUBLIC_URL` (no longer needed)
+
+**New behavior**:
+- Each user connects their own Google Drive via OAuth
+- Tokens stored encrypted in `connected_accounts` (same as other platforms)
+- `get-file` proxy function uses a short-lived (15 min) encrypted token to authorize file access
+- Files stream directly: Drive → get-file proxy → platform API — no intermediate R2 storage
+- Crawl jobs (`process-workflow`) use per-user Drive tokens instead of shared service account, read from `process.env`

@@ -57,13 +57,12 @@ Deno.serve(async (req) => {
   const until = Math.floor(now.getTime() / 1000);
 
   async function fetchMeta(path: string): Promise<Response> {
-    const base = "https://graph.facebook.com/v23.0";
+    const base = "https://graph.facebook.com/v25.0";
     return fetch(`${base}${path}&access_token=${accessToken}`);
   }
 
-  const [profileRes, insightsRes] = await Promise.all([
+  const [profileRes] = await Promise.all([
     fetchMeta(`/${accountId}?fields=id,name,fan_count,picture,about`),
-    fetchMeta(`/${accountId}/insights?metric=page_follows,page_media_view,page_engaged_users,page_views_total&period=day&since=${since}&until=${until}`),
   ]);
 
   if (!profileRes.ok) {
@@ -78,31 +77,49 @@ Deno.serve(async (req) => {
   const profile = await profileRes.json();
   console.log(`[fb-insights] Profile OK for ${accountId}:`, { name: profile.name, fan_count: profile.fan_count });
 
-  let insights: { name: string; values: { value: number; end_time: string }[] }[] = [];
-  let insightsError: unknown = null;
+  const metrics = ["page_follows", "page_media_view", "page_post_engagements", "page_views_total"];
 
-  if (insightsRes.ok) {
-    const data = await insightsRes.json();
-    insights = data.data || [];
-    if (insights.length === 0) {
-      console.warn(`[fb-insights] Insights API returned empty data for ${accountId}.`);
-    } else {
-      console.log(`[fb-insights] Insights OK for ${accountId}:`, insights.map(m => `${m.name}: ${m.values?.length || 0} data points`));
+  async function fetchSingleMetric(metric: string): Promise<{
+    metricName: string;
+    data: { name: string; values: { value: number; end_time: string }[] } | null;
+    error: unknown;
+  }> {
+    const url = `/${accountId}/insights?metric=${metric}&period=day&since=${since}&until=${until}`;
+    try {
+      const res = await fetchMeta(url);
+      if (!res.ok) {
+        const errText = await res.text();
+        let parsed: unknown;
+        try { parsed = JSON.parse(errText); } catch { parsed = errText; }
+        console.error(`[fb-insights] Metric "${metric}" error for ${accountId}:`, JSON.stringify(parsed));
+        return { metricName: metric, data: null, error: parsed };
+      }
+      const json = await res.json();
+      const entry = (json.data || [])[0] || null;
+      console.log(`[fb-insights] Metric "${metric}" OK for ${accountId}: ${entry?.values?.length || 0} data points`);
+      return { metricName: metric, data: entry, error: null };
+    } catch (err) {
+      console.error(`[fb-insights] Metric "${metric}" fetch exception:`, err);
+      return { metricName: metric, data: null, error: String(err) };
     }
-  } else {
-    const errText = await insightsRes.text();
-    let parsed: unknown;
-    try { parsed = JSON.parse(errText); } catch { parsed = errText; }
-    console.error(`[fb-insights] Insights API error for ${accountId}:`, JSON.stringify(parsed));
-    insightsError = parsed;
   }
 
+  const metricResults = await Promise.all(metrics.map(fetchSingleMetric));
+
   const insightsMap: Record<string, { date: string; value: number }[]> = {};
-  for (const metric of insights) {
-    insightsMap[metric.name] = (metric.values || []).map((v: { value: number; end_time: string }) => ({
-      date: v.end_time.split("T")[0],
-      value: v.value,
-    }));
+  const insightsErrors: Record<string, unknown> = {};
+
+  for (const result of metricResults) {
+    if (result.error) {
+      insightsErrors[result.metricName] = result.error;
+    } else if (result.data) {
+      insightsMap[result.metricName] = (result.data.values || []).map((v) => ({
+        date: v.end_time.split("T")[0],
+        value: v.value,
+      }));
+    } else {
+      console.warn(`[fb-insights] Metric "${result.metricName}" returned no data for ${accountId}.`);
+    }
   }
 
   const today = now.toISOString().split("T")[0];
@@ -178,10 +195,10 @@ Deno.serve(async (req) => {
       insights: {
         page_follows: pageFollows,
         page_media_view: insightsMap["page_media_view"] || [],
-        page_engaged_users: insightsMap["page_engaged_users"] || [],
+        page_post_engagements: insightsMap["page_post_engagements"] || [],
         page_views_total: insightsMap["page_views_total"] || [],
       },
-      insights_error_detail: insightsError,
+      insights_errors: insightsErrors,
       flowpost_stats: {
         total_published: totalPublished.count || 0,
         this_month: thisMonthCount.count || 0,

@@ -1,6 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { decrypt } from "../_shared/crypto.ts";
-import { uploadDriveMediaToR2 } from "../_shared/drive-to-r2.ts";
+import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
 const corsHeaders = {
@@ -11,7 +10,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "pub-1d4bcccec36046308147315db8637398.r2.dev";
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for facebook-upload");
@@ -20,13 +18,6 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
-
-const ALLOWED_DOMAINS = [
-  "www.googleapis.com",
-  "drive.google.com",
-  R2_PUBLIC_URL,
-  "graph.facebook.com",
-];
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -102,6 +93,7 @@ Deno.serve(async (req) => {
     }
 
     const mediaType = (video as any).media_type ?? "video";
+    const isImage = mediaType === "image";
 
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
@@ -118,45 +110,23 @@ Deno.serve(async (req) => {
     const pageId = account.account_id;
     const accessToken = await decrypt(account.access_token);
 
-    // Support either:
-    // - Traditional flow: video.file_url points to R2/public storage
-    // - Workflow flow: direct Google Drive download URL + access token
+    // Use Drive source via get-file proxy, or fall back to the stored file_url
     let mediaUrl = video.file_url as string;
-    const isImage = mediaType === "image";
 
-    const userId = post.user_id ?? "00000000-0000-0000-0000-000000000000";
-
-    if (
-      (driveDownloadUrl || mediaUrl.includes("googleapis.com")) &&
-      googleAccessToken
-    ) {
-      const driveSource = driveDownloadUrl || mediaUrl;
-      console.log(`Uploading Drive ${isImage ? "image" : "video"} to R2 first...`);
-
-      mediaUrl = await uploadDriveMediaToR2(
-        driveSource,
-        googleAccessToken,
-        post.video_id,
-        video.title || post.video_id,
-        isImage,
-        userId,
-        supabase,
-        ALLOWED_DOMAINS,
-      );
-
-      await supabase
-        .from("videos")
-        .update({ file_url: mediaUrl })
-        .eq("id", post.video_id);
-
-      console.log("R2 upload complete, URL:", mediaUrl);
+    if (driveDownloadUrl && googleAccessToken) {
+      const fileToken = await encrypt(JSON.stringify({
+        driveUrl: driveDownloadUrl,
+        driveToken: googleAccessToken,
+        exp: Date.now() + 15 * 60 * 1000,
+      }));
+      mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+      console.log("Using get-file proxy URL for Facebook:", mediaUrl);
     }
 
     let postRes: Response;
     let postData: any;
 
     if (isImage) {
-      // Image posting: use /photos endpoint
       postRes = await fetch(
         `https://graph.facebook.com/v25.0/${encodeURIComponent(pageId)}/photos`,
         {
@@ -171,20 +141,19 @@ Deno.serve(async (req) => {
         },
       );
     } else {
-// Video posting: use /videos endpoint
-       postRes = await fetch(
-         `https://graph-video.facebook.com/v25.0/${encodeURIComponent(pageId)}/videos`,
-         {
-           method: "POST",
-           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-           body: new URLSearchParams({
-             file_url: mediaUrl,
-             description: (post.caption || "").toString(),
-             access_token: accessToken,
-             published: "true",
-           }).toString(),
-         },
-       );
+      postRes = await fetch(
+        `https://graph-video.facebook.com/v25.0/${encodeURIComponent(pageId)}/videos`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            file_url: mediaUrl,
+            description: (post.caption || "").toString(),
+            access_token: accessToken,
+            published: "true",
+          }).toString(),
+        },
+      );
     }
 
     postData = await postRes.json();
@@ -228,7 +197,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-
-
-

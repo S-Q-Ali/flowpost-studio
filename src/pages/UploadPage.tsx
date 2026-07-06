@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,15 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Upload, CalendarIcon, Loader2, Youtube, Instagram, Facebook } from "lucide-react";
+import { CalendarIcon, Loader2, Youtube, Instagram, Facebook, Film } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Platform } from "@/lib/types";
 import type { ConnectedAccount } from "@/lib/types";
-import { uploadToR2 } from "@/lib/r2";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { BetaBadge } from "@/components/BetaBadge";
@@ -36,7 +34,8 @@ const platforms: { id: Platform; label: string }[] = [
 export default function UploadPage() {
   const { userId } = useAuth();
   const navigate = useNavigate();
-  const [file, setFile] = useState<File | null>(null);
+  const [videos, setVideos] = useState<{ id: string; title: string; file_url: string; created_at: string }[]>([]);
+  const [selectedVideoId, setSelectedVideoId] = useState<string>("");
   const [youtubeTitle, setYoutubeTitle] = useState("");
   const [youtubeDescription, setYoutubeDescription] = useState("");
   const [instagramCaption, setInstagramCaption] = useState("");
@@ -62,11 +61,8 @@ export default function UploadPage() {
   };
   const [scheduleDate, setScheduleDate] = useState<Date>(getDefaultScheduleDate());
   const [scheduleTime, setScheduleTime] = useState("17:00");
-  const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [containsAlteredContent, setContainsAlteredContent] = useState(true);
-  const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null);
   const isSubmittingRef = useRef(false);
 
   useEffect(() => {
@@ -103,6 +99,13 @@ export default function UploadPage() {
       setFacebookAccounts((fb as ConnectedAccount[]) ?? []);
       setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
       setTiktokAccounts((tt as ConnectedAccount[]) ?? []);
+
+      const { data: vids } = await supabase
+        .from("videos")
+        .select("id, title, file_url, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+      setVideos((vids ?? []) as any[]);
     };
     load();
   }, []);
@@ -119,19 +122,6 @@ export default function UploadPage() {
       })();
     }
   }, [selectedPlatforms]);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f && (f.type === "video/mp4" || f.type === "video/quicktime")) setFile(f);
-    else toast.error("Please upload an .mp4 or .mov file");
-  }, []);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) setFile(f);
-  };
 
   const togglePlatform = (p: Platform) => {
     setSelectedPlatforms((prev) => {
@@ -168,22 +158,15 @@ export default function UploadPage() {
     );
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
   const handleSubmit = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
-    setUploadProgress(0);
 
     try {
-      if (!file) {
-        toast.error("Please upload a video file");
+      if (!selectedVideoId) {
+        toast.error("Please select a video");
         return;
       }
       if (selectedPlatforms.length === 0) {
@@ -216,25 +199,7 @@ export default function UploadPage() {
         toast.error("Select a TikTok account");
         return;
       }
-      let videoId = uploadedVideoId;
-      const youtubeSelectedNow = selectedPlatforms.includes("youtube");
-
-      if (!videoId) {
-        const publicUrl = await uploadToR2(file, userId, (percent) => setUploadProgress(percent));
-
-        const computedTitle =
-          youtubeSelectedNow && youtubeTitle.trim().length > 0 ? youtubeTitle.trim() : file.name;
-
-        const { data: video, error: videoError } = await supabase
-          .from("videos")
-          .insert({ user_id: userId, title: computedTitle, file_url: publicUrl })
-          .select()
-          .single();
-        if (videoError) throw videoError;
-
-        videoId = video.id as string;
-        setUploadedVideoId(videoId);
-      }
+      const videoId = selectedVideoId;
 
       const isPublishNow = publishMode === "now";
       let scheduledAt: string;
@@ -388,7 +353,7 @@ export default function UploadPage() {
           for (const p of wfPlatforms) {
             const delayMs = (wf.delay_hours || 0) * 3600000;
             const wfCaption = wf.caption_template
-              ? wf.caption_template.replace("{{title}}", youtubeTitle || file.name).replace("{{hashtags}}", hashtags)
+              ? wf.caption_template.replace("{{title}}", youtubeTitle || "").replace("{{hashtags}}", hashtags)
               : baseCaption;
             workflowPosts.push({
               user_id: userId,
@@ -548,7 +513,6 @@ export default function UploadPage() {
       toast.error(e.message);
     } finally {
       setIsSubmitting(false);
-      setUploadProgress(0);
       isSubmittingRef.current = false;
     }
   };
@@ -560,27 +524,34 @@ export default function UploadPage() {
         <p className="text-sm text-muted-foreground">Upload a video and schedule it across platforms</p>
       </div>
 
-      <Card
-        className={cn(
-          "border-2 border-dashed transition-colors cursor-pointer bg-card",
-          isDragging ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"
-        )}
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => document.getElementById("file-input")?.click()}
-      >
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Upload size={40} className="text-muted-foreground mb-3" />
-          {file ? (
-            <p className="text-sm text-foreground font-medium">{file.name}</p>
-          ) : (
-            <>
-              <p className="text-sm text-foreground font-medium">Drop your video here or click to browse</p>
-              <p className="text-xs text-muted-foreground mt-1">Accepts .mp4, .mov — 9:16 vertical format</p>
-            </>
-          )}
-          <input id="file-input" type="file" accept=".mp4,.mov" className="hidden" onChange={handleFileSelect} />
+      <Card className="bg-card border-border shadow-card">
+        <CardContent className="py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
+              <Film size={20} className="text-muted-foreground" />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm font-medium text-foreground">Select Media</label>
+              {videos.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No media found. Use a Google Drive workflow to upload media.
+                </p>
+              ) : (
+                <select
+                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                  value={selectedVideoId}
+                  onChange={(e) => setSelectedVideoId(e.target.value)}
+                >
+                  <option value="">-- Select a video --</option>
+                  {videos.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.title || v.file_url} — {format(new Date(v.created_at), "PP")}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -868,17 +839,9 @@ export default function UploadPage() {
       {isSubmitting && (
         <Card className="bg-card border-border shadow-card overflow-hidden">
           <CardContent className="pt-5 pb-5 space-y-3">
-            <p className="text-sm text-foreground font-medium">
-              {file ? `Uploading video (${formatFileSize(file.size)})` : "Uploading video"}
-            </p>
-            <div className="flex items-center gap-3">
-              <Progress value={uploadProgress} className="h-2 flex-1 [&>div]:bg-[#7C3AED] [&>div]:transition-all [&>div]:duration-300" />
-              <div className="flex items-center gap-2 min-w-[100px]">
-                <Loader2 className="h-4 w-4 animate-spin text-[#7C3AED]" />
-                <span className="text-sm text-muted-foreground">
-                  {uploadProgress < 100 ? `Uploading... ${uploadProgress}%` : "Processing..."}
-                </span>
-              </div>
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-[#7C3AED]" />
+              <span className="text-sm text-muted-foreground">Posting...</span>
             </div>
           </CardContent>
         </Card>

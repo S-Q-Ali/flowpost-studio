@@ -16,11 +16,13 @@ export default function AccountsPage() {
   const [isYouTubeConnecting, setIsYouTubeConnecting] = useState(false);
   const [isFacebookConnecting, setIsFacebookConnecting] = useState(false);
   const [isTikTokConnecting, setIsTikTokConnecting] = useState(false);
+  const [isDriveConnecting, setIsDriveConnecting] = useState(false);
 
   const [facebookPages, setFacebookPages] = useState<ConnectedAccount[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [youtubeConnectedAccounts, setYoutubeConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
+  const [driveAccounts, setDriveAccounts] = useState<ConnectedAccount[]>([]);
   const [youtubeQuota, setYoutubeQuota] = useState<{ percentage: number; uploadCount: number; estimatedUploadsRemaining: number } | null>(null);
 
   const fetchFacebook = async (): Promise<ConnectedAccount[]> => {
@@ -77,6 +79,24 @@ export default function AccountsPage() {
     return list;
   };
 
+  const fetchDrive = async (): Promise<ConnectedAccount[]> => {
+    const { data, error } = await supabase
+      .from("connected_accounts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("platform", "google_drive")
+      .eq("is_connected", true);
+
+    if (error) {
+      toast.error(error.message);
+      return [];
+    }
+
+    const list = (data as ConnectedAccount[]) ?? [];
+    setDriveAccounts(list);
+    return list;
+  };
+
   const fetchTikTok = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
       .from("connected_accounts")
@@ -96,7 +116,7 @@ export default function AccountsPage() {
   };
 
   const refreshAll = async () => {
-    await Promise.all([fetchFacebook(), fetchInstagram(), fetchYouTube(), fetchTikTok()]);
+    await Promise.all([fetchFacebook(), fetchInstagram(), fetchYouTube(), fetchTikTok(), fetchDrive()]);
   };
 
   useEffect(() => {
@@ -333,6 +353,50 @@ export default function AccountsPage() {
     } catch (e: any) {
       toast.error(e.message || "TikTok connection failed");
       setIsTikTokConnecting(false);
+    }
+  };
+
+  const connectDrive = async () => {
+    setIsDriveConnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(`google-drive-auth?action=url&userId=${userId}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      });
+
+      if (error) throw new Error(error.message || "Failed to start Google Drive OAuth");
+      if (!data?.url) throw new Error("Missing OAuth URL");
+
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const channel = supabase
+        .channel("drive-connected")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "connected_accounts",
+            filter: "platform=eq.google_drive",
+          },
+          () => {
+            clearTimeout(timeoutId);
+            channel.unsubscribe();
+            fetchDrive();
+            toast.success("Google Drive connected!");
+            setIsDriveConnecting(false);
+          },
+        )
+        .subscribe();
+
+      timeoutId = setTimeout(() => {
+        channel.unsubscribe();
+        setIsDriveConnecting(false);
+      }, 5 * 60 * 1000);
+
+      window.open(data.url, "_blank");
+    } catch (e: any) {
+      toast.error(e.message || "Google Drive connection failed");
+      setIsDriveConnecting(false);
     }
   };
 
@@ -691,6 +755,56 @@ export default function AccountsPage() {
             </Card>
           )}
         </div>
+
+        {/* Google Drive */}
+        <Card className="bg-card border-border shadow-card">
+          <CardContent className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-green-500">
+                  <path d="M12.24 10.28 7.81 2.57H4.28l4.2 7.71h3.76Z" />
+                  <path d="M16.06 2.57h-4.1l4.2 7.71h4.1l-4.2-7.71Z" />
+                  <path d="M17.56 14.36 19.2 11.4H8.25l-4.3 7.46H13.7l3.86-4.5Z" />
+                  <path d="M17.56 14.36 19.2 11.4H8.25l-4.3 7.46H13.7l3.86-4.5Z" opacity="0.5" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-foreground">Google Drive</div>
+                <div className="text-xs text-muted-foreground">
+                  {driveAccounts.length > 0 ? "Connected" : "Not connected"}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {driveAccounts.length > 0 ? (
+                <Button variant="outline" size="sm" onClick={async () => {
+                  const aid = driveAccounts[0].account_id;
+                  await supabase.from("connected_accounts").update({ is_connected: false }).eq("id", aid);
+                  fetchDrive();
+                  toast.success("Google Drive disconnected");
+                }}>
+                  Disconnect
+                </Button>
+              ) : (
+                <Button
+                  className="gradient-primary text-primary-foreground"
+                  size="sm"
+                  onClick={connectDrive}
+                  disabled={isDriveConnecting}
+                >
+                  {isDriveConnecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting…
+                    </>
+                  ) : (
+                    "Connect Google Drive"
+                  )}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

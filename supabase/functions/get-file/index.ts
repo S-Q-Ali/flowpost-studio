@@ -1,0 +1,82 @@
+import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { decrypt } from "../_shared/crypto.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for get-file");
+}
+
+const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: { persistSession: false },
+});
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (req.method !== "GET") {
+    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+  }
+
+  const url = new URL(req.url);
+  const encrypted = url.searchParams.get("token");
+  if (!encrypted) {
+    return new Response("Missing token", { status: 400, headers: corsHeaders });
+  }
+
+  let tokenPayload: { driveUrl?: string; driveToken?: string; exp?: number };
+  try {
+    const decrypted = await decrypt(encrypted);
+    tokenPayload = JSON.parse(decrypted);
+  } catch {
+    return new Response("Invalid token", { status: 403, headers: corsHeaders });
+  }
+
+  if (!tokenPayload.driveUrl || !tokenPayload.driveToken) {
+    return new Response("Invalid token payload", { status: 403, headers: corsHeaders });
+  }
+
+  if (tokenPayload.exp && Date.now() > tokenPayload.exp) {
+    return new Response("Token expired", { status: 410, headers: corsHeaders });
+  }
+
+  try {
+    const driveRes = await fetch(tokenPayload.driveUrl, {
+      headers: { Authorization: `Bearer ${tokenPayload.driveToken}` },
+    });
+
+    if (!driveRes.ok) {
+      const errText = await driveRes.text();
+      console.error(`[get-file] Drive fetch failed: ${driveRes.status} - ${errText}`);
+      return new Response("Failed to fetch file from Drive", {
+        status: 502,
+        headers: corsHeaders,
+      });
+    }
+
+    const contentType = driveRes.headers.get("Content-Type") || "application/octet-stream";
+    const contentLength = driveRes.headers.get("Content-Length");
+
+    const responseHeaders: Record<string, string> = {
+      "Content-Type": contentType,
+      "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+    };
+    if (contentLength) responseHeaders["Content-Length"] = contentLength;
+
+    return new Response(driveRes.body, {
+      status: 200,
+      headers: responseHeaders,
+    });
+  } catch (err) {
+    console.error("[get-file] Error streaming file", err);
+    return new Response("Error streaming file", { status: 500, headers: corsHeaders });
+  }
+});

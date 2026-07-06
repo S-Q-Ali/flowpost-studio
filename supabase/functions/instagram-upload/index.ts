@@ -1,6 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { decrypt } from "../_shared/crypto.ts";
-import { uploadDriveMediaToR2 } from "../_shared/drive-to-r2.ts";
+import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
 const corsHeaders = {
@@ -11,7 +10,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "pub-1d4bcccec36046308147315db8637398.r2.dev";
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for instagram-upload");
@@ -20,13 +18,6 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
-
-const ALLOWED_DOMAINS = [
-  "www.googleapis.com",
-  "drive.google.com",
-  R2_PUBLIC_URL,
-  "graph.facebook.com",
-];
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -112,40 +103,23 @@ Deno.serve(async (req) => {
     const accessToken = await decrypt(account.access_token as string);
     const igUserId = account.account_id as string;
 
-    const userId = post.user_id ?? "00000000-0000-0000-0000-000000000000";
+    // Use Drive source via get-file proxy, or fall back to the stored file_url
     let mediaUrl = video.file_url as string;
 
-    if (
-      (driveDownloadUrl || mediaUrl.includes("googleapis.com")) &&
-      googleAccessToken
-    ) {
-      const driveSource = driveDownloadUrl || mediaUrl;
-      console.log(`Uploading Drive ${isImage ? "image" : "video"} to R2 first...`);
-
-      mediaUrl = await uploadDriveMediaToR2(
-        driveSource,
-        googleAccessToken,
-        post.video_id as string,
-        (video.title as string) || (post.video_id as string),
-        isImage,
-        userId,
-        supabase,
-        ALLOWED_DOMAINS,
-      );
-
-      await supabase
-        .from("videos")
-        .update({ file_url: mediaUrl })
-        .eq("id", post.video_id);
-
-      console.log("R2 upload complete, URL:", mediaUrl);
+    if (driveDownloadUrl && googleAccessToken) {
+      const fileToken = await encrypt(JSON.stringify({
+        driveUrl: driveDownloadUrl,
+        driveToken: googleAccessToken,
+        exp: Date.now() + 15 * 60 * 1000,
+      }));
+      mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+      console.log("Using get-file proxy URL for Instagram:", mediaUrl);
     }
 
     console.log(`Creating Instagram ${isImage ? "image" : "reel"} container for user:`, igUserId);
     console.log("Using media URL:", mediaUrl);
     console.log("Caption:", post.caption);
 
-    // Step 3a - Create media container using URLSearchParams (Meta API expects form-encoded data)
     const containerForm = new URLSearchParams();
     containerForm.append("media_type", isImage ? "IMAGE" : "REELS");
     if (isImage) {
@@ -153,7 +127,6 @@ Deno.serve(async (req) => {
     } else {
       containerForm.append("video_url", mediaUrl);
     }
-    // Instagram caption limit is 2,200 characters
     const caption = (post.caption || "").substring(0, 2200);
     containerForm.append("caption", caption);
     containerForm.append("access_token", accessToken);
@@ -193,14 +166,12 @@ Deno.serve(async (req) => {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL));
       }
 
-      // Check container processing status
       const statusRes = await fetch(
         `https://graph.facebook.com/v25.0/${container.id}?fields=status_code&access_token=${accessToken}`,
       );
       const statusData = await statusRes.json() as Record<string, unknown>;
 
       if (statusData.status_code === "FINISHED") {
-        // Container is ready — publish
         const publishForm = new URLSearchParams();
         publishForm.append("creation_id", container.id);
         publishForm.append("access_token", accessToken);
@@ -221,7 +192,6 @@ Deno.serve(async (req) => {
         }
         console.log(`Publish attempt ${attempt + 1} failed:`, JSON.stringify(publishResult));
         if (publishResult.error) {
-          // Non-retryable errors (e.g. expired container)
           console.error("Non-retryable publish error, giving up");
           break;
         }
@@ -265,7 +235,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-
-
-

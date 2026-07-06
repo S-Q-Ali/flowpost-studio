@@ -1,6 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { decrypt } from "../_shared/crypto.ts";
-import { getGoogleAccessToken } from "../_shared/google-jwt.ts";
+import { encrypt, decrypt } from "../_shared/crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -143,10 +142,52 @@ Deno.serve(async (req) => {
     return json({ processed: 0, workflows_triggered: 0, errors: [] });
   }
 
-  let googleToken: string | null = null;
   const errors: string[] = [];
   let totalProcessedVideos = 0;
   let workflowsTriggered = 0;
+
+  async function getDriveToken(userId: string): Promise<string | null> {
+    const { data: driveAccount, error: daError } = await supabase
+      .from("connected_accounts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("platform", "google_drive")
+      .eq("is_connected", true)
+      .maybeSingle();
+
+    if (daError || !driveAccount) {
+      console.warn(`No Google Drive connected for user ${userId}`);
+      return null;
+    }
+
+    const tokenExpiry = driveAccount.token_expiry ? new Date(driveAccount.token_expiry) : null;
+    if (tokenExpiry && tokenExpiry.getTime() - Date.now() < 5 * 60 * 1000) {
+      // Token expiring soon — refresh it
+      const rawRefresh = await decrypt(driveAccount.refresh_token as string);
+      if (rawRefresh) {
+        try {
+          const refreshRes = await fetch(
+            `${SUPABASE_URL}/functions/v1/google-drive-auth?action=refresh&user_id=${userId}`,
+            { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
+          );
+          if (refreshRes.ok) {
+            // Re-fetch the updated token
+            const { data: refreshed } = await supabase
+              .from("connected_accounts")
+              .select("access_token")
+              .eq("user_id", userId)
+              .eq("platform", "google_drive")
+              .single();
+            if (refreshed?.access_token) return await decrypt(refreshed.access_token as string);
+          }
+        } catch (e) {
+          console.warn(`Drive token refresh failed for user ${userId}:`, e);
+        }
+      }
+    }
+
+    return await decrypt(driveAccount.access_token as string);
+  }
 
   // Use UTC time directly for scheduling
   const now = new Date();
@@ -244,22 +285,11 @@ Deno.serve(async (req) => {
       }
     }
 
+    const googleToken = await getDriveToken(wf.user_id);
     if (!googleToken) {
-      try {
-        googleToken = await getGoogleAccessToken();
-      } catch (err) {
-        console.error("Google auth error", err);
-        errors.push(
-          `Google auth failed for workflow ${wf.id}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-        continue;
-      }
+      errors.push(`No Google Drive connected for workflow ${wf.id} (user ${wf.user_id})`);
+      continue;
     }
-
-     // Update trigger tracking will happen AFTER successful processing
-     // to avoid marking as triggered if processing fails
 
     // Read sheet
     const sheetRes = await fetch(
@@ -583,24 +613,14 @@ Deno.serve(async (req) => {
         }
 
         if (wf.post_as_story && !isImageWorkflow) {
-          let storyVideoUrl: string | null = null;
-          for (let attempt = 0; attempt < 30; attempt++) {
-            await new Promise((r) => setTimeout(r, 2000));
-            const { data: updatedVideo } = await supabase
-              .from("videos")
-              .select("file_url")
-              .eq("id", videoRecord.id)
-              .single();
-            if (updatedVideo?.file_url?.startsWith("https://pub-")) {
-              storyVideoUrl = updatedVideo.file_url;
-              break;
-            }
-          }
-
-          if (!storyVideoUrl) {
-            console.log("R2 URL not ready yet after 60s, skipping story");
-          } else {
-            const usedStoryTokens = new Set<string>();
+          // Generate a short-lived get-file proxy URL for the story
+          const storyToken = await encrypt(JSON.stringify({
+            driveUrl: driveDownloadUrl,
+            driveToken: googleToken,
+            exp: Date.now() + 15 * 60 * 1000,
+          }));
+          const storyVideoUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(storyToken)}`;
+          const usedStoryTokens = new Set<string>();
 
             for (const post of insertedPosts as { id: string; platform: string; account_id: string | null }[]) {
               if (post.platform === "facebook" && post.account_id) {
@@ -684,8 +704,6 @@ Deno.serve(async (req) => {
                     }
                   }
               }
-            }
-
           }
         }
 

@@ -42,7 +42,7 @@ interface ConnectedAccount {
 interface InsightsResponse {
   account: Record<string, unknown>;
   insights: Record<string, { date: string; value: number }[]>;
-  insights_error_detail: unknown;
+  insights_errors?: Record<string, unknown>;
   flowpost_stats: {
     total_published: number;
     this_month: number;
@@ -110,7 +110,7 @@ const platformConfig: Record<Platform, {
     charts: {
       primary: { title: "Page Follows Growth (30 days)", dataKey: "Page Follows", metric: "page_follows" },
       secondary: { title: "Media Views (30 days)", dataKey: "Media Views", metric: "page_media_view" },
-      tertiary: { title: "Engaged Users (30 days)", dataKey: "Engaged", metric: "page_engaged_users" },
+      tertiary: { title: "Post Engagements (30 days)", dataKey: "Engagements", metric: "page_post_engagements" },
     },
   },
 };
@@ -184,16 +184,6 @@ export default function InsightsPage() {
         }
         setData(body as InsightsResponse);
         console.log(`[InsightsPage] Response for ${platform} account ${selectedAccountId}:`, body);
-        console.log(`[InsightsPage] insights data:`, {
-          page_fans: body.insights?.page_fans?.length,
-          page_impressions: body.insights?.page_impressions?.length,
-          page_engaged_users: body.insights?.page_engaged_users?.length,
-          page_views_total: body.insights?.page_views_total?.length,
-          insights_error_detail: body.insights_error_detail,
-        });
-        if (body.insights_error_detail) {
-          console.warn(`[InsightsPage] Insights API error:`, body.insights_error_detail);
-        }
       })
       .catch(() => {
         setError("Network error fetching insights");

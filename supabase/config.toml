@@ -1,6 +1,9 @@
 project_id = "ximorwzknbizpceaoflw"
 
-[functions.get-upload-url]
+[functions.google-drive-auth]
+verify_jwt = false
+
+[functions.get-file]
 verify_jwt = false
 
 [functions.tiktok-auth]
@@ -10,9 +13,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.youtube-auth]
-verify_jwt = false
-
-[functions.google-oauth]
 verify_jwt = false
 
 [functions.instagram-upload]

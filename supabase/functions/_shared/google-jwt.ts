@@ -1,64 +1,66 @@
-function base64UrlEncode(input: string | Uint8Array): string {
-  const str =
-    typeof input === "string" ? input : String.fromCharCode(...input);
-  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
 export async function getGoogleAccessToken(): Promise<string> {
-  const email = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL")!;
-  const privateKeyEnv = Deno.env.get("GOOGLE_PRIVATE_KEY")!;
+  const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY");
+  const clientEmail = Deno.env.get("GOOGLE_CLIENT_EMAIL") ||
+    "flowpost-studio@zinc-bucksaw-489020-n0.iam.gserviceaccount.com";
 
-  if (!email || !privateKeyEnv) {
-    throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_PRIVATE_KEY");
+  if (!privateKey) {
+    throw new Error("GOOGLE_PRIVATE_KEY not set");
   }
 
-  const normalizedKey = privateKeyEnv.replace(/\\n/g, "\n");
-
-  const pemContents = normalizedKey
-    .replace("-----BEGIN RSA PRIVATE KEY-----", "")
-    .replace("-----END RSA PRIVATE KEY-----", "")
-    .replace("-----BEGIN PRIVATE KEY-----", "")
-    .replace("-----END PRIVATE KEY-----", "")
-    .replace(/\r?\n/g, "")
-    .trim();
-
-  const binaryKey = Uint8Array.from(atob(pemContents), (c) =>
-    c.charCodeAt(0)
-  );
-
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    binaryKey,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-
+  const header = { alg: "RS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
-  const header = {
-    alg: "RS256",
-    typ: "JWT",
-  };
-  const payload = {
-    iss: email,
-    scope:
-      "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly",
+  const claim = {
+    iss: clientEmail,
+    scope: "https://www.googleapis.com/auth/spreadsheets",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
     iat: now,
   };
 
-  const encodedHeader = base64UrlEncode(JSON.stringify(header));
-  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  function base64UrlEncode(data: Uint8Array): string {
+    return btoa(String.fromCharCode(...data))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  }
 
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    cryptoKey,
-    new TextEncoder().encode(signingInput),
+  const encoder = new TextEncoder();
+  const headerStr = JSON.stringify(header);
+  const claimStr = JSON.stringify(claim);
+  const headerB64 = base64UrlEncode(encoder.encode(headerStr));
+  const claimB64 = base64UrlEncode(encoder.encode(claimStr));
+  const signatureInput = `${headerB64}.${claimB64}`;
+
+  const keyData = privateKey.includes("\\n")
+    ? privateKey.replace(/\\n/g, "\n")
+    : privateKey;
+
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
+  const pemContents = keyData.includes(pemHeader)
+    ? keyData.slice(
+        keyData.indexOf(pemHeader) + pemHeader.length,
+        keyData.indexOf(pemFooter),
+      ).replace(/\s/g, "")
+    : keyData.replace(/\s/g, "");
+
+  const binaryDer = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    binaryDer,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
   );
 
-  const jwt = `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
+  const sig = await crypto.subtle.sign(
+    { name: "RSASSA-PKCS1-v1_5" },
+    key,
+    encoder.encode(signatureInput),
+  );
+
+  const jwt = `${signatureInput}.${base64UrlEncode(new Uint8Array(sig))}`;
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -66,12 +68,15 @@ export async function getGoogleAccessToken(): Promise<string> {
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion: jwt,
-    }),
+    }).toString(),
   });
 
-  const tokenData = await tokenRes.json();
-  if (!tokenRes.ok || !tokenData.access_token) {
-    throw new Error("Google authentication failed. Check service account configuration.");
+  if (!tokenRes.ok) {
+    const errText = await tokenRes.text();
+    console.error("Google token exchange failed:", tokenRes.status, errText);
+    throw new Error(`Google token exchange failed: ${tokenRes.status}`);
   }
+
+  const tokenData = await tokenRes.json();
   return tokenData.access_token as string;
 }
