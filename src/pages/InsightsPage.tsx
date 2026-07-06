@@ -48,7 +48,7 @@ interface InsightsData {
   };
   insights: {
     follower_count: { date: string; value: number }[];
-    impressions: { date: string; value: number }[];
+    views: { date: string; value: number }[];
     reach: { date: string; value: number }[];
     profile_views: { date: string; value: number }[];
   };
@@ -130,7 +130,7 @@ export default function InsightsPage() {
         setData(body as InsightsData);
         console.log(`[InsightsPage] insights data:`, {
           follower_count: body.insights?.follower_count?.length,
-          impressions: body.insights?.impressions?.length,
+          views: body.insights?.views?.length,
           reach: body.insights?.reach?.length,
           profile_views: body.insights?.profile_views?.length,
           insights_error_detail: body.insights_error_detail,
@@ -180,7 +180,7 @@ export default function InsightsPage() {
 
   const followerGrowth = data?.insights.follower_count || [];
   const reach = data?.insights.reach || [];
-  const impressions = data?.insights.impressions || [];
+  const views = data?.insights.views || [];
   const postsByDay = data?.flowpost_stats.posts_by_day || [];
 
   const formatFollowerChart = followerGrowth.map((d) => ({
@@ -193,9 +193,9 @@ export default function InsightsPage() {
     Reach: d.value,
   }));
 
-  const formatImpressionsChart = impressions.map((d) => ({
+  const formatViewsChart = views.map((d) => ({
     date: d.date.slice(5),
-    Impressions: d.value,
+    Views: d.value,
   }));
 
   const formatPostsChart = postsByDay.map((d) => ({
@@ -358,19 +358,19 @@ export default function InsightsPage() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Impressions (30 days)</CardTitle>
+                <CardTitle className="text-sm">Views (30 days)</CardTitle>
               </CardHeader>
               <CardContent>
-                {formatImpressionsChart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No impressions data available</p>
+                {formatViewsChart.length === 0 ? (
+                  <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No views data available</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
-                    <AreaChart data={formatImpressionsChart}>
+                    <AreaChart data={formatViewsChart}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
                       <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip />
-                      <Area type="monotone" dataKey="Impressions" stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} />
+                      <Area type="monotone" dataKey="Views" stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}

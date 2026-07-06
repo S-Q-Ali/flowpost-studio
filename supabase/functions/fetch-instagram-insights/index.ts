@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
 
   const [profileRes, insightsRes] = await Promise.all([
     fetchMeta(`/${accountId}?fields=username,profile_picture_url,followers_count,media_count`),
-    fetchMeta(`/${accountId}/insights?metric=follower_count,impressions,reach,profile_views&period=day&since=${since}&until=${until}`),
+    fetchMeta(`/${accountId}/insights?metric=follower_count,reach,profile_views,views&period=day&since=${since}&until=${until}`),
   ]);
 
   if (!profileRes.ok) {
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
       },
       insights: {
         follower_count: followerGrowth,
-        impressions: insightsMap["impressions"] || [],
+        views: insightsMap["views"] || [],
         reach: insightsMap["reach"] || [],
         profile_views: insightsMap["profile_views"] || [],
       },
