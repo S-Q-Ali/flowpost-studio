@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `pending` — feat: add Facebook Page insights with platform dropdown
+## CURRENT HEAD: `7dfcf8d` — feat: add Facebook Page insights with platform dropdown
 
 ---
 
