@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `34bb8c5` — fix: split insights into two API calls, reduce range to 30 days, replace impressions with views
+## CURRENT HEAD: `pending` — feat: add Facebook Page insights with platform dropdown
 
 ---
 
@@ -184,3 +184,19 @@ npx.cmd supabase migration up
 | 0d19e852-... | syedqasim963@gmail.com | true | fav_teacher: amna mushtaq, best_night_date: 2026-01-03 |
 | ca417e70-... | qasimvamatters@gmail.com | false | — |
 | f485999c-... | testuser@flowpost.app | false | — |
+
+---
+
+### 14. Facebook Page Insights — Added (2026-07-06)
+**New feature**: Facebook Page insights with platform dropdown on `/insights` page.
+**New files**:
+- `supabase/functions/fetch-facebook-insights/index.ts` — new edge function; queries `platform = 'facebook'`, calls `/{page-id}/insights` with `page_fans, page_impressions, page_engaged_users, page_views_total` metrics
+- `supabase/config.toml` — added `[functions.fetch-facebook-insights] verify_jwt = false`
+**Modified files**:
+- `src/pages/InsightsPage.tsx` — fully rewritten with platform selector dropdown (Instagram | Facebook), dynamic account loading, platform-adaptive chart labels and stats cards
+**Metrics**:
+| Platform | Primary chart | Secondary chart | Tertiary chart |
+|---|---|---|---|
+| Instagram | Follower Growth | Reach | Views |
+| Facebook | Page Likes Growth | Impressions | Engaged Users |
+**No scope changes needed** — `pages_read_engagement` already requested.

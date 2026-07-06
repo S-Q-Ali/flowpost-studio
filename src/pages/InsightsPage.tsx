@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -25,42 +24,96 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Loader2, BarChart3, Instagram, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, BarChart3, Instagram, Facebook, AlertCircle, RefreshCw } from "lucide-react";
 
 const VITE_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const VITE_SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-interface InstagramAccount {
+type Platform = "instagram" | "facebook";
+
+interface ConnectedAccount {
   id: string;
   account_id: string;
   account_name: string | null;
   connected_at: string | null;
-  metadata: { profile_picture?: string; followers_count?: number } | null;
+  metadata: Record<string, unknown> | null;
 }
 
-interface InsightsData {
-  account: {
-    username: string;
-    profile_picture_url: string | null;
-    followers_count: number | null;
-    media_count: number | null;
-    connected_since: string | null;
-  };
-  insights: {
-    follower_count: { date: string; value: number }[];
-    views: { date: string; value: number }[];
-    reach: { date: string; value: number }[];
-    profile_views: { date: string; value: number }[];
-  };
+interface InsightsResponse {
+  account: Record<string, unknown>;
+  insights: Record<string, { date: string; value: number }[]>;
+  insights_error_detail: unknown;
   flowpost_stats: {
     total_published: number;
     this_month: number;
     this_week: number;
     success_rate: number;
-    follower_net_growth_30d: number;
     posts_by_day: { date: string; published: number; failed: number }[];
+    [key: string]: unknown;
   };
 }
+
+const platformConfig: Record<Platform, {
+  label: string;
+  icon: typeof Instagram;
+  functionName: string;
+  emptyIcon: typeof Instagram;
+  emptyMsg: string;
+  connectLink: string;
+  stats: {
+    primaryLabel: string;
+    primaryField: string;
+    secondaryLabel: string;
+    secondaryField: string;
+    growthField: string;
+  };
+  charts: {
+    primary: { title: string; dataKey: string; metric: string };
+    secondary: { title: string; dataKey: string; metric: string };
+    tertiary: { title: string; dataKey: string; metric: string };
+  };
+}> = {
+  instagram: {
+    label: "Instagram",
+    icon: Instagram,
+    functionName: "fetch-instagram-insights",
+    emptyIcon: Instagram,
+    emptyMsg: "No Instagram accounts connected yet.",
+    connectLink: "/accounts",
+    stats: {
+      primaryLabel: "Followers",
+      primaryField: "followers_count",
+      secondaryLabel: "Total Posts",
+      secondaryField: "media_count",
+      growthField: "follower_net_growth_30d",
+    },
+    charts: {
+      primary: { title: "Follower Growth (30 days)", dataKey: "Followers", metric: "follower_count" },
+      secondary: { title: "Reach (30 days)", dataKey: "Reach", metric: "reach" },
+      tertiary: { title: "Views (30 days)", dataKey: "Views", metric: "views" },
+    },
+  },
+  facebook: {
+    label: "Facebook",
+    icon: Facebook,
+    functionName: "fetch-facebook-insights",
+    emptyIcon: Facebook,
+    emptyMsg: "No Facebook pages connected yet.",
+    connectLink: "/accounts",
+    stats: {
+      primaryLabel: "Page Likes",
+      primaryField: "fan_count",
+      secondaryLabel: "About",
+      secondaryField: "about",
+      growthField: "page_fan_growth_30d",
+    },
+    charts: {
+      primary: { title: "Page Likes Growth (30 days)", dataKey: "Page Likes", metric: "page_fans" },
+      secondary: { title: "Impressions (30 days)", dataKey: "Impressions", metric: "page_impressions" },
+      tertiary: { title: "Engaged Users (30 days)", dataKey: "Engaged", metric: "page_engaged_users" },
+    },
+  },
+};
 
 function ChartLoader() {
   return (
@@ -73,43 +126,46 @@ function ChartLoader() {
 
 export default function InsightsPage() {
   const { userId } = useAuth();
-  const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
+  const [platform, setPlatform] = useState<Platform>("instagram");
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
-  const [data, setData] = useState<InsightsData | null>(null);
+  const [data, setData] = useState<InsightsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const config = platformConfig[platform];
+
   useEffect(() => {
     if (!userId) return;
     setLoading(true);
+    setData(null);
+    setError(null);
     supabase
       .from("connected_accounts")
       .select("id, account_id, account_name, connected_at, metadata")
       .eq("user_id", userId)
-      .eq("platform", "instagram")
+      .eq("platform", platform)
       .eq("is_connected", true)
       .then(({ data: accountsData, error: accountsError }) => {
         setLoading(false);
         if (accountsError) {
-          setError("Failed to load Instagram accounts");
+          setError(`Failed to load ${config.label} accounts`);
           return;
         }
-        const list = (accountsData || []) as InstagramAccount[];
+        const list = (accountsData || []) as ConnectedAccount[];
         setAccounts(list);
-        if (list.length > 0) {
-          setSelectedAccountId(list[0].account_id);
-        }
+        setSelectedAccountId(list.length > 0 ? list[0].account_id : "");
       });
-  }, [userId]);
+  }, [userId, platform, config.label]);
 
-  useEffect(() => {
+  const fetchInsights = useCallback(() => {
     if (!selectedAccountId) return;
     setFetching(true);
     setError(null);
     setData(null);
     fetch(
-      `${VITE_SUPABASE_URL}/functions/v1/fetch-instagram-insights?account_id=${selectedAccountId}`,
+      `${VITE_SUPABASE_URL}/functions/v1/${config.functionName}?account_id=${selectedAccountId}`,
       {
         headers: {
           Authorization: `Bearer ${VITE_SUPABASE_ANON_KEY}`,
@@ -118,32 +174,34 @@ export default function InsightsPage() {
     )
       .then(async (res) => {
         const body = await res.json();
-        console.log(`[InsightsPage] Response for ${selectedAccountId}:`, body);
         if (!res.ok) {
           if (body.needs_refresh) {
-            setError("Instagram token expired. Please reconnect the account.");
+            setError(`${config.label} token expired. Please reconnect the account.`);
           } else {
-            setError(body.error || "Failed to fetch insights");
+            setError(body.error || `Failed to fetch ${config.label} insights`);
           }
           return;
         }
-        setData(body as InsightsData);
-        console.log(`[InsightsPage] insights data:`, {
-          follower_count: body.insights?.follower_count?.length,
-          views: body.insights?.views?.length,
-          reach: body.insights?.reach?.length,
-          profile_views: body.insights?.profile_views?.length,
-          insights_error_detail: body.insights_error_detail,
-        });
-        if (body.insights_error_detail) {
-          console.warn(`[InsightsPage] Insights API returned an error:`, body.insights_error_detail);
-        }
+        setData(body as InsightsResponse);
       })
       .catch(() => {
         setError("Network error fetching insights");
       })
       .finally(() => setFetching(false));
-  }, [selectedAccountId]);
+  }, [selectedAccountId, config]);
+
+  useEffect(() => {
+    fetchInsights();
+  }, [fetchInsights]);
+
+  const handlePlatformChange = (newPlatform: Platform) => {
+    setPlatform(newPlatform);
+    setSelectedAccountId("");
+    setData(null);
+    setError(null);
+  };
+
+  const Icon = config.icon;
 
   if (!userId) return null;
 
@@ -157,20 +215,38 @@ export default function InsightsPage() {
   }
 
   if (accounts.length === 0) {
+    const EmptyIcon = config.emptyIcon;
     return (
       <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center gap-3">
-          <BarChart3 size={24} className="text-primary" />
-          <h1 className="text-2xl font-bold">Instagram Insights</h1>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <BarChart3 size={24} className="text-primary" />
+            <h1 className="text-2xl font-bold">Insights</h1>
+          </div>
+          <Select value={platform} onValueChange={(v) => handlePlatformChange(v as Platform)}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="instagram">
+                <div className="flex items-center gap-2">
+                  <Instagram size={14} /> Instagram
+                </div>
+              </SelectItem>
+              <SelectItem value="facebook">
+                <div className="flex items-center gap-2">
+                  <Facebook size={14} /> Facebook
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
-            <Instagram size={48} className="text-muted-foreground" />
-            <p className="text-muted-foreground text-lg">
-              No Instagram accounts connected yet.
-            </p>
+            <EmptyIcon size={48} className="text-muted-foreground" />
+            <p className="text-muted-foreground text-lg">{config.emptyMsg}</p>
             <Button asChild className="gradient-primary text-primary-foreground">
-              <Link to="/accounts">Connect Instagram</Link>
+              <Link to={config.connectLink}>Connect {config.label}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -178,24 +254,25 @@ export default function InsightsPage() {
     );
   }
 
-  const followerGrowth = data?.insights.follower_count || [];
-  const reach = data?.insights.reach || [];
-  const views = data?.insights.views || [];
+  const chartMetrics = config.charts;
+  const primaryData = (data?.insights[chartMetrics.primary.metric] || []);
+  const secondaryData = (data?.insights[chartMetrics.secondary.metric] || []);
+  const tertiaryData = (data?.insights[chartMetrics.tertiary.metric] || []);
   const postsByDay = data?.flowpost_stats.posts_by_day || [];
 
-  const formatFollowerChart = followerGrowth.map((d) => ({
+  const formatPrimaryChart = primaryData.map((d) => ({
     date: d.date.slice(5),
-    Followers: d.value,
+    [chartMetrics.primary.dataKey]: d.value,
   }));
 
-  const formatReachChart = reach.map((d) => ({
+  const formatSecondaryChart = secondaryData.map((d) => ({
     date: d.date.slice(5),
-    Reach: d.value,
+    [chartMetrics.secondary.dataKey]: d.value,
   }));
 
-  const formatViewsChart = views.map((d) => ({
+  const formatTertiaryChart = tertiaryData.map((d) => ({
     date: d.date.slice(5),
-    Views: d.value,
+    [chartMetrics.tertiary.dataKey]: d.value,
   }));
 
   const formatPostsChart = postsByDay.map((d) => ({
@@ -204,25 +281,50 @@ export default function InsightsPage() {
     Failed: d.failed,
   }));
 
+  const accountData = data?.account || {};
+  const stats = config.stats;
+  const primaryValue = (accountData[stats.primaryField] as number | null) ?? null;
+  const growthValue = data?.flowpost_stats[stats.growthField] as number | undefined;
+  const secondaryValue = (accountData[stats.secondaryField] as number | string | null) ?? null;
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <BarChart3 size={24} className="text-primary" />
-          <h1 className="text-2xl font-bold">Instagram Insights</h1>
+          <h1 className="text-2xl font-bold">Insights</h1>
         </div>
-        <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Select account" />
-          </SelectTrigger>
-          <SelectContent>
-            {accounts.map((acc) => (
-              <SelectItem key={acc.account_id} value={acc.account_id}>
-                {acc.account_name || acc.account_id}
+        <div className="flex items-center gap-2">
+          <Select value={platform} onValueChange={(v) => handlePlatformChange(v as Platform)}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="instagram">
+                <div className="flex items-center gap-2">
+                  <Instagram size={14} /> Instagram
+                </div>
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              <SelectItem value="facebook">
+                <div className="flex items-center gap-2">
+                  <Facebook size={14} /> Facebook
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Select account" />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map((acc) => (
+                <SelectItem key={acc.account_id} value={acc.account_id}>
+                  {acc.account_name || acc.account_id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {error && (
@@ -237,7 +339,7 @@ export default function InsightsPage() {
                 </Button>
               )}
             </div>
-            <Button variant="outline" size="sm" onClick={() => setSelectedAccountId(selectedAccountId)}>
+            <Button variant="outline" size="sm" onClick={fetchInsights}>
               <RefreshCw size={14} className="mr-1" />
               Retry
             </Button>
@@ -252,19 +354,25 @@ export default function InsightsPage() {
           <div className="grid grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground mb-1">Followers</p>
-                <p className="text-2xl font-bold">{data.account.followers_count?.toLocaleString() || "—"}</p>
-                {data.account.followers_count && followerGrowth.length >= 2 && (
-                  <p className={`text-xs mt-1 ${data.flowpost_stats.follower_net_growth_30d >= 0 ? "text-green-500" : "text-red-500"}`}>
-                    {data.flowpost_stats.follower_net_growth_30d >= 0 ? "+" : ""}{data.flowpost_stats.follower_net_growth_30d} in 30 days
+                <p className="text-sm text-muted-foreground mb-1">{stats.primaryLabel}</p>
+                <p className="text-2xl font-bold">{primaryValue?.toLocaleString() || "—"}</p>
+                {primaryValue != null && primaryData.length >= 2 && growthValue !== undefined && (
+                  <p className={`text-xs mt-1 ${growthValue >= 0 ? "text-green-500" : "text-red-500"}`}>
+                    {growthValue >= 0 ? "+" : ""}{growthValue} in 30 days
                   </p>
                 )}
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground mb-1">Total Posts</p>
-                <p className="text-2xl font-bold">{data.account.media_count?.toLocaleString() || "—"}</p>
+                <p className="text-sm text-muted-foreground mb-1">{stats.secondaryLabel}</p>
+                <p className="text-2xl font-bold">
+                  {platform === "instagram"
+                    ? (secondaryValue as number)?.toLocaleString() || "—"
+                    : typeof secondaryValue === "string"
+                      ? secondaryValue
+                      : "—"}
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -284,19 +392,19 @@ export default function InsightsPage() {
           <div className="grid grid-cols-3 gap-4">
             <Card className="col-span-2">
               <CardHeader>
-                <CardTitle className="text-sm">Follower Growth (30 days)</CardTitle>
+                <CardTitle className="text-sm">{chartMetrics.primary.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                {formatFollowerChart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground h-64 flex items-center justify-center">No follower data available</p>
+                {formatPrimaryChart.length === 0 ? (
+                  <p className="text-sm text-muted-foreground h-64 flex items-center justify-center">No data available</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={formatFollowerChart}>
+                    <LineChart data={formatPrimaryChart}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
                       <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
                       <Tooltip />
-                      <Line type="monotone" dataKey="Followers" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey={chartMetrics.primary.dataKey} stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 )}
@@ -311,7 +419,7 @@ export default function InsightsPage() {
                   <p className="text-xs text-muted-foreground mb-1">Connected Since</p>
                   <p className="text-sm font-medium">
                     {data.account.connected_since
-                      ? new Date(data.account.connected_since).toLocaleDateString()
+                      ? new Date(data.account.connected_since as string).toLocaleDateString()
                       : "—"}
                   </p>
                 </div>
@@ -338,19 +446,19 @@ export default function InsightsPage() {
           <div className="grid grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Reach (30 days)</CardTitle>
+                <CardTitle className="text-sm">{chartMetrics.secondary.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                {formatReachChart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No reach data available</p>
+                {formatSecondaryChart.length === 0 ? (
+                  <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No data available</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
-                    <AreaChart data={formatReachChart}>
+                    <AreaChart data={formatSecondaryChart}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
                       <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip />
-                      <Area type="monotone" dataKey="Reach" stroke="#22c55e" fill="#22c55e" fillOpacity={0.15} strokeWidth={2} />
+                      <Area type="monotone" dataKey={chartMetrics.secondary.dataKey} stroke="#22c55e" fill="#22c55e" fillOpacity={0.15} strokeWidth={2} />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
@@ -358,19 +466,19 @@ export default function InsightsPage() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Views (30 days)</CardTitle>
+                <CardTitle className="text-sm">{chartMetrics.tertiary.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                {formatViewsChart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No views data available</p>
+                {formatTertiaryChart.length === 0 ? (
+                  <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No data available</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
-                    <AreaChart data={formatViewsChart}>
+                    <AreaChart data={formatTertiaryChart}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
                       <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip />
-                      <Area type="monotone" dataKey="Views" stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} />
+                      <Area type="monotone" dataKey={chartMetrics.tertiary.dataKey} stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
