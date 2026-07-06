@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const since = Math.floor(ninetyDaysAgo.getTime() / 1000);
+  const since = Math.floor(thirtyDaysAgo.getTime() / 1000);
   const until = Math.floor(now.getTime() / 1000);
 
   async function fetchMeta(path: string): Promise<Response> {
@@ -62,9 +62,10 @@ Deno.serve(async (req) => {
     return fetch(`${base}${path}&access_token=${accessToken}`);
   }
 
-  const [profileRes, insightsRes] = await Promise.all([
+  const [profileRes, insightsRes1, insightsRes2] = await Promise.all([
     fetchMeta(`/${accountId}?fields=username,profile_picture_url,followers_count,media_count`),
-    fetchMeta(`/${accountId}/insights?metric=follower_count,reach,profile_views,views&period=day&since=${since}&until=${until}`),
+    fetchMeta(`/${accountId}/insights?metric=follower_count,reach&period=day&since=${since}&until=${until}`),
+    fetchMeta(`/${accountId}/insights?metric=profile_views,views&period=day&metric_type=total_value&since=${since}&until=${until}`),
   ]);
 
   if (!profileRes.ok) {
@@ -81,34 +82,24 @@ Deno.serve(async (req) => {
 
   let insights: { name: string; values: { value: number; end_time: string }[] }[] = [];
   let insightsError: unknown = null;
-  if (insightsRes.ok) {
-    const data = await insightsRes.json();
-    insights = data.data || [];
-    if (insights.length === 0) {
-      console.warn(`[insights] Insights API returned empty data array for ${accountId}. Full response:`, JSON.stringify(data));
-    } else {
-      console.log(`[insights] Insights OK for ${accountId}:`, insights.map(m => `${m.name}: ${m.values?.length || 0} data points`));
-    }
-  } else {
-    const errText = await insightsRes.text();
-    let parsed: unknown;
-    try { parsed = JSON.parse(errText); } catch { parsed = errText; }
-    console.error(`[insights] Insights API error for ${accountId}:`, JSON.stringify(parsed));
-    insightsError = parsed;
-  }
 
-  // Debug: check token scopes
-  console.log(`[insights] Checking token scopes for ${accountId}...`);
-  try {
-    const debugRes = await fetch(`https://graph.facebook.com/v23.0/debug_token?input_token=${accessToken}&access_token=${accessToken}`);
-    const debugData = await debugRes.json();
-    if (debugData?.data?.scopes) {
-      console.log(`[insights] Token scopes for ${accountId}:`, debugData.data.scopes);
+  for (const [idx, res] of ([insightsRes1, insightsRes2] as const).entries()) {
+    if (res.ok) {
+      const data = await res.json();
+      const metrics = (data.data || []) as typeof insights;
+      insights.push(...metrics);
+      if (metrics.length === 0) {
+        console.warn(`[insights] Insights API call ${idx+1} returned empty data for ${accountId}.`);
+      } else {
+        console.log(`[insights] Insights call ${idx+1} OK for ${accountId}:`, metrics.map(m => `${m.name}: ${m.values?.length || 0} data points`));
+      }
     } else {
-      console.warn(`[insights] Token debug returned no scopes:`, JSON.stringify(debugData));
+      const errText = await res.text();
+      let parsed: unknown;
+      try { parsed = JSON.parse(errText); } catch { parsed = errText; }
+      console.error(`[insights] Insights API error (call ${idx+1}) for ${accountId}:`, JSON.stringify(parsed));
+      insightsError = parsed;
     }
-  } catch (e) {
-    console.error(`[insights] Token debug call failed:`, e);
   }
 
   const insightsMap: Record<string, { date: string; value: number }[]> = {};
@@ -176,7 +167,7 @@ Deno.serve(async (req) => {
   const successRate = totalAttempts > 0 ? Math.round(((totalPublished.count || 0) / totalAttempts) * 100) : 0;
 
   const followerGrowth = insightsMap["follower_count"] || [];
-  const followerThisMonth = followerGrowth.length >= 2
+  const followerNetGrowth = followerGrowth.length >= 2
     ? followerGrowth[followerGrowth.length - 1].value - followerGrowth[0].value
     : 0;
 
@@ -201,7 +192,7 @@ Deno.serve(async (req) => {
         this_month: thisMonthCount.count || 0,
         this_week: thisWeekCount.count || 0,
         success_rate: successRate,
-        follower_net_growth_90d: followerThisMonth,
+        follower_net_growth_30d: followerNetGrowth,
         posts_by_day: postsByDayArray,
       },
     }),

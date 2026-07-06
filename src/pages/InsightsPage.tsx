@@ -57,7 +57,7 @@ interface InsightsData {
     this_month: number;
     this_week: number;
     success_rate: number;
-    follower_net_growth_90d: number;
+    follower_net_growth_30d: number;
     posts_by_day: { date: string; published: number; failed: number }[];
   };
 }
@@ -255,8 +255,8 @@ export default function InsightsPage() {
                 <p className="text-sm text-muted-foreground mb-1">Followers</p>
                 <p className="text-2xl font-bold">{data.account.followers_count?.toLocaleString() || "—"}</p>
                 {data.account.followers_count && followerGrowth.length >= 2 && (
-                  <p className={`text-xs mt-1 ${data.flowpost_stats.follower_net_growth_90d >= 0 ? "text-green-500" : "text-red-500"}`}>
-                    {data.flowpost_stats.follower_net_growth_90d >= 0 ? "+" : ""}{data.flowpost_stats.follower_net_growth_90d} in 90 days
+                  <p className={`text-xs mt-1 ${data.flowpost_stats.follower_net_growth_30d >= 0 ? "text-green-500" : "text-red-500"}`}>
+                    {data.flowpost_stats.follower_net_growth_30d >= 0 ? "+" : ""}{data.flowpost_stats.follower_net_growth_30d} in 30 days
                   </p>
                 )}
               </CardContent>
@@ -284,7 +284,7 @@ export default function InsightsPage() {
           <div className="grid grid-cols-3 gap-4">
             <Card className="col-span-2">
               <CardHeader>
-                <CardTitle className="text-sm">Follower Growth (90 days)</CardTitle>
+                <CardTitle className="text-sm">Follower Growth (30 days)</CardTitle>
               </CardHeader>
               <CardContent>
                 {formatFollowerChart.length === 0 ? (

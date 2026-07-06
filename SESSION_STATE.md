@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `a1065a1` — fix: add instagram_manage_insights scope, bump Graph API to v23.0 for insights
+## CURRENT HEAD: `655db93` — fix: replace deprecated impressions metric with views in Instagram insights
 
 ---
 
@@ -85,18 +85,20 @@
 **Regressions**: Forgot to remove `setTriggerStartHour(0)` / `setTriggerEndHour(1)` from `resetForm()` function — caused `ReferenceError` when opening any workflow form.
 **Fix**: Removed those two lines (commit `aa7705c`).
 
-### 13. Instagram Insights Not Loading — Logging Added (2026-07-06)
-**Symptom**: Insights page shows profile stats (followers, media count) but charts for follower growth, reach, impressions, profile views are empty.
-**Root cause (suspected)**: `facebook-auth` OAuth scope list does not include `instagram_manage_insights`. Token has `instagram_basic` (enough for profile fields) but lacks `instagram_manage_insights` (required for `/insights` endpoint). Even reconnecting produces the same scopes.
-**Changes made**:
-- `fetch-instagram-insights/index.ts`: Added `console.log`/`console.error`/`console.warn` around insights API call — logs the full error object when insights fail, logs scopes from token debug endpoint, logs profile data on success
-- Response now includes `insights_error_detail` field with the raw Meta API error
-- `InsightsPage.tsx`: Added `console.log` showing full response body, insights data point counts, and any `insights_error_detail`
-- **Diagnosis result**: Meta API error `(#10) Application does not have permission for this action` — scope `instagram_manage_insights` was neither in the OAuth URL nor granted to the token
-**Fix (commit `6ab3e53`)**:
-- `facebook-auth/index.ts`: Added `'instagram_manage_insights'` to OAuth scope array (line 137)
-- `facebook-auth/index.ts` + `fetch-instagram-insights/index.ts`: Bumped Graph API version from `v21.0`/`v18.0` → `v23.0` to match the upload functions
-**Next step**: User must reconnect Instagram account from `/accounts` to generate a new token with `instagram_manage_insights` scope, then test the Insights page.
+### 13. Instagram Insights Not Loading — Full Resolution (2026-07-06)
+
+**Symptom**: Insights page shows profile stats (followers, media count) but charts are empty.
+
+**Root causes & fixes**:
+
+| # | Problem | Fix | Commit |
+|---|---------|-----|--------|
+| 1 | OAuth scope `instagram_manage_insights` missing from `facebook-auth` scope list | Added `'instagram_manage_insights'` to scope array | `a1065a1` |
+| 2 | API version outdated (`v21.0`/`v18.0`) — `impressions` metric deprecated in v22.0+ | Bumped to `v23.0`; replaced `impressions` with `views` | `a1065a1`, `655db93` |
+| 3 | `metric_type=total_value` needed for `profile_views` and `views` but incompatible with `follower_count` | Split insights into two API calls: one for `follower_count,reach` (no metric_type), one for `profile_views,views` (with `metric_type=total_value`) | pending |
+| 4 | Insights API max range is 30 days (2592000s) — code used 90 days | Changed `since` from `ninetyDaysAgo` to `thirtyDaysAgo`; updated frontend labels from "90 days" to "30 days"; renamed `follower_net_growth_90d` → `follower_net_growth_30d` | pending |
+
+**Current status**: Fixes deployed but needs user to reconnect Instagram account from `/accounts` to get a new token with `instagram_manage_insights` scope, then test.
 
 ---
 
