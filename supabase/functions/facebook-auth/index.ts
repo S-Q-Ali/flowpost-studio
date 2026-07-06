@@ -37,7 +37,7 @@ function html(body: string, status = 200) {
 }
 
 async function exchangeCodeForUserToken(code: string, redirectUri: string) {
-  const res = await fetch("https://graph.facebook.com/v21.0/oauth/access_token", {
+  const res = await fetch("https://graph.facebook.com/v23.0/oauth/access_token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -54,7 +54,7 @@ async function exchangeCodeForUserToken(code: string, redirectUri: string) {
 }
 
 async function getLongLivedUserToken(shortLivedToken: string) {
-  const url = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
+  const url = new URL("https://graph.facebook.com/v23.0/oauth/access_token");
   url.searchParams.set("grant_type", "fb_exchange_token");
   url.searchParams.set("client_id", FB_APP_ID!);
   url.searchParams.set("client_secret", FB_APP_SECRET!);
@@ -67,7 +67,7 @@ async function getLongLivedUserToken(shortLivedToken: string) {
 }
 
 async function fetchFacebookPages(longLivedUserToken: string) {
-  const url = new URL("https://graph.facebook.com/v21.0/me/accounts");
+  const url = new URL("https://graph.facebook.com/v23.0/me/accounts");
   url.searchParams.set("access_token", longLivedUserToken);
   url.searchParams.set("fields", "id,name,access_token,category,picture");
 
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
     if (action === "url") {
       const reqUserId = url.searchParams.get("userId");
       if (!reqUserId) return json({ error: "Missing userId" }, 400);
-      const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
+      const authUrl = new URL("https://www.facebook.com/v23.0/dialog/oauth");
       authUrl.searchParams.set("client_id", FB_APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set("state", reqUserId);
@@ -133,7 +133,8 @@ Deno.serve(async (req) => {
         'business_management',
         'instagram_basic',
         'instagram_content_publish',
-        'instagram_manage_comments'
+        'instagram_manage_comments',
+        'instagram_manage_insights'
       ].join(',');
       authUrl.searchParams.set("scope", scope);
       authUrl.searchParams.set("response_type", "code");
@@ -184,13 +185,13 @@ Deno.serve(async (req) => {
 
         // Fetch connected Instagram account for this page
         const igResponse = await fetch(
-          `https://graph.facebook.com/v18.0/${page.id}?fields=instagram_business_account&access_token=${pageAccessToken}`,
+          `https://graph.facebook.com/v23.0/${page.id}?fields=instagram_business_account&access_token=${pageAccessToken}`,
         );
         const igData = await igResponse.json();
 
         if (igData.instagram_business_account) {
           const igAccountRes = await fetch(
-            `https://graph.facebook.com/v18.0/${igData.instagram_business_account.id}?fields=id,name,username,profile_picture_url&access_token=${pageAccessToken}`,
+            `https://graph.facebook.com/v23.0/${igData.instagram_business_account.id}?fields=id,name,username,profile_picture_url&access_token=${pageAccessToken}`,
           );
           const igAccount = await igAccountRes.json();
 

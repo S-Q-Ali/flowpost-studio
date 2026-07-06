@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `6ba3a8f` — fix: remove Post between (UTC time) feature from once_daily and interval modes
+## CURRENT HEAD: `pending` — fix: add instagram_manage_insights scope, bump API version for Instagram insights
 
 ---
 
@@ -92,7 +92,11 @@
 - `fetch-instagram-insights/index.ts`: Added `console.log`/`console.error`/`console.warn` around insights API call — logs the full error object when insights fail, logs scopes from token debug endpoint, logs profile data on success
 - Response now includes `insights_error_detail` field with the raw Meta API error
 - `InsightsPage.tsx`: Added `console.log` showing full response body, insights data point counts, and any `insights_error_detail`
-**Next step**: User opens browser DevTools (F12), navigates to Insights page, shares the console output to confirm the exact Meta error code + message.
+- **Diagnosis result**: Meta API error `(#10) Application does not have permission for this action` — scope `instagram_manage_insights` was neither in the OAuth URL nor granted to the token
+**Fix (commit `6ab3e53`)**:
+- `facebook-auth/index.ts`: Added `'instagram_manage_insights'` to OAuth scope array (line 137)
+- `facebook-auth/index.ts` + `fetch-instagram-insights/index.ts`: Bumped Graph API version from `v21.0`/`v18.0` → `v23.0` to match the upload functions
+**Next step**: User must reconnect Instagram account from `/accounts` to generate a new token with `instagram_manage_insights` scope, then test the Insights page.
 
 ---
 
@@ -125,7 +129,6 @@
 - TikTok app review — needs paid domain (Vercel Pro $20/mo + $12/yr domain)
 - TikTok `privacy_level` → `PUBLIC_TO_EVERYONE` — blocked by app review
 - Snapchat integration — blocked by API allowlist
-- Instagram insights — existing tokens lack `instagram_manage_insights` scope
 
 ---
 

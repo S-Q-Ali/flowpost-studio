@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
   const until = Math.floor(now.getTime() / 1000);
 
   async function fetchMeta(path: string): Promise<Response> {
-    const base = "https://graph.facebook.com/v21.0";
+    const base = "https://graph.facebook.com/v23.0";
     return fetch(`${base}${path}&access_token=${accessToken}`);
   }
 
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
   // Debug: check token scopes
   console.log(`[insights] Checking token scopes for ${accountId}...`);
   try {
-    const debugRes = await fetch(`https://graph.facebook.com/v21.0/debug_token?input_token=${accessToken}&access_token=${accessToken}`);
+    const debugRes = await fetch(`https://graph.facebook.com/v23.0/debug_token?input_token=${accessToken}&access_token=${accessToken}`);
     const debugData = await debugRes.json();
     if (debugData?.data?.scopes) {
       console.log(`[insights] Token scopes for ${accountId}:`, debugData.data.scopes);
