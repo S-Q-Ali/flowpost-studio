@@ -260,3 +260,9 @@ npx.cmd supabase migration up
 - `get-file` proxy function uses a short-lived (15 min) encrypted token to authorize file access
 - Files stream directly: Drive → get-file proxy → platform API — no intermediate R2 storage
 - Crawl jobs (`process-workflow`) use per-user Drive tokens instead of shared service account, read from `process.env`
+
+**Setup notes**:
+- `GD_CLIENT_ID`, `GD_CLIENT_SECRET` set as Supabase secrets (same OAuth client used for sign-in)
+- Redirect URI for Drive OAuth: `https://ximorwzknbizpceaoflw.supabase.co/functions/v1/google-drive-auth?action=callback` — must be added to OAuth client in Google Cloud Console
+- `R2_PUBLIC_URL` unset from Supabase secrets (no longer needed)
+- Each user must connect Drive once from Accounts page before workflows can run
