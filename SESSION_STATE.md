@@ -270,3 +270,5 @@ npx.cmd supabase migration up
 - `_shared/sheet-status.ts` accepts optional `googleAccessToken` param and forwards it
 - All 4 upload functions pass the user's OAuth token to `updateSheetStatus()`
 - No more sharing sheets with service account email
+
+**Post-deploy issue**: process-workflow was running stale R2-polling code despite successful deploy log. Redeploy fixed it — second video in custom-ranges mode was failing because the function spent 60s waiting for a nonexistent R2 story URL, eating into execution time before processing the next row.
