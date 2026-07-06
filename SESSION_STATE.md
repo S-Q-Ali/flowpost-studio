@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `pending` — fix: add instagram_manage_insights scope, bump API version for Instagram insights
+## CURRENT HEAD: `a1065a1` — fix: add instagram_manage_insights scope, bump Graph API to v23.0 for insights
 
 ---
 
