@@ -83,6 +83,16 @@
 - Interval: fires every N hours since last trigger, 24/7 (no window alignment)
 - Custom Ranges: unchanged
 **Regressions**: Forgot to remove `setTriggerStartHour(0)` / `setTriggerEndHour(1)` from `resetForm()` function — caused `ReferenceError` when opening any workflow form.
+**Fix**: Removed those two lines (commit `aa7705c`).
+
+### 13. Instagram Insights Not Loading — Logging Added (2026-07-06)
+**Symptom**: Insights page shows profile stats (followers, media count) but charts for follower growth, reach, impressions, profile views are empty.
+**Root cause (suspected)**: `facebook-auth` OAuth scope list does not include `instagram_manage_insights`. Token has `instagram_basic` (enough for profile fields) but lacks `instagram_manage_insights` (required for `/insights` endpoint). Even reconnecting produces the same scopes.
+**Changes made**:
+- `fetch-instagram-insights/index.ts`: Added `console.log`/`console.error`/`console.warn` around insights API call — logs the full error object when insights fail, logs scopes from token debug endpoint, logs profile data on success
+- Response now includes `insights_error_detail` field with the raw Meta API error
+- `InsightsPage.tsx`: Added `console.log` showing full response body, insights data point counts, and any `insights_error_detail`
+**Next step**: User opens browser DevTools (F12), navigates to Insights page, shares the console output to confirm the exact Meta error code + message.
 
 ---
 

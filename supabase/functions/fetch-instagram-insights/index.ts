@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
 
   if (!profileRes.ok) {
     const err = await profileRes.text();
+    console.error(`[insights] Profile API error for ${accountId}:`, err);
     return new Response(
       JSON.stringify({ error: "Meta API error (profile)", detail: err, needs_refresh: err.includes("190") }),
       { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -76,11 +77,38 @@ Deno.serve(async (req) => {
   }
 
   const profile = await profileRes.json();
+  console.log(`[insights] Profile OK for ${accountId}:`, { username: profile.username, followers_count: profile.followers_count, media_count: profile.media_count });
 
   let insights: { name: string; values: { value: number; end_time: string }[] }[] = [];
+  let insightsError: unknown = null;
   if (insightsRes.ok) {
     const data = await insightsRes.json();
     insights = data.data || [];
+    if (insights.length === 0) {
+      console.warn(`[insights] Insights API returned empty data array for ${accountId}. Full response:`, JSON.stringify(data));
+    } else {
+      console.log(`[insights] Insights OK for ${accountId}:`, insights.map(m => `${m.name}: ${m.values?.length || 0} data points`));
+    }
+  } else {
+    const errText = await insightsRes.text();
+    let parsed: unknown;
+    try { parsed = JSON.parse(errText); } catch { parsed = errText; }
+    console.error(`[insights] Insights API error for ${accountId}:`, JSON.stringify(parsed));
+    insightsError = parsed;
+  }
+
+  // Debug: check token scopes
+  console.log(`[insights] Checking token scopes for ${accountId}...`);
+  try {
+    const debugRes = await fetch(`https://graph.facebook.com/v21.0/debug_token?input_token=${accessToken}&access_token=${accessToken}`);
+    const debugData = await debugRes.json();
+    if (debugData?.data?.scopes) {
+      console.log(`[insights] Token scopes for ${accountId}:`, debugData.data.scopes);
+    } else {
+      console.warn(`[insights] Token debug returned no scopes:`, JSON.stringify(debugData));
+    }
+  } catch (e) {
+    console.error(`[insights] Token debug call failed:`, e);
   }
 
   const insightsMap: Record<string, { date: string; value: number }[]> = {};
@@ -167,6 +195,7 @@ Deno.serve(async (req) => {
         reach: insightsMap["reach"] || [],
         profile_views: insightsMap["profile_views"] || [],
       },
+      insights_error_detail: insightsError,
       flowpost_stats: {
         total_published: totalPublished.count || 0,
         this_month: thisMonthCount.count || 0,

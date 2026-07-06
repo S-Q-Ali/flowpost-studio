@@ -118,6 +118,7 @@ export default function InsightsPage() {
     )
       .then(async (res) => {
         const body = await res.json();
+        console.log(`[InsightsPage] Response for ${selectedAccountId}:`, body);
         if (!res.ok) {
           if (body.needs_refresh) {
             setError("Instagram token expired. Please reconnect the account.");
@@ -127,6 +128,16 @@ export default function InsightsPage() {
           return;
         }
         setData(body as InsightsData);
+        console.log(`[InsightsPage] insights data:`, {
+          follower_count: body.insights?.follower_count?.length,
+          impressions: body.insights?.impressions?.length,
+          reach: body.insights?.reach?.length,
+          profile_views: body.insights?.profile_views?.length,
+          insights_error_detail: body.insights_error_detail,
+        });
+        if (body.insights_error_detail) {
+          console.warn(`[InsightsPage] Insights API returned an error:`, body.insights_error_detail);
+        }
       })
       .catch(() => {
         setError("Network error fetching insights");
