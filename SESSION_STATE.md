@@ -219,6 +219,10 @@ npx.cmd supabase migration up
 
 **Third fix (2026-07-06)**: Replaced `page_engaged_users` (deprecated March 2024) with `page_post_engagements` — last remaining `(#100)` metric. All 4 metrics now valid.
 
+**Bumped Graph API v23.0 → v25.0** for `page_follows`/`page_media_view` support; split batch into 4 individual calls.
+
+**Brace fix**: Removed extra closing brace in process-workflow line 709 after earlier edit left mismatched `}`.
+
 ---
 
 ### 15. Google Drive OAuth — Added; Cloudflare R2 — Removed (2026-07-07)
