@@ -185,8 +185,6 @@ export default function WorkflowsPage() {
     setSelectedFacebookIds([]);
     setSelectedInstagramIds([]);
     setSelectedTiktokIds([]);
-    setTriggerStartHour(0);
-    setTriggerEndHour(1);
     setRunIntervalHours(1);
     setVideosPerRun(1);
     setPostAsStory(false);

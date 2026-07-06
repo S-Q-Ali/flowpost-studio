@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `b9643e3` — fix: remove video stagger from once_daily scheduling
+## CURRENT HEAD: `6ba3a8f` — fix: remove Post between (UTC time) feature from once_daily and interval modes
 
 ---
 
@@ -71,6 +71,18 @@
 - `GOOGLE_PRIVATE_KEY`: new key `zinc-bucksaw-489020-n0-d456522f61c7.json`, gitignored. `ALLOWED_ORIGIN` confirmed set.
 - `TOKEN_ENCRYPTION_KEY`: set as Supabase secret (256-bit AES-GCM for token encryption at rest).
 - `R2_PUBLIC_URL`: moved to env var in all upload functions.
+
+### 12. "Post between (UTC time)" Feature — Removed (2026-07-06)
+**What was removed**: The `trigger_hour_start`/`trigger_hour_end` base window + `day_time_windows` per-day overrides from both Once Daily and Every X Hours scheduling modes.
+**Changes made**:
+- `process-workflow/index.ts`: Removed window constraints, random-time-in-window calculation for once_daily, and posInInterval alignment for interval
+- `WorkflowsPage.tsx`: Removed "Post between" UI (start/end hour selects, local time display, "Set different times for each day" checkbox + per-day controls), removed from save payload and card display
+- `src/lib/types.ts`: Removed `trigger_hour_start`, `trigger_hour_end`, `day_time_windows` from Workflow type
+**New behavior**:
+- Once Daily: fires on first cron tick of the UTC day (~00:00-00:05) where `lastTriggeredDate !== todayUTC`
+- Interval: fires every N hours since last trigger, 24/7 (no window alignment)
+- Custom Ranges: unchanged
+**Regressions**: Forgot to remove `setTriggerStartHour(0)` / `setTriggerEndHour(1)` from `resetForm()` function — caused `ReferenceError` when opening any workflow form.
 
 ---
 
