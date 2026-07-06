@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `655db93` — fix: replace deprecated impressions metric with views in Instagram insights
+## CURRENT HEAD: `34bb8c5` — fix: split insights into two API calls, reduce range to 30 days, replace impressions with views
 
 ---
 
@@ -94,11 +94,17 @@
 | # | Problem | Fix | Commit |
 |---|---------|-----|--------|
 | 1 | OAuth scope `instagram_manage_insights` missing from `facebook-auth` scope list | Added `'instagram_manage_insights'` to scope array | `a1065a1` |
-| 2 | API version outdated (`v21.0`/`v18.0`) — `impressions` metric deprecated in v22.0+ | Bumped to `v23.0`; replaced `impressions` with `views` | `a1065a1`, `655db93` |
-| 3 | `metric_type=total_value` needed for `profile_views` and `views` but incompatible with `follower_count` | Split insights into two API calls: one for `follower_count,reach` (no metric_type), one for `profile_views,views` (with `metric_type=total_value`) | pending |
-| 4 | Insights API max range is 30 days (2592000s) — code used 90 days | Changed `since` from `ninetyDaysAgo` to `thirtyDaysAgo`; updated frontend labels from "90 days" to "30 days"; renamed `follower_net_growth_90d` → `follower_net_growth_30d` | pending |
+| 2 | `impressions` metric deprecated in Graph API v22.0+ | Replaced with `views` | `655db93` |
+| 3 | `metric_type=total_value` needed for `profile_views,views` but incompatible with `follower_count` | Split into two API calls | `34bb8c5` |
+| 4 | Insights API max range is 30 days (code used 90) | Changed to `thirtyDaysAgo`; renamed `follower_net_growth_90d` → `follower_net_growth_30d` | `34bb8c5` |
+| 5 | `profile_views` and `views` return empty data at user level | Acceptable — API returns 200 OK with no data; charts show "No data available" | — |
 
-**Current status**: Fixes deployed but needs user to reconnect Instagram account from `/accounts` to get a new token with `instagram_manage_insights` scope, then test.
+**Current status**: 
+- `follower_count` (30-day chart) ✅ working
+- `reach` (30-day chart) ✅ working  
+- `profile_views` (lifetime) ❌ no data available
+- `views` (lifetime) ❌ no data available
+- Accounts must be reconnected from `/accounts` after the scope fix to get a token with `instagram_manage_insights`
 
 ---
 
