@@ -183,6 +183,17 @@ export default function InsightsPage() {
           return;
         }
         setData(body as InsightsResponse);
+        console.log(`[InsightsPage] Response for ${platform} account ${selectedAccountId}:`, body);
+        console.log(`[InsightsPage] insights data:`, {
+          page_fans: body.insights?.page_fans?.length,
+          page_impressions: body.insights?.page_impressions?.length,
+          page_engaged_users: body.insights?.page_engaged_users?.length,
+          page_views_total: body.insights?.page_views_total?.length,
+          insights_error_detail: body.insights_error_detail,
+        });
+        if (body.insights_error_detail) {
+          console.warn(`[InsightsPage] Insights API error:`, body.insights_error_detail);
+        }
       })
       .catch(() => {
         setError("Network error fetching insights");
