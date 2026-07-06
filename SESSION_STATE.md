@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `7dfcf8d` — feat: add Facebook Page insights with platform dropdown
+## CURRENT HEAD: `e9465fa` — fix: replace deprecated page_fans/page_impressions with page_follows/page_media_view
 
 ---
 
@@ -197,6 +197,12 @@ npx.cmd supabase migration up
 **Metrics**:
 | Platform | Primary chart | Secondary chart | Tertiary chart |
 |---|---|---|---|
-| Instagram | Follower Growth | Reach | Views |
-| Facebook | Page Likes Growth | Impressions | Engaged Users |
+| Instagram | Follower Growth (30d) | Reach (30d) | Views (30d) |
+| Facebook | Page Follows Growth (30d) | Media Views (30d) | Engaged Users (30d) |
 **No scope changes needed** — `pages_read_engagement` already requested.
+
+**Fix (2026-07-06, commit `e9465fa`)**:
+- `page_fans` → deprecated Nov 15 2025, replaced with `page_follows`
+- `page_impressions` → deprecated Nov 15 2025, replaced with `page_media_view`
+- `page_engaged_users`, `page_views_total` — still valid, kept as-is
+- Renamed `page_fan_growth_30d` → `page_follow_growth_30d` in both edge function and frontend
