@@ -3,6 +3,7 @@ export async function updateSheetStatus(
   serviceRoleKey: string,
   postId: string,
   status: "posted" | "failed",
+  googleAccessToken?: string,
 ): Promise<void> {
   try {
     await fetch(`${supabaseUrl}/functions/v1/update-sheet-status`, {
@@ -12,7 +13,7 @@ export async function updateSheetStatus(
         Authorization: `Bearer ${serviceRoleKey}`,
         apikey: serviceRoleKey,
       },
-      body: JSON.stringify({ postId, status }),
+      body: JSON.stringify({ postId, status, googleAccessToken }),
     });
   } catch (sheetErr) {
     console.error("Failed to update sheet status", sheetErr);

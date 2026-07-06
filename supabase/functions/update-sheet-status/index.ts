@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { getGoogleAccessToken } from "../_shared/google-jwt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -51,12 +50,16 @@ Deno.serve(async (req) => {
 
   let postId: string;
   let status: "posted" | "failed";
+  let googleAccessToken: string | undefined;
 
   try {
     const body = await req.json();
     postId = body?.postId;
     status = body?.status === "failed" ? "failed" : "posted";
     if (!postId) return json({ error: "postId required" }, 400);
+    googleAccessToken = typeof body?.googleAccessToken === "string"
+      ? body.googleAccessToken
+      : undefined;
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
@@ -82,11 +85,14 @@ Deno.serve(async (req) => {
       return json({ success: true, message: "No sheet info to update" });
     }
 
-    const googleToken = await getGoogleAccessToken();
+    if (!googleAccessToken) {
+      console.error("No googleAccessToken provided, cannot update sheet");
+      return json({ error: "Missing googleAccessToken" }, 400);
+    }
 
     const colLetter = getColumnLetter(sheetColIndex);
     const range = `Sheet1!${colLetter}${sheetRowIndex}`;
-    
+
     const statusValue = status === "failed" ? "failed" : "posted";
 
     const updateRes = await fetch(
@@ -96,7 +102,7 @@ Deno.serve(async (req) => {
       {
         method: "PUT",
         headers: {
-          Authorization: `Bearer ${googleToken}`,
+          Authorization: `Bearer ${googleAccessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ values: [[statusValue]] }),
@@ -119,5 +125,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-

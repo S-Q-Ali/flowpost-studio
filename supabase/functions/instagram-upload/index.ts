@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
       .update({ status: "published", published_at: new Date().toISOString() })
       .eq("id", postId);
 
-    await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted");
+      await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted", googleAccessToken);
 
     return json({ success: true, instagram_post_id: publishResult.id as string, container_id: container.id });
   } catch (err) {

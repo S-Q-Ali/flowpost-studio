@@ -157,7 +157,7 @@
 foreach ($f in Get-ChildItem -Directory supabase/functions/*/index.ts | ForEach-Object { $_.Directory.Name }) { npx.cmd supabase functions deploy $f }
 
 # Deploy specific functions
-npx.cmd supabase functions deploy process-workflow process-scheduled-posts instagram-upload facebook-upload tiktok-upload youtube-upload post-story tiktok-auth facebook-auth youtube-auth verify-password verify-security-questions verify-session get-upload-url update-sheet-status fetch-instagram-insights
+npx.cmd supabase functions deploy process-workflow process-scheduled-posts instagram-upload facebook-upload tiktok-upload youtube-upload post-story tiktok-auth facebook-auth youtube-auth google-drive-auth get-file verify-password verify-security-questions verify-session update-sheet-status fetch-instagram-insights fetch-facebook-insights
 
 # Run SQL query against linked DB
 npx.cmd supabase db query --linked "SELECT * FROM pg_views WHERE viewname LIKE '%public%';"
@@ -251,9 +251,6 @@ npx.cmd supabase migration up
 - `supabase/functions/get-upload-url/index.ts` — no longer used
 - `supabase/functions/cleanup-r2/` — already deleted in a previous session
 
-**Secrets to remove (user action)**:
-- `supabase secrets unset R2_PUBLIC_URL` (no longer needed)
-
 **New behavior**:
 - Each user connects their own Google Drive via OAuth
 - Tokens stored encrypted in `connected_accounts` (same as other platforms)
@@ -266,3 +263,10 @@ npx.cmd supabase migration up
 - Redirect URI for Drive OAuth: `https://ximorwzknbizpceaoflw.supabase.co/functions/v1/google-drive-auth?action=callback` — must be added to OAuth client in Google Cloud Console
 - `R2_PUBLIC_URL` unset from Supabase secrets (no longer needed)
 - Each user must connect Drive once from Accounts page before workflows can run
+
+**Service account fully removed** (2026-07-07):
+- `_shared/google-jwt.ts` deleted permanently
+- `update-sheet-status` now accepts `googleAccessToken` from caller instead of generating service account JWT
+- `_shared/sheet-status.ts` accepts optional `googleAccessToken` param and forwards it
+- All 4 upload functions pass the user's OAuth token to `updateSheetStatus()`
+- No more sharing sheets with service account email

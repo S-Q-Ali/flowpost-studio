@@ -264,7 +264,7 @@ Deno.serve(async (req) => {
       return json({ error: "Upload succeeded but status update failed" }, 500);
     }
 
-    await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted");
+    await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted", googleAccessToken);
 
     return json({ success: true, postId });
   } catch (err) {
@@ -272,7 +272,7 @@ Deno.serve(async (req) => {
     try {
       if (typeof postId === "string") {
         await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-        await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed");
+        await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       }
     } catch (_) {}
     return json(
