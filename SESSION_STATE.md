@@ -302,30 +302,43 @@ npx.cmd supabase db push
 
 ---
 
-### 17. Google Drive → Mega — Option A (2026-07-07)
+### 17. Mega as Alternate File Source — Confirmed Plan (2026-07-07)
 
-**Goal**: Use Mega as an alternative file source when Drive is full. Put Mega URLs in Sheets' `video_url` column alongside Drive URLs — captions, status, scheduling all unchanged. Workflow publishes from whichever URL is provided.
+**Goal**: When Drive is full, upload files to Mega, paste Mega URLs into the same Sheet's `video_url` column, and the workflow publishes from Mega instead of Drive. Sheet + scheduling + captions remain identical.
 
-**Key insight**: Google Sheets stays as the scheduling layer. Mega only replaces the file storage. A single Sheet can mix Drive URLs and Mega URLs per row.
+**Key discovery**: `npm:megajs` v1.3.10 has native Deno support. Public Mega links include the decryption key — no Mega account credentials needed for downloading.
+
+```ts
+import { File } from 'npm:megajs';
+const data = await File.fromURL('https://mega.nz/file/HASH#KEY').downloadBuffer();
+```
 
 **What stays the same**:
-- Sheet columns (`video_url`, `fb_ig_caption`, `status`, `platforms`, etc.)
-- Scheduling modes, platform routing, upload functions
-- `process-workflow` loop (sheet reading, status management)
+- Google Sheets is the single source of truth — same `video_url`, `fb_ig_caption`, `status`, `platforms` columns
+- Google OAuth token still used for Sheets API (`drive.readonly` + `spreadsheets` scopes)
+- Scheduling modes, upload pipeline, platform routing — all unchanged
+- Upload functions receive bytes and pass to platform — same logic
 
-**What changes in `process-workflow`**:
-- URL detection — Drive URL (`/d/FILEID`) → existing Drive API flow with OAuth token. Mega URL (`mega.nz/file/HASH#KEY`) → new Mega download flow
-- Both paths resolve to file bytes → same upload pipeline
+**What changes**:
 
-**Mega download challenge** — Mega uses encrypted protocol + client-side decryption. A plain `fetch(megaUrl)` won't work. Need to:
-1. Resolve download URL via Mega API (`g.api.mega.co.nz/cs`)
-2. Decrypt file data using key embedded in the Mega link
-3. Stream decrypted bytes to platform API
+| File | Change |
+|------|--------|
+| `supabase/functions/get-file/index.ts` | Import `npm:megajs`; accept `megaUrl` in encrypted token; download via `megajs` when present |
+| `supabase/functions/process-workflow/index.ts` | Detect Mega URL pattern in `video_url`; pass `megaUrl` field instead of `driveDownloadUrl` |
+| `supabase/functions/facebook-upload/index.ts` | Accept `megaUrl` field; generate proxy token with `{ megaUrl, exp }` |
+| `supabase/functions/instagram-upload/index.ts` | Same |
+| `supabase/functions/tiktok-upload/index.ts` | Same |
+| `supabase/functions/youtube-upload/index.ts` | Same |
 
-**Options for Mega API integration**:
-- **Deno Mega library** — `npm:mega` or `x/mega` — runs inside the edge function. Most integrated but potential compatibility issues with Supabase Edge Function runtime
-- **Node.js worker service** — lightweight server that queues transfer jobs. Edge function calls worker → worker downloads/decrypts Mega file → returns bytes or stores temporarily. More reliable but adds infrastructure
+**No DB migrations, no frontend changes, no new tables.** Simply paste Mega links into the sheet.
 
-**Future consideration**: If Mega proves reliable, Option B (replace both Sheets and Drive with a native Supabase queue system + Mega storage) becomes viable — removing Google dependency entirely.
+**Flow**:
+```
+Sheet video_url column:
+  drive.google.com/... → process-workflow → driveDownloadUrl → get-file proxy → Drive API
+  mega.nz/file/...     → process-workflow → megaUrl         → get-file proxy → megajs (npm:megajs)
+                                                    ↓
+                                     Facebook/Instagram/TikTok/YouTube
+```
 
-**Next step**: Pick Mega API integration strategy.
+**Next step**: Implement the changes — start with `get-file` proxy, then upload functions, then `process-workflow`.
