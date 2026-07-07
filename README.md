@@ -12,10 +12,12 @@
 - **Content calendar** — Monthly overview of all scheduled and published posts
 - **Queue management** — Edit, reschedule, retry, or delete pending posts with bulk operations
 - **Google Sheets workflows** — Automatically pull videos or images from a spreadsheet and post on a recurring schedule (3 scheduling modes)
-- **Connected accounts** — Manage OAuth connections for YouTube, Facebook, Instagram, and TikTok
+- **Connected accounts** — Manage OAuth connections for YouTube, Facebook, Instagram, TikTok, and Google Drive
+- **Mega integration** — Connect your Mega account or use public share links as an alternate file source alongside Google Drive
 - **Progress tracking** — Real-time upload progress and per-platform post status updates
 - **YouTube quota monitoring** — Dashboard badges warn when daily quota reaches 50% / 80%
 - **TikTok integration** — Beta support with FILE_UPLOAD + DIRECT_POST publishing flow
+- **Insights dashboard** — Instagram and Facebook analytics with adaptive charts
 
 ---
 
@@ -25,7 +27,7 @@
 |-------|-----------|
 | **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router v6, TanStack Query |
 | **Backend** | Supabase (PostgreSQL, Auth, Edge Functions running Deno) |
-| **Storage** | Cloudflare R2 (S3-compatible object storage) |
+| **File Storage** | Google Drive (per-user OAuth) + Mega (authenticated or public links) |
 | **Social APIs** | YouTube Data API v3, Facebook Graph API v25, Instagram Graph API, TikTok API v2 |
 | **Hosting** | Vercel (frontend), Supabase (edge functions + database) |
 | **Testing** | Vitest, React Testing Library, jsdom |
@@ -38,51 +40,44 @@
 ```
 flowpost-studio/
 ├── src/
-│   ├── components/         # UI components (shadcn/ui + custom)
-│   │   ├── ui/             # ~40 shadcn/ui primitives
-│   │   ├── AppLayout.tsx   # Authenticated app shell with sidebar
-│   │   ├── AppSidebar.tsx  # Navigation sidebar
-│   │   ├── AppSidebar.tsx  # Navigation sidebar
-│   │   ├── BetaBadge.tsx   # Beta indicator badge
-│   │   ├── Logo.tsx        # FlowPost logo
-│   │   ├── NavLink.tsx     # Active-aware nav link
-│   │   ├── PlatformIcon.tsx# Platform icon component
-│   │   ├── SecurityQuestionsGate.tsx # Admin 2FA gate
-│   │   └── StatusBadge.tsx # Post status badge
+│   ├── components/           # UI components (shadcn/ui + custom)
+│   │   ├── ui/               # ~16 shadcn/ui primitives
+│   │   ├── AppLayout.tsx     # Authenticated app shell with sidebar
+│   │   ├── AppSidebar.tsx    # Navigation sidebar
+│   │   ├── BetaBadge.tsx     # Beta indicator badge (TikTok)
+│   │   ├── Logo.tsx          # FlowPost logo
+│   │   └── StatusBadge.tsx   # Post status badge
 │   ├── contexts/
-│   │   └── AuthContext.tsx  # Authentication state management
-│   ├── hooks/              # Shared React hooks
+│   │   └── AuthContext.tsx    # Authentication state management
+│   ├── hooks/                 # Shared React hooks
 │   ├── integrations/
-│   │   └── supabase/       # Supabase client + DB types
+│   │   └── supabase/          # Supabase client + DB types
 │   ├── lib/
-│   │   ├── types.ts        # App type definitions
-│   │   ├── utils.ts        # Utility functions
-│   │   └── r2.ts           # Direct-to-R2 upload via XHR
+│   │   ├── types.ts           # App type definitions
+│   │   └── utils.ts           # Utility functions
 │   ├── pages/
-│   │   ├── Dashboard.tsx   # Stats overview
-│   │   ├── UploadPage.tsx  # Video upload + distribution
-│   │   ├── QueuePage.tsx   # Post queue management
-│   │   ├── CalendarPage.tsx# Content calendar view
-│   │   ├── WorkflowsPage.tsx# Google Sheets workflow management
-│   │   ├── AccountsPage.tsx# OAuth account connections
-│   │   ├── AuthCallback.tsx# Google OAuth callback handler
-│   │   └── NotFound.tsx    # 404 page
-│   ├── test/               # Test files
-│   ├── App.tsx             # Root component with router
-│   └── main.tsx            # Entry point
+│   │   ├── Dashboard.tsx      # Stats overview
+│   │   ├── UploadPage.tsx     # Video upload + distribution
+│   │   ├── QueuePage.tsx      # Post queue management
+│   │   ├── CalendarPage.tsx   # Content calendar view
+│   │   ├── InsightsPage.tsx   # Instagram / Facebook analytics
+│   │   ├── WorkflowsPage.tsx  # Google Sheets workflow management
+│   │   ├── AccountsPage.tsx   # OAuth account connections + Mega
+│   │   ├── LoginPage.tsx      # Email/password + Google OAuth login
+│   │   └── NotFound.tsx       # 404 page
+│   ├── App.tsx                # Root component with router
+│   └── main.tsx               # Entry point
 ├── supabase/
-│   ├── functions/           # 17 Deno Edge Functions
-│   │   ├── _shared/          # Shared modules
-│   │   │   ├── crypto.ts         # AES-GCM token encryption
-│   │   │   ├── google-jwt.ts     # Google JWT assertion
-│   │   │   ├── drive-to-r2.ts    # Drive to R2 media transfer
-│   │   │   ├── rate-limit.ts     # Rate limiting helpers
-│   │   │   └── sheet-status.ts   # Sheet status update helper
+│   ├── functions/              # 17 Deno Edge Functions
+│   │   ├── _shared/             # Shared modules
+│   │   │   ├── crypto.ts             # AES-GCM token encryption
+│   │   │   ├── rate-limit.ts         # Rate limiting helpers
+│   │   │   └── sheet-status.ts       # Sheet status update helper
 │   │   ├── verify-password/
 │   │   ├── verify-session/
 │   │   ├── verify-security-questions/
-│   │   ├── get-upload-url/
 │   │   ├── get-quota-usage/
+│   │   ├── get-file/                 # Drive/Mega file proxy
 │   │   ├── youtube-upload/
 │   │   ├── youtube-auth/
 │   │   ├── facebook-upload/
@@ -94,13 +89,14 @@ flowpost-studio/
 │   │   ├── process-workflow/
 │   │   ├── process-scheduled-posts/
 │   │   ├── update-sheet-status/
-│   │   └── google-oauth/
-│   └── migrations/          # 22 database migration files
-├── public/                  # Static assets
-├── .env.example             # Environment variable template
-├── vercel.json              # Vercel deployment config
-├── vitest.config.ts         # Test configuration
-└── tailwind.config.ts       # Tailwind theme configuration
+│   │   ├── google-drive-auth/        # Drive OAuth flow
+│   │   ├── mega-auth/                # Mega account management
+│   │   ├── fetch-instagram-insights/
+│   │   └── fetch-facebook-insights/
+│   └── migrations/            # 22 database migration files
+├── public/                    # Static assets
+├── .env.example               # Environment variable template
+└── vercel.json                # Vercel deployment config
 ```
 
 ---
@@ -113,21 +109,34 @@ flowpost-studio/
 │  (React)    │     │ Edge Functions│     │  Facebook API    │
 │             │     │  (Deno)      │     │  Instagram API   │
 │  ┌───────┐  │     │              │     │  TikTok API      │
-│  │ R2    │◄─┼────>│  Cloudflare  │     └──────────────────┘
-│  │ Upload│  │     │  R2 Storage  │
-│  └───────┘  │     └──────────────┘
-└─────────────┘
+│  │ Drive │  │     │  ┌────────┐  │     └──────────────────┘
+│  │ OAuth │  │     │  │ get-file│  │
+│  └───────┘  │     │  │ proxy   │  │
+│             │     │  └────────┘  │
+│  ┌───────┐  │     │       │      │
+│  │ Mega  │  │     │  ┌────┴────┐ │
+│  │ Auth  │  │     │  │ Drive / │ │
+│  └───────┘  │     │  │ Mega    │ │
+│             │     │  └─────────┘ │
+└─────────────┘     └──────────────┘
 ```
 
 **Data flow:**
 
 1. User authenticates via email/password (admin) or Google OAuth (regular users)
-2. File is uploaded directly to Cloudflare R2 via a presigned URL
-3. A post record is created in Supabase with platform targets
-4. For immediate publishing, the frontend calls the appropriate edge function
-5. For scheduled posts, a cron job picks up due posts every 5 minutes
-6. For Google Sheets workflows, `process-workflow` reads sheets and creates posts
-7. TikTok publishes via FILE_UPLOAD + DIRECT_POST flow (SELF_ONLY privacy in Beta)
+2. File sources: Google Drive (per-user OAuth) or Mega (authenticated or public links)
+3. For Google Sheets workflows, `process-workflow` reads sheets, resolves each row's source (Drive URL, Mega URL, or `mega:filename` pattern), and creates posts
+4. The `get-file` proxy streams files directly from Drive API or Mega to the target platform — no intermediate storage
+5. For immediate publishing, posts fire directly; for scheduled posts, a cron job picks up due posts every 5 minutes
+6. TikTok publishes via FILE_UPLOAD + DIRECT_POST flow (SELF_ONLY privacy in Beta)
+7. All OAuth tokens are encrypted at rest with AES-GCM
+
+**Sheet `video_url` supports 3 formats:**
+```
+https://drive.google.com/...  → Drive API
+https://mega.nz/file/HASH#KEY → Mega public link (anonymous)
+mega:filename.mp4             → Mega authenticated (account lookup)
+```
 
 ---
 
@@ -137,8 +146,7 @@ flowpost-studio/
 
 - Node.js 18+
 - A Supabase project with the [migrations](supabase/migrations/) applied
-- Cloudflare R2 bucket configured
-- Facebook app, YouTube project, Instagram Business account, and TikTok developer app with API access
+- Facebook app, YouTube project, Instagram Business account, TikTok developer app, and Google Cloud OAuth client
 
 ### Local Development
 
@@ -168,7 +176,7 @@ npm install supabase --save-dev
 npx supabase link
 
 # Deploy all functions
-npx supabase functions deploy verify-password verify-session verify-security-questions get-upload-url get-quota-usage youtube-upload youtube-auth facebook-upload facebook-auth instagram-upload tiktok-upload tiktok-auth post-story process-workflow process-scheduled-posts update-sheet-status google-oauth
+npx supabase functions deploy verify-password verify-session verify-security-questions get-quota-usage youtube-upload youtube-auth facebook-upload facebook-auth instagram-upload tiktok-upload tiktok-auth post-story process-workflow process-scheduled-posts update-sheet-status google-drive-auth mega-auth get-file fetch-instagram-insights fetch-facebook-insights
 ```
 
 ### Deploy Database Migrations
@@ -188,17 +196,21 @@ Set these in **Supabase Dashboard → Edge Functions → Secrets**:
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
 | `ALLOWED_ORIGIN` | Frontend URL for CORS (e.g. `https://flowpost-studio.vercel.app`) |
-| `APP_PASSWORD` | App password for login |
-| `R2_ENDPOINT` | Cloudflare R2 endpoint URL |
-| `R2_ACCESS_KEY` | R2 access key ID |
-| `R2_SECRET_KEY` | R2 secret access key |
-| `R2_BUCKET` | R2 bucket name |
-| `R2_PUBLIC_URL` | R2 public URL |
-| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | GCP service account email for Sheets access |
-| `GOOGLE_PRIVATE_KEY` | GCP service account private key |
+| `CRON_API_KEY` | API key for cron-triggered functions |
+| `FRONTEND_API_KEY` | Anon key for frontend-called functions |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID (sign-in + Drive) |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `GD_CLIENT_ID` | Google Drive OAuth client ID |
+| `GD_CLIENT_SECRET` | Google Drive OAuth client secret |
 | `TOKEN_ENCRYPTION_KEY` | 256-bit key for AES-GCM OAuth token encryption |
 | `TIKTOK_CLIENT_KEY` | TikTok developer app client key |
 | `TIKTOK_CLIENT_SECRET` | TikTok developer app client secret |
+| `YOUTUBE_CLIENT_ID` | YouTube OAuth client ID |
+| `YOUTUBE_CLIENT_SECRET` | YouTube OAuth client secret |
+| `FACEBOOK_CLIENT_ID` | Facebook app ID |
+| `FACEBOOK_CLIENT_SECRET` | Facebook app secret |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | GCP service account email for Sheets access |
+| `GOOGLE_PRIVATE_KEY` | GCP service account private key |
 
 Frontend variables (in `.env.local`):
 
@@ -207,7 +219,6 @@ Frontend variables (in `.env.local`):
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
 | `VITE_SUPABASE_PROJECT_ID` | Supabase project reference ID |
-| `VITE_R2_PUBLIC_URL` | R2 public URL |
 
 ---
 
@@ -233,6 +244,7 @@ Frontend variables (in `.env.local`):
 - **SSRF Protection** — Upload functions validate URLs against a domain whitelist before fetching
 - **Secrets Management** — All credentials are stored in Supabase Edge Function secrets, never in the codebase
 - **Admin 2FA** — Admin users must answer security questions after email sign-in
+- **New signups blocked** — Only existing `public.users` records can authenticate
 
 ---
 
@@ -242,7 +254,7 @@ Frontend variables (in `.env.local`):
 npm run test
 ```
 
-The test suite uses Vitest with React Testing Library. Tests cover utility functions (`cn()`), presentational components (`StatusBadge`, `PlatformIcon`), and page rendering (`NotFound`).
+The test suite uses Vitest with React Testing Library.
 
 ---
 
@@ -273,7 +285,7 @@ npx supabase db push
 - [Instagram Graph API](https://developers.facebook.com/docs/instagram-api)
 - [TikTok API](https://developers.tiktok.com/)
 - [Supabase Edge Functions](https://supabase.com/docs/guides/functions)
-- [Cloudflare R2](https://developers.cloudflare.com/r2/)
+- [MegaJS](https://github.com/tonistiigi/megajs)
 
 ---
 

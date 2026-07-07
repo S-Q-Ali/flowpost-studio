@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `a177814` — Fix storage.api.logout not a function
+## CURRENT HEAD: `1ea683b` — Styled auth success pages with branded UI
 
 ---
 
@@ -445,3 +445,15 @@ video_url:
 **Fix**: Removed all `storage.api.logout()` calls from `mega-auth/index.ts` (2 occurrences) and `get-file/index.ts` (2 occurrences). Connection closes naturally when the function returns.
 
 **Redeployed** both functions (commit `a177814`).
+
+---
+
+### 22. Auth Success Pages Styled — Updated (2026-07-07)
+
+**Problem**: All 4 OAuth callback pages (facebook-auth, google-drive-auth, tiktok-auth, youtube-auth) showed raw inline HTML with minimal styling after a successful connection.
+
+**Fix**: Replaced with a polished, centered card UI matching FlowPost's dark brand — styled heading, descriptive subtitle, "Return to FlowPost" button linking to `/accounts`, and a "This tab can be closed" note.
+
+**Files changed**: `facebook-auth/index.ts`, `google-drive-auth/index.ts`, `tiktok-auth/index.ts`, `youtube-auth/index.ts`
+
+**Deployed** all 4 (commit `1ea683b`).
