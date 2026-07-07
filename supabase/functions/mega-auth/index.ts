@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
           handle: c.hash || c.nodeId,
         }));
 
-      storage.api.logout().catch(() => {});
+      try { storage.api?.logout?.(); } catch {}
 
       return json({ success: true, accountId, email, files });
     }
@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
           handle: c.hash || c.nodeId,
         }));
 
-      storage.api.logout().catch(() => {});
+      try { storage.api?.logout?.(); } catch {}
 
       return json({ success: true, files });
     }

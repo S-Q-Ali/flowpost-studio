@@ -75,12 +75,10 @@ Deno.serve(async (req) => {
       );
 
       if (!child) {
-        storage.api.logout().catch(() => {});
         return new Response("File not found in Mega", { status: 404, headers: corsHeaders });
       }
 
       const data = await child.downloadBuffer();
-      storage.api.logout().catch(() => {});
 
       return new Response(data, {
         status: 200,
