@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { decrypt } from "../_shared/crypto.ts";
+import { File } from "npm:megajs";
+import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
 const corsHeaders = {
@@ -32,7 +33,9 @@ const ALLOWED_DOMAINS = [
   R2_PUBLIC_URL,
   "drive.google.com",
   "www.googleapis.com",
-];
+  "mega.nz",
+  SUPABASE_URL ? new URL(SUPABASE_URL).hostname : "",
+].filter(Boolean);
 
 function validateUrl(url: string): boolean {
   try {
@@ -82,6 +85,7 @@ Deno.serve(async (req) => {
   let postId: string;
   let driveDownloadUrl: string | undefined;
   let googleAccessToken: string | undefined;
+  let megaUrl: string | undefined;
 
   try {
     const body = await req.json();
@@ -92,6 +96,9 @@ Deno.serve(async (req) => {
       : undefined;
     googleAccessToken = typeof body?.googleAccessToken === "string"
       ? body.googleAccessToken
+      : undefined;
+    megaUrl = typeof body?.megaUrl === "string"
+      ? body.megaUrl
       : undefined;
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
@@ -191,7 +198,13 @@ Deno.serve(async (req) => {
     }
 
     const isDriveSource = (driveDownloadUrl || fileUrl.includes("googleapis.com")) && googleAccessToken;
-    if (isDriveSource) {
+    if (megaUrl) {
+      console.log("Getting video size from Mega...");
+      const megaFile = File.fromURL(megaUrl);
+      await megaFile.loadAttributes();
+      video.video_size = megaFile.size;
+      if (!video.video_size) throw new Error("Could not determine video size from Mega");
+    } else if (isDriveSource) {
       const driveSource = driveDownloadUrl || fileUrl;
       console.log("Getting video size from Drive...");
       const headRes = await fetch(driveSource, {
@@ -202,7 +215,7 @@ Deno.serve(async (req) => {
       if (!videoSize) throw new Error("Could not determine video size from Drive");
       video.video_size = videoSize;
     } else {
-      console.log("Getting video size from R2/public URL...");
+      console.log("Getting video size from URL...");
       const headRes = await fetch(fileUrl, { method: "HEAD" });
       const videoSize = parseInt(headRes.headers.get("content-length") || "0", 10);
       if (!videoSize) throw new Error("Could not determine video size");
@@ -314,7 +327,14 @@ Deno.serve(async (req) => {
 
     console.log(`Streaming video to TikTok (${video.video_size} bytes)...`);
     let videoRes: Response;
-    if (isDriveSource) {
+    if (megaUrl) {
+      const proxyToken = await encrypt(JSON.stringify({
+        megaUrl,
+        exp: Date.now() + 15 * 60 * 1000,
+      }));
+      const proxyUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(proxyToken)}`;
+      videoRes = await fetch(proxyUrl);
+    } else if (isDriveSource) {
       const driveSource = driveDownloadUrl || fileUrl;
       videoRes = await fetch(driveSource, {
         headers: { Authorization: `Bearer ${googleAccessToken}` },

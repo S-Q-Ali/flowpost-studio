@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { decrypt } from "../_shared/crypto.ts";
+import { File } from "npm:megajs";
+import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 
 const corsHeaders = {
@@ -30,7 +31,9 @@ const ALLOWED_DOMAINS = [
   R2_PUBLIC_URL,
   "storage.googleapis.com",
   "youtube.googleapis.com",
-];
+  "mega.nz",
+  SUPABASE_URL ? new URL(SUPABASE_URL).hostname : "",
+].filter(Boolean);
 
 function validateUrl(url: string): boolean {
   try {
@@ -86,6 +89,7 @@ Deno.serve(async (req) => {
   let postId: string;
   let driveDownloadUrl: string | undefined;
   let googleAccessToken: string | undefined;
+  let megaUrl: string | undefined;
   try {
     const body = await req.json();
     postId = body?.postId;
@@ -95,6 +99,9 @@ Deno.serve(async (req) => {
       : undefined;
     googleAccessToken = typeof body?.googleAccessToken === "string"
       ? body.googleAccessToken
+      : undefined;
+    megaUrl = typeof body?.megaUrl === "string"
+      ? body.megaUrl
       : undefined;
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
@@ -156,29 +163,44 @@ Deno.serve(async (req) => {
     }
 
     // Support either:
-    // - Traditional flow: video.file_url points to R2/public storage
-    // - Workflow flow: direct Google Drive download URL + access token
-    const sourceUrl = driveDownloadUrl || video.file_url;
+    // - Mega file URL → get-file proxy
+    // - Drive download URL + token → get-file proxy or direct Drive fetch
+    // - video.file_url → public/R2 storage
+    let sourceUrl: string;
+    let contentLength: string;
+    let contentType: string;
 
-    if (!validateUrl(sourceUrl)) {
-      console.error("Blocked fetch to disallowed URL:", sourceUrl);
-      return json({ error: "Invalid video source URL" }, 400);
+    if (megaUrl) {
+      const megaFile = File.fromURL(megaUrl);
+      await megaFile.loadAttributes();
+      contentLength = megaFile.size.toString();
+      contentType = "video/mp4";
+      const proxyToken = await encrypt(JSON.stringify({
+        megaUrl,
+        exp: Date.now() + 15 * 60 * 1000,
+      }));
+      sourceUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(proxyToken)}`;
+    } else {
+      sourceUrl = driveDownloadUrl || video.file_url;
+
+      if (!validateUrl(sourceUrl)) {
+        console.error("Blocked fetch to disallowed URL:", sourceUrl);
+        return json({ error: "Invalid video source URL" }, 400);
+      }
+
+      const headRes = await fetch(sourceUrl, {
+        method: "HEAD",
+        headers: sourceUrl.includes("googleapis.com") && googleAccessToken
+          ? { Authorization: `Bearer ${googleAccessToken}` }
+          : {},
+      });
+      if (!headRes.ok) {
+        throw new Error(`Failed to fetch video headers: ${headRes.status}`);
+      }
+
+      contentLength = headRes.headers.get("content-length") || "0";
+      contentType = headRes.headers.get("content-type") || "video/mp4";
     }
-
-    const headRes = await fetch(sourceUrl, {
-      method: "HEAD",
-      headers: sourceUrl.includes("googleapis.com") && googleAccessToken
-        ? { Authorization: `Bearer ${googleAccessToken}` }
-        : {},
-    });
-    if (!headRes.ok) {
-      throw new Error(`Failed to fetch video headers: ${headRes.status}`);
-    }
-
-    const contentLength =
-      headRes.headers.get("content-length") || "0";
-    const contentType =
-      headRes.headers.get("content-type") || "video/mp4";
 
     const tags: string[] = [];
     if (post.hashtags) {
@@ -228,7 +250,7 @@ Deno.serve(async (req) => {
     }
 
     const videoStream = await fetch(sourceUrl, {
-      headers: sourceUrl.includes("googleapis.com") && googleAccessToken
+      headers: !megaUrl && sourceUrl.includes("googleapis.com") && googleAccessToken
         ? { Authorization: `Bearer ${googleAccessToken}` }
         : {},
     });

@@ -390,33 +390,43 @@ Deno.serve(async (req) => {
     const toProcess = readyRows.slice(0, videosPerRun);
     let workflowVideoCount = 0;
 
-     for (const { row, rowIndex } of toProcess) {
-       try {
-         const driveUrl = row[urlIdx];
-         if (!driveUrl) {
-           errors.push(`Row ${rowIndex}: empty ${urlColumn}`);
-           continue;
+      for (const { row, rowIndex } of toProcess) {
+        try {
+          const rawUrl = row[urlIdx];
+          if (!rawUrl) {
+            errors.push(`Row ${rowIndex}: empty ${urlColumn}`);
+            continue;
+          }
+
+         const isMega = rawUrl.includes("mega.nz/");
+         let driveDownloadUrl: string | undefined;
+         let megaUrl: string | undefined;
+         let storedFileUrl: string;
+         let videoDisplayName: string;
+
+         if (isMega) {
+           megaUrl = rawUrl;
+           storedFileUrl = rawUrl;
+           videoDisplayName = `mega-video-${rowIndex}`;
+         } else {
+           const match = rawUrl.match(/\/d\/([^/]+)/);
+           const fileId = match?.[1];
+           if (!fileId) {
+             errors.push(`Row ${rowIndex}: could not extract fileId from Drive URL: ${rawUrl}`);
+             continue;
+           }
+           driveDownloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+           storedFileUrl = driveDownloadUrl;
+           const title = titleIdx !== undefined ? row[titleIdx] || "" : "";
+           const ytVideoTitle = ytTitleIdx !== undefined && row[ytTitleIdx] ? row[ytTitleIdx] : "";
+           videoDisplayName = ytVideoTitle || title || `workflow-video-${fileId}`;
          }
 
-        const match = driveUrl.match(/\/d\/([^/]+)/);
-        const fileId = match?.[1];
-        if (!fileId) {
-          errors.push(`Row ${rowIndex}: could not extract fileId from Drive URL: ${driveUrl}`);
-          continue;
-        }
-        const driveDownloadUrl =
-          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-        const publicDriveUrl =
-          `https://drive.google.com/uc?export=download&id=${fileId}`;
+         const baseName = videoDisplayName.replace(/\.(mp4|mov|jpg|jpeg|png)$/i, "");
+         const fileExt = isImageWorkflow ? ".jpg" : ".mp4";
+         const fileName = `${baseName}${fileExt}`;
 
-        const title = titleIdx !== undefined ? row[titleIdx] || "" : "";
-        const ytVideoTitle = ytTitleIdx !== undefined && row[ytTitleIdx] ? row[ytTitleIdx] : "";
-        const videoDisplayName = ytVideoTitle || title || `workflow-video-${fileId}`;
-        const baseName = videoDisplayName.replace(/\.(mp4|mov|jpg|jpeg|png)$/i, "");
-        const fileExt = isImageWorkflow ? ".jpg" : ".mp4";
-        const fileName = `${baseName}${fileExt}`;
-
-        const currentUserId = wf.user_id;
+         const currentUserId = wf.user_id;
         if (!currentUserId) {
           errors.push(`Row ${rowIndex}: workflow has no user_id, skipping`);
           continue;
@@ -426,7 +436,7 @@ Deno.serve(async (req) => {
           .insert({
             user_id: currentUserId,
             title: videoDisplayName,
-            file_url: driveDownloadUrl,
+            file_url: storedFileUrl,
             media_type: mediaType,
           })
           .select("id")
@@ -576,8 +586,17 @@ Deno.serve(async (req) => {
         }
 
         // Kick off uploads via existing Edge Functions (fire-and-forget) — only for immediate slot
+        const filePayload: Record<string, unknown> = { postId: "" };
+        if (isMega) {
+          filePayload.megaUrl = megaUrl;
+        } else {
+          filePayload.driveDownloadUrl = driveDownloadUrl;
+          filePayload.googleAccessToken = googleToken;
+        }
+
         for (const post of insertedPosts as { id: string; platform: string; account_id: string | null; status: string }[]) {
           if (post.status !== "processing") continue;
+          const body = { ...filePayload, postId: post.id };
           if (post.platform === "youtube") {
             void fetch(`${SUPABASE_URL}/functions/v1/youtube-upload`, {
               method: "POST",
@@ -586,7 +605,7 @@ Deno.serve(async (req) => {
                 Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
                 apikey: SUPABASE_SERVICE_ROLE_KEY!,
               },
-              body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+              body: JSON.stringify(body),
             });
           } else if (post.platform === "facebook") {
             void fetch(`${SUPABASE_URL}/functions/v1/facebook-upload`, {
@@ -596,7 +615,7 @@ Deno.serve(async (req) => {
                 Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
                 apikey: SUPABASE_SERVICE_ROLE_KEY!,
               },
-              body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+              body: JSON.stringify(body),
             });
           } else if (post.platform === "instagram") {
             void fetch(`${SUPABASE_URL}/functions/v1/instagram-upload`, {
@@ -606,7 +625,7 @@ Deno.serve(async (req) => {
                 Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
                 apikey: SUPABASE_SERVICE_ROLE_KEY!,
               },
-              body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+              body: JSON.stringify(body),
             });
           } else if (post.platform === "tiktok") {
             void fetch(`${SUPABASE_URL}/functions/v1/tiktok-upload`, {
@@ -616,19 +635,28 @@ Deno.serve(async (req) => {
                 Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
                 apikey: SUPABASE_SERVICE_ROLE_KEY!,
               },
-              body: JSON.stringify({ postId: post.id, driveDownloadUrl, googleAccessToken: googleToken }),
+              body: JSON.stringify(body),
             });
           }
         }
 
         if (wf.post_as_story && !isImageWorkflow) {
           // Generate a short-lived get-file proxy URL for the story
-          const storyToken = await encrypt(JSON.stringify({
-            driveUrl: driveDownloadUrl,
-            driveToken: googleToken,
-            exp: Date.now() + 15 * 60 * 1000,
-          }));
-          const storyVideoUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(storyToken)}`;
+          let storyVideoUrl: string;
+          if (isMega) {
+            const storyToken = await encrypt(JSON.stringify({
+              megaUrl,
+              exp: Date.now() + 15 * 60 * 1000,
+            }));
+            storyVideoUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(storyToken)}`;
+          } else {
+            const storyToken = await encrypt(JSON.stringify({
+              driveUrl: driveDownloadUrl,
+              driveToken: googleToken,
+              exp: Date.now() + 15 * 60 * 1000,
+            }));
+            storyVideoUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(storyToken)}`;
+          }
           const usedStoryTokens = new Set<string>();
 
             for (const post of insertedPosts as { id: string; platform: string; account_id: string | null }[]) {

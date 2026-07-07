@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { File } from "npm:megajs";
 import { decrypt } from "../_shared/crypto.ts";
 
 const corsHeaders = {
@@ -32,7 +33,7 @@ Deno.serve(async (req) => {
     return new Response("Missing token", { status: 400, headers: corsHeaders });
   }
 
-  let tokenPayload: { driveUrl?: string; driveToken?: string; exp?: number };
+  let tokenPayload: { driveUrl?: string; driveToken?: string; megaUrl?: string; exp?: number };
   try {
     const decrypted = await decrypt(encrypted);
     tokenPayload = JSON.parse(decrypted);
@@ -40,7 +41,7 @@ Deno.serve(async (req) => {
     return new Response("Invalid token", { status: 403, headers: corsHeaders });
   }
 
-  if (!tokenPayload.driveUrl || !tokenPayload.driveToken) {
+  if (!tokenPayload.driveUrl && !tokenPayload.megaUrl) {
     return new Response("Invalid token payload", { status: 403, headers: corsHeaders });
   }
 
@@ -49,8 +50,21 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const driveRes = await fetch(tokenPayload.driveUrl, {
-      headers: { Authorization: `Bearer ${tokenPayload.driveToken}` },
+    if (tokenPayload.megaUrl) {
+      const megaFile = File.fromURL(tokenPayload.megaUrl);
+      const data = await megaFile.downloadBuffer();
+      return new Response(data, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "Content-Length": data.byteLength.toString(),
+          "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+        },
+      });
+    }
+
+    const driveRes = await fetch(tokenPayload.driveUrl!, {
+      headers: { Authorization: `Bearer ${tokenPayload.driveToken!}` },
     });
 
     if (!driveRes.ok) {
