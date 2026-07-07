@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `7b91bbf` — Mega plan confirmed with npm:megajs
+## CURRENT HEAD: `5a53fc6` — Add Mega file source support
 
 ---
 
@@ -130,6 +130,7 @@
 - **Per-user Google Drive OAuth** — each user connects Drive via OAuth; tokens stored encrypted; R2 removed
 - **`get-file` proxy** — streams Drive files directly to platform APIs via encrypted short-lived token
 - **Multi-Drive per workflow** — `drive_account_id` column on workflows; Drive selector in Step 1 (mandatory); cards show assigned Drive name
+- **Mega as alternate file source** — paste mega.nz URLs in Sheet's `video_url`; get-file proxy downloads via `npm:megajs`; mixed Drive + Mega URLs per row supported
 
 ### Known Issues
 1. **Instagram upload timeout** (8×30s polling > 60s runtime) — same class of bug as post-story was fixed for, but not yet applied to instagram-upload
@@ -302,65 +303,41 @@ npx.cmd supabase db push
 
 ---
 
-### 17. Mega as Alternate File Source — Confirmed Plan (2026-07-07)
+### 17. Mega as Alternate File Source — Implemented (2026-07-07)
 
 **Goal**: When Drive is full, upload files to Mega, paste Mega URLs into the same Sheet's `video_url` column, and the workflow publishes from Mega instead of Drive. Sheet + scheduling + captions remain identical.
 
 **Key discovery**: `npm:megajs` v1.3.10 has native Deno support. Public Mega links include the decryption key — no Mega account credentials needed for downloading.
 
-```ts
-import { File } from 'npm:megajs';
-const data = await File.fromURL('https://mega.nz/file/HASH#KEY').downloadBuffer();
-```
-
-**What stays the same**:
-- Google Sheets is the single source of truth — same `video_url`, `fb_ig_caption`, `status`, `platforms` columns
-- Google OAuth token still used for Sheets API (`drive.readonly` + `spreadsheets` scopes)
-- Scheduling modes, upload pipeline, platform routing — all unchanged
-- Upload functions receive bytes and pass to platform — same logic
-
-**What changes**:
+**Files changed** (commit `5a53fc6`):
 
 | File | Change |
 |------|--------|
-| `supabase/functions/get-file/index.ts` | Import `npm:megajs`; accept `megaUrl` in encrypted token; download via `megajs` when present |
-| `supabase/functions/process-workflow/index.ts` | Detect Mega URL pattern in `video_url`; pass `megaUrl` field instead of `driveDownloadUrl` |
-| `supabase/functions/facebook-upload/index.ts` | Accept `megaUrl` field; generate proxy token with `{ megaUrl, exp }` |
-| `supabase/functions/instagram-upload/index.ts` | Same |
-| `supabase/functions/tiktok-upload/index.ts` | Same |
-| `supabase/functions/youtube-upload/index.ts` | Same |
+| `supabase/functions/get-file/index.ts` | Import `npm:megajs`; accept `megaUrl` in encrypted token; download via `megajs` when present; keep existing Drive API flow as fallback |
+| `supabase/functions/facebook-upload/index.ts` | Parse `megaUrl` from body; generate proxy token `{ megaUrl, exp }`; precedence: megaUrl > drive |
+| `supabase/functions/instagram-upload/index.ts` | Same as facebook |
+| `supabase/functions/tiktok-upload/index.ts` | Parse `megaUrl`; use megajs for video size; fetch video via proxy URL; added mega.nz + supabase host to ALLOWED_DOMAINS |
+| `supabase/functions/youtube-upload/index.ts` | Parse `megaUrl`; use megajs for content-length; proxy URL as sourceUrl; added mega.nz + supabase host to ALLOWED_DOMAINS |
+| `supabase/functions/process-workflow/index.ts` | Detect `mega.nz` in `video_url`; pass `megaUrl` field instead of `driveDownloadUrl` + `googleAccessToken`; story token generation handles both sources |
 
-**No DB migrations, no frontend changes, no new tables.** Simply paste Mega links into the sheet.
+**What stays the same**:
+- Google Sheets is the single source of truth — same `video_url`, `fb_ig_caption`, `status`, `platforms` columns
+- Google OAuth token still used for Sheets API
+- Scheduling modes, upload pipeline, platform routing — all unchanged
+- Drive URLs in the same sheet still work alongside Mega URLs
+- **No DB migrations, no frontend changes, no new tables**
 
 **Flow**:
 ```
 Sheet video_url column:
   drive.google.com/... → process-workflow → driveDownloadUrl → get-file proxy → Drive API
-  mega.nz/file/...     → process-workflow → megaUrl         → get-file proxy → megajs (npm:megajs)
+  mega.nz/file/...     → process-workflow → megaUrl         → get-file proxy → megajs
                                                     ↓
                                      Facebook/Instagram/TikTok/YouTube
 ```
 
-**Next step**: Implement the changes — start with `get-file` proxy, then upload functions, then `process-workflow`.
-
-### Implementation Steps (ordered)
-
-| # | File | What to do |
-|---|------|------------|
-| 1 | `get-file/index.ts` | Import `{ File } from 'npm:megajs'`; extend token payload to accept `megaUrl`; when present, download via `megajs` and stream result; keep existing Drive API flow as fallback |
-| 2 | `facebook-upload/index.ts` | Parse `megaUrl` from body; generate proxy token `{ megaUrl, exp }` and pass to `get-file` |
-| 3 | `instagram-upload/index.ts` | Same as facebook |
-| 4 | `tiktok-upload/index.ts` | Parse `megaUrl`; generate proxy token; fetch video via proxy URL before streaming to TikTok; add SUPABASE_URL host to ALLOWED_DOMAINS |
-| 5 | `youtube-upload/index.ts` | Parse `megaUrl`; generate proxy URL as sourceUrl; add SUPABASE_URL host to ALLOWED_DOMAINS |
-| 6 | `process-workflow/index.ts` | Detect `mega.nz` in `video_url`; pass `megaUrl` field instead of `driveDownloadUrl` + `googleAccessToken` |
-| 7 | Deploy | `npx.cmd supabase functions deploy get-file facebook-upload instagram-upload tiktok-upload youtube-upload process-workflow` |
-
-**Memory note**: If megajs `downloadBuffer()` causes OOM on files >500MB, switch to `.download()` stream mode in `get-file`.
-
-### What you need to do manually
-
-1. **Create a Mega account** at https://mega.nz (if you don't have one)
-2. **Upload videos** to your Mega account via web UI or Mega Desktop app
-3. **Get share links** — right-click each file → "Get link" → copy the full URL (e.g. `https://mega.nz/file/HASH#KEY`)
-4. **Paste links into your Sheet** — put Mega URLs in the `video_url` column alongside or instead of Drive URLs
-5. **No changes to captions, status, or platforms** — those columns stay exactly the same
+**Manual steps** (done by user):
+1. Created Mega account
+2. Uploaded videos to Mega
+3. Got share links (mega.nz/file/HASH#KEY)
+4. Paste links into Sheet's `video_url` column
