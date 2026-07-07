@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `d47d03c` — Mega account integration
+## CURRENT HEAD: `317c07d` — Fix mega-auth action reading from body
 
 ---
 
@@ -421,3 +421,15 @@ video_url:
 ```
 
 **All 7 functions deployed** (commit `d47d03c`).
+
+---
+
+### 20. Mega Connection 400 Bug — Fixed (2026-07-07)
+
+**Symptom**: Connecting Mega account via FlowPost UI returned 400 "Missing action".
+
+**Root cause**: The frontend sends `action` inside the request body (`{ action: "connect", email, password, userId }`), but `mega-auth/index.ts` read `action` from `url.searchParams.get("action")` — never matching, always returning 400.
+
+**Fix**: Restructured `mega-auth/index.ts` to parse the request body once at the top with `await req.json()`, then extract `action` from `body.action` with fallback to `url.searchParams.get("action")`. Also refactored `connect` and `disconnect` to use the already-parsed `body` instead of calling `req.json()` again.
+
+**Redeployed** (commit `317c07d`).
