@@ -47,6 +47,8 @@ Deno.serve(async (req) => {
   let driveDownloadUrl: string | undefined;
   let googleAccessToken: string | undefined;
   let megaUrl: string | undefined;
+  let megaFileName: string | undefined;
+  let megaAccountId: string | undefined;
 
   try {
     const body = await req.json();
@@ -60,6 +62,12 @@ Deno.serve(async (req) => {
       : undefined;
     megaUrl = typeof body?.megaUrl === "string"
       ? body.megaUrl
+      : undefined;
+    megaFileName = typeof body?.megaFileName === "string"
+      ? body.megaFileName
+      : undefined;
+    megaAccountId = typeof body?.megaAccountId === "string"
+      ? body.megaAccountId
       : undefined;
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
@@ -110,7 +118,15 @@ Deno.serve(async (req) => {
     // Use Drive/Mega source via get-file proxy, or fall back to the stored file_url
     let mediaUrl = video.file_url as string;
 
-    if (megaUrl) {
+    if (megaFileName && megaAccountId) {
+      const fileToken = await encrypt(JSON.stringify({
+        megaFileName,
+        megaAccountId,
+        exp: Date.now() + 15 * 60 * 1000,
+      }));
+      mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+      console.log("Using Mega account get-file proxy URL for Instagram:", mediaUrl);
+    } else if (megaUrl) {
       const fileToken = await encrypt(JSON.stringify({
         megaUrl,
         exp: Date.now() + 15 * 60 * 1000,

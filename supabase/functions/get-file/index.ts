@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { File } from "npm:megajs";
+import { File as MegaFile, Storage as MegaStorage } from "npm:megajs";
 import { decrypt } from "../_shared/crypto.ts";
 
 const corsHeaders = {
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     return new Response("Missing token", { status: 400, headers: corsHeaders });
   }
 
-  let tokenPayload: { driveUrl?: string; driveToken?: string; megaUrl?: string; exp?: number };
+  let tokenPayload: { driveUrl?: string; driveToken?: string; megaUrl?: string; megaFileName?: string; megaAccountId?: string; exp?: number };
   try {
     const decrypted = await decrypt(encrypted);
     tokenPayload = JSON.parse(decrypted);
@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     return new Response("Invalid token", { status: 403, headers: corsHeaders });
   }
 
-  if (!tokenPayload.driveUrl && !tokenPayload.megaUrl) {
+  if (!tokenPayload.driveUrl && !tokenPayload.megaUrl && !tokenPayload.megaFileName) {
     return new Response("Invalid token payload", { status: 403, headers: corsHeaders });
   }
 
@@ -50,8 +50,50 @@ Deno.serve(async (req) => {
   }
 
   try {
+    if (tokenPayload.megaFileName && tokenPayload.megaAccountId) {
+      const { data: account } = await supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", tokenPayload.megaAccountId)
+        .eq("platform", "mega")
+        .eq("is_connected", true)
+        .single();
+
+      if (!account) {
+        return new Response("Mega account not found", { status: 404, headers: corsHeaders });
+      }
+
+      const email = await decrypt(account.refresh_token as string);
+      const password = await decrypt(account.access_token as string);
+      if (!email || !password) {
+        return new Response("Missing Mega credentials", { status: 400, headers: corsHeaders });
+      }
+
+      const storage = await new MegaStorage({ email, password }).ready;
+      const child = (storage.root.children ?? []).find(
+        (c: any) => !c.directory && c.name === tokenPayload.megaFileName,
+      );
+
+      if (!child) {
+        storage.api.logout().catch(() => {});
+        return new Response("File not found in Mega", { status: 404, headers: corsHeaders });
+      }
+
+      const data = await child.downloadBuffer();
+      storage.api.logout().catch(() => {});
+
+      return new Response(data, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "Content-Length": data.byteLength.toString(),
+          "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+        },
+      });
+    }
+
     if (tokenPayload.megaUrl) {
-      const megaFile = File.fromURL(tokenPayload.megaUrl);
+      const megaFile = MegaFile.fromURL(tokenPayload.megaUrl);
       const data = await megaFile.downloadBuffer();
       return new Response(data, {
         status: 200,

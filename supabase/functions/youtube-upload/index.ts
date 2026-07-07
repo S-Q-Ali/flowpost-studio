@@ -90,6 +90,8 @@ Deno.serve(async (req) => {
   let driveDownloadUrl: string | undefined;
   let googleAccessToken: string | undefined;
   let megaUrl: string | undefined;
+  let megaFileName: string | undefined;
+  let megaAccountId: string | undefined;
   try {
     const body = await req.json();
     postId = body?.postId;
@@ -102,6 +104,12 @@ Deno.serve(async (req) => {
       : undefined;
     megaUrl = typeof body?.megaUrl === "string"
       ? body.megaUrl
+      : undefined;
+    megaFileName = typeof body?.megaFileName === "string"
+      ? body.megaFileName
+      : undefined;
+    megaAccountId = typeof body?.megaAccountId === "string"
+      ? body.megaAccountId
       : undefined;
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
@@ -170,7 +178,19 @@ Deno.serve(async (req) => {
     let contentLength: string;
     let contentType: string;
 
-    if (megaUrl) {
+    if (megaFileName && megaAccountId) {
+      contentLength = "0";
+      contentType = "video/mp4";
+      const proxyToken = await encrypt(JSON.stringify({
+        megaFileName,
+        megaAccountId,
+        exp: Date.now() + 15 * 60 * 1000,
+      }));
+      sourceUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(proxyToken)}`;
+      const headRes = await fetch(sourceUrl, { method: "HEAD" });
+      const cl = headRes.headers.get("content-length");
+      if (cl) contentLength = cl;
+    } else if (megaUrl) {
       const megaFile = File.fromURL(megaUrl);
       await megaFile.loadAttributes();
       contentLength = megaFile.size.toString();

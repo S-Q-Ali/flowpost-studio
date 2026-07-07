@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { Switch } from "@/components/ui/switch";
@@ -17,12 +18,17 @@ export default function AccountsPage() {
   const [isFacebookConnecting, setIsFacebookConnecting] = useState(false);
   const [isTikTokConnecting, setIsTikTokConnecting] = useState(false);
   const [isDriveConnecting, setIsDriveConnecting] = useState(false);
+  const [isMegaConnecting, setIsMegaConnecting] = useState(false);
+  const [showMegaForm, setShowMegaForm] = useState(false);
+  const [megaEmail, setMegaEmail] = useState("");
+  const [megaPassword, setMegaPassword] = useState("");
 
   const [facebookPages, setFacebookPages] = useState<ConnectedAccount[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [youtubeConnectedAccounts, setYoutubeConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
   const [driveAccounts, setDriveAccounts] = useState<ConnectedAccount[]>([]);
+  const [megaAccounts, setMegaAccounts] = useState<ConnectedAccount[]>([]);
   const [youtubeQuota, setYoutubeQuota] = useState<{ percentage: number; uploadCount: number; estimatedUploadsRemaining: number } | null>(null);
 
   const fetchFacebook = async (): Promise<ConnectedAccount[]> => {
@@ -79,6 +85,24 @@ export default function AccountsPage() {
     return list;
   };
 
+  const fetchMega = async (): Promise<ConnectedAccount[]> => {
+    const { data, error } = await supabase
+      .from("connected_accounts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("platform", "mega")
+      .eq("is_connected", true);
+
+    if (error) {
+      toast.error(error.message);
+      return [];
+    }
+
+    const list = (data as ConnectedAccount[]) ?? [];
+    setMegaAccounts(list);
+    return list;
+  };
+
   const fetchDrive = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
       .from("connected_accounts")
@@ -116,7 +140,7 @@ export default function AccountsPage() {
   };
 
   const refreshAll = async () => {
-    await Promise.all([fetchFacebook(), fetchInstagram(), fetchYouTube(), fetchTikTok(), fetchDrive()]);
+    await Promise.all([fetchFacebook(), fetchInstagram(), fetchYouTube(), fetchTikTok(), fetchDrive(), fetchMega()]);
   };
 
   useEffect(() => {
@@ -397,6 +421,40 @@ export default function AccountsPage() {
     } catch (e: any) {
       toast.error(e.message || "Google Drive connection failed");
       setIsDriveConnecting(false);
+    }
+  };
+
+  const connectMega = async () => {
+    if (!megaEmail.trim() || !megaPassword.trim()) {
+      toast.error("Enter email and password");
+      return;
+    }
+    setIsMegaConnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("mega-auth", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "connect",
+          email: megaEmail.trim(),
+          password: megaPassword.trim(),
+          userId,
+        }),
+      });
+
+      if (error || data?.error) throw new Error(data?.error || error?.message || "Mega connection failed");
+      setMegaEmail("");
+      setMegaPassword("");
+      setShowMegaForm(false);
+      toast.success("Mega connected!");
+      fetchMega();
+    } catch (e: any) {
+      toast.error(e.message || "Mega connection failed");
+    } finally {
+      setIsMegaConnecting(false);
     }
   };
 
@@ -813,6 +871,88 @@ export default function AccountsPage() {
               "Connect Google Drive"
             )}
           </Button>
+        </div>
+
+        {/* Mega accounts */}
+        <div className="space-y-2">
+          {megaAccounts.length > 0 && (
+            <div className="grid gap-3">
+              {megaAccounts.map((a) => (
+                <Card key={a.id} className="bg-card border-border shadow-card">
+                  <CardContent className="flex items-center justify-between py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-red-500">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-foreground">Mega</div>
+                        <div className="text-xs text-muted-foreground">{a.account_name}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
+                        Connected
+                      </Badge>
+                      <Button variant="outline" size="sm" onClick={async () => {
+                        if (!a.id) return;
+                        await supabase.from("connected_accounts").update({ is_connected: false }).eq("id", a.id);
+                        fetchMega();
+                        toast.success("Mega disconnected");
+                      }}>
+                        Disconnect
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+          {showMegaForm ? (
+            <div className="space-y-2 p-3 rounded-lg bg-secondary/50 border border-border">
+              <Input
+                placeholder="Mega email"
+                type="email"
+                value={megaEmail}
+                onChange={(e) => setMegaEmail(e.target.value)}
+              />
+              <Input
+                placeholder="Mega password"
+                type="password"
+                value={megaPassword}
+                onChange={(e) => setMegaPassword(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <Button
+                  className="gradient-primary text-primary-foreground flex-1"
+                  size="sm"
+                  onClick={connectMega}
+                  disabled={isMegaConnecting}
+                >
+                  {isMegaConnecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting…
+                    </>
+                  ) : (
+                    "Connect"
+                  )}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => { setShowMegaForm(false); setMegaEmail(""); setMegaPassword(""); }}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              className="gradient-primary text-primary-foreground w-full"
+              size="sm"
+              onClick={() => setShowMegaForm(true)}
+            >
+              Connect Mega
+            </Button>
+          )}
         </div>
       </div>
     </div>

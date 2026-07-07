@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.fetch-facebook-insights]
 verify_jwt = false
+
+[functions.mega-auth]
+verify_jwt = false

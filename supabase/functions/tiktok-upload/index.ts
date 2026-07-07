@@ -86,6 +86,8 @@ Deno.serve(async (req) => {
   let driveDownloadUrl: string | undefined;
   let googleAccessToken: string | undefined;
   let megaUrl: string | undefined;
+  let megaFileName: string | undefined;
+  let megaAccountId: string | undefined;
 
   try {
     const body = await req.json();
@@ -99,6 +101,12 @@ Deno.serve(async (req) => {
       : undefined;
     megaUrl = typeof body?.megaUrl === "string"
       ? body.megaUrl
+      : undefined;
+    megaFileName = typeof body?.megaFileName === "string"
+      ? body.megaFileName
+      : undefined;
+    megaAccountId = typeof body?.megaAccountId === "string"
+      ? body.megaAccountId
       : undefined;
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
@@ -198,7 +206,19 @@ Deno.serve(async (req) => {
     }
 
     const isDriveSource = (driveDownloadUrl || fileUrl.includes("googleapis.com")) && googleAccessToken;
-    if (megaUrl) {
+    if (megaFileName && megaAccountId) {
+      console.log("Getting video size from Mega account...");
+      const proxyToken = await encrypt(JSON.stringify({
+        megaFileName,
+        megaAccountId,
+        exp: Date.now() + 15 * 60 * 1000,
+      }));
+      const proxyUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(proxyToken)}`;
+      const headRes = await fetch(proxyUrl, { method: "HEAD" });
+      const videoSize = parseInt(headRes.headers.get("content-length") || "0", 10);
+      if (!videoSize) throw new Error("Could not determine video size from Mega account");
+      video.video_size = videoSize;
+    } else if (megaUrl) {
       console.log("Getting video size from Mega...");
       const megaFile = File.fromURL(megaUrl);
       await megaFile.loadAttributes();
@@ -327,7 +347,15 @@ Deno.serve(async (req) => {
 
     console.log(`Streaming video to TikTok (${video.video_size} bytes)...`);
     let videoRes: Response;
-    if (megaUrl) {
+    if (megaFileName && megaAccountId) {
+      const proxyToken = await encrypt(JSON.stringify({
+        megaFileName,
+        megaAccountId,
+        exp: Date.now() + 15 * 60 * 1000,
+      }));
+      const proxyUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(proxyToken)}`;
+      videoRes = await fetch(proxyUrl);
+    } else if (megaUrl) {
       const proxyToken = await encrypt(JSON.stringify({
         megaUrl,
         exp: Date.now() + 15 * 60 * 1000,

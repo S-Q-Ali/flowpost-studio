@@ -398,17 +398,40 @@ Deno.serve(async (req) => {
             continue;
           }
 
-         const isMega = rawUrl.includes("mega.nz/");
-         let driveDownloadUrl: string | undefined;
-         let megaUrl: string | undefined;
-         let storedFileUrl: string;
-         let videoDisplayName: string;
+          const isMegaPublic = rawUrl.includes("mega.nz/");
+          const isMegaAccount = rawUrl.startsWith("mega:");
+          let driveDownloadUrl: string | undefined;
+          let megaUrl: string | undefined;
+          let megaFileName: string | undefined;
+          let megaAccountId: string | undefined;
+          let storedFileUrl: string;
+          let videoDisplayName: string;
 
-         if (isMega) {
-           megaUrl = rawUrl;
-           storedFileUrl = rawUrl;
-           videoDisplayName = `mega-video-${rowIndex}`;
-         } else {
+          if (isMegaAccount) {
+            megaFileName = rawUrl.slice(5).trim();
+            if (!megaFileName) {
+              errors.push(`Row ${rowIndex}: empty filename after mega:`);
+              continue;
+            }
+            const { data: megaAccount } = await supabase
+              .from("connected_accounts")
+              .select("id")
+              .eq("user_id", wf.user_id)
+              .eq("platform", "mega")
+              .eq("is_connected", true)
+              .maybeSingle();
+            if (!megaAccount) {
+              errors.push(`Row ${rowIndex}: no Mega account connected for user ${wf.user_id}`);
+              continue;
+            }
+            megaAccountId = megaAccount.id;
+            storedFileUrl = `mega:${megaFileName}`;
+            videoDisplayName = megaFileName.replace(/\.[^/.]+$/, "");
+          } else if (isMegaPublic) {
+            megaUrl = rawUrl;
+            storedFileUrl = rawUrl;
+            videoDisplayName = `mega-video-${rowIndex}`;
+          } else {
            const match = rawUrl.match(/\/d\/([^/]+)/);
            const fileId = match?.[1];
            if (!fileId) {
@@ -587,7 +610,10 @@ Deno.serve(async (req) => {
 
         // Kick off uploads via existing Edge Functions (fire-and-forget) — only for immediate slot
         const filePayload: Record<string, unknown> = { postId: "" };
-        if (isMega) {
+        if (isMegaAccount) {
+          filePayload.megaFileName = megaFileName;
+          filePayload.megaAccountId = megaAccountId;
+        } else if (isMegaPublic) {
           filePayload.megaUrl = megaUrl;
         } else {
           filePayload.driveDownloadUrl = driveDownloadUrl;
