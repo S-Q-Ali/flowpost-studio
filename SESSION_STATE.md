@@ -302,17 +302,30 @@ npx.cmd supabase db push
 
 ---
 
-### 17. Google Drive → Mega Backup — Planned (2026-07-07)
+### 17. Google Drive → Mega — Option A (2026-07-07)
 
-**Goal**: Free up Drive space by manually transferring selected files to Mega for cold storage; restore by copying back when needed.
+**Goal**: Use Mega as an alternative file source when Drive is full. Put Mega URLs in Sheets' `video_url` column alongside Drive URLs — captions, status, scheduling all unchanged. Workflow publishes from whichever URL is provided.
 
-**Proposed approach**:
-- **Mega auth**: Store single admin Mega account credentials as secrets (`MEGA_EMAIL`, `MEGA_PASSWORD`) or per-user encrypted tokens in `connected_accounts`
-- **Backup page** (`/backup`): Lists Drive files from `videos` table with checkboxes; "Backup Selected" button
-- **`transfer-to-mega` edge function**: Downloads from Drive API, uploads to Mega via Mega's protocol. **Challenge**: Mega uses an encrypted protocol — requires a Deno-compatible Mega library or a Node.js worker service
-- **`file_backups` table**: Tracks backup status (pending/uploading/backed_up/failed), Mega node handle, file size
-- **Delete from Drive**: Optional after successful backup, calls `DELETE /drive/v3/files/{id}`
-- **Restore**: `mega-to-drive` edge function — downloads from Mega, uploads back to Drive, updates `videos.file_url`
-- **DB references unchanged** during normal operation — Mega is cold storage only
+**Key insight**: Google Sheets stays as the scheduling layer. Mega only replaces the file storage. A single Sheet can mix Drive URLs and Mega URLs per row.
 
-**Next step**: Determine Mega API integration strategy (Deno library vs. separate Node.js worker).
+**What stays the same**:
+- Sheet columns (`video_url`, `fb_ig_caption`, `status`, `platforms`, etc.)
+- Scheduling modes, platform routing, upload functions
+- `process-workflow` loop (sheet reading, status management)
+
+**What changes in `process-workflow`**:
+- URL detection — Drive URL (`/d/FILEID`) → existing Drive API flow with OAuth token. Mega URL (`mega.nz/file/HASH#KEY`) → new Mega download flow
+- Both paths resolve to file bytes → same upload pipeline
+
+**Mega download challenge** — Mega uses encrypted protocol + client-side decryption. A plain `fetch(megaUrl)` won't work. Need to:
+1. Resolve download URL via Mega API (`g.api.mega.co.nz/cs`)
+2. Decrypt file data using key embedded in the Mega link
+3. Stream decrypted bytes to platform API
+
+**Options for Mega API integration**:
+- **Deno Mega library** — `npm:mega` or `x/mega` — runs inside the edge function. Most integrated but potential compatibility issues with Supabase Edge Function runtime
+- **Node.js worker service** — lightweight server that queues transfer jobs. Edge function calls worker → worker downloads/decrypts Mega file → returns bytes or stores temporarily. More reliable but adds infrastructure
+
+**Future consideration**: If Mega proves reliable, Option B (replace both Sheets and Drive with a native Supabase queue system + Mega storage) becomes viable — removing Google dependency entirely.
+
+**Next step**: Pick Mega API integration strategy.
