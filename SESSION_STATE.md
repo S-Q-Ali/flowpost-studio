@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `5a53fc6` — Add Mega file source support
+## CURRENT HEAD: `d47d03c` — Mega account integration
 
 ---
 
@@ -131,6 +131,7 @@
 - **`get-file` proxy** — streams Drive files directly to platform APIs via encrypted short-lived token
 - **Multi-Drive per workflow** — `drive_account_id` column on workflows; Drive selector in Step 1 (mandatory); cards show assigned Drive name
 - **Mega as alternate file source** — paste mega.nz URLs in Sheet's `video_url`; get-file proxy downloads via `npm:megajs`; mixed Drive + Mega URLs per row supported
+- **Mega account integration** — users connect Mega via email/password on AccountsPage; `mega:filename.mp4` in Sheet triggers authenticated download via get-file proxy; mega-auth function handles connect/files/disconnect
 
 ### Known Issues
 1. **Instagram upload timeout** (8×30s polling > 60s runtime) — same class of bug as post-story was fixed for, but not yet applied to instagram-upload
@@ -390,3 +391,33 @@ video_url:
 3. `get-file` proxy update (authenticated Mega download)
 4. `process-workflow` URL detection update (`mega:` prefix)
 5. Deploy + test
+
+---
+
+### 19. Mega Account Integration — Implemented (2026-07-07)
+
+**Goal**: Replace anonymous public share links with authenticated Mega account login. Users connect their own Mega account, put `mega:filename.mp4` in the Sheet, and the system looks up the file by name inside the logged-in Mega session.
+
+**Changes**:
+
+| File | Change |
+|------|--------|
+| `supabase/functions/mega-auth/index.ts` | New — 3 actions: `connect` (validate + store encrypted credentials), `files` (list root files), `disconnect` |
+| `src/pages/AccountsPage.tsx` | Added Mega section — connect form (email/password), account list, disconnect button |
+| `supabase/config.toml` | Added `[functions.mega-auth] verify_jwt = false` |
+| `supabase/functions/get-file/index.ts` | Accept `{ megaFileName, megaAccountId, exp }` in token; decrypts creds from DB, logs in via `new Storage()`, searches root by name, downloads |
+| `supabase/functions/process-workflow/index.ts` | Detects `mega:` prefix; looks up user's Mega account from `connected_accounts`; passes `megaFileName` + `megaAccountId` to uploaders |
+| `supabase/functions/facebook-upload/index.ts` | Accepts `megaFileName` + `megaAccountId`; builds get-file proxy token for authenticated Mega |
+| `supabase/functions/instagram-upload/index.ts` | Same pattern |
+| `supabase/functions/tiktok-upload/index.ts` | Same pattern (2 locations: video size + stream) |
+| `supabase/functions/youtube-upload/index.ts` | Same pattern |
+
+**3 supported Sheet patterns**:
+```
+video_url:
+  https://drive.google.com/...     → Drive API
+  https://mega.nz/file/HASH#KEY    → Public link (anonymous)
+  mega:my-cool-video.mp4           → Account lookup (authenticated)
+```
+
+**All 7 functions deployed** (commit `d47d03c`).
