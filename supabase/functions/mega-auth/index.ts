@@ -31,7 +31,15 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const action = url.searchParams.get("action");
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const action = (body.action as string) || url.searchParams.get("action");
 
   const authHeader = req.headers.get("Authorization");
   const token = authHeader?.replace("Bearer ", "");
@@ -44,7 +52,7 @@ Deno.serve(async (req) => {
     if (!action) return json({ error: "Missing action" }, 400);
 
     if (action === "connect") {
-      const { email, password, userId } = await req.json();
+      const { email, password, userId } = body as { email?: string; password?: string; userId?: string };
       if (!email || !password || !userId) {
         return json({ error: "Missing email, password, or userId" }, 400);
       }
@@ -129,7 +137,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "disconnect") {
-      const { accountId } = await req.json();
+      const { accountId } = body as { accountId?: string };
       if (!accountId) return json({ error: "Missing accountId" }, 400);
 
       const { error: updateError } = await supabaseAdmin
