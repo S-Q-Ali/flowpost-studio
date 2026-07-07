@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `e9465fa` — fix: replace deprecated page_fans/page_impressions with page_follows/page_media_view
+## CURRENT HEAD: `042f66f` — Add per-workflow Drive account selection
 
 ---
 
@@ -108,7 +108,7 @@
 
 ---
 
-## Current State (2026-07-06)
+## Current State (2026-07-07)
 
 ### What Works
 - Auth: Google OAuth (existing users only) + admin email/password + security questions
@@ -123,17 +123,19 @@
 - YouTube daily quota warning badge
 - QueuePage: retry button, Select All/20/Clear, 24h guard
 - Instagram insights dashboard with Recharts
-- Facebook insights edge function deployed (all 4 metrics returning `(#100)` — diagnostic split applied)
+- Facebook insights edge function deployed; all 4 metrics working (v25.0 API, `page_follows`/`page_media_view`/`page_post_engagements`/`page_views_total`)
 - Video stagger removed — all videos fire immediately
 - R2 lifecycle rule auto-deletes after 1 day
 - BetaBadge shown in all 6 TikTok UI locations
+- **Per-user Google Drive OAuth** — each user connects Drive via OAuth; tokens stored encrypted; R2 removed
+- **`get-file` proxy** — streams Drive files directly to platform APIs via encrypted short-lived token
+- **Multi-Drive per workflow** — `drive_account_id` column on workflows; Drive selector in Step 1 (mandatory); cards show assigned Drive name
 
 ### Known Issues
 1. **Instagram upload timeout** (8×30s polling > 60s runtime) — same class of bug as post-story was fixed for, but not yet applied to instagram-upload
 2. **Fire-and-forget swallows errors** — `void fetch(...)` in process-workflow ignores upload failures
 3. **No stale processing cleanup** — posts stuck in "processing" never retried
 4. **Stagger removed** — if stagger is needed in future, must also fix the Google token passthrough issue
-5. **Facebook insights `(#100)` error** — **FIXED** — two root causes: (1) API version v23.0 → v25.0 (`page_media_view`/`page_follows` didn't exist on v23.0), (2) `page_engaged_users` (deprecated March 2024) → `page_post_engagements`
 
 ### Blocked
 - TikTok app review — needs paid domain (Vercel Pro $20/mo + $12/yr domain)
@@ -144,7 +146,7 @@
 
 ## DB Schema Notes
 - `posts`: id, user_id (text), video_id, platform, caption, hashtags, scheduled_at, published_at, status, captions_enabled, created_at, account_id, contains_altered_content, fb_ai_label, metadata (jsonb), post_type
-- `workflows`: id, user_id, name, is_active, sheet_url, sheet_id, platforms[], youtube_channel_ids[], facebook_page_ids[], instagram_account_ids[], trigger_hour_start, trigger_hour_end, max_videos_per_trigger, last_triggered_at, total_posted, created_at, updated_at, youtube_altered_content, post_as_story, last_manual_triggered_at, run_days[], day_time_windows (jsonb), run_interval_hours, media_type, videos_per_run, facebook_ai_generated, instagram_ai_generated, scheduling_mode, custom_schedule (jsonb), tiktok_account_ids[]
+- `workflows`: id, user_id, name, is_active, sheet_url, sheet_id, platforms[], youtube_channel_ids[], facebook_page_ids[], instagram_account_ids[], trigger_hour_start, trigger_hour_end, max_videos_per_trigger, last_triggered_at, total_posted, created_at, updated_at, youtube_altered_content, post_as_story, last_manual_triggered_at, run_days[], day_time_windows (jsonb), run_interval_hours, media_type, videos_per_run, facebook_ai_generated, instagram_ai_generated, scheduling_mode, custom_schedule (jsonb), tiktok_account_ids[], drive_account_id
 - `connected_accounts`: id, user_id, platform, account_id, username, avatar_url, is_connected, access_token (encrypted), refresh_token, token_expires_at, metadata (jsonb), created_at, updated_at
 - Migration `20260704000000_add_post_type.sql` applied
 - No `error`, `error_details`, or `attempts` column on posts
@@ -169,7 +171,7 @@ npx.cmd supabase db query --linked "SELECT * FROM cron.job_run_details ORDER BY 
 npx.cmd supabase db query --linked "SELECT jobid, schedule, enabled, regular FROM cron.job;"
 
 # Apply migration
-npx.cmd supabase migration up
+npx.cmd supabase db push
 ```
 
 ## Key URLs
@@ -272,3 +274,45 @@ npx.cmd supabase migration up
 - No more sharing sheets with service account email
 
 **Post-deploy issue**: process-workflow was running stale R2-polling code despite successful deploy log. Redeploy fixed it — second video in custom-ranges mode was failing because the function spent 60s waiting for a nonexistent R2 story URL, eating into execution time before processing the next row.
+
+---
+
+### 16. Multi-Drive Per Workflow — Added (2026-07-07)
+
+**Problem**: Only one Drive account per user — all workflows used the same Drive token. User may have multiple Google accounts with different storage quotas, and wanted to assign specific Drives to specific workflows.
+
+**Solution**: Added `drive_account_id` column to workflows; full UI + backend for per-workflow Drive selection.
+
+**Files changed**:
+
+| File | Change |
+|------|--------|
+| `supabase/migrations/20260707000000_add_drive_account_id.sql` | New migration — `ALTER TABLE workflows ADD COLUMN drive_account_id UUID REFERENCES connected_accounts(id)` |
+| `src/lib/types.ts` | Added `drive_account_id: string \| null` to `Workflow` type |
+| `src/pages/WorkflowsPage.tsx` | Added `selectedDriveId` + `driveAccounts` state; `fetchDriveAccounts()` loads connected Drives; Drive selector `<Select>` in Step 1 with validation; card display shows assigned Drive name; `drive_account_id` in save payload |
+| `src/pages/AccountsPage.tsx` | Already had multi-Drive list (from entry 15) — reuses `fetchDrive()` showing all connected Drives with disconnect button |
+| `supabase/functions/process-workflow/index.ts` | `getDriveToken()` now accepts optional `driveAccountId` param; filters by `id` when provided; refresh URL includes `account_id` |
+| `supabase/functions/google-drive-auth/index.ts` | `refresh` action accepts optional `account_id` param for multi-account targeting |
+
+**Behavior**:
+- User must select a Drive when creating/editing a workflow (mandatory — save blocked otherwise)
+- `process-workflow` resolves the correct token by filtering `connected_accounts` by `id`
+- Token refresh targets the specific account via `account_id` query param
+- If no Drives connected, form shows a link to Accounts page with an error message
+
+---
+
+### 17. Google Drive → Mega Backup — Planned (2026-07-07)
+
+**Goal**: Free up Drive space by manually transferring selected files to Mega for cold storage; restore by copying back when needed.
+
+**Proposed approach**:
+- **Mega auth**: Store single admin Mega account credentials as secrets (`MEGA_EMAIL`, `MEGA_PASSWORD`) or per-user encrypted tokens in `connected_accounts`
+- **Backup page** (`/backup`): Lists Drive files from `videos` table with checkboxes; "Backup Selected" button
+- **`transfer-to-mega` edge function**: Downloads from Drive API, uploads to Mega via Mega's protocol. **Challenge**: Mega uses an encrypted protocol — requires a Deno-compatible Mega library or a Node.js worker service
+- **`file_backups` table**: Tracks backup status (pending/uploading/backed_up/failed), Mega node handle, file size
+- **Delete from Drive**: Optional after successful backup, calls `DELETE /drive/v3/files/{id}`
+- **Restore**: `mega-to-drive` edge function — downloads from Mega, uploads back to Drive, updates `videos.file_url`
+- **DB references unchanged** during normal operation — Mega is cold storage only
+
+**Next step**: Determine Mega API integration strategy (Deno library vs. separate Node.js worker).
