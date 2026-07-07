@@ -341,3 +341,52 @@ Sheet video_url column:
 2. Uploaded videos to Mega
 3. Got share links (mega.nz/file/HASH#KEY)
 4. Paste links into Sheet's `video_url` column
+
+---
+
+### 18. Mega Account Integration — Refined Plan (2026-07-07)
+
+**Goal**: Replace anonymous public share links with authenticated Mega account login. Users connect their own Mega account (like Drive), put `mega:filename.mp4` in the Sheet, and the system looks up the file by name inside the logged-in Mega session. No decryption keys exposed.
+
+**Reason**: After testing, public share links work but expose the decryption key in the Sheet. Account login keeps files private and allows lookup by filename instead of full URL.
+
+**How it works**:
+- Each user connects their own Mega account (email + password) → encrypted in `connected_accounts` with `platform: "mega"`
+- Sheet `video_url` column accepts `mega:filename.mp4` instead of `https://mega.nz/file/HASH#KEY`
+- `get-file` proxy logs into Mega via `new Storage({ email, password })`, searches root for filename, downloads via authenticated session
+- Three source types supported per row: Drive URL, public Mega URL, or `mega:filename`
+
+**New files**:
+
+| File | Purpose |
+|------|---------|
+| `supabase/functions/mega-auth/index.ts` | Actions: `connect` (validate + store encrypted credentials), `files` (list root files), `disconnect` |
+| `src/pages/AccountsPage.tsx` | Add Mega section — same pattern as Drive: connect button → email/password form → connected account list with disconnect |
+
+**Modified files**:
+
+| File | Change |
+|------|--------|
+| `supabase/functions/get-file/index.ts` | Accept `{ megaFileName, megaAccountId, exp }` in token; fetch encrypted creds from DB, log in, search root by name, download |
+| `supabase/functions/process-workflow/index.ts` | Detect `mega:` prefix; retrieve user's Mega account from `connected_accounts`; pass `megaFileName` + `megaAccountId` |
+| `supabase/config.toml` | Add `[functions.mega-auth]` block with `verify_jwt = false` |
+
+**No changes needed**:
+- Upload functions (`facebook-upload`, `instagram-upload`, `tiktok-upload`, `youtube-upload`) — already accept `megaUrl` field, unchanged
+- Sheet columns — `video_url` gets `mega:filename.mp4`, rest same
+- Scheduling, platforms, captions — all unchanged
+
+**3 supported Sheet patterns** (all in one sheet):
+```
+video_url:
+  https://drive.google.com/...     → Drive API (existing)
+  https://mega.nz/file/HASH#KEY    → Public link (existing)
+  mega:my-cool-video.mp4           → Account lookup (new)
+```
+
+**Implementation order**:
+1. `mega-auth` function (connect + files + disconnect)
+2. `AccountsPage.tsx` Mega section
+3. `get-file` proxy update (authenticated Mega download)
+4. `process-workflow` URL detection update (`mega:` prefix)
+5. Deploy + test
