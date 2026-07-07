@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `042f66f` — Add per-workflow Drive account selection
+## CURRENT HEAD: `7b91bbf` — Mega plan confirmed with npm:megajs
 
 ---
 
@@ -342,3 +342,25 @@ Sheet video_url column:
 ```
 
 **Next step**: Implement the changes — start with `get-file` proxy, then upload functions, then `process-workflow`.
+
+### Implementation Steps (ordered)
+
+| # | File | What to do |
+|---|------|------------|
+| 1 | `get-file/index.ts` | Import `{ File } from 'npm:megajs'`; extend token payload to accept `megaUrl`; when present, download via `megajs` and stream result; keep existing Drive API flow as fallback |
+| 2 | `facebook-upload/index.ts` | Parse `megaUrl` from body; generate proxy token `{ megaUrl, exp }` and pass to `get-file` |
+| 3 | `instagram-upload/index.ts` | Same as facebook |
+| 4 | `tiktok-upload/index.ts` | Parse `megaUrl`; generate proxy token; fetch video via proxy URL before streaming to TikTok; add SUPABASE_URL host to ALLOWED_DOMAINS |
+| 5 | `youtube-upload/index.ts` | Parse `megaUrl`; generate proxy URL as sourceUrl; add SUPABASE_URL host to ALLOWED_DOMAINS |
+| 6 | `process-workflow/index.ts` | Detect `mega.nz` in `video_url`; pass `megaUrl` field instead of `driveDownloadUrl` + `googleAccessToken` |
+| 7 | Deploy | `npx.cmd supabase functions deploy get-file facebook-upload instagram-upload tiktok-upload youtube-upload process-workflow` |
+
+**Memory note**: If megajs `downloadBuffer()` causes OOM on files >500MB, switch to `.download()` stream mode in `get-file`.
+
+### What you need to do manually
+
+1. **Create a Mega account** at https://mega.nz (if you don't have one)
+2. **Upload videos** to your Mega account via web UI or Mega Desktop app
+3. **Get share links** — right-click each file → "Get link" → copy the full URL (e.g. `https://mega.nz/file/HASH#KEY`)
+4. **Paste links into your Sheet** — put Mega URLs in the `video_url` column alongside or instead of Drive URLs
+5. **No changes to captions, status, or platforms** — those columns stay exactly the same
