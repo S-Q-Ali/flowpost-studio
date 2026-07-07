@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `317c07d` — Fix mega-auth action reading from body
+## CURRENT HEAD: `a177814` — Fix storage.api.logout not a function
 
 ---
 
@@ -433,3 +433,15 @@ video_url:
 **Fix**: Restructured `mega-auth/index.ts` to parse the request body once at the top with `await req.json()`, then extract `action` from `body.action` with fallback to `url.searchParams.get("action")`. Also refactored `connect` and `disconnect` to use the already-parsed `body` instead of calling `req.json()` again.
 
 **Redeployed** (commit `317c07d`).
+
+---
+
+### 21. storage.api.logout is not a function — Fixed (2026-07-07)
+
+**Symptom**: Mega connection failed with `TypeError: storage.api.logout is not a function`.
+
+**Root cause**: `npm:megajs` v1.3.10's `Storage` doesn't expose `api.logout()` as a callable method in Deno.
+
+**Fix**: Removed all `storage.api.logout()` calls from `mega-auth/index.ts` (2 occurrences) and `get-file/index.ts` (2 occurrences). Connection closes naturally when the function returns.
+
+**Redeployed** both functions (commit `a177814`).
