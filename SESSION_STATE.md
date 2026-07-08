@@ -518,3 +518,53 @@ video_url:
 - `supabase/config.toml` — added `[functions.drive-to-mega]`
 
 **Deployed** 3 functions (commit `b3bb94c`).
+
+---
+
+### 26. Drive-to-Mega 500 Errors — Fixed (2026-07-08)
+
+**Symptom**: All 5 test files returned 500 errors when transferring from Drive → Mega.
+
+**Root cause**: `target.upload({ name, size }, driveRes.body).complete` at `drive-to-mega/index.ts:148` passed a Web `ReadableStream` to `megajs`, which only accepts:
+- Node.js `Readable` streams (have `.pipe()`) or
+- `Uint8Array`/`Buffer` (have `.length`)
+
+A Web `ReadableStream` has neither — it crashed. First fix used `Readable.fromWeb()` but Deno's `node:stream` polyfill wasn't recognized by megajs's browser build (`typeof source.pipe` returned false, entered wrong code path again).
+
+**Final fix**: Manual write through the stream returned by `target.upload()`. Instead of passing a source, we call `upload({ name, size })` with no source, which returns the internal encryption stream (Pumpify). We then:
+1. Read chunks from `driveRes.body.getReader()` (Web Streams API)
+2. Write each chunk via `uploadStream.write(value)` with backpressure handling (`drain` event)
+3. Call `uploadStream.end()` when done
+4. `await uploadStream.complete` for the upload to finish
+
+This bypasses `megajs`'s broken source detection entirely. The `megaEncrypt` transform uses AES-128-CTR (stream cipher) — processes chunks incrementally, no size requirement. Peak memory ~132KB per chunk.
+
+| File | Change |
+|------|--------|
+| `supabase/functions/drive-to-mega/index.ts` | Replaced `target.upload({...}, driveRes.body)` with manual reader/writer loop + backpressure; removed `Readable.fromWeb()` |
+| `supabase/config.toml` | Added `timeout = "120s"` to `[functions.drive-to-mega]` (previous fix) |
+| `SESSION_STATE.md` | Updated this entry |
+
+**Deploy**: `supabase functions deploy drive-to-mega --no-verify-jwt`
+
+---
+
+### 27. Post-Story Never Called — Fixed (2026-07-08)
+
+**Symptom**: Workflows triggered and published videos but never posted stories. Zero logs from `post-story` in Supabase.
+
+**Root cause**: `process-workflow/index.ts:672` referenced `if (isMega)` — a variable that was **never declared**. The actual variables are `isMegaPublic` (mega.nz URL) and `isMegaAccount` (mega: prefix), declared at lines 401-402. The `ReferenceError` was caught by the catch block, silently skipping the entire story block.
+
+A secondary bug: even if `isMega` existed, the `mega:` prefix case doesn't set `megaUrl` — it sets `megaFileName` + `megaAccountId`. The old token construction passed `megaUrl` which would be `undefined`.
+
+**Fix**: Replaced the two-way branch (`isMega` / `else`) with three-way:
+
+| Source type | Token payload | Used for |
+|-------------|--------------|----------|
+| `isMegaAccount` (`mega:filename.mp4`) | `{ megaFileName, megaAccountId, exp }` | Authenticated Mega download via get-file |
+| `isMegaPublic` (mega.nz URL) | `{ megaUrl, exp }` | Public Mega link download via get-file |
+| Drive (else) | `{ driveUrl, driveToken, exp }` | Drive download via get-file |
+
+**File**: `supabase/functions/process-workflow/index.ts:672-685`
+
+**Deploy**: `supabase functions deploy process-workflow --no-verify-jwt`

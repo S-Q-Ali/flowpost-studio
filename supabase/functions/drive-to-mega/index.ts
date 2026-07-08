@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { Storage as MegaStorage } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -145,13 +146,24 @@ Deno.serve(async (req) => {
     });
     if (!driveRes.ok) throw new Error("Failed to download from Drive");
 
-    const uploadResult = await target.upload({ name: fileName, size: contentLength }, driveRes.body).complete;
+    const uploadStream = target.upload({ name: fileName, size: contentLength });
+    const reader = driveRes.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!uploadStream.write(value)) {
+        await new Promise(resolve => uploadStream.once("drain", resolve));
+      }
+    }
+    uploadStream.end();
+    const result = await uploadStream.complete;
 
     try { (storage as any).api?.logout?.(); } catch {}
 
     return json({ success: true, fileName, size: contentLength });
   } catch (err) {
-    console.error("drive-to-mega error", err);
+    console.error("[drive-to-mega] error:", err?.constructor?.name, err instanceof Error ? err.message : String(err));
+    if (err instanceof Error && err.stack) console.error("[drive-to-mega] stack:", err.stack);
     return json({ error: err instanceof Error ? err.message : "Unknown error" }, 500);
   }
 });

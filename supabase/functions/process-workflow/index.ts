@@ -669,7 +669,14 @@ Deno.serve(async (req) => {
         if (wf.post_as_story && !isImageWorkflow) {
           // Generate a short-lived get-file proxy URL for the story
           let storyVideoUrl: string;
-          if (isMega) {
+          if (isMegaAccount) {
+            const storyToken = await encrypt(JSON.stringify({
+              megaFileName,
+              megaAccountId,
+              exp: Date.now() + 15 * 60 * 1000,
+            }));
+            storyVideoUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(storyToken)}`;
+          } else if (isMegaPublic) {
             const storyToken = await encrypt(JSON.stringify({
               megaUrl,
               exp: Date.now() + 15 * 60 * 1000,
