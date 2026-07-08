@@ -32,22 +32,18 @@ function json(data: unknown, status = 200) {
 
 function getMegaChunkSize(pos: number, fileSize: number): number {
   if (pos >= fileSize) return 0;
-  if (pos < 128) return Math.min(128, fileSize - pos);
-  if (pos < 384) return Math.min(384 - pos, fileSize - pos);
-  if (pos < 896) return Math.min(896 - pos, fileSize - pos);
-  if (pos < 1920) return Math.min(1920 - pos, fileSize - pos);
-  if (pos < 3968) return Math.min(3968 - pos, fileSize - pos);
-  if (pos < 8064) return Math.min(8064 - pos, fileSize - pos);
-  if (pos < 16256) return Math.min(16256 - pos, fileSize - pos);
-  if (pos < 32640) return Math.min(32640 - pos, fileSize - pos);
-  if (pos < 65408) return Math.min(65408 - pos, fileSize - pos);
-  if (pos < 130944) return Math.min(130944 - pos, fileSize - pos);
-  if (pos < 262016) return Math.min(262016 - pos, fileSize - pos);
-  return Math.min(1048576, fileSize - pos);
-}
-
-function hex(data: Uint8Array): string {
-  return Array.from(data).map(b => b.toString(16).padStart(2, "0")).join("");
+  const initial = 131072;
+  const increment = 131072;
+  const maxChunk = 1048576;
+  let boundary = 0;
+  let size = initial;
+  while (true) {
+    const chunk = Math.min(size, maxChunk);
+    const next = boundary + chunk;
+    if (pos < next) return Math.min(next - pos, fileSize - pos);
+    boundary = next;
+    size += increment;
+  }
 }
 
 function e64(data: Uint8Array): string {
@@ -107,10 +103,10 @@ async function uploadWithWebCrypto(
   let position = 0;
   let completionHash: Uint8Array | null = null;
   const reader = body.getReader();
-  const macIV = new Uint8Array(16);
-  macIV.set(nonce, 0);
-  let mac = new Uint8Array(macIV);
   const zeroIv = new Uint8Array(16);
+  let mac = new Uint8Array(16);
+  mac.set(nonce, 0);
+  mac.set(nonce, 8);
 
   onProgress(0);
 
@@ -129,11 +125,8 @@ async function uploadWithWebCrypto(
     const ciphertext = await crypto.subtle.encrypt({ name: "AES-CTR", counter, length: 128 }, ctrKey, plaintext);
     const ctBytes = new Uint8Array(ciphertext);
 
-    // 4b. CBC-MAC update (batch via AES-CBC)
-    const macIn = new Uint8Array(16 + ctBytes.length);
-    macIn.set(mac, 0);
-    macIn.set(ctBytes, 16);
-    const macOut = await crypto.subtle.encrypt({ name: "AES-CBC", iv: zeroIv }, cbcKey, macIn);
+    // 4b. CBC-MAC update: AES-CBC with current mac as IV, take last block
+    const macOut = await crypto.subtle.encrypt({ name: "AES-CBC", iv: mac }, cbcKey, ctBytes);
     mac = new Uint8Array(macOut.slice(-16));
 
     // 4c. POST chunk to Mega
@@ -165,23 +158,16 @@ async function uploadWithWebCrypto(
 
   // 9. Create file node via Mega API
   if (!completionHash) throw new Error("No completion hash from Mega upload");
-
-  const tParam = (target as any).nodeId || target;
-  const hParam = e64(completionHash);
-  const aParam = e64(new Uint8Array(attrEnc));
-  const kParam = e64(new Uint8Array(keyBuf));
-  console.error("[p] target.nodeId:", typeof (target as any).nodeId, (target as any).nodeId?.constructor?.name, (target as any).nodeId?.length);
-  console.error("[p] t:", typeof tParam, tParam?.constructor?.name, typeof tParam === "string" ? tParam.length : "N/A");
-  console.error("[p] h:", hParam, "len:", hParam.length);
-  console.error("[p] a:", aParam, "len:", aParam.length);
-  console.error("[p] k:", kParam, "len:", kParam.length);
-  console.error("[p] completionHash hex:", hex(completionHash), "bytes:", completionHash.length);
-
   await new Promise<void>((resolve, reject) => {
     storage.api.request({
       a: "p",
-      t: tParam,
-      n: [{ h: hParam, t: 0, a: aParam, k: kParam }],
+      t: (target as any).nodeId || target,
+      n: [{
+        h: e64(completionHash),
+        t: 0,
+        a: e64(new Uint8Array(attrEnc)),
+        k: e64(new Uint8Array(keyBuf)),
+      }],
     }, (err: any) => {
       if (err) reject(new Error(err));
       else resolve();
