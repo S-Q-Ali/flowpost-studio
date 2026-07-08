@@ -46,6 +46,10 @@ function getMegaChunkSize(pos: number, fileSize: number): number {
   }
 }
 
+function hex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 function e64(data: Uint8Array): string {
   return btoa(String.fromCharCode(...data))
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
@@ -111,6 +115,7 @@ async function uploadWithWebCrypto(
       else resolve(resp.p);
     });
   });
+  console.error("[upload] url:", uploadUrl?.substring(0, 60));
 
   // 4. Upload chunks
   let position = 0;
@@ -149,11 +154,13 @@ async function uploadWithWebCrypto(
     mac.set(nonce, 0);
     mac.set(nonce, 8);
 
-    // 4d. POST chunk to Mega
-    const resp = await fetch(`${uploadUrl}/${position}`, { method: "POST", body: ctBytes });
+    // 4d. POST chunk to Mega (use storage.api.fetch for proper auth)
+    const chunkUrl = `${uploadUrl}/${position}`;
+    const resp = await storage.api.fetch(chunkUrl, { method: "POST", body: ctBytes });
     if (!resp.ok) throw new Error(`Chunk upload failed at byte ${position}: ${resp.status}`);
     const raw = await resp.arrayBuffer();
-    if (raw.byteLength > 0) completionHash = new Uint8Array(raw);
+    const rawBytes = new Uint8Array(raw);
+    if (raw.byteLength > 0) completionHash = rawBytes;
 
     position += ctBytes.length;
     onProgress(Math.min(Math.round((position / fileSize) * 100), 99));
@@ -179,16 +186,19 @@ async function uploadWithWebCrypto(
 
   // 9. Create file node via Mega API
   if (!completionHash) throw new Error("No completion hash from Mega upload");
+  const hParam = e64(completionHash);
+  const aParam = e64(new Uint8Array(attrEnc));
+  const kParam = e64(new Uint8Array(keyBuf));
+  const tParam = (target as any).nodeId || target;
+  console.error("[p] t:", typeof tParam, "len:", tParam?.length);
+  console.error("[p] h:", hParam, "len:", hParam.length);
+  console.error("[p] a:", aParam, "len:", aParam.length);
+  console.error("[p] k:", kParam, "len:", kParam.length);
   await new Promise<void>((resolve, reject) => {
     storage.api.request({
       a: "p",
-      t: (target as any).nodeId || target,
-      n: [{
-        h: e64(completionHash),
-        t: 0,
-        a: e64(new Uint8Array(attrEnc)),
-        k: e64(new Uint8Array(keyBuf)),
-      }],
+      t: tParam,
+      n: [{ h: hParam, t: 0, a: aParam, k: kParam }],
     }, (err: any) => {
       if (err) reject(new Error(err));
       else resolve();
