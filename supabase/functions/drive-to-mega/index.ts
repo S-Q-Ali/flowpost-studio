@@ -59,6 +59,19 @@ function mergeKeyMac(key: Uint8Array, mac: Uint8Array): Uint8Array {
   return merged;
 }
 
+async function chainMacs(macs: Uint8Array[], key: CryptoKey): Promise<Uint8Array> {
+  const zeroIv = new Uint8Array(16);
+  let result = macs[0];
+  for (let i = 1; i < macs.length; i++) {
+    const data = new Uint8Array(32);
+    data.set(result, 0);
+    data.set(macs[i], 16);
+    const enc = await crypto.subtle.encrypt({ name: "AES-CBC", iv: zeroIv }, key, data);
+    result = new Uint8Array(enc.slice(-16));
+  }
+  return result;
+}
+
 async function readExact(reader: ReadableStreamDefaultReader<Uint8Array>, size: number): Promise<Uint8Array> {
   const parts: Uint8Array[] = [];
   let total = 0;
@@ -104,6 +117,7 @@ async function uploadWithWebCrypto(
   let completionHash: Uint8Array | null = null;
   const reader = body.getReader();
   const zeroIv = new Uint8Array(16);
+  const storedMacs: Uint8Array[] = [];
   let mac = new Uint8Array(16);
   mac.set(nonce, 0);
   mac.set(nonce, 8);
@@ -129,7 +143,13 @@ async function uploadWithWebCrypto(
     const macOut = await crypto.subtle.encrypt({ name: "AES-CBC", iv: mac }, cbcKey, ctBytes);
     mac = new Uint8Array(macOut.slice(-16));
 
-    // 4c. POST chunk to Mega
+    // 4c. Save per-chunk MAC, reset to nonce||nonce (megajs checkBounding)
+    storedMacs.push(mac);
+    mac = new Uint8Array(16);
+    mac.set(nonce, 0);
+    mac.set(nonce, 8);
+
+    // 4d. POST chunk to Mega
     const resp = await fetch(`${uploadUrl}/${position}`, { method: "POST", body: ctBytes });
     if (!resp.ok) throw new Error(`Chunk upload failed at byte ${position}: ${resp.status}`);
     const raw = await resp.arrayBuffer();
@@ -139,8 +159,9 @@ async function uploadWithWebCrypto(
     onProgress(Math.min(Math.round((position / fileSize) * 100), 99));
   }
 
-  // 5. Finalize MAC (condense)
-  const condensed = await crypto.subtle.encrypt({ name: "AES-CBC", iv: zeroIv }, cbcKey, mac);
+  // 5. Chain per-chunk MACs, then condense
+  const chained = storedMacs.length > 1 ? await chainMacs(storedMacs, cbcKey) : storedMacs[0];
+  const condensed = await crypto.subtle.encrypt({ name: "AES-CBC", iv: zeroIv }, cbcKey, chained);
   const finalMac = new Uint8Array(condensed.slice(0, 16));
 
   // 6. Merge key and MAC
