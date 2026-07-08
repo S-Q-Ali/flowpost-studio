@@ -241,6 +241,86 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
+    if (action === "quota") {
+      const accountIdParam = url.searchParams.get("account_id");
+      if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
+
+      const { data: account, error: fetchError } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", accountIdParam)
+        .eq("platform", "google_drive")
+        .eq("is_connected", true)
+        .single();
+
+      if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
+
+      const rawRefresh = await decrypt(account.refresh_token as string);
+      if (!rawRefresh) return json({ error: "Missing refresh token" }, 400);
+
+      const refreshed = await refreshAccessToken(rawRefresh);
+      const quotaRes = await fetch(
+        "https://www.googleapis.com/drive/v3/about?fields=storageQuota",
+        { headers: { Authorization: `Bearer ${refreshed.access_token}` } },
+      );
+      const quotaJson = await quotaRes.json();
+      if (!quotaRes.ok) throw new Error(`Drive quota fetch failed: ${JSON.stringify(quotaJson)}`);
+
+      const sq = quotaJson.storageQuota || {};
+      return json({
+        limit: sq.limit ? parseInt(sq.limit, 10) : null,
+        usage: sq.usage ? parseInt(sq.usage, 10) : 0,
+        usageInDrive: sq.usageInDrive ? parseInt(sq.usageInDrive, 10) : 0,
+      });
+    }
+
+    if (action === "list-files") {
+      const accountIdParam = url.searchParams.get("account_id");
+      const parentId = url.searchParams.get("parent_id") || "root";
+      const pageToken = url.searchParams.get("page_token");
+
+      if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
+
+      const { data: account, error: fetchError } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", accountIdParam)
+        .eq("platform", "google_drive")
+        .eq("is_connected", true)
+        .single();
+
+      if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
+
+      const rawRefresh = await decrypt(account.refresh_token as string);
+      if (!rawRefresh) return json({ error: "Missing refresh token" }, 400);
+
+      const refreshed = await refreshAccessToken(rawRefresh);
+      const q = `'${parentId}' in parents and trashed=false`;
+      const listUrl = new URL("https://www.googleapis.com/drive/v3/files");
+      listUrl.searchParams.set("q", q);
+      listUrl.searchParams.set("pageSize", "50");
+      listUrl.searchParams.set("orderBy", "modifiedTime desc");
+      listUrl.searchParams.set("fields", "files(id,name,mimeType,size,modifiedTime),nextPageToken");
+      if (pageToken) listUrl.searchParams.set("pageToken", pageToken);
+
+      const listRes = await fetch(listUrl.toString(), {
+        headers: { Authorization: `Bearer ${refreshed.access_token}` },
+      });
+      const listJson = await listRes.json();
+      if (!listRes.ok) throw new Error(`Drive list files failed: ${JSON.stringify(listJson)}`);
+
+      return json({
+        files: (listJson.files || []).map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          mimeType: f.mimeType,
+          size: f.size ? parseInt(f.size, 10) : 0,
+          modifiedTime: f.modifiedTime,
+        })),
+        nextPageToken: listJson.nextPageToken || null,
+      });
+    }
+
     return json({ error: "Invalid action" }, 400);
   } catch (err) {
     console.error("google-drive-auth error", err);

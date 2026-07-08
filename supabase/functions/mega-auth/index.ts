@@ -151,6 +151,129 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
+    if (action === "quota") {
+      const accountIdParam = (body as { account_id?: string }).account_id || url.searchParams.get("account_id");
+      if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
+
+      const { data: account, error: fetchError } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", accountIdParam)
+        .eq("platform", "mega")
+        .eq("is_connected", true)
+        .single();
+
+      if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
+
+      const email = await decrypt(account.refresh_token as string);
+      const password = await decrypt(account.access_token as string);
+      if (!email || !password) return json({ error: "Missing credentials" }, 400);
+
+      let storage: InstanceType<typeof MegaStorage>;
+      try {
+        storage = await new MegaStorage({ email, password }).ready;
+      } catch {
+        return json({ error: "Failed to login to Mega" }, 401);
+      }
+
+      const info = await storage.getAccountInfo();
+      try { storage.api?.logout?.(); } catch {}
+
+      return json({ spaceUsed: info.spaceUsed, spaceTotal: info.spaceTotal });
+    }
+
+    if (action === "list-items") {
+      const accountIdParam = (body as { account_id?: string }).account_id || url.searchParams.get("account_id");
+      const path = (body as { path?: string }).path || url.searchParams.get("path") || "";
+
+      if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
+
+      const { data: account, error: fetchError } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", accountIdParam)
+        .eq("platform", "mega")
+        .eq("is_connected", true)
+        .single();
+
+      if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
+
+      const email = await decrypt(account.refresh_token as string);
+      const password = await decrypt(account.access_token as string);
+      if (!email || !password) return json({ error: "Missing credentials" }, 400);
+
+      let storage: InstanceType<typeof MegaStorage>;
+      try {
+        storage = await new MegaStorage({ email, password }).ready;
+      } catch {
+        return json({ error: "Failed to login to Mega" }, 401);
+      }
+
+      let target = storage.root;
+      if (path) {
+        const resolved = target.navigate(path);
+        if (!resolved) {
+          try { storage.api?.logout?.(); } catch {}
+          return json({ error: `Path not found: ${path}` }, 404);
+        }
+        target = resolved;
+      }
+
+      const children = target.children ?? [];
+      const folders = children.filter((c: any) => c.directory).map((c: any) => ({ name: c.name }));
+      const files = children.filter((c: any) => !c.directory).map((c: any) => ({
+        name: c.name,
+        size: c.size,
+      }));
+
+      try { storage.api?.logout?.(); } catch {}
+      return json({ folders, files });
+    }
+
+    if (action === "create-folder") {
+      const accountIdParam = (body as { account_id?: string }).account_id || url.searchParams.get("account_id");
+      const path = (body as { path?: string }).path || url.searchParams.get("path") || "";
+      const folderName = (body as { folderName?: string }).folderName || url.searchParams.get("folderName");
+
+      if (!accountIdParam || !folderName) return json({ error: "Missing account_id or folderName" }, 400);
+
+      const { data: account, error: fetchError } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", accountIdParam)
+        .eq("platform", "mega")
+        .eq("is_connected", true)
+        .single();
+
+      if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
+
+      const email = await decrypt(account.refresh_token as string);
+      const password = await decrypt(account.access_token as string);
+      if (!email || !password) return json({ error: "Missing credentials" }, 400);
+
+      let storage: InstanceType<typeof MegaStorage>;
+      try {
+        storage = await new MegaStorage({ email, password }).ready;
+      } catch {
+        return json({ error: "Failed to login to Mega" }, 401);
+      }
+
+      let target = storage.root;
+      if (path) {
+        const resolved = target.navigate(path);
+        if (!resolved) {
+          try { storage.api?.logout?.(); } catch {}
+          return json({ error: `Parent path not found: ${path}` }, 404);
+        }
+        target = resolved;
+      }
+
+      const newFolder = await target.mkdir(folderName);
+      try { storage.api?.logout?.(); } catch {}
+
+      return json({ success: true, folderName, path: path ? `${path}/${folderName}` : folderName });
+    }
+
     return json({ error: "Invalid action" }, 400);
   } catch (err) {
     console.error("mega-auth error", err);

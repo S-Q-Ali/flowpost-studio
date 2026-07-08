@@ -6,6 +6,7 @@ import {
   ListTodo,
   Link2,
   BarChart3,
+  HardDrive,
   Lock,
   FileText,
   Shield,
@@ -38,6 +39,7 @@ const navItems = [
   { title: "Calendar", url: "/calendar", icon: Calendar },
   { title: "Queue", url: "/queue", icon: ListTodo },
   { title: "Accounts", url: "/accounts", icon: Link2 },
+  { title: "Storage", url: "/storage", icon: HardDrive },
   { title: "Insights", url: "/insights", icon: BarChart3 },
 ];
 

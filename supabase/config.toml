@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.mega-auth]
 verify_jwt = false
+
+[functions.drive-to-mega]
+verify_jwt = false
