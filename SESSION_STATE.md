@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `d829e9a` — Replace auth callback HTML with 302 redirect + toast
+## CURRENT HEAD: `f5750b9` — Add List Files button for Mega accounts
 
 ---
 
@@ -469,3 +469,15 @@ video_url:
 **Files changed**: All 4 auth functions + `src/pages/AccountsPage.tsx` (added `useSearchParams` + `useEffect` for toast on `?connected=` param).
 
 **Deployed** all 4 functions (commit `d829e9a`).
+
+---
+
+### 24. List Files Button for Mega Accounts — Added (2026-07-07)
+
+**Problem**: No way to view filenames in Mega root to know the exact name to use with `mega:filename.mp4` in Sheets.
+
+**Fix**: Added a "Files" button on each connected Mega account card. Clicking it calls `mega-auth` with `action=files`, logs into Mega, and lists root files with name + size. Also fixed `mega-auth/files` action to accept `account_id` from request body (previously only from URL params).
+
+**Files changed**: `src/pages/AccountsPage.tsx`, `supabase/functions/mega-auth/index.ts`
+
+**Deployed** (commit `f5750b9`).
