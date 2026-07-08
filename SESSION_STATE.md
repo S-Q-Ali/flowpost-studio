@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `1ea683b` — Styled auth success pages with branded UI
+## CURRENT HEAD: `d829e9a` — Replace auth callback HTML with 302 redirect + toast
 
 ---
 
@@ -457,3 +457,15 @@ video_url:
 **Files changed**: `facebook-auth/index.ts`, `google-drive-auth/index.ts`, `tiktok-auth/index.ts`, `youtube-auth/index.ts`
 
 **Deployed** all 4 (commit `1ea683b`).
+
+---
+
+### 23. Auth Callback HTML Replaced with 302 Redirect — Fixed (2026-07-07)
+
+**Problem**: Supabase's edge gateway rewrites `text/html` to `text/plain` on GET responses ([docs](https://supabase.com/docs/guides/functions/http-methods)). All 4 OAuth callback success pages displayed as raw HTML source code instead of rendering.
+
+**Fix**: Replaced `return html(...)` with a 302 redirect to `https://flowpost-studio.vercel.app/accounts?connected={platform}`. The popup navigates to the app's AccountsPage, which detects the `?connected=` param and shows a success toast. No Content-Type issues since the redirect points to the SPA.
+
+**Files changed**: All 4 auth functions + `src/pages/AccountsPage.tsx` (added `useSearchParams` + `useEffect` for toast on `?connected=` param).
+
+**Deployed** all 4 functions (commit `d829e9a`).
