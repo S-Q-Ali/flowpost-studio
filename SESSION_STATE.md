@@ -563,6 +563,13 @@ video_url:
 - **v11**: Removed `v: 2` from upload URL request — still `ERANGE (-7)`
 - **v12** (commit `7fbd206`): **Abandoned custom Web Crypto upload entirely**. Replaced `uploadWithWebCrypto()` with `uploadWithMega()` using megajs's built-in `target.upload()`. This guarantees correct chunk sizes, MAC computation, completion hash, and `{a:"p"}` parameters. Streams directly: `driveRes.body.pipeTo(uploadStream)`. Retains NDJSON progress stream with `"progress"` event listener on megajs upload stream.
 - **CPU concern mitigated**: The Free plan CPU timeout was the original reason for custom Web Crypto. However, the timeout is now 120s (set in `supabase/config.toml`). megajs pure-JS AES at ~0.7μs/block should now fit within 120s for files up to ~136MB. For larger files, if CPU timeout recurs, we can restore Web Crypto after first getting `target.upload()` working as a baseline.
+- **v13**: Wrapped Node.js Writable in WHATWG WritableStream for `pipeTo` compatibility — but CPU timeout recurred on larger files
+- **v14** (commit `b079678`): **Restored Web Crypto upload** with all fixes:
+  - `BufferedReader` class — buffers overflow bytes between chunk reads, ensuring exact chunk sizes
+  - `Content-Type: application/octet-stream` header on chunk POSTs
+  - All prior fixes: KB-additive chunk sizes, per-chunk MAC save/reset, `chainMacs`, `mergeKeyMac`, `encryptECB`, no `v: 2`
+  - Result: Chunks uploaded successfully (progress 0-99%) but `{a:"p"}` returned **`ENOENT (-9)`** instead of `EARGS (-2)` — progress!
+- **v15** (commit this session): Changed `t: (target as any).nodeId || target` → `t: target` (pass MutableFile object directly to API serializer). Deployed and awaiting test result.
 
 ---
 

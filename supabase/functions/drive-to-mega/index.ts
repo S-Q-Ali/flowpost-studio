@@ -191,7 +191,7 @@ async function uploadWithWebCrypto(
   await new Promise<void>((resolve, reject) => {
     storage.api.request({
       a: "p",
-      t: (target as any).nodeId || target,
+      t: target,
       n: [{
         h: e64(completionHash),
         t: 0,
