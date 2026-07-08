@@ -18,10 +18,13 @@ interface DriveFile {
 }
 interface MegaItem {
   name: string;
+  size?: number;
 }
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const CALL_HEADERS = {
-  Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+  Authorization: `Bearer ${ANON_KEY}`,
   "Content-Type": "application/json",
 };
 
@@ -73,6 +76,7 @@ export default function StoragePage() {
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [uploadPercent, setUploadPercent] = useState(0);
 
   useEffect(() => {
     if (!userId) return;
@@ -226,7 +230,7 @@ export default function StoragePage() {
     toast.success(`Target: ${path || "(root)"}`);
   }
 
-  // Upload
+  // Upload via NDJSON stream
   async function startUpload() {
     const selectedFiles = driveFiles.filter((f) => selectedFileIds.has(f.id));
     if (selectedFiles.length === 0) return;
@@ -237,26 +241,53 @@ export default function StoragePage() {
       return;
     }
     setUploading(true);
+    setUploadPercent(0);
     for (let i = 0; i < selectedFiles.length; i++) {
       const f = selectedFiles[i];
-      setUploadProgress(`Uploading (${i + 1}/${selectedFiles.length}): ${f.name}`);
-      const { data, error } = await supabase.functions.invoke("drive-to-mega", {
-        method: "POST",
-        headers: CALL_HEADERS,
-        body: JSON.stringify({
-          driveFileId: f.id,
-          driveAccountId: selectedDriveId,
-          megaAccountId,
-          fileName: f.name,
-          megaFolderPath: megaTargetPath || undefined,
-        }),
-      });
-      if (error || data?.error) {
-        toast.error(`${f.name}: ${data?.error || error?.message}`);
-      } else {
-        toast.success(`${f.name} uploaded to Mega`);
+      const label = `Uploading (${i + 1}/${selectedFiles.length}): ${f.name}`;
+      setUploadProgress(label);
+      setUploadPercent(0);
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/drive-to-mega`, {
+          method: "POST",
+          headers: CALL_HEADERS,
+          body: JSON.stringify({
+            driveFileId: f.id,
+            driveAccountId: selectedDriveId,
+            megaAccountId,
+            fileName: f.name,
+            megaFolderPath: megaTargetPath || undefined,
+          }),
+        });
+        const streamReader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        let done = false;
+        while (!done) {
+          const { done: streamDone, value } = await streamReader.read();
+          done = streamDone;
+          buf += decoder.decode(value || new Uint8Array(), { stream: !done });
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const ev = JSON.parse(line);
+              if (ev.type === "progress") {
+                setUploadPercent(ev.percent);
+              } else if (ev.type === "done") {
+                toast.success(`${f.name} uploaded to Mega`);
+              } else if (ev.type === "error") {
+                toast.error(`${f.name}: ${ev.message}`);
+              }
+            } catch { /* skip malformed */ }
+          }
+        }
+      } catch (err: any) {
+        toast.error(`${f.name}: ${err.message || "Network error"}`);
       }
     }
+    setUploadPercent(0);
     setUploadProgress("");
     setUploading(false);
     setSelectedFileIds(new Set());
@@ -441,7 +472,23 @@ export default function StoragePage() {
 
       {/* Upload button */}
       {selectedFiles.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3">
+          {uploading && (
+            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-4 py-2 shadow-lg">
+              <svg width="32" height="32" viewBox="0 0 32 32" className="shrink-0">
+                <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="3" className="text-gray-700" />
+                <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="3"
+                  className="text-blue-500" strokeLinecap="round" transform="rotate(-90 16 16)"
+                  strokeDasharray={`${2 * Math.PI * 13}`}
+                  strokeDashoffset={`${2 * Math.PI * 13 * (1 - uploadPercent / 100)}`}
+                />
+              </svg>
+              <div className="text-xs leading-tight">
+                <div className="text-foreground font-medium">{uploadProgress}</div>
+                <div className="text-muted-foreground">{uploadPercent}%</div>
+              </div>
+            </div>
+          )}
           <Button
             className="shadow-lg"
             size="lg"
