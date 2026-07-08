@@ -555,7 +555,14 @@ video_url:
 
 **Deploy**: `supabase functions deploy drive-to-mega --no-verify-jwt`
 
-**Post-deploy fix (EARGS -2)**: Mega's upload POST response is raw binary bytes, not text. Using `resp.text()` then `new TextEncoder().encode(completionToken)` corrupted non-ASCII bytes via UTF-8 re-encoding. Fixed by using `await resp.arrayBuffer()` and storing the raw `Uint8Array` as `completionHash`. Also removed fallback to `target.hash` (base64 string) for the `t` parameter — now uses only `(target as any).nodeId` (raw bytes). Commit `d6940cc` fix deployed.
+**Post-deploy fix (EARGS -2)**: Custom Web Crypto upload failed persistently. Debugging revealed:
+- **v5**: `EARGS (-2)` on `{a:"p"}` — all chunks uploaded fine (progress 0-99%) but node creation failed
+- **v6-v7**: Added/removed debug logs, fixed `t` parameter fallback, fixed chunk sizes from byte-doubling to KB-additive scheme — still `EARGS`
+- **v8**: Fixed per-chunk MAC save/reset matching megajs `checkBounding` — still `EARGS`
+- **v9-v10**: Used `storage.api.fetch` instead of raw `fetch` for chunk uploads — still `ERANGE (-7)` on every chunk, meaning chunk boundaries still didn't match what Mega expects
+- **v11**: Removed `v: 2` from upload URL request — still `ERANGE (-7)`
+- **v12** (commit `7fbd206`): **Abandoned custom Web Crypto upload entirely**. Replaced `uploadWithWebCrypto()` with `uploadWithMega()` using megajs's built-in `target.upload()`. This guarantees correct chunk sizes, MAC computation, completion hash, and `{a:"p"}` parameters. Streams directly: `driveRes.body.pipeTo(uploadStream)`. Retains NDJSON progress stream with `"progress"` event listener on megajs upload stream.
+- **CPU concern mitigated**: The Free plan CPU timeout was the original reason for custom Web Crypto. However, the timeout is now 120s (set in `supabase/config.toml`). megajs pure-JS AES at ~0.7μs/block should now fit within 120s for files up to ~136MB. For larger files, if CPU timeout recurs, we can restore Web Crypto after first getting `target.upload()` working as a baseline.
 
 ---
 
