@@ -46,10 +46,6 @@ function getMegaChunkSize(pos: number, fileSize: number): number {
   }
 }
 
-function hex(bytes: Uint8Array): string {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
 function e64(data: Uint8Array): string {
   return btoa(String.fromCharCode(...data))
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
@@ -110,7 +106,7 @@ async function uploadWithWebCrypto(
 
   // 3. Get upload URL from Mega API
   const uploadUrl: string = await new Promise((resolve, reject) => {
-    storage.api.request({ a: "u", ssl: true, s: fileSize, ms: 0, r: 0, e: 0, v: 2 }, (err: any, resp: any) => {
+    storage.api.request({ a: "u", ssl: true, s: fileSize, ms: 0, r: 0, e: 0 }, (err: any, resp: any) => {
       if (err) reject(new Error(err));
       else resolve(resp.p);
     });
@@ -154,13 +150,12 @@ async function uploadWithWebCrypto(
     mac.set(nonce, 0);
     mac.set(nonce, 8);
 
-    // 4d. POST chunk to Mega (use storage.api.fetch for proper auth)
-    const chunkUrl = `${uploadUrl}/${position}`;
-    const resp = await storage.api.fetch(chunkUrl, { method: "POST", body: ctBytes });
-    if (!resp.ok) throw new Error(`Chunk upload failed at byte ${position}: ${resp.status}`);
+    // 4d. POST chunk to Mega
+    if (position === 0) console.error("[chunk] first pos:", position, "size:", ctBytes.length);
+    const resp = await storage.api.fetch(`${uploadUrl}/${position}`, { method: "POST", body: ctBytes });
+    if (resp.status !== 200) throw new Error(`Chunk upload failed at byte ${position}: ${resp.status}`);
     const raw = await resp.arrayBuffer();
-    const rawBytes = new Uint8Array(raw);
-    if (raw.byteLength > 0) completionHash = rawBytes;
+    if (raw.byteLength > 0) completionHash = new Uint8Array(raw);
 
     position += ctBytes.length;
     onProgress(Math.min(Math.round((position / fileSize) * 100), 99));
