@@ -42,12 +42,26 @@ async function uploadWithMega(
       if (err) reject(new Error(err));
       else resolve();
     });
-    let uploaded = 0;
     uploadStream.on("progress", ({ bytesUploaded }: { bytesUploaded: number }) => {
-      uploaded = bytesUploaded;
       onProgress(Math.min(Math.round((bytesUploaded / fileSize) * 100), 99));
     });
-    body.pipeTo(uploadStream).catch(reject);
+    // Wrap Node.js Writable in a WHATWG WritableStream for pipeTo compatibility
+    const writable = new WritableStream({
+      write(chunk: Uint8Array) {
+        return new Promise<void>((res, rej) => {
+          const ok = uploadStream.write(chunk, (err?: Error) => {
+            if (err) rej(err);
+            else if (!ok) uploadStream.once("drain", res);
+            else res();
+          });
+          if (!ok) uploadStream.once("drain", res);
+        });
+      },
+      close() {
+        return new Promise<void>((res) => uploadStream.end(res));
+      },
+    });
+    body.pipeTo(writable).catch(reject);
   });
 }
 
