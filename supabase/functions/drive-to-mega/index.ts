@@ -101,7 +101,7 @@ async function uploadWithWebCrypto(
 
   // 4. Upload chunks
   let position = 0;
-  let completionToken = "";
+  let completionHash: Uint8Array | null = null;
   const reader = body.getReader();
   const macIV = new Uint8Array(16);
   macIV.set(nonce, 0);
@@ -135,8 +135,8 @@ async function uploadWithWebCrypto(
     // 4c. POST chunk to Mega
     const resp = await fetch(`${uploadUrl}/${position}`, { method: "POST", body: ctBytes });
     if (!resp.ok) throw new Error(`Chunk upload failed at byte ${position}: ${resp.status}`);
-    const txt = await resp.text();
-    if (txt) completionToken = txt;
+    const raw = await resp.arrayBuffer();
+    if (raw.byteLength > 0) completionHash = new Uint8Array(raw);
 
     position += ctBytes.length;
     onProgress(Math.min(Math.round((position / fileSize) * 100), 99));
@@ -160,12 +160,13 @@ async function uploadWithWebCrypto(
   storage.aes.encryptECB(keyBuf);
 
   // 9. Create file node via Mega API
+  if (!completionHash) throw new Error("No completion hash from Mega upload");
   await new Promise<void>((resolve, reject) => {
     storage.api.request({
       a: "p",
-      t: (target as any).nodeId || target.hash,
+      t: (target as any).nodeId,
       n: [{
-        h: e64(new TextEncoder().encode(completionToken)),
+        h: e64(completionHash),
         t: 0,
         a: e64(new Uint8Array(attrEnc)),
         k: e64(new Uint8Array(keyBuf)),

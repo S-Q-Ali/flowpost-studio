@@ -555,6 +555,8 @@ video_url:
 
 **Deploy**: `supabase functions deploy drive-to-mega --no-verify-jwt`
 
+**Post-deploy fix (EARGS -2)**: Mega's upload POST response is raw binary bytes, not text. Using `resp.text()` then `new TextEncoder().encode(completionToken)` corrupted non-ASCII bytes via UTF-8 re-encoding. Fixed by using `await resp.arrayBuffer()` and storing the raw `Uint8Array` as `completionHash`. Also removed fallback to `target.hash` (base64 string) for the `t` parameter — now uses only `(target as any).nodeId` (raw bytes). Commit `d6940cc` fix deployed.
+
 ---
 
 ### 27. Post-Story Never Called — Fixed (2026-07-08)
