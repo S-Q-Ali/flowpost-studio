@@ -30,6 +30,8 @@ export default function AccountsPage() {
   const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
   const [driveAccounts, setDriveAccounts] = useState<ConnectedAccount[]>([]);
   const [megaAccounts, setMegaAccounts] = useState<ConnectedAccount[]>([]);
+  const [megaFiles, setMegaFiles] = useState<Record<string, { name: string; size: number }[]>>({});
+  const [megaFilesLoading, setMegaFilesLoading] = useState<Record<string, boolean>>({});
   const [youtubeQuota, setYoutubeQuota] = useState<{ percentage: number; uploadCount: number; estimatedUploadsRemaining: number } | null>(null);
 
   const fetchFacebook = async (): Promise<ConnectedAccount[]> => {
@@ -474,6 +476,26 @@ export default function AccountsPage() {
     }
   };
 
+  const listMegaFiles = async (accountId: string) => {
+    setMegaFilesLoading((prev) => ({ ...prev, [accountId]: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke("mega-auth", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "files", account_id: accountId }),
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      setMegaFiles((prev) => ({ ...prev, [accountId]: data.files }));
+    } catch (e: any) {
+      toast.error(e.message || "Failed to list files");
+    } finally {
+      setMegaFilesLoading((prev) => ({ ...prev, [accountId]: false }));
+    }
+  };
+
   const disconnectYouTube = async (accountId: string | null | undefined) => {
     if (!accountId) return;
     const { error } = await supabase
@@ -911,6 +933,10 @@ export default function AccountsPage() {
                       <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
                         Connected
                       </Badge>
+                      <Button variant="outline" size="sm" onClick={() => a.id && listMegaFiles(a.id)} disabled={megaFilesLoading[a.id!]}>
+                        {megaFilesLoading[a.id!] ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                        Files
+                      </Button>
                       <Button variant="outline" size="sm" onClick={async () => {
                         if (!a.id) return;
                         await supabase.from("connected_accounts").update({ is_connected: false }).eq("id", a.id);
@@ -921,6 +947,23 @@ export default function AccountsPage() {
                       </Button>
                     </div>
                   </CardContent>
+                  {a.id && megaFiles[a.id] && (
+                    <div className="border-t border-border px-4 py-3 max-h-48 overflow-y-auto">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Root files:</p>
+                      {megaFiles[a.id].length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No files in root</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {megaFiles[a.id].map((f, i) => (
+                            <div key={i} className="flex items-center justify-between text-xs">
+                              <span className="text-foreground font-mono">{f.name}</span>
+                              <span className="text-muted-foreground">{(f.size / 1048576).toFixed(1)} MB</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </Card>
               ))}
             </div>

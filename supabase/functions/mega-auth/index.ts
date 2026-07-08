@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "files") {
-      const accountIdParam = url.searchParams.get("account_id");
+      const accountIdParam = (body as { account_id?: string }).account_id || url.searchParams.get("account_id");
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
       const { data: account, error: fetchError } = await supabaseAdmin
