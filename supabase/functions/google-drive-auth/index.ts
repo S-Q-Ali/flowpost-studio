@@ -191,34 +191,10 @@ Deno.serve(async (req) => {
 
       if (upsertError) throw upsertError;
 
-      return html(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Connected!</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f0f0f;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:48px 40px;max-width:420px;width:100%;text-align:center}
-.icon{font-size:56px;margin-bottom:16px;display:block}
-h2{color:#fff;font-size:22px;font-weight:600;margin-bottom:8px}
-p{color:#888;font-size:14px;line-height:1.5;margin-bottom:28px}
-.btn{display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:500;transition:background .2s}
-.btn:hover{background:#1d4ed8}
-.note{color:#555;font-size:12px;margin-top:20px}
-</style>
-</head>
-<body>
-<div class="card">
-<span class="icon">✅</span>
-<h2>Google Drive Connected!</h2>
-<p>Your Google Drive has been successfully linked to FlowPost. You can now select it when creating workflows.</p>
-<a class="btn" href="https://flowpost-studio.vercel.app/accounts">Return to FlowPost</a>
-<div class="note">This tab can be closed</div>
-</div>
-</body>
-</html>`);
+      return new Response(null, {
+        status: 302,
+        headers: { Location: "https://flowpost-studio.vercel.app/accounts?connected=drive" },
+      });
     }
 
     if (action === "refresh") {

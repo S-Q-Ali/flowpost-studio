@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -139,6 +140,8 @@ export default function AccountsPage() {
     return list;
   };
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const refreshAll = async () => {
     await Promise.all([fetchFacebook(), fetchInstagram(), fetchYouTube(), fetchTikTok(), fetchDrive(), fetchMega()]);
   };
@@ -146,6 +149,19 @@ export default function AccountsPage() {
   useEffect(() => {
     refreshAll();
   }, []);
+
+  useEffect(() => {
+    const platform = searchParams.get("connected");
+    if (!platform) return;
+    const label: Record<string, string> = {
+      facebook: "Facebook & Instagram",
+      drive: "Google Drive",
+      tiktok: "TikTok",
+      youtube: "YouTube",
+    };
+    toast.success(`${label[platform] || platform} connected!`);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     (async () => {
