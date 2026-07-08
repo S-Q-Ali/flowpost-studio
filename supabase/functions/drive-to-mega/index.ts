@@ -46,6 +46,10 @@ function getMegaChunkSize(pos: number, fileSize: number): number {
   return Math.min(1048576, fileSize - pos);
 }
 
+function hex(data: Uint8Array): string {
+  return Array.from(data).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 function e64(data: Uint8Array): string {
   return btoa(String.fromCharCode(...data))
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
@@ -156,21 +160,28 @@ async function uploadWithWebCrypto(
   const attrEnc = await crypto.subtle.encrypt({ name: "AES-CBC", iv: zeroIv }, cbcKey, attrPad);
 
   // 8. Encrypt merged key with user's master key (ECB)
-  const keyBuf = Buffer.from(mergedKey);
+  const keyBuf = Buffer.from(new Uint8Array(mergedKey));
   storage.aes.encryptECB(keyBuf);
 
   // 9. Create file node via Mega API
   if (!completionHash) throw new Error("No completion hash from Mega upload");
+
+  const tParam = (target as any).nodeId || target;
+  const hParam = e64(completionHash);
+  const aParam = e64(new Uint8Array(attrEnc));
+  const kParam = e64(new Uint8Array(keyBuf));
+  console.error("[p] target.nodeId:", typeof (target as any).nodeId, (target as any).nodeId?.constructor?.name, (target as any).nodeId?.length);
+  console.error("[p] t:", typeof tParam, tParam?.constructor?.name, typeof tParam === "string" ? tParam.length : "N/A");
+  console.error("[p] h:", hParam, "len:", hParam.length);
+  console.error("[p] a:", aParam, "len:", aParam.length);
+  console.error("[p] k:", kParam, "len:", kParam.length);
+  console.error("[p] completionHash hex:", hex(completionHash), "bytes:", completionHash.length);
+
   await new Promise<void>((resolve, reject) => {
     storage.api.request({
       a: "p",
-      t: (target as any).nodeId,
-      n: [{
-        h: e64(completionHash),
-        t: 0,
-        a: e64(new Uint8Array(attrEnc)),
-        k: e64(new Uint8Array(keyBuf)),
-      }],
+      t: tParam,
+      n: [{ h: hParam, t: 0, a: aParam, k: kParam }],
     }, (err: any) => {
       if (err) reject(new Error(err));
       else resolve();
