@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `f5750b9` — Add List Files button for Mega accounts
+## CURRENT HEAD: `b3bb94c` — Add Storage page with Drive browser and Mega upload
 
 ---
 
@@ -481,3 +481,40 @@ video_url:
 **Files changed**: `src/pages/AccountsPage.tsx`, `supabase/functions/mega-auth/index.ts`
 
 **Deployed** (commit `f5750b9`).
+
+---
+
+### 25. Storage Page — Added (2026-07-07)
+
+**Feature**: New `/storage` page alongside Dashboard, Upload, Queue, etc. for managing file storage and transferring files between platforms.
+
+**Drive section**:
+- Account dropdown (supports multiple connected Drives)
+- Quota bar (used/total from Drive API `storageQuota`)
+- Folder browser with breadcrumb navigation (folders → drill in, files selectable)
+- Pagination with "Load more"
+- Checkbox per file for batch selection
+
+**Mega section**:
+- Quota bar (used/total via `storage.getAccountInfo()`)
+- Folder browser + picker — browse Mega folders, click folder to set as upload target
+- "Create folder" button to create new folders in Mega
+- Shows current target path: `Target: Videos/2026` or `Target: (root)`
+
+**Transfer flow**:
+- Select files in Drive browser, set Mega target folder, click "Upload N selected to Mega"
+- Sequential upload: one file at a time with progress indicator
+- `drive-to-mega` function streams Drive file bytes → Mega via `folder.upload()`, creates missing folders via `mkdir()`
+
+**New files**:
+- `src/pages/StoragePage.tsx` — full storage management page (~460 lines)
+- `supabase/functions/drive-to-mega/index.ts` — streams Drive → Mega (accepts `driveAccountId` for server-side token resolution)
+
+**Modified files**:
+- `supabase/functions/google-drive-auth/index.ts` — added `quota` and `list-files` actions
+- `supabase/functions/mega-auth/index.ts` — added `quota`, `list-items`, and `create-folder` actions
+- `src/App.tsx` — added `/storage` route
+- `src/components/AppSidebar.tsx` — added "Storage" nav link with HardDrive icon
+- `supabase/config.toml` — added `[functions.drive-to-mega]`
+
+**Deployed** 3 functions (commit `b3bb94c`).
