@@ -188,6 +188,17 @@ async function uploadWithWebCrypto(
   storage.aes.encryptECB(keyBuf);
 
   if (!completionHash) throw new Error("No completion hash from Mega upload");
+  const targetInfo = {
+    type: typeof target,
+    ctor: target?.constructor?.name,
+    keys: Object.keys(target || {}).filter((k: string) => !["parent", "children"].includes(k)),
+    nodeId: target?.nodeId,
+    nodeIdType: typeof target?.nodeId,
+    h: target?.h,
+    hash: (target as any)?.hash,
+    toString: target?.toString?.()?.substring(0, 20),
+  };
+  console.error("[t] info:", JSON.stringify(targetInfo));
   await new Promise<void>((resolve, reject) => {
     storage.api.request({
       a: "p",

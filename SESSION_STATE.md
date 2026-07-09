@@ -569,7 +569,8 @@ video_url:
   - `Content-Type: application/octet-stream` header on chunk POSTs
   - All prior fixes: KB-additive chunk sizes, per-chunk MAC save/reset, `chainMacs`, `mergeKeyMac`, `encryptECB`, no `v: 2`
   - Result: Chunks uploaded successfully (progress 0-99%) but `{a:"p"}` returned **`ENOENT (-9)`** instead of `EARGS (-2)` — progress!
-- **v15** (commit this session): Changed `t: (target as any).nodeId || target` → `t: target` (pass MutableFile object directly to API serializer). Deployed and awaiting test result.
+- **v15** (commit `0912ada`): Changed `t: (target as any).nodeId || target` → `t: target` (pass MutableFile object directly). Result: **"Converting circular structure to JSON"** — `JSON.stringify` in `api.request()` can't handle MutableFile's circular `parent`→`children`→`parent` graph.
+- **v16** (commit pending): Added `[t] info:` debug log dumping `target` properties (nodeId, h, hash, toString, keys) to find the correct handle property. Currently awaiting test result.
 
 ---
 
