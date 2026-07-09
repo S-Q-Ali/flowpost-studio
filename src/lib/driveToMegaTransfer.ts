@@ -5,8 +5,11 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export interface TransferTicket {
   driveToken: string;
-  megaEmail: string;
-  megaPassword: string;
+  megaSession: {
+    key: string;
+    sid: string;
+    user: string;
+  };
   megaFolderPath?: string;
 }
 
@@ -148,30 +151,40 @@ export async function transferDriveToMega(
   const driveInfo = await getDriveFileInfo(ticket.driveToken, file.id);
   const stream = await fetchDriveStream(ticket.driveToken, file.id);
 
-  // 3. Log into Mega
-  const storage = await new MegaStorage({ email: ticket.megaEmail, password: ticket.megaPassword }).ready;
+  // 3. Log into Mega via session data (no plaintext password)
+  const storage = MegaStorage.fromJSON({
+    key: ticket.megaSession.key,
+    sid: ticket.megaSession.sid,
+    user: ticket.megaSession.user,
+    options: { autoload: false, autologin: false },
+  });
+  await (storage as any).reload(true);
 
   // 4. Resolve target folder
   const target = await resolveMegaFolder(storage, ticket.megaFolderPath);
 
   // 5. Upload
-  await uploadToMega(
-    target,
-    driveInfo.name,
-    driveInfo.size,
-    stream,
-    (bytesUploaded: number) => {
-      listener({
-        type: "progress",
-        progress: {
-          fileName: driveInfo.name,
-          bytesUploaded,
-          totalBytes: driveInfo.size,
-          percent: Math.min(Math.round((bytesUploaded / driveInfo.size) * 100), 99),
-        },
-      });
-    },
-  );
+  try {
+    await uploadToMega(
+      target,
+      driveInfo.name,
+      driveInfo.size,
+      stream,
+      (bytesUploaded: number) => {
+        listener({
+          type: "progress",
+          progress: {
+            fileName: driveInfo.name,
+            bytesUploaded,
+            totalBytes: driveInfo.size,
+            percent: Math.min(Math.round((bytesUploaded / driveInfo.size) * 100), 99),
+          },
+        });
+      },
+    );
 
-  listener({ type: "done", fileName: driveInfo.name });
+    listener({ type: "done", fileName: driveInfo.name });
+  } finally {
+    (storage as any).close().catch(() => {});
+  }
 }

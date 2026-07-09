@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { Storage as MegaStorage } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 
 const corsHeaders = {
@@ -135,11 +136,19 @@ Deno.serve(async (req) => {
     return json({ error: "Missing Mega credentials" }, 400);
   }
 
-  // 6. Return ticket payload
+  // 6. Login to Mega server-side, extract session, close connection
+  const megaStorage = await new MegaStorage({ email: megaEmail, password: megaPassword }).ready;
+  const sessionData = megaStorage.toJSON();
+  await megaStorage.close();
+
+  // 7. Return ticket with session data only (no plaintext password)
   return json({
     driveToken: googleAccessToken,
-    megaEmail,
-    megaPassword,
+    megaSession: {
+      key: sessionData.key,
+      sid: sessionData.sid,
+      user: sessionData.user,
+    },
     megaFolderPath: megaFolderPath || undefined,
   });
 });

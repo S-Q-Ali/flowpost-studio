@@ -603,6 +603,43 @@ A secondary bug: even if `isMega` existed, the `mega:` prefix case doesn't set `
 
 ---
 
+### 29. Session ID Exchange — Secure Mega Credentials (2026-07-09)
+
+**Problem**: The browser-streamed transfer (entry #28) exposed decrypted Mega email + password in browser JS memory. An XSS vulnerability or malicious browser extension could exfiltrate credentials.
+
+**Root cause**: `transfer-ticket` returned `{ megaEmail, megaPassword }` to the browser client, which then passed them to `new MegaStorage({email, password})` — the plaintext password lived in browser JS heap until garbage collected.
+
+**Fix**: Moved Mega login to the server. `transfer-ticket` now:
+1. Decrypts Mega credentials server-side (as before)
+2. Calls `new MegaStorage({email, password}).ready` to login
+3. Extracts session data via `storage.toJSON()` — returns `{ key, sid, user }`
+4. Closes server storage with `storage.close()`
+5. Overwrites decrypted vars with `null` before returning
+6. Returns `megaSession` object (no email/password)
+
+Client-side (`driveToMegaTransfer.ts`) uses `Storage.fromJSON()` to resume the session:
+```typescript
+const storage = MegaStorage.fromJSON({
+  key: ticket.megaSession.key,
+  sid: ticket.megaSession.sid,
+  user: ticket.megaSession.user,
+  options: { autoload: false, autologin: false },
+});
+await storage.reload(true);
+```
+
+**Security improvement**: Mega password never leaves the server. The browser only receives a time-limited session ID (`sid`) + master key (`key`), which are functionally necessary for the upload to work but cannot be used to log into the Mega web interface (no password hash derived from them).
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `supabase/functions/transfer-ticket/index.ts` | Added Mega login + `toJSON()` extraction; replaced `megaEmail`/`megaPassword` response with `megaSession: { key, sid, user }` |
+| `src/lib/driveToMegaTransfer.ts` | Updated `TransferTicket` interface; replaced `new MegaStorage({email, password})` with `Storage.fromJSON()`; added `finally` block for `storage.close()` |
+
+**Deploy**: `npx.cmd supabase functions deploy transfer-ticket --no-verify-jwt`
+
+---
+
 ### 28. Drive-to-Mega Transfer — Browser-Streamed (2026-07-09)
 
 **Goal**: Move Drive→Mega file transfer from server-side Supabase Edge Function to the user's browser, eliminating CPU time limits that caused failures on large files.
