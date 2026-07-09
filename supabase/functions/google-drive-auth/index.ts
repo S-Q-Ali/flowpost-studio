@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
       authUrl.searchParams.set(
         "scope",
         [
-          "https://www.googleapis.com/auth/drive.readonly",
+          "https://www.googleapis.com/auth/drive.file",
           "https://www.googleapis.com/auth/spreadsheets",
           "https://www.googleapis.com/auth/userinfo.profile",
         ].join(" "),
@@ -319,6 +319,36 @@ Deno.serve(async (req) => {
         })),
         nextPageToken: listJson.nextPageToken || null,
       });
+    }
+
+    if (action === "delete") {
+      const accountIdParam = url.searchParams.get("account_id");
+      const fileId = url.searchParams.get("file_id");
+      if (!accountIdParam || !fileId) return json({ error: "Missing account_id or file_id" }, 400);
+
+      const { data: account, error: fetchError } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", accountIdParam)
+        .eq("platform", "google_drive")
+        .eq("is_connected", true)
+        .single();
+
+      if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
+
+      const rawRefresh = await decrypt(account.refresh_token as string);
+      if (!rawRefresh) return json({ error: "Missing refresh token" }, 400);
+
+      const refreshed = await refreshAccessToken(rawRefresh);
+      const delRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${refreshed.access_token}` } },
+      );
+      if (!delRes.ok) {
+        const errJson = await delRes.json().catch(() => ({}));
+        throw new Error(`Drive delete failed: ${JSON.stringify(errJson)}`);
+      }
+      return json({ success: true });
     }
 
     return json({ error: "Invalid action" }, 400);

@@ -1,9 +1,10 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `da97001` — docs: update SESSION_STATE.md with v15-v16
+## CURRENT HEAD: `ea26eb3` — fix: remove const reassignment in transfer-ticket, deploy fix
 
 ## Current Status
 - **v19**: Browser-streamed Drive→Mega transfer. Moved CPU-intensive megajs AES encryption from server-side edge function to user's browser. New `transfer-ticket` edge function provides temporary decrypted credentials. Client-side `driveToMegaTransfer.ts` handles streaming upload. No server CPU limits — files of any size can transfer (subject to browser tab staying open).
+- **Delete files**: Users can delete files and folders from both Drive and Mega directly in the Storage page. Drive scope upgraded from `drive.readonly` to `drive.file` — existing Drive accounts must be reconnected.
 
 ---
 
@@ -638,6 +639,8 @@ await storage.reload(true);
 
 **Deploy**: `npx.cmd supabase functions deploy transfer-ticket --no-verify-jwt`
 
+**Post-deploy fix**: Initial deploy had `(megaEmail as any) = null; (megaPassword as any) = null;` to clear decrypted credentials. This caused `TypeError: Assignment to constant variable` because `const` variables cannot be reassigned even with type assertions in Deno. Removed both lines — credentials are GC'd on function exit ~1ms later anyway. (commit `ea26eb3`)
+
 ---
 
 ### 28. Drive-to-Mega Transfer — Browser-Streamed (2026-07-09)
@@ -705,3 +708,30 @@ npx.cmd supabase functions deploy transfer-ticket --no-verify-jwt
 - `beforeunload` warning should be added to prevent accidental tab closure
 
 **Status**: Phase 1 complete — proof of concept implemented, edge function deployed, StoragePage updated. Needs real-world testing with actual Drive→Mega transfers.
+
+---
+
+### 30. Delete Mega & Google Drive Files from Storage Page (2026-07-09)
+
+**Feature**: Users can now delete files and folders from both Drive and Mega directly in the Storage page.
+
+**Files changed**:
+
+| File | Change |
+|------|--------|
+| `supabase/functions/google-drive-auth/index.ts` | Changed OAuth scope from `drive.readonly` → `drive.file` (allows deleting files user has created). Added `action=delete` handler — accepts `account_id` + `file_id`, refreshes token, calls `DELETE /drive/v3/files/{fileId}`. |
+| `supabase/functions/mega-auth/index.ts` | Added `nodeId` to `list-items` response for both `folders` and `files`. Added `delete` action handler — accepts `account_id` + `nodeId`, looks up file via `storage.files[nodeId]`, calls `file.delete(true)` (permanent). |
+| `src/pages/StoragePage.tsx` | Added `AlertDialog` for single file/folder delete confirmation. Trash icon button on Drive files, Mega files, and Mega folders (visible on hover). "Delete N selected from Drive" button in bottom bar (no confirmation). Refresh both Drive + Mega listings after delete. |
+
+**Behavior**:
+
+| Scenario | Confirmation | Platform |
+|----------|-------------|----------|
+| Click trash icon on a single file | Yes (AlertDialog) | Drive + Mega |
+| Click trash icon on a folder | Yes (AlertDialog with folder warning) | Drive + Mega |
+| Click "Delete N selected" | No (no confirmation) | Drive only |
+| Delete is permanent | Yes — `file.delete(true)` skips trash on Mega, Drive `DELETE` is permanent | Both |
+
+**Migration**: Users must **reconnect** Google Drive accounts to obtain the new `drive.file` scope. Mega accounts work without reconnection.
+
+**Deploy**: Both functions deployed.

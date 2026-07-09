@@ -1,14 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, HardDrive, FolderOpen, File, ChevronRight, Upload, Plus, Check, Target } from "lucide-react";
+import { Loader2, HardDrive, FolderOpen, File, ChevronRight, Upload, Plus, Check, Target, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { transferDriveToMega, type DriveFileInfo } from "@/lib/driveToMegaTransfer";
 import type { ConnectedAccount } from "@/lib/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface DriveFile {
   id: string;
@@ -20,6 +29,15 @@ interface DriveFile {
 interface MegaItem {
   name: string;
   size?: number;
+  nodeId?: string;
+}
+
+interface ConfirmDelete {
+  open: boolean;
+  platform: "drive" | "mega";
+  nodeId: string;
+  name: string;
+  isFolder: boolean;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -78,6 +96,8 @@ export default function StoragePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const [uploadPercent, setUploadPercent] = useState(0);
+
+  const [confirmDelete, setConfirmDelete] = useState<ConfirmDelete>({ open: false, platform: "drive", nodeId: "", name: "", isFolder: false });
 
   useEffect(() => {
     if (!userId) return;
@@ -231,6 +251,77 @@ export default function StoragePage() {
     toast.success(`Target: ${path || "(root)"}`);
   }
 
+  async function deleteSingleItem(platform: "drive" | "mega", nodeId: string, name: string, isFolder: boolean) {
+    if (isFolder) {
+      setConfirmDelete({ open: true, platform, nodeId, name, isFolder });
+    } else {
+      if (platform === "drive") {
+        if (!selectedDriveId) return;
+        const { error } = await supabase.functions.invoke(`google-drive-auth?action=delete&account_id=${selectedDriveId}&file_id=${nodeId}`, {
+          method: "GET",
+          headers: CALL_HEADERS,
+        });
+        if (error) { toast.error(`Failed to delete ${name}`); return; }
+      } else {
+        const targetId = megaAccounts[0]?.id;
+        if (!targetId) return;
+        const { error } = await supabase.functions.invoke("mega-auth", {
+          method: "POST",
+          headers: CALL_HEADERS,
+          body: JSON.stringify({ action: "delete", account_id: targetId, nodeId }),
+        });
+        if (error) { toast.error(`Failed to delete ${name}`); return; }
+      }
+      toast.success(`${name} deleted`);
+      refreshCurrentFolder();
+    }
+  }
+
+  async function executeDelete() {
+    const { platform, nodeId, name } = confirmDelete;
+    if (platform === "drive") {
+      if (!selectedDriveId) return;
+      const { error } = await supabase.functions.invoke(`google-drive-auth?action=delete&account_id=${selectedDriveId}&file_id=${nodeId}`, {
+        method: "GET",
+        headers: CALL_HEADERS,
+      });
+      if (error) { toast.error(`Failed to delete ${name}`); setConfirmDelete({ open: false, platform: "drive", nodeId: "", name: "", isFolder: false }); return; }
+    } else {
+      const targetId = megaAccounts[0]?.id;
+      if (!targetId) return;
+      const { error } = await supabase.functions.invoke("mega-auth", {
+        method: "POST",
+        headers: CALL_HEADERS,
+        body: JSON.stringify({ action: "delete", account_id: targetId, nodeId }),
+      });
+      if (error) { toast.error(`Failed to delete ${name}`); setConfirmDelete({ open: false, platform: "drive", nodeId: "", name: "", isFolder: false }); return; }
+    }
+    toast.success(`${name} deleted`);
+    setConfirmDelete({ open: false, platform: "drive", nodeId: "", name: "", isFolder: false });
+    refreshCurrentFolder();
+  }
+
+  async function deleteSelectedItems() {
+    const targetId = megaAccounts[0]?.id;
+    if (!targetId) return;
+    for (const f of selectedFiles) {
+      const { error } = await supabase.functions.invoke(`google-drive-auth?action=delete&account_id=${selectedDriveId}&file_id=${f.id}`, {
+        method: "GET",
+        headers: CALL_HEADERS,
+      });
+      if (error) { toast.error(`Failed to delete ${f.name}`); return; }
+    }
+    toast.success(`${selectedFiles.length} file(s) deleted`);
+    setSelectedFileIds(new Set());
+    refreshCurrentFolder();
+  }
+
+  function refreshCurrentFolder() {
+    const pid = driveBreadcrumbs.length > 0 ? driveBreadcrumbs[driveBreadcrumbs.length - 1].id : "root";
+    fetchDriveFiles(pid);
+    browseMegaFolder(megaBreadcrumbs.join("/"));
+  }
+
   // Client-side upload via browser (avoids server CPU limits)
   async function startUpload() {
     const selectedFiles = driveFiles.filter((f) => selectedFileIds.has(f.id));
@@ -347,7 +438,7 @@ export default function StoragePage() {
                     <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                   ) : (
                     driveFiles.map((f) => (
-                      <div key={f.id} className="flex items-center gap-2 p-2 rounded hover:bg-secondary cursor-pointer" onClick={() => {
+                      <div key={f.id} className="flex items-center gap-2 p-2 rounded hover:bg-secondary cursor-pointer group" onClick={() => {
                         if (f.mimeType === "application/vnd.google-apps.folder") {
                           navigateDriveFolder(f.id, f.name);
                         } else {
@@ -362,7 +453,10 @@ export default function StoragePage() {
                           </div>
                         )}
                         <span className="text-sm truncate flex-1">{f.name}</span>
-                        {!f.mimeType.includes("folder") && <span className="text-xs text-muted-foreground shrink-0">{formatBytes(f.size)}</span>}
+                        {f.mimeType !== "application/vnd.google-apps.folder" && <span className="text-xs text-muted-foreground shrink-0">{formatBytes(f.size)}</span>}
+                        <button className="opacity-0 group-hover:opacity-100 hover:text-red-400 shrink-0 p-0.5" onClick={(e) => { e.stopPropagation(); deleteSingleItem("drive", f.id, f.name, f.mimeType === "application/vnd.google-apps.folder"); }}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     ))
                   )}
@@ -435,16 +529,22 @@ export default function StoragePage() {
                     ) : (
                       <>
                         {megaFolders.map((f) => (
-                          <div key={f.name} className="flex items-center gap-2 p-2 rounded hover:bg-secondary cursor-pointer" onClick={() => navigateMegaFolder(f.name)}>
+                          <div key={f.name} className="flex items-center gap-2 p-2 rounded hover:bg-secondary cursor-pointer group" onClick={() => navigateMegaFolder(f.name)}>
                             <FolderOpen className="h-4 w-4 text-yellow-500 shrink-0" />
                             <span className="text-sm truncate flex-1">{f.name}</span>
+                            <button className="opacity-0 group-hover:opacity-100 hover:text-red-400 shrink-0 p-0.5" onClick={(e) => { e.stopPropagation(); deleteSingleItem("mega", f.nodeId!, f.name, true); }}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         ))}
                         {megaFiles.map((f) => (
-                          <div key={f.name} className="flex items-center gap-2 p-2 rounded">
+                          <div key={f.name} className="flex items-center gap-2 p-2 rounded group">
                             <File className="h-4 w-4 text-muted-foreground shrink-0" />
                             <span className="text-sm truncate flex-1">{f.name}</span>
                             <span className="text-xs text-muted-foreground shrink-0">{formatBytes(f.size)}</span>
+                            <button className="opacity-0 group-hover:opacity-100 hover:text-red-400 shrink-0 p-0.5" onClick={() => deleteSingleItem("mega", f.nodeId!, f.name, false)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         ))}
                       </>
@@ -457,7 +557,7 @@ export default function StoragePage() {
         </Card>
       </div>
 
-      {/* Upload button */}
+      {/* Upload & Delete buttons */}
       {selectedFiles.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3">
           {uploading && (
@@ -490,8 +590,36 @@ export default function StoragePage() {
             Upload {selectedFiles.length} selected to Mega
             {megaTargetPath ? ` → ${megaTargetPath}` : " (root)"}
           </Button>
+          <Button
+            variant="destructive"
+            size="lg"
+            className="shadow-lg"
+            onClick={deleteSelectedItems}
+            disabled={uploading}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete {selectedFiles.length} selected from Drive
+          </Button>
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={confirmDelete.open} onOpenChange={(o) => setConfirmDelete({ ...confirmDelete, open: o })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {confirmDelete.isFolder ? "folder" : "file"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDelete.isFolder
+                ? `Are you sure you want to delete the folder "${confirmDelete.name}"? All files inside will also be permanently deleted.`
+                : `Are you sure you want to delete "${confirmDelete.name}"? This cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

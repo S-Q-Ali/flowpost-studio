@@ -220,10 +220,11 @@ Deno.serve(async (req) => {
       }
 
       const children = target.children ?? [];
-      const folders = children.filter((c: any) => c.directory).map((c: any) => ({ name: c.name }));
+      const folders = children.filter((c: any) => c.directory).map((c: any) => ({ name: c.name, nodeId: c.nodeId }));
       const files = children.filter((c: any) => !c.directory).map((c: any) => ({
         name: c.name,
         size: c.size,
+        nodeId: c.nodeId,
       }));
 
       try { storage.api?.logout?.(); } catch {}
@@ -272,6 +273,43 @@ Deno.serve(async (req) => {
       try { storage.api?.logout?.(); } catch {}
 
       return json({ success: true, folderName, path: path ? `${path}/${folderName}` : folderName });
+    }
+
+    if (action === "delete") {
+      const accountIdParam = (body as { account_id?: string }).account_id || url.searchParams.get("account_id");
+      const nodeId = (body as { nodeId?: string }).nodeId || url.searchParams.get("nodeId");
+      if (!accountIdParam || !nodeId) return json({ error: "Missing account_id or nodeId" }, 400);
+
+      const { data: account, error: fetchError } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", accountIdParam)
+        .eq("platform", "mega")
+        .eq("is_connected", true)
+        .single();
+
+      if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
+
+      const email = await decrypt(account.refresh_token as string);
+      const password = await decrypt(account.access_token as string);
+      if (!email || !password) return json({ error: "Missing credentials" }, 400);
+
+      let storage: InstanceType<typeof MegaStorage>;
+      try {
+        storage = await new MegaStorage({ email, password }).ready;
+      } catch {
+        return json({ error: "Failed to login to Mega" }, 401);
+      }
+
+      const file = storage.files[nodeId];
+      if (!file) {
+        try { storage.api?.logout?.(); } catch {}
+        return json({ error: "File or folder not found" }, 404);
+      }
+
+      await file.delete(true);
+      try { storage.api?.logout?.(); } catch {}
+      return json({ success: true });
     }
 
     return json({ error: "Invalid action" }, 400);

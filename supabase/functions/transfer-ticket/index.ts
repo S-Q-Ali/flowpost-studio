@@ -136,10 +136,9 @@ Deno.serve(async (req) => {
     return json({ error: "Missing Mega credentials" }, 400);
   }
 
-  // 6. Login to Mega server-side, extract session, close connection
+  // 6. Login to Mega server-side, extract session (don't close — would invalidate sid)
   const megaStorage = await new MegaStorage({ email: megaEmail, password: megaPassword }).ready;
   const sessionData = megaStorage.toJSON();
-  await megaStorage.close();
 
   // 7. Return ticket with session data only (no plaintext password)
   return json({
