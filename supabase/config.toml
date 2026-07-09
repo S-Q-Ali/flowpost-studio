@@ -60,3 +60,6 @@ verify_jwt = false
 [functions.drive-to-mega]
 verify_jwt = false
 timeout = "120s"
+
+[functions.transfer-ticket]
+verify_jwt = false

@@ -1,7 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { Storage as MegaStorage } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
-import { Buffer } from "node:buffer";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -28,194 +27,38 @@ function json(data: unknown, status = 200) {
   });
 }
 
-function getMegaChunkSize(pos: number, fileSize: number): number {
-  if (pos >= fileSize) return 0;
-  const initial = 131072;
-  const increment = 131072;
-  const maxChunk = 1048576;
-  let boundary = 0;
-  let size = initial;
-  while (true) {
-    const chunk = Math.min(size, maxChunk);
-    const next = boundary + chunk;
-    if (pos < next) return Math.min(next - pos, fileSize - pos);
-    boundary = next;
-    size += increment;
-  }
-}
-
-function e64(data: Uint8Array): string {
-  return btoa(String.fromCharCode(...data))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-}
-
-function mergeKeyMac(key: Uint8Array, mac: Uint8Array): Uint8Array {
-  const merged = new Uint8Array(32);
-  merged.set(key, 0);
-  merged.set(mac.slice(0, 8), 24);
-  for (let i = 0; i < 16; i++) merged[i] ^= merged[16 + i];
-  return merged;
-}
-
-async function chainMacs(macs: Uint8Array[], key: CryptoKey): Promise<Uint8Array> {
-  const zeroIv = new Uint8Array(16);
-  let result = macs[0];
-  for (let i = 1; i < macs.length; i++) {
-    const data = new Uint8Array(32);
-    data.set(result, 0);
-    data.set(macs[i], 16);
-    const enc = await crypto.subtle.encrypt({ name: "AES-CBC", iv: zeroIv }, key, data);
-    result = new Uint8Array(enc.slice(-16));
-  }
-  return result;
-}
-
-class BufferedReader {
-  private reader: ReadableStreamDefaultReader<Uint8Array>;
-  private buf: Uint8Array | null = null;
-  private done = false;
-
-  constructor(stream: ReadableStream<Uint8Array>) {
-    this.reader = stream.getReader();
-  }
-
-  async readExact(size: number): Promise<Uint8Array> {
-    const parts: Uint8Array[] = [];
-    let remaining = size;
-    if (this.buf) {
-      const use = Math.min(this.buf.length, remaining);
-      parts.push(this.buf.subarray(0, use));
-      remaining -= use;
-      this.buf = use < this.buf.length ? this.buf.subarray(use) : null;
-    }
-    while (remaining > 0) {
-      const { done, value } = await this.reader.read();
-      if (done) { this.done = true; break; }
-      const use = Math.min(value.length, remaining);
-      parts.push(value.subarray(0, use));
-      remaining -= use;
-      if (use < value.length) {
-        this.buf = value.subarray(use);
-      }
-    }
-    const result = new Uint8Array(size - remaining);
-    let offset = 0;
-    for (const p of parts) { result.set(p, offset); offset += p.length; }
-    return result;
-  }
-}
-
-async function uploadWithWebCrypto(
-  storage: any,
+async function uploadWithMega(
   target: any,
   fileName: string,
   fileSize: number,
   body: ReadableStream<Uint8Array>,
   onProgress: (pct: number) => void,
 ): Promise<void> {
-  const fileKey = crypto.getRandomValues(new Uint8Array(24));
-  const aesKey = fileKey.slice(0, 16);
-  const nonce = fileKey.slice(16, 24);
-
-  const ctrKey = await crypto.subtle.importKey("raw", aesKey, { name: "AES-CTR" }, false, ["encrypt"]);
-  const cbcKey = await crypto.subtle.importKey("raw", aesKey, { name: "AES-CBC" }, false, ["encrypt"]);
-
-  const uploadUrl: string = await new Promise((resolve, reject) => {
-    storage.api.request({ a: "u", ssl: true, s: fileSize, ms: 0, r: 0, e: 0 }, (err: any, resp: any) => {
-      if (err) reject(new Error(err));
-      else resolve(resp.p);
-    });
-  });
-
-  const reader = new BufferedReader(body);
-  const zeroIv = new Uint8Array(16);
-  const storedMacs: Uint8Array[] = [];
-  let mac = new Uint8Array(16);
-  mac.set(nonce, 0);
-  mac.set(nonce, 8);
-  let position = 0;
-  let completionHash: Uint8Array | null = null;
-
-  onProgress(0);
-
-  while (position < fileSize) {
-    const chunkSize = getMegaChunkSize(position, fileSize);
-    const plaintext = await reader.readExact(chunkSize);
-
-    const counter = new Uint8Array(16);
-    counter.set(nonce, 0);
-    const blockIndex = Math.floor(position / 16);
-    const dv = new DataView(counter.buffer);
-    dv.setUint32(8, Math.floor(blockIndex / 0x100000000), false);
-    dv.setUint32(12, blockIndex >>> 0, false);
-
-    const ciphertext = await crypto.subtle.encrypt({ name: "AES-CTR", counter, length: 128 }, ctrKey, plaintext);
-    const ctBytes = new Uint8Array(ciphertext);
-
-    const macOut = await crypto.subtle.encrypt({ name: "AES-CBC", iv: mac }, cbcKey, ctBytes);
-    mac = new Uint8Array(macOut.slice(-16));
-
-    storedMacs.push(mac);
-    mac = new Uint8Array(16);
-    mac.set(nonce, 0);
-    mac.set(nonce, 8);
-
-    const resp = await fetch(`${uploadUrl}/${position}`, {
-      method: "POST",
-      body: ctBytes,
-      headers: { "Content-Type": "application/octet-stream" },
-    });
-    if (!resp.ok) throw new Error(`Chunk upload failed at byte ${position}: ${resp.status}`);
-    const raw = await resp.arrayBuffer();
-    if (raw.byteLength > 0) completionHash = new Uint8Array(raw);
-
-    position += ctBytes.length;
-    onProgress(Math.min(Math.round((position / fileSize) * 100), 99));
-  }
-
-  const chained = storedMacs.length > 1 ? await chainMacs(storedMacs, cbcKey) : storedMacs[0];
-  const condensed = await crypto.subtle.encrypt({ name: "AES-CBC", iv: zeroIv }, cbcKey, chained);
-  const finalMac = new Uint8Array(condensed.slice(0, 16));
-
-  const mergedKey = mergeKeyMac(aesKey, finalMac);
-
-  const attrBytes = new TextEncoder().encode(JSON.stringify({ n: fileName }));
-  const attrPad = new Uint8Array(Math.ceil(attrBytes.length / 16) * 16);
-  attrPad.set(attrBytes);
-  const attrEnc = await crypto.subtle.encrypt({ name: "AES-CBC", iv: zeroIv }, cbcKey, attrPad);
-
-  const keyBuf = Buffer.from(new Uint8Array(mergedKey));
-  storage.aes.encryptECB(keyBuf);
-
-  if (!completionHash) throw new Error("No completion hash from Mega upload");
-  const targetInfo = {
-    type: typeof target,
-    ctor: target?.constructor?.name,
-    keys: Object.keys(target || {}).filter((k: string) => !["parent", "children"].includes(k)),
-    nodeId: target?.nodeId,
-    nodeIdType: typeof target?.nodeId,
-    h: target?.h,
-    hash: (target as any)?.hash,
-    toString: target?.toString?.()?.substring(0, 20),
-  };
-  console.error("[t] info:", JSON.stringify(targetInfo));
-  await new Promise<void>((resolve, reject) => {
-    storage.api.request({
-      a: "p",
-      t: target,
-      n: [{
-        h: e64(completionHash),
-        t: 0,
-        a: e64(new Uint8Array(attrEnc)),
-        k: e64(new Uint8Array(keyBuf)),
-      }],
-    }, (err: any) => {
+  return new Promise<void>((resolve, reject) => {
+    const uploadStream = target.upload({ name: fileName, size: fileSize }, (err: any) => {
       if (err) reject(new Error(err));
       else resolve();
     });
+    uploadStream.on("progress", ({ bytesUploaded }: { bytesUploaded: number }) => {
+      onProgress(Math.min(Math.round((bytesUploaded / fileSize) * 100), 99));
+    });
+    const writable = new WritableStream({
+      write(chunk: Uint8Array) {
+        return new Promise<void>((res, rej) => {
+          const ok = uploadStream.write(chunk, (err?: Error) => {
+            if (err) rej(err);
+            else if (!ok) uploadStream.once("drain", res);
+            else res();
+          });
+          if (!ok) uploadStream.once("drain", res);
+        });
+      },
+      close() {
+        return new Promise<void>((res) => uploadStream.end(res));
+      },
+    });
+    body.pipeTo(writable).catch(reject);
   });
-
-  onProgress(100);
 }
 
 Deno.serve(async (req) => {
@@ -339,11 +182,12 @@ Deno.serve(async (req) => {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          await uploadWithWebCrypto(
-            storage as any, target as any, fileName, contentLength, driveRes.body as ReadableStream<Uint8Array>,
-            (pct) => {
-              controller.enqueue(new TextEncoder().encode(JSON.stringify({ type: "progress", percent: pct }) + "\n"));
-            },
+          onProgress = (pct: number) => {
+            controller.enqueue(new TextEncoder().encode(JSON.stringify({ type: "progress", percent: pct }) + "\n"));
+          };
+          await uploadWithMega(
+            target as any, fileName, contentLength, driveRes.body as ReadableStream<Uint8Array>,
+            onProgress,
           );
           controller.enqueue(new TextEncoder().encode(JSON.stringify({ type: "done", success: true, fileName, size: contentLength }) + "\n"));
         } catch (err) {

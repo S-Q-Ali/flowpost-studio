@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, HardDrive, FolderOpen, File, ChevronRight, Upload, Plus, Check, Target } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { transferDriveToMega, type DriveFileInfo } from "@/lib/driveToMegaTransfer";
 import type { ConnectedAccount } from "@/lib/types";
 
 interface DriveFile {
@@ -230,7 +231,7 @@ export default function StoragePage() {
     toast.success(`Target: ${path || "(root)"}`);
   }
 
-  // Upload via NDJSON stream
+  // Client-side upload via browser (avoids server CPU limits)
   async function startUpload() {
     const selectedFiles = driveFiles.filter((f) => selectedFileIds.has(f.id));
     if (selectedFiles.length === 0) return;
@@ -238,6 +239,11 @@ export default function StoragePage() {
     const megaAccountId = megaAccounts[0]?.id;
     if (!megaAccountId) {
       toast.error("No Mega account connected");
+      return;
+    }
+    const sessionToken = localStorage.getItem("flowpost_token");
+    if (!sessionToken) {
+      toast.error("Not authenticated");
       return;
     }
     setUploading(true);
@@ -248,41 +254,22 @@ export default function StoragePage() {
       setUploadProgress(label);
       setUploadPercent(0);
       try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/drive-to-mega`, {
-          method: "POST",
-          headers: CALL_HEADERS,
-          body: JSON.stringify({
-            driveFileId: f.id,
-            driveAccountId: selectedDriveId,
-            megaAccountId,
-            fileName: f.name,
-            megaFolderPath: megaTargetPath || undefined,
-          }),
-        });
-        const streamReader = response.body!.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        let done = false;
-        while (!done) {
-          const { done: streamDone, value } = await streamReader.read();
-          done = streamDone;
-          buf += decoder.decode(value || new Uint8Array(), { stream: !done });
-          const lines = buf.split("\n");
-          buf = lines.pop() || "";
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const ev = JSON.parse(line);
-              if (ev.type === "progress") {
-                setUploadPercent(ev.percent);
-              } else if (ev.type === "done") {
-                toast.success(`${f.name} uploaded to Mega`);
-              } else if (ev.type === "error") {
-                toast.error(`${f.name}: ${ev.message}`);
-              }
-            } catch { /* skip malformed */ }
-          }
-        }
+        await transferDriveToMega(
+          sessionToken,
+          selectedDriveId,
+          megaAccountId,
+          f as DriveFileInfo,
+          megaTargetPath || undefined,
+          (event) => {
+            if (event.type === "progress") {
+              setUploadPercent(event.progress.percent);
+            } else if (event.type === "done") {
+              toast.success(`${f.name} uploaded to Mega`);
+            } else if (event.type === "error") {
+              toast.error(`${f.name}: ${event.message}`);
+            }
+          },
+        );
       } catch (err: any) {
         toast.error(`${f.name}: ${err.message || "Network error"}`);
       }
