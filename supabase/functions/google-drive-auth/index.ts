@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
           .select("refresh_token")
           .eq("user_id", userId)
           .eq("platform", "google_drive")
+          .eq("account_id", accountId)
           .maybeSingle();
         refreshTokenToStore = (existing?.refresh_token as string | null) ?? null;
       }

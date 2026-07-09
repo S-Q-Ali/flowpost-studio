@@ -154,6 +154,9 @@ export default function StoragePage() {
         setDriveFiles(data.files ?? []);
       }
       setDrivePageToken(data.nextPageToken ?? null);
+    } else if (error) {
+      console.error("list-files error:", error);
+      toast.error("Failed to list Drive files. Try reconnecting the account.");
     }
     setDriveLoading(false);
   }
@@ -401,7 +404,11 @@ export default function StoragePage() {
                 <select
                   className="bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground"
                   value={selectedDriveId ?? ""}
-                  onChange={(e) => setSelectedDriveId(e.target.value || null)}
+                  onChange={(e) => {
+                    setSelectedDriveId(e.target.value || null);
+                    setDriveBreadcrumbs([]);
+                    setSelectedFileIds(new Set());
+                  }}
                 >
                   {driveAccounts.map((a) => (
                     <option key={a.id} value={a.id!}>{a.account_name}</option>

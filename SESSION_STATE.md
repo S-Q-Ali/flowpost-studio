@@ -1,6 +1,9 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `ea26eb3` — fix: remove const reassignment in transfer-ticket, deploy fix
+## CURRENT HEAD: `9b2a809` — feat: delete Drive and Mega files from Storage page, session ID exchange for secure transfer, fix ESID error
+
+## Current Issues
+- Multi-account Drive: refresh_token lookup fixed in code; users must reconnect accounts once more to fix broken token pairs.
 
 ## Current Status
 - **v19**: Browser-streamed Drive→Mega transfer. Moved CPU-intensive megajs AES encryption from server-side edge function to user's browser. New `transfer-ticket` edge function provides temporary decrypted credentials. Client-side `driveToMegaTransfer.ts` handles streaming upload. No server CPU limits — files of any size can transfer (subject to browser tab staying open).
@@ -735,3 +738,44 @@ npx.cmd supabase functions deploy transfer-ticket --no-verify-jwt
 **Migration**: Users must **reconnect** Google Drive accounts to obtain the new `drive.file` scope. Mega accounts work without reconnection.
 
 **Deploy**: Both functions deployed.
+
+---
+
+### 31. Multi-Drive Refresh Token Mismatch — Fixed (2026-07-09)
+
+**Symptom**: After connecting a 3rd Google Drive account, all Drive accounts showed as connected but none displayed files. No error in frontend — silent failure.
+
+**Root cause**: Two bugs:
+
+1. **`refresh_token` fallback lookup** (`google-drive-auth/index.ts:164-171`): When Google doesn't return a new `refresh_token` on re-authorization (normal behavior — only returned on first auth), the fallback query grabbed **any** existing Drive account's refresh token via `.maybeSingle()` with no `account_id` filter. This paired the wrong refresh_token with the new access_token. The `list-files` handler then failed to refresh tokens silently.
+
+2. **Silent error handling** (`StoragePage.tsx:150`): `fetchDriveFiles` checked `if (!error && data)` but did nothing when `error` was truthy — no console log, no toast. The UI just showed an empty file list.
+
+**Fix**:
+- Added `.eq("account_id", accountId)` to the fallback refresh_token lookup — now it only grabs the refresh token for the **same** email address.
+- Added `console.error` + `toast.error("Failed to list Drive files")` in `fetchDriveFiles` when the API call fails.
+- Added `setDriveBreadcrumbs([])` + `setSelectedFileIds(new Set())` when switching Drive accounts via the dropdown.
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `supabase/functions/google-drive-auth/index.ts` | Added `.eq("account_id", accountId)` to fallback refresh_token query |
+| `src/pages/StoragePage.tsx` | Added error toast/log in `fetchDriveFiles`; clear breadcrumbs + selection on drive switch |
+
+**Deploy**: `supabase functions deploy google-drive-auth --no-verify-jwt`
+
+**Note**: Users with broken refresh_token pairs will need to re-connect their Drive accounts one more time after this fix.
+
+---
+
+### 32. Future: Sliding Session Expiry (Plan)
+
+**Idea**: Currently session tokens have a fixed 7-day TTL set at creation (`verify-password/index.ts:68-70`, `verify-security-questions/index.ts:35-37`). Once expired, the user must re-authenticate. A sliding-window approach would extend the `expires_at` by 7 days on each active use (navigation, upload, etc.), preventing mid-session expiry for heavy users.
+
+**Implementation sketch**:
+- Create a shared helper `supabase/functions/_shared/session.ts` with `refreshSession(token)` that updates `expires_at` to `now + 7 days`
+- Call this from any authenticated edge function (workflow triggers, uploads, file listings)
+- The frontend can call it periodically or on each navigation event
+- Add a cleanup cron to delete truly expired sessions (past `expires_at`)
+
+**Status**: Not implemented. Optional enhancement for improved UX.
