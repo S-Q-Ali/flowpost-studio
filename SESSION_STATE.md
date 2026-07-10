@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `c33c3a4` — fix: multi-Drive refresh_token fallback by account_id, add error toast in fetchDriveFiles, clear breadcrumbs on drive switch
+## CURRENT HEAD: `83eebc2` — fix: combine drive.file + drive.readonly scope to list, download, and delete files
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
