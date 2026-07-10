@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `312af24` — fix: Drive full scope — replace drive.file + drive.readonly with drive (with entry #38)
+## CURRENT HEAD: see `git log --oneline -1`
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
