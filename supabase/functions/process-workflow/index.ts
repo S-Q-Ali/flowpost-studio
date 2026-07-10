@@ -244,22 +244,13 @@ Deno.serve(async (req) => {
             `Workflow ${wf.name}: custom range #${ri} target ${Math.floor(targetMinutes / 60)}:${(targetMinutes % 60).toString().padStart(2, "0")} UTC, current ${utcHour}:${utcMinute}`,
           );
 
-          if (currentMinutes >= targetMinutes - 1 && currentMinutes <= targetMinutes + 1) {
+          if (currentMinutes >= targetMinutes && currentMinutes < targetMinutes + 5) {
             matched = true;
             break;
           }
         }
 
         if (!matched) continue;
-
-        // Dedup: skip if already triggered within 60 min
-        if (wf.last_triggered_at) {
-          const minutesSince = (now.getTime() - new Date(wf.last_triggered_at).getTime()) / 60000;
-          if (minutesSince < 60) {
-            console.log(`Workflow ${wf.name}: custom ranges last triggered ${Math.round(minutesSince)}min ago, skipping`);
-            continue;
-          }
-        }
       } else {
         // Common for once_daily and interval: run_days check
         const runDays = (wf.run_days as number[] | null) ?? [0, 1, 2, 3, 4, 5, 6];

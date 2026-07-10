@@ -966,3 +966,24 @@ supabase functions deploy google-oauth --no-verify-jwt
 | File | Change |
 |------|--------|
 | `src/pages/StoragePage.tsx` | Added `deletingSelected` + `deletingProgress` state vars; `deleteSelectedItems()` now sets loading state and shows per-file progress; button disabled + spinner when deleting; Mega container `max-h-40` → `max-h-64` |
+
+---
+
+### 40. Custom Range Scheduling — Match Window Fix (2026-07-10)
+
+**What**: Fixed custom_ranges scheduling in `process-workflow` so each range fires exactly once per day.
+
+**Root cause**: The time-matching window on line 247 was `[target-1, target+1]` (3 minutes), but `process-workflow` runs on a 5-minute cron (`*/5 * * * *`). Most deterministic target times fell between cron ticks and were never matched. The workflow appeared to fire (log printed on line 244 for every invocation) but was actually skipped at line 253 — targets never executed.
+
+**Secondary bug**: The 60-minute rolling dedup (lines 255–262) incorrectly blocked targets less than 60 minutes apart (e.g., targets at 10:00 and 10:30).
+
+**Fix**:
+
+| Line | Before | After |
+|------|--------|-------|
+| 247 | `currentMinutes >= targetMinutes - 1 && currentMinutes <= targetMinutes + 1` | `currentMinutes >= targetMinutes && currentMinutes < targetMinutes + 5` |
+| 255–262 | 60-min rolling dedup block | Removed entirely |
+
+**New behavior**: Each range has a 5-minute post-target window `[target, target+5)`. With a `*/5` cron, the cron always lands inside the window exactly once, guaranteeing reliable execution without dedup interference between ranges.
+
+**Deploy**: `supabase functions deploy process-workflow --no-verify-jwt`
