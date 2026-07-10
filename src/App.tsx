@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -34,11 +35,10 @@ function AppRoutes() {
   if (isVerifying) {
     return (
       <div
-        className="min-h-screen flex flex-col items-center justify-center gap-6 p-6"
-        style={{ backgroundColor: "#0F0F0F" }}
+        className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 bg-background text-foreground"
       >
         <Logo size="lg" />
-        <p className="text-sm text-zinc-500 flex items-center gap-2">
+         <p className="text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 size={18} className="animate-spin" />
           Verifying...
         </p>
@@ -77,15 +77,17 @@ function AppRoutes() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AuthProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AuthProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

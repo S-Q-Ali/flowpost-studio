@@ -117,19 +117,17 @@ export function SecurityQuestionsGate() {
   if (loading) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: "#0F0F0F" }}
+        className="min-h-screen flex items-center justify-center bg-background text-foreground"
       >
-        <Loader2 size={24} className="animate-spin text-[#5BB5C4]" />
+        <Loader2 size={24} className="animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center p-6"
-      style={{ backgroundColor: "#0F0F0F" }}
-    >
+      <div
+        className="min-h-screen flex flex-col items-center justify-center p-6 bg-background text-foreground"
+      >
       <Card className="bg-card border-border max-w-sm w-full">
         <CardHeader>
           <CardTitle className="text-foreground text-center">
@@ -173,7 +171,7 @@ export function SecurityQuestionsGate() {
             <Button
               type="submit"
               disabled={verifying}
-              className="w-full h-10 font-medium bg-[#5BB5C4] text-white hover:opacity-90 disabled:opacity-50"
+              className="w-full h-10 font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
               {verifying ? (
                 <><Loader2 size={16} className="animate-spin mr-2" /> Verifying...</>

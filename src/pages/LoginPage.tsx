@@ -61,16 +61,15 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center p-6"
-      style={{ backgroundColor: "#0F0F0F" }}
+      className="min-h-screen flex flex-col items-center justify-center p-6 bg-background text-foreground"
     >
       <div className="w-full max-w-sm flex flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-3">
           <Logo size="lg" />
-          <h1 className="text-2xl font-bold tracking-tight text-white">
+             <h1 className="text-2xl font-bold tracking-tight text-foreground">
             FlowPost
           </h1>
-          <p className="text-sm text-zinc-500">Sign in to continue</p>
+          <p className="text-sm text-muted-foreground">Sign in to continue</p>
         </div>
 
         <Card className="bg-card border-border w-full">
@@ -78,7 +77,7 @@ export default function LoginPage() {
             <Button
               onClick={handleGoogle}
               disabled={googleVerifying}
-              className="w-full h-12 rounded-xl font-medium bg-white text-gray-900 hover:bg-gray-100 disabled:opacity-70"
+                className="w-full h-12 rounded-xl font-medium bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-70"
             >
               {googleVerifying ? (
                 <><Loader2 size={18} className="animate-spin mr-2" /> Signing in...</>
@@ -100,7 +99,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="signin-email" className="text-foreground">Email</Label>
                 <div className="relative">
-                  <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                   <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="signin-email"
                     type="email"
@@ -109,7 +108,7 @@ export default function LoginPage() {
                     placeholder="admin@example.com"
                     autoFocus
                     disabled={emailVerifying}
-                    className="h-11 pl-10 rounded-xl border-zinc-700 bg-zinc-900/80 text-white placeholder:text-zinc-500 focus-visible:ring-2 focus-visible:ring-[#5BB5C4] focus-visible:border-[#5BB5C4]"
+                    className="h-11 pl-10 rounded-xl border-input bg-card text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
                     autoComplete="email"
                   />
                 </div>
@@ -118,7 +117,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="signin-password" className="text-foreground">Password</Label>
                 <div className="relative">
-                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     id="signin-password"
                     type={showPassword ? "text" : "password"}
@@ -126,13 +125,13 @@ export default function LoginPage() {
                     onChange={(e) => { setPassword(e.target.value); setError(null); }}
                     placeholder="Enter password"
                     disabled={emailVerifying}
-                    className="h-11 pl-10 pr-12 rounded-xl border-zinc-700 bg-zinc-900/80 text-white placeholder:text-zinc-500 focus-visible:ring-2 focus-visible:ring-[#5BB5C4] focus-visible:border-[#5BB5C4]"
+                    className="h-11 pl-10 pr-12 rounded-xl border-input bg-card text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
                     autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((s) => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                     tabIndex={-1}
                   >
@@ -148,7 +147,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={emailVerifying || !email || !password}
-                className="w-full h-11 rounded-xl font-medium bg-[#5BB5C4] text-white transition-all hover:opacity-90 disabled:opacity-50"
+                className="w-full h-11 rounded-xl font-medium bg-primary text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"
               >
                 {emailVerifying ? (
                   <><Loader2 size={18} className="animate-spin mr-2" /> Signing in...</>
@@ -160,15 +159,15 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        <p className="text-xs text-zinc-600">
+        <p className="text-xs text-muted-foreground">
           By signing in, you agree to the{" "}
-          <a href="/terms" className="text-zinc-400 hover:text-zinc-300 underline underline-offset-2">
-            Terms of Service
-          </a>{" "}
-          and{" "}
-          <a href="/privacy" className="text-zinc-400 hover:text-zinc-300 underline underline-offset-2">
-            Privacy Policy
-          </a>
+           <a href="/terms" className="text-muted-foreground hover:text-foreground underline underline-offset-2">
+             Terms of Service
+           </a>{" "}
+           and{" "}
+           <a href="/privacy" className="text-muted-foreground hover:text-foreground underline underline-offset-2">
+             Privacy Policy
+           </a>
         </p>
       </div>
     </div>

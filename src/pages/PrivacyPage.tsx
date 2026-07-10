@@ -3,8 +3,8 @@ import { Logo } from "@/components/Logo";
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#0F0F0F" }}>
-      <div className="max-w-3xl mx-auto px-6 py-12 space-y-8 text-zinc-300">
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="max-w-3xl mx-auto px-6 py-12 space-y-8 text-muted-foreground">
         <header className="flex items-center gap-3">
           <Link to="/dashboard" aria-label="FlowPost Studio">
             <Logo size="md" />
@@ -12,12 +12,12 @@ export default function PrivacyPage() {
         </header>
 
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-white">Privacy Policy</h1>
-          <p className="text-sm text-zinc-500">Last updated: June 7, 2026</p>
+          <h1 className="text-3xl font-bold text-foreground">Privacy Policy</h1>
+          <p className="text-sm text-muted-foreground">Last updated: June 7, 2026</p>
         </div>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">1. Information We Collect</h2>
+          <h2 className="text-xl font-semibold text-foreground">1. Information We Collect</h2>
           <p>We collect the minimum data needed to operate the Service:</p>
           <ul className="list-disc pl-6 space-y-2">
             <li>
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">2. How We Use Your Information</h2>
+          <h2 className="text-xl font-semibold text-foreground">2. How We Use Your Information</h2>
           <p>We use the data we collect only to:</p>
           <ul className="list-disc pl-6 space-y-2">
             <li>Read your Google Sheets to find rows marked "ready to post".</li>
@@ -65,7 +65,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">3. How We Store Your Data</h2>
+          <h2 className="text-xl font-semibold text-foreground">3. How We Store Your Data</h2>
           <ul className="list-disc pl-6 space-y-2">
             <li>
               <strong>Database</strong>: Supabase (Postgres) with row-level security. Tokens are
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">4. Third-Party Services</h2>
+          <h2 className="text-xl font-semibold text-foreground">4. Third-Party Services</h2>
           <p>
             We share data only with the third-party services you explicitly authorize, and only
             the minimum needed to publish:
@@ -117,7 +117,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">5. Cookies and Tracking</h2>
+          <h2 className="text-xl font-semibold text-foreground">5. Cookies and Tracking</h2>
           <p>
             FlowPost Studio does not use third-party analytics, advertising cookies, or tracking
             pixels. We may use minimal first-party cookies or localStorage to keep you signed in
@@ -126,7 +126,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">6. Data Retention</h2>
+          <h2 className="text-xl font-semibold text-foreground">6. Data Retention</h2>
           <ul className="list-disc pl-6 space-y-2">
             <li>
               Post metadata and media files are retained until you delete them or disconnect the
@@ -145,7 +145,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">7. Your Rights</h2>
+          <h2 className="text-xl font-semibold text-foreground">7. Your Rights</h2>
           <p>You can at any time:</p>
           <ul className="list-disc pl-6 space-y-2">
             <li>Disconnect any social media account from the Accounts page.</li>
@@ -155,7 +155,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">8. Children's Privacy</h2>
+          <h2 className="text-xl font-semibold text-foreground">8. Children's Privacy</h2>
           <p>
             The Service is not directed to children under 13. We do not knowingly collect
             personal information from children.
@@ -163,7 +163,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">9. Changes to This Policy</h2>
+          <h2 className="text-xl font-semibold text-foreground">9. Changes to This Policy</h2>
           <p>
             We may update this Privacy Policy from time to time. The "Last updated" date at the
             top reflects the most recent revision. Continued use of the Service after a change
@@ -172,7 +172,7 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">10. Contact</h2>
+          <h2 className="text-xl font-semibold text-foreground">10. Contact</h2>
           <p>
             Questions or data requests? Contact:{" "}
             <a className="text-primary hover:underline" href="mailto:syedqasim963@gmail.com">

@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `342dbc4` — feat: single-session enforcement — delete all sessions on new login
+## CURRENT HEAD: `376c158` — feat: dual-mode light/dark theme system (Warm Cream Studio / Warm Cocoa) via next-themes
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -140,6 +140,8 @@
 - **Mega as alternate file source** — paste mega.nz URLs in Sheet's `video_url`; get-file proxy downloads via `npm:megajs`; mixed Drive + Mega URLs per row supported
 - **Mega account integration** — users connect Mega via email/password on AccountsPage; `mega:filename.mp4` in Sheet triggers authenticated download via get-file proxy; mega-auth function handles connect/files/disconnect
 - **Browser-streamed Drive→Mega transfer** — CPU-intensive AES encryption runs in user's browser (no server CPU limits); `transfer-ticket` edge function provides temporary decrypted credentials; `driveToMegaTransfer.ts` handles streaming upload
+
+- Light + dark theme (Warm Cream Studio / Warm Cocoa) via `next-themes`; sidebar toggle; follows OS by default. Theme preference is client-side only — the `sessions` table, admin `flowpost_token`, and auth logic are unchanged (see entry #36).
 
 ### Known Issues
 1. **Instagram upload timeout** (8×30s polling > 60s runtime) — same class of bug as post-story was fixed for, but not yet applied to instagram-upload
@@ -852,3 +854,32 @@ supabase functions deploy verify-password --no-verify-jwt
 supabase functions deploy verify-security-questions --no-verify-jwt
 supabase functions deploy google-oauth --no-verify-jwt
 ```
+
+---
+
+### 36. Dual-Mode Theme System — Light + Dark (2026-07-10)
+
+**What**: Added a light + dark theme system. The app no longer renders only in dark mode. Default follows the OS preference; users toggle via a new Theme button (Sun/Moon) in the sidebar footer.
+
+**Why**: The previous UI was a single hardcoded dark theme with AI-slop signals — cold blue/cyan gradients, Inter font, and hardcoded literals (`#0F0F0F`, `#5BB5C4`, `#7C3AED`, `zinc-*`). The new palettes (Warm Cream Studio for light, Warm Cocoa for dark) use a terracotta accent and Fraunces + Plus Jakarta Sans type, removing the templated look.
+
+**How it works**:
+- `next-themes` (`ThemeProvider` in `App.tsx`, `attribute="class"`, `defaultTheme="system"`, `enableSystem`) toggles a `dark` class on `<html>`.
+- `index.html` no longer hardcodes `class="dark"`; a try/catch-guarded inline script sets the initial theme before paint to avoid a flash.
+- `src/index.css` defines a **complete** token set in both `:root` (light) and `.dark` (dark) — background, foreground, card, popover, primary, secondary, muted, accent, destructive, border, input, ring, sidebar-*, platform colors (TikTok differs per theme), status colors, gradients, and shadows. No token is omitted in either block, so every component renders correctly in both modes.
+- `tailwind.config.ts` font stacks updated: `sans` → Plus Jakarta Sans; added `display` → Fraunces (JetBrains Mono kept for code).
+- Theme preference is **client-side only** (localStorage via next-themes). It does **NOT** modify the `sessions` table, the `flowpost_token` admin session, `SecurityQuestionsGate`, or any auth/session logic. **Session/auth state is unchanged.**
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `src/index.css` | Replaced single dark `:root` with light `:root` + `.dark`; warm Cream/Cocoa palettes; terracotta gradients; Fraunces + Plus Jakarta Sans `@import` (first line) |
+| `tailwind.config.ts` | `fontFamily.sans` → Plus Jakarta Sans; added `display` → Fraunces |
+| `src/App.tsx` | Wrapped app in `ThemeProvider`; verification screen uses `bg-background` (removed `#0F0F0F`) |
+| `index.html` | Removed `class="dark"` from `<html>`; added pre-paint theme script |
+| `src/components/AppSidebar.tsx` | Added `ThemeToggle` (Sun/Moon) button in footer |
+| `src/pages/LoginPage.tsx`, `AuthCallback.tsx`, `SecurityQuestionsGate.tsx`, `UploadPage.tsx`, `TermsPage.tsx`, `PrivacyPage.tsx` | Replaced hardcoded `#0F0F0F`/`#5BB5C4`/`#7C3AED`/`zinc-*` literals with theme tokens |
+
+**Dependencies**: `next-themes@0.3.0` already present (no install). Fonts via Google Fonts CDN `@import` (degrade to `system-ui` if blocked).
+
+**No backend changes** — no edge functions, migrations, `integrations/`, auth flows, or env vars touched.

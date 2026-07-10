@@ -15,10 +15,10 @@ export default function AuthCallback() {
 
   if (isVerifying) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0F0F0F" }}>
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 size={32} className="animate-spin text-[#5BB5C4]" />
-          <p className="text-zinc-400">Completing sign in...</p>
+          <Loader2 size={32} className="animate-spin text-primary" />
+          <p className="text-muted-foreground">Completing sign in...</p>
         </div>
       </div>
     );
@@ -26,10 +26,10 @@ export default function AuthCallback() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0F0F0F" }}>
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         <div className="text-center">
           <p className="text-red-400 mb-4">Sign in failed. Please try again.</p>
-          <a href="/" className="text-[#5BB5C4] hover:underline">Go back to login</a>
+          <a href="/" className="text-primary hover:underline">Go back to login</a>
         </div>
       </div>
     );

@@ -3,8 +3,8 @@ import { Logo } from "@/components/Logo";
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#0F0F0F" }}>
-      <div className="max-w-3xl mx-auto px-6 py-12 space-y-8 text-zinc-300">
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="max-w-3xl mx-auto px-6 py-12 space-y-8 text-muted-foreground">
         <header className="flex items-center gap-3">
           <Link to="/dashboard" aria-label="FlowPost Studio">
             <Logo size="md" />
@@ -12,12 +12,12 @@ export default function TermsPage() {
         </header>
 
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-white">Terms of Service</h1>
-          <p className="text-sm text-zinc-500">Last updated: June 7, 2026</p>
+          <h1 className="text-3xl font-bold text-foreground">Terms of Service</h1>
+          <p className="text-sm text-muted-foreground">Last updated: June 7, 2026</p>
         </div>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">1. Acceptance of Terms</h2>
+          <h2 className="text-xl font-semibold text-foreground">1. Acceptance of Terms</h2>
           <p>
             By accessing or using FlowPost Studio ("the Service"), you agree to be bound by these
             Terms of Service. If you do not agree, do not use the Service.
@@ -25,7 +25,7 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">2. Service Description</h2>
+          <h2 className="text-xl font-semibold text-foreground">2. Service Description</h2>
           <p>
             FlowPost Studio is a workflow automation tool that posts videos and images to social
             media platforms (Facebook, Instagram, YouTube, TikTok) on your behalf, based on rules
@@ -36,7 +36,7 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">3. Account Responsibilities</h2>
+          <h2 className="text-xl font-semibold text-foreground">3. Account Responsibilities</h2>
           <ul className="list-disc pl-6 space-y-2">
             <li>
               You are responsible for the security of your account, including any passwords,
@@ -59,7 +59,7 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">4. Third-Party Services</h2>
+          <h2 className="text-xl font-semibold text-foreground">4. Third-Party Services</h2>
           <p>
             The Service integrates with: Google Sheets API, Google Drive, Cloudflare R2, Meta
             Graph API (Facebook &amp; Instagram), YouTube Data API, and TikTok Content Posting API.
@@ -69,7 +69,7 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">5. No Warranty</h2>
+          <h2 className="text-xl font-semibold text-foreground">5. No Warranty</h2>
           <p>
             The Service is provided "as is" and "as available" without warranties of any kind,
             express or implied, including but not limited to warranties of merchantability,
@@ -80,7 +80,7 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">6. Limitation of Liability</h2>
+          <h2 className="text-xl font-semibold text-foreground">6. Limitation of Liability</h2>
           <p>
             To the maximum extent permitted by law, FlowPost Studio and its operators shall not be
             liable for any indirect, incidental, special, consequential, or punitive damages
@@ -89,7 +89,7 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">7. Termination</h2>
+          <h2 className="text-xl font-semibold text-foreground">7. Termination</h2>
           <p>
             You may stop using the Service at any time by disconnecting your social media accounts
             in the Accounts page. We reserve the right to suspend or terminate access for users
@@ -98,7 +98,7 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">8. Changes to Terms</h2>
+          <h2 className="text-xl font-semibold text-foreground">8. Changes to Terms</h2>
           <p>
             We may update these Terms from time to time. Continued use of the Service after
             changes constitutes acceptance of the new Terms. The "Last updated" date at the top
@@ -107,7 +107,7 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">9. Contact</h2>
+          <h2 className="text-xl font-semibold text-foreground">9. Contact</h2>
           <p>
             Questions about these Terms? Contact:{" "}
             <a className="text-primary hover:underline" href="mailto:syedqasim963@gmail.com">

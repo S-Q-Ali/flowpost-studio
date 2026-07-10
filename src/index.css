@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,44 +7,106 @@
 
 @layer base {
   :root {
-    --background: 215 40% 5%;
-    --foreground: 0 0% 98%;
+    /* Warm Cream Studio (light) */
+    --background: 40 33% 97%;
+    --foreground: 20 25% 14%;
 
-    --card: 215 40% 10%;
-    --card-foreground: 0 0% 98%;
+    --card: 38 33% 92%;
+    --card-foreground: 20 25% 14%;
 
-    --popover: 215 40% 10%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 38 33% 92%;
+    --popover-foreground: 20 25% 14%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 13 72% 58%;
+    --primary-foreground: 30 30% 99%;
 
-    --secondary: 215 30% 14%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 34 30% 88%;
+    --secondary-foreground: 20 25% 18%;
 
-    --muted: 215 30% 14%;
-    --muted-foreground: 215 10% 66%;
+    --muted: 34 28% 89%;
+    --muted-foreground: 28 12% 42%;
 
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 34 30% 90%;
+    --accent-foreground: 20 25% 18%;
 
-    --destructive: 0 62.8% 50.6%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 8 65% 48%;
+    --destructive-foreground: 30 30% 99%;
 
-    --border: 215 30% 18%;
-    --input: 215 30% 18%;
-    --ring: 217 91% 60%;
+    --border: 32 22% 84%;
+    --input: 32 22% 84%;
+    --ring: 13 72% 58%;
 
     --radius: 0.625rem;
 
-    --sidebar-background: 215 40% 6%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 30% 14%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 215 30% 14%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-background: 38 34% 94%;
+    --sidebar-foreground: 20 25% 16%;
+    --sidebar-primary: 13 72% 58%;
+    --sidebar-primary-foreground: 30 30% 99%;
+    --sidebar-accent: 34 30% 89%;
+    --sidebar-accent-foreground: 20 25% 18%;
+    --sidebar-border: 32 22% 84%;
+    --sidebar-ring: 13 72% 58%;
+
+    /* Platform colors */
+    --facebook: 220 46% 48%;
+    --instagram: 340 75% 54%;
+    --youtube: 0 100% 50%;
+    --tiktok: 0 0% 8%;
+
+    /* Status colors */
+    --status-scheduled: 13 72% 58%;
+    --status-processing: 38 92% 50%;
+    --status-published: 142 71% 45%;
+    --status-failed: 0 84% 60%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(13 72% 58%), hsl(18 75% 52%));
+    --gradient-hero: linear-gradient(135deg, hsl(13 72% 58%) 0%, hsl(32 85% 55%) 50%, hsl(350 70% 60%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(38 33% 94%) 0%, hsl(38 33% 90%) 100%);
+
+    /* Shadows */
+    --shadow-glow: 0 0 40px -10px hsl(13 72% 58% / 0.3);
+    --shadow-card: 0 1px 3px 0 hsl(20 25% 14% / 0.12), 0 1px 2px -1px hsl(20 25% 14% / 0.12);
+  }
+
+  .dark {
+    /* Warm Cocoa (dark) */
+    --background: 20 12% 9%;
+    --foreground: 40 33% 92%;
+
+    --card: 22 15% 12%;
+    --card-foreground: 40 33% 92%;
+
+    --popover: 22 15% 12%;
+    --popover-foreground: 40 33% 92%;
+
+    --primary: 12 75% 62%;
+    --primary-foreground: 20 20% 10%;
+
+    --secondary: 24 16% 16%;
+    --secondary-foreground: 40 33% 92%;
+
+    --muted: 24 14% 16%;
+    --muted-foreground: 36 12% 65%;
+
+    --accent: 24 16% 17%;
+    --accent-foreground: 40 33% 92%;
+
+    --destructive: 8 70% 55%;
+    --destructive-foreground: 40 33% 96%;
+
+    --border: 24 14% 20%;
+    --input: 24 14% 20%;
+    --ring: 12 75% 62%;
+
+    --sidebar-background: 20 13% 8%;
+    --sidebar-foreground: 40 33% 90%;
+    --sidebar-primary: 12 75% 62%;
+    --sidebar-primary-foreground: 20 20% 10%;
+    --sidebar-accent: 24 16% 16%;
+    --sidebar-accent-foreground: 40 33% 92%;
+    --sidebar-border: 24 14% 18%;
+    --sidebar-ring: 12 75% 62%;
 
     /* Platform colors */
     --facebook: 220 46% 48%;
@@ -53,19 +115,19 @@
     --tiktok: 0 0% 100%;
 
     /* Status colors */
-    --status-scheduled: 217 91% 60%;
+    --status-scheduled: 13 72% 58%;
     --status-processing: 38 92% 50%;
     --status-published: 142 71% 45%;
     --status-failed: 0 84% 60%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 60%), hsl(225, 80%, 55%));
-    --gradient-hero: linear-gradient(135deg, hsl(217, 91%, 60%) 0%, hsl(190, 80%, 50%) 50%, hsl(240, 70%, 55%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(215, 40%, 12%) 0%, hsl(215, 40%, 8%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(12 75% 62%), hsl(18 78% 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(12 75% 62%) 0%, hsl(30 75% 55%) 50%, hsl(350 65% 58%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(22 15% 14%) 0%, hsl(22 15% 10%) 100%);
 
     /* Shadows */
-    --shadow-glow: 0 0 40px -10px hsl(217, 91%, 60%, 0.3);
-    --shadow-card: 0 1px 3px 0 hsl(0, 0%, 0%, 0.3), 0 1px 2px -1px hsl(0, 0%, 0%, 0.3);
+    --shadow-glow: 0 0 40px -10px hsl(12 75% 62% / 0.3);
+    --shadow-card: 0 1px 3px 0 hsl(0 0% 0% / 0.3), 0 1px 2px -1px hsl(0 0% 0% / 0.3);
   }
 }
 

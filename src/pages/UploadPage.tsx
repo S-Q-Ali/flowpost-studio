@@ -840,7 +840,7 @@ export default function UploadPage() {
         <Card className="bg-card border-border shadow-card overflow-hidden">
           <CardContent className="pt-5 pb-5 space-y-3">
             <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-[#7C3AED]" />
+               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <span className="text-sm text-muted-foreground">Posting...</span>
             </div>
           </CardContent>
