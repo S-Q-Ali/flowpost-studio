@@ -804,3 +804,27 @@ https://www.googleapis.com/auth/userinfo.profile     ← identity
 | `supabase/functions/google-drive-auth/index.ts` | Replaced `drive.metadata.readonly` with `drive.readonly` in scope array (line 136) |
 
 **Note**: Users must reconnect Drive accounts after deploy so Google issues a new token with the combined scopes. The existing `prompt=consent` param ensures a fresh refresh_token on each reconnect.
+
+---
+
+### 34. Reconnect Button for Drive Accounts (2026-07-10)
+
+**What**: Added a per-account Reconnect button (arrow icon) on each Drive account card in AccountsPage, next to the Disconnect button.
+
+**Why**: After a scope change, users had to disconnect and then click the generic "Connect Google Drive" button, manually re-selecting the same Google account. The reconnect button uses Google's `login_hint` OAuth parameter to pre-select the account, so the user just clicks "Continue".
+
+**Changes**:
+| File | Change |
+|------|--------|
+| `supabase/functions/google-drive-auth/index.ts` | Added `login_hint` query param forwarding to Google OAuth URL (line 133) |
+| `src/pages/AccountsPage.tsx` | Added `reconnectingDriveId` state, `reconnectDrive()` function, `RefreshCw` icon button on each Drive card |
+
+**How it works**:
+1. User clicks `↻` button on a Drive card
+2. Button shows spinning animation, disabled state
+3. Calls `google-drive-auth?action=url&userId=...&login_hint=<email>` — Google OAuth opens with that email pre-selected
+4. Listens for any change (`event: "*"`) on the specific DB row (`id=eq.<rowId>`) — handles both INSERT (new account) and UPDATE (reconnect same email)
+5. On success: toast + list refresh. On 30s timeout: toast error.
+6. The existing "Connect Google Drive" button at the bottom is unchanged.
+
+**Deploy**: `supabase functions deploy google-drive-auth --no-verify-jwt`

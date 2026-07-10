@@ -121,6 +121,7 @@ Deno.serve(async (req) => {
 
     if (action === "url") {
       const reqUserId = url.searchParams.get("userId");
+      const loginHint = url.searchParams.get("login_hint");
       if (!reqUserId) return json({ error: "Missing userId" }, 400);
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", GD_CLIENT_ID!);
@@ -129,6 +130,7 @@ Deno.serve(async (req) => {
       authUrl.searchParams.set("access_type", "offline");
       authUrl.searchParams.set("state", reqUserId);
       authUrl.searchParams.set("prompt", "consent");
+      if (loginHint) authUrl.searchParams.set("login_hint", loginHint);
       authUrl.searchParams.set(
         "scope",
         [

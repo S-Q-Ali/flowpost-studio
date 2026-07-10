@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { Switch } from "@/components/ui/switch";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { BetaBadge } from "@/components/BetaBadge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +19,7 @@ export default function AccountsPage() {
   const [isFacebookConnecting, setIsFacebookConnecting] = useState(false);
   const [isTikTokConnecting, setIsTikTokConnecting] = useState(false);
   const [isDriveConnecting, setIsDriveConnecting] = useState(false);
+  const [reconnectingDriveId, setReconnectingDriveId] = useState<string | null>(null);
   const [isMegaConnecting, setIsMegaConnecting] = useState(false);
   const [showMegaForm, setShowMegaForm] = useState(false);
   const [megaEmail, setMegaEmail] = useState("");
@@ -439,6 +440,53 @@ export default function AccountsPage() {
     } catch (e: any) {
       toast.error(e.message || "Google Drive connection failed");
       setIsDriveConnecting(false);
+    }
+  };
+
+  const reconnectDrive = async (rowId: string, email?: string) => {
+    setReconnectingDriveId(rowId);
+    try {
+      let url = `google-drive-auth?action=url&userId=${userId}`;
+      if (email) url += `&login_hint=${encodeURIComponent(email)}`;
+      const { data, error } = await supabase.functions.invoke(url, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      });
+
+      if (error) throw new Error(error.message || "Failed to start Google Drive OAuth");
+      if (!data?.url) throw new Error("Missing OAuth URL");
+
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const channel = supabase
+        .channel(`drive-reconnect-${rowId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "connected_accounts",
+            filter: `id=eq.${rowId}`,
+          },
+          () => {
+            clearTimeout(timeoutId);
+            channel.unsubscribe();
+            fetchDrive();
+            toast.success("Google Drive reconnected!");
+            setReconnectingDriveId(null);
+          },
+        )
+        .subscribe();
+
+      timeoutId = setTimeout(() => {
+        channel.unsubscribe();
+        setReconnectingDriveId(null);
+        toast.error("Reconnection timed out. Try again.");
+      }, 30_000);
+
+      window.open(data.url, "_blank");
+    } catch (e: any) {
+      toast.error(e.message || "Google Drive reconnection failed");
+      setReconnectingDriveId(null);
     }
   };
 
@@ -879,6 +927,16 @@ export default function AccountsPage() {
                         <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
                           Connected
                         </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          disabled={reconnectingDriveId === a.id}
+                          onClick={() => reconnectDrive(a.id!, email ?? a.account_id)}
+                          title="Reconnect this account"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${reconnectingDriveId === a.id ? "animate-spin" : ""}`} />
+                        </Button>
                         <Button variant="outline" size="sm" onClick={async () => {
                           if (!a.id) return;
                           await supabase.from("connected_accounts").update({ is_connected: false }).eq("id", a.id);
