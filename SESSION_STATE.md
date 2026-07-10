@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `f3d82d2` — update SESSION_STATE.md HEAD to 252391b
+## CURRENT HEAD: `342dbc4` — feat: single-session enforcement — delete all sessions on new login
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
