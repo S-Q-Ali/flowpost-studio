@@ -141,7 +141,7 @@
 - **Mega account integration** — users connect Mega via email/password on AccountsPage; `mega:filename.mp4` in Sheet triggers authenticated download via get-file proxy; mega-auth function handles connect/files/disconnect
 - **Browser-streamed Drive→Mega transfer** — CPU-intensive AES encryption runs in user's browser (no server CPU limits); `transfer-ticket` edge function provides temporary decrypted credentials; `driveToMegaTransfer.ts` handles streaming upload
 
-- Light + dark theme (Warm Cream Studio / Warm Cocoa) via `next-themes`; sidebar toggle; follows OS by default. Theme preference is client-side only — the `sessions` table, admin `flowpost_token`, and auth logic are unchanged (see entry #36).
+- Light + dark theme (Aurora Rose Studio / Aurora Rose Dark) via `next-themes`; no theme toggle UI. Theme preference is client-side only — the `sessions` table, admin `flowpost_token`, and auth logic are unchanged (see entry #36).
 
 ### Known Issues
 1. **Instagram upload timeout** (8×30s polling > 60s runtime) — same class of bug as post-story was fixed for, but not yet applied to instagram-upload
