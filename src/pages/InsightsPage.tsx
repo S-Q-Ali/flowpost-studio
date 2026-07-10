@@ -91,7 +91,7 @@ const platformConfig: Record<Platform, {
     charts: {
       primary: { title: "Follower Growth (30 days)", dataKey: "Followers", metric: "follower_count" },
       secondary: { title: "Reach (30 days)", dataKey: "Reach", metric: "reach" },
-      tertiary: { title: "Views (30 days)", dataKey: "Views", metric: "views" },
+      tertiary: { title: "Impressions (30 days)", dataKey: "Impressions", metric: "impressions" },
     },
   },
   facebook: {

@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
   const [profileRes, insightsRes1, insightsRes2] = await Promise.all([
     fetchMeta(`/${accountId}?fields=username,profile_picture_url,followers_count,media_count`),
     fetchMeta(`/${accountId}/insights?metric=follower_count,reach&period=day&since=${since}&until=${until}`),
-    fetchMeta(`/${accountId}/insights?metric=profile_views,views&period=day&metric_type=total_value&since=${since}&until=${until}`),
+    fetchMeta(`/${accountId}/insights?metric=impressions,profile_views&period=day&since=${since}&until=${until}`),
   ]);
 
   if (!profileRes.ok) {
