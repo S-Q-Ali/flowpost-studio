@@ -342,18 +342,16 @@ export default function InsightsPage() {
               ))}
             </SelectContent>
           </Select>
-          {platform === "instagram" && (
-            <Select value={String(dateRange)} onValueChange={(v) => setDateRange(Number(v) as DateRange)}>
-              <SelectTrigger className="w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RANGE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          <Select value={String(dateRange)} onValueChange={(v) => setDateRange(Number(v) as DateRange)}>
+            <SelectTrigger className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RANGE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -474,10 +472,10 @@ export default function InsightsPage() {
           </div>
 
           {chartMetrics.tertiary ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">{chartMetrics.secondary.title}</CardTitle>
+                  <CardTitle className="text-sm">{chartMetrics.secondary.title.replace("30 days", `${dateRange} days`)}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {formatSecondaryChart.length === 0 ? (
@@ -497,7 +495,7 @@ export default function InsightsPage() {
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">{chartMetrics.tertiary.title}</CardTitle>
+                  <CardTitle className="text-sm">{chartMetrics.tertiary.title.replace("30 days", `${dateRange} days`)}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {formatTertiaryChart.length === 0 ? (
@@ -513,6 +511,12 @@ export default function InsightsPage() {
                       </AreaChart>
                     </ResponsiveContainer>
                   )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 flex flex-col justify-center h-full">
+                  <p className="text-sm text-muted-foreground mb-1">Page Views ({dateRange} days)</p>
+                  <p className="text-3xl font-bold">{data.totals?.page_views_total?.toLocaleString() || "—"}</p>
                 </CardContent>
               </Card>
             </div>

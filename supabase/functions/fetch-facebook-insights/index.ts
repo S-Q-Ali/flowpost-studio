@@ -20,6 +20,9 @@ Deno.serve(async (req) => {
     );
   }
 
+  const rangeParam = url.searchParams.get("range");
+  const rangeDays = Math.max(7, Math.min(90, parseInt(rangeParam || "30", 10)));
+
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -51,10 +54,9 @@ Deno.serve(async (req) => {
   }
 
   const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-  const since = Math.floor(thirtyDaysAgo.getTime() / 1000);
+  const since = Math.floor(new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000).getTime() / 1000);
   const until = Math.floor(now.getTime() / 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   async function fetchMeta(path: string): Promise<Response> {
     const base = "https://graph.facebook.com/v25.0";
@@ -183,6 +185,9 @@ Deno.serve(async (req) => {
     ? pageFollows[pageFollows.length - 1].value - pageFollows[0].value
     : 0;
 
+  const pageViewsTotal = insightsMap["page_views_total"] || [];
+  const totalPageViews = pageViewsTotal.reduce((sum, d) => sum + d.value, 0);
+
   return new Response(
     JSON.stringify({
       account: {
@@ -196,8 +201,9 @@ Deno.serve(async (req) => {
         page_follows: pageFollows,
         page_media_view: insightsMap["page_media_view"] || [],
         page_post_engagements: insightsMap["page_post_engagements"] || [],
-        page_views_total: insightsMap["page_views_total"] || [],
       },
+      totals: { page_views_total: totalPageViews },
+      range_days: rangeDays,
       insights_errors: insightsErrors,
       flowpost_stats: {
         total_published: totalPublished.count || 0,

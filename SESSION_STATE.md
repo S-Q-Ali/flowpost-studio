@@ -1096,3 +1096,25 @@ supabase functions deploy google-oauth --no-verify-jwt
 **Result**: Instagram Insights now shows Views and Profile Visits as stat cards matching the Instagram app's Overview tab (single aggregate numbers, not charts). Date range dropdown re-fetches all metrics with the selected window. Follower Growth and Reach charts update dynamically.
 
 **Deploy**: `supabase functions deploy fetch-instagram-insights --no-verify-jwt`
+
+---
+
+### 48. Facebook Insights — Date Range Dropdown + Page Views Stat Card (2026-07-11)
+
+**What**: Extended the same date range dropdown pattern to Facebook, and surfaced the previously hidden `page_views_total` metric as a stat card.
+
+**Changes**:
+- **Edge function**: Accept `?range=7|14|30|90` query param (default 30). Dynamic `since` calculation. Computes `totals.page_views_total` by summing daily values (no `metric_type` issue — Facebook Pages use Business-level API with proper time-series). Returns `range_days` and `totals` in response. Removed `page_views_total` from `insights` (now in `totals`).
+- **Frontend**: Date range `<Select>` now shown for both platforms (no `platform === "instagram"` guard). Bottom row changed from `grid-cols-2` to `grid-cols-3` for Facebook: Media Views chart + Post Engagements chart + Page Views Total stat card. Dynamic `{dateRange} days` labels on all chart titles.
+
+**Files changed**:
+| File | Changes |
+|------|---------|
+| `supabase/functions/fetch-facebook-insights/index.ts` | ~20 lines — range param, totals, response |
+| `src/pages/InsightsPage.tsx` | ~15 lines — remove platform guard, add Facebook stat card, dynamic labels |
+
+**Result**: Facebook Insights has date range filtering consistent with Instagram. `page_views_total` (previously fetched but hidden) now appears as a stat card in the bottom row. All 3 charts (`page_follows`, `page_media_view`, `page_post_engagements`) remain as time-series.
+
+**Note**: Pages with <100 likes return 0 for all metrics regardless of date range — this is a Meta API limitation, not a bug.
+
+**Deploy**: `supabase functions deploy fetch-facebook-insights --no-verify-jwt`
