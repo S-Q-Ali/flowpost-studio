@@ -79,14 +79,15 @@ Deno.serve(async (req) => {
   const profile = await profileRes.json();
   console.log(`[fb-insights] Profile OK for ${accountId}:`, { name: profile.name, fan_count: profile.fan_count });
 
-  const metrics = ["page_follows", "page_media_view", "page_post_engagements", "page_views_total"];
+  const chartMetrics = ["page_follows", "page_media_view", "page_post_engagements"];
+  const totalMetrics = ["page_views_total"];
 
-  async function fetchSingleMetric(metric: string): Promise<{
+  async function fetchSingleMetric(metric: string, period: string = "day"): Promise<{
     metricName: string;
     data: { name: string; values: { value: number; end_time: string }[] } | null;
     error: unknown;
   }> {
-    const url = `/${accountId}/insights?metric=${metric}&period=day&since=${since}&until=${until}`;
+    const url = `/${accountId}/insights?metric=${metric}&period=${period}&since=${since}&until=${until}`;
     try {
       const res = await fetchMeta(url);
       if (!res.ok) {
@@ -106,7 +107,10 @@ Deno.serve(async (req) => {
     }
   }
 
-  const metricResults = await Promise.all(metrics.map(fetchSingleMetric));
+  const [metricResults, totalResults] = await Promise.all([
+    Promise.all(chartMetrics.map((m) => fetchSingleMetric(m, "day"))),
+    Promise.all(totalMetrics.map((m) => fetchSingleMetric(m, "total_over_range"))),
+  ]);
 
   const insightsMap: Record<string, { date: string; value: number }[]> = {};
   const insightsErrors: Record<string, unknown> = {};
@@ -185,8 +189,17 @@ Deno.serve(async (req) => {
     ? pageFollows[pageFollows.length - 1].value - pageFollows[0].value
     : 0;
 
-  const pageViewsTotal = insightsMap["page_views_total"] || [];
-  const totalPageViews = pageViewsTotal.reduce((sum, d) => sum + d.value, 0);
+  const totalsMap: Record<string, number> = {};
+  for (const result of totalResults) {
+    if (result.data?.values?.[0]?.value != null) {
+      totalsMap[result.metricName] = result.data.values[0].value;
+    }
+  }
+  // Fallback: if total_over_range returned nothing, use sum of daily values
+  if (totalsMap["page_views_total"] == null) {
+    const pageViewsDaily = insightsMap["page_views_total"] || [];
+    totalsMap["page_views_total"] = pageViewsDaily.reduce((sum, d) => sum + d.value, 0);
+  }
 
   return new Response(
     JSON.stringify({
@@ -202,7 +215,7 @@ Deno.serve(async (req) => {
         page_media_view: insightsMap["page_media_view"] || [],
         page_post_engagements: insightsMap["page_post_engagements"] || [],
       },
-      totals: { page_views_total: totalPageViews },
+      totals: totalsMap,
       range_days: rangeDays,
       insights_errors: insightsErrors,
       flowpost_stats: {

@@ -1115,6 +1115,8 @@ supabase functions deploy google-oauth --no-verify-jwt
 
 **Result**: Facebook Insights has date range filtering consistent with Instagram. `page_views_total` (previously fetched but hidden) now appears as a stat card in the bottom row. All 3 charts (`page_follows`, `page_media_view`, `page_post_engagements`) remain as time-series.
 
+**Follow-up**: Added `period=total_over_range` fallback for `page_views_total` — pages with >100 fans but no recent activity now get a range-aggregate value instead of "—". Falls back to summing daily values if `total_over_range` returns empty.
+
 **Note**: Pages with <100 likes return 0 for all metrics regardless of date range — this is a Meta API limitation, not a bug.
 
 **Deploy**: `supabase functions deploy fetch-facebook-insights --no-verify-jwt`
