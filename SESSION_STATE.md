@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `fe6197d` — fix: update SESSION_STATE.md HEAD hash to bbba98c
+## CURRENT HEAD: `b414428` — (pending) fix: Drive full scope — replace drive.file + drive.readonly with drive
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -933,3 +933,20 @@ supabase functions deploy google-oauth --no-verify-jwt
 - **Account removed** → fallback to first available account in the list (silent, no error state)
 - **localStorage unavailable** → hook silently falls back to in-memory state, no crash
 - **Platform switch** → clears the old platform's stored account selection; the new platform loads its own stored account on next render
+
+---
+
+### 38. Drive Full Scope — Replace `drive.file` + `drive.readonly` with `drive` (2026-07-10)
+
+**What**: Upgraded the Google Drive OAuth scope from `drive.file` + `drive.readonly` to the full `drive` scope.
+
+**Why**: `drive.file` only allows deleting files created by or opened with this specific app. Files the user uploaded directly to Drive returned `appNotAuthorizedToFile` (403) on delete. The full `drive` scope grants complete read + write access to all Drive files, matching user expectations for a storage manager.
+
+**Change**:
+| File | Line | Before | After |
+|------|------|--------|-------|
+| `supabase/functions/google-drive-auth/index.ts` | 136-138 | `drive.file` + `drive.readonly` | `drive` |
+
+**Action required**: Existing Drive connections must be reconnected so Google issues a new token with the `drive` scope. The reconnect button (entry #34) handles this.
+
+**Deploy**: `supabase functions deploy google-drive-auth --no-verify-jwt`

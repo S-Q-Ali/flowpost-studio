@@ -134,8 +134,7 @@ Deno.serve(async (req) => {
       authUrl.searchParams.set(
         "scope",
         [
-          "https://www.googleapis.com/auth/drive.file",
-          "https://www.googleapis.com/auth/drive.readonly",
+          "https://www.googleapis.com/auth/drive",
           "https://www.googleapis.com/auth/spreadsheets",
           "https://www.googleapis.com/auth/userinfo.profile",
         ].join(" "),
