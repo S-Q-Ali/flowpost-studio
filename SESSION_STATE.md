@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `fd315aa` — fix: update SESSION_STATE.md HEAD hash to f5bd45f
+## CURRENT HEAD: `312af24` — fix: Drive full scope — replace drive.file + drive.readonly with drive (with entry #38)
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
