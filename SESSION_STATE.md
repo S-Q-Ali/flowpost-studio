@@ -1010,3 +1010,20 @@ supabase functions deploy google-oauth --no-verify-jwt
 - Dark mode: slightly cooler rose (via `--primary` CSS variable) on dark card background (via `--card` CSS variable)
 
 **Migration**: All existing usages (`LoginPage`, `AppSidebar`, `App`, `PrivacyPage`, `TermsPage`) use `<Logo size={...} />` — component contract unchanged.
+
+---
+
+### 42. Logo Replacement — JPEG (2026-07-10)
+
+**What**: Replaced the SVG logo (from entry #41) with a user-provided JPEG logo (`new logo.jpeg` → `logo.jpeg`).
+
+**Changes**:
+
+| File | Action |
+|------|--------|
+| `public/logo.jpeg` | New — user-provided logo image (1.6MB JPEG) |
+| `src/components/Logo.tsx` | Rewritten — reverted to `<img src="/logo.jpeg">` with `rounded-xl object-cover` |
+| `index.html` | Updated favicon from `image/svg+xml` to `image/jpeg` pointing to `/logo.jpeg` |
+| `public/logo.svg` | Deleted |
+
+**Note**: The logo image is 1.6MB — consider optimizing or providing a smaller version for better performance, especially as a favicon.
