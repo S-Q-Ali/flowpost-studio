@@ -1135,7 +1135,8 @@ supabase functions deploy google-oauth --no-verify-jwt
 | File | Change |
 |------|--------|
 | `supabase/functions/facebook-auth/index.ts` | Added `'read_insights'` to OAuth scope array |
+| `src/pages/AccountsPage.tsx` | Added RefreshCw reconnect button to each Facebook page card — calls same OAuth flow without login_hint |
 
-**Action required**: Users must reconnect their Facebook accounts to obtain a new token with the `read_insights` permission. Existing tokens without this permission will continue to return empty data.
+**Action required**: Users must click the ↻ button on any connected Facebook page to obtain a new token with the `read_insights` permission. Existing tokens without this permission will continue to return empty data.
 
 **Deploy**: `supabase functions deploy facebook-auth --no-verify-jwt`

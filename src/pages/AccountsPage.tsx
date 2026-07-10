@@ -17,6 +17,7 @@ export default function AccountsPage() {
   const { userId } = useAuth();
   const [isYouTubeConnecting, setIsYouTubeConnecting] = useState(false);
   const [isFacebookConnecting, setIsFacebookConnecting] = useState(false);
+  const [reconnectingFacebookId, setReconnectingFacebookId] = useState<string | null>(null);
   const [isTikTokConnecting, setIsTikTokConnecting] = useState(false);
   const [isDriveConnecting, setIsDriveConnecting] = useState(false);
   const [reconnectingDriveId, setReconnectingDriveId] = useState<string | null>(null);
@@ -336,6 +337,46 @@ export default function AccountsPage() {
     } catch (e: any) {
       toast.error(e.message || "Facebook connection failed");
       setIsFacebookConnecting(false);
+    }
+  };
+
+  const reconnectFacebook = async () => {
+    setReconnectingFacebookId("facebook");
+    try {
+      const { data, error } = await supabase.functions.invoke(`facebook-auth?action=url&userId=${userId}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      });
+
+      if (error) throw new Error(error.message || "Failed to start Facebook OAuth");
+      if (!data?.url) throw new Error("Missing OAuth URL");
+
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const channel = supabase
+        .channel("facebook-reconnect")
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "connected_accounts", filter: "platform=eq.facebook" },
+          () => {
+            channel.unsubscribe();
+            clearTimeout(timeoutId);
+            refreshAll();
+            toast.success("Facebook reconnected!");
+            setReconnectingFacebookId(null);
+          },
+        )
+        .subscribe();
+
+      timeoutId = setTimeout(() => {
+        channel.unsubscribe();
+        setReconnectingFacebookId(null);
+        toast.error("Reconnection timed out. Try again.");
+      }, 10 * 60 * 1000);
+
+      window.open(data.url, "_blank");
+    } catch (e: any) {
+      toast.error(e.message || "Facebook reconnection failed");
+      setReconnectingFacebookId(null);
     }
   };
 
@@ -839,6 +880,15 @@ export default function AccountsPage() {
                       <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
                         Connected
                       </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={reconnectFacebook}
+                        disabled={reconnectingFacebookId === "facebook"}
+                        title="Reconnect to update permissions"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${reconnectingFacebookId === "facebook" ? "animate-spin" : ""}`} />
+                      </Button>
                       <Switch
                         checked={!!a.is_connected}
                         onCheckedChange={(next) => setConnected("facebook", a.account_id, next)}
