@@ -14,7 +14,7 @@ const sizeMap = {
 export function Logo({ size = "md", className }: LogoProps) {
   return (
     <img
-      src="/logo.jpeg"
+      src="/logo.svg"
       alt="FlowPost"
       className={cn("rounded-xl object-cover", sizeMap[size], className)}
     />

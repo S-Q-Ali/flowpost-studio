@@ -1027,3 +1027,18 @@ supabase functions deploy google-oauth --no-verify-jwt
 | `public/logo.svg` | Deleted |
 
 **Note**: The logo image is 1.6MB — consider optimizing or providing a smaller version for better performance, especially as a favicon.
+
+---
+
+### 44. Official SVG Logo — Make User-Provided SVG the Primary Logo (2026-07-10)
+
+**What**: Switched from the temporary JPEG logo to the user's official SVG logo (`logo.svg`).
+
+**Changes**:
+
+| File | Action |
+|------|--------|
+| `src/components/Logo.tsx` | Changed `src="/logo.jpeg"` → `src="/logo.svg"` |
+| `index.html` | Fixed favicon `type` from `image/svg` to `image/svg+xml` |
+
+**Note**: The SVG renders as an `<img>` tag — no inline SVG, no CSS variable dependency. Simple, clean, and 19.5KB.
