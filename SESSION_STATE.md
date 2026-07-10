@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `d3f5e7b` — feat: aurora rose studio dual theme system (Aurora Rose / Aurora Rose Dark) via next-themes
+## CURRENT HEAD: `2235239` — fix: theme audit — replace hardcoded Tailwind shades with CSS-variable/theme-aware classes, add theme toggle, delete .py scripts
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -881,5 +881,33 @@ supabase functions deploy google-oauth --no-verify-jwt
 | `src/pages/LoginPage.tsx`, `AuthCallback.tsx`, `SecurityQuestionsGate.tsx`, `UploadPage.tsx`, `TermsPage.tsx`, `PrivacyPage.tsx` | Replaced hardcoded `#0F0F0F`/`#5BB5C4`/`#7C3AED`/`zinc-*` literals with theme tokens |
 
 **Dependencies**: `next-themes@0.3.0` already present (no install). Fonts via Google Fonts CDN `@import` (degrade to `system-ui` if blocked).
+
+---
+
+### 36. Theme Audit — Fix Light Mode Color Contrast Issues (2026-07-10)
+
+**What**: Audited all frontend code for hardcoded Tailwind color shades that would be invisible or low-contrast in light mode. Fixed 12 critical and 8 minor issues.
+
+**Problem**: The light theme CSS variables were defined in `index.css`, but many JSX/TSX files used Tailwind 400-level shades (`text-red-400`, `text-yellow-400`, `text-amber-400`, `text-emerald-400`) designed for dark backgrounds. These would be unreadable on light backgrounds. Also found hardcoded `bg-blue-500` / `bg-red-600` that should use CSS-variable-based classes.
+
+**Fixes**:
+- All `text-red-400` → `text-destructive` (LoginPage, SecurityQuestionsGate, AuthCallback, WorkflowsPage, AccountsPage, UploadPage)
+- `text-yellow-400` → `text-yellow-600` (AccountsPage, UploadPage quota badges)
+- `text-amber-400` → `text-amber-600` (BetaBadge)
+- `text-emerald-400` → `text-emerald-600` (WorkflowsPage Active badge)
+- Removed unnecessary `dark:` variants (QueuePage, UploadPage AI Content badge)
+- `text-gray-700` → `text-muted-foreground/30` (StoragePage progress circle)
+- `text-blue-500` → `text-primary` (StoragePage progress circle)
+- `bg-blue-500` → `bg-primary` (StoragePage progress bar, checkbox)
+- `bg-red-600 hover:bg-red-700` → `bg-destructive text-destructive-foreground hover:bg-destructive/90` (StoragePage delete button)
+- `hover:text-red-400` → `hover:text-destructive` (StoragePage delete icons)
+- `hover:text-green-500` → `hover:text-status-published` (QueuePage retry button)
+- `text-green-500` / `text-red-500` → `text-status-published` / `text-destructive` (InsightsPage growth)
+- `hover:text-red-300` → `hover:text-destructive` (WorkflowsPage link)
+- Added missing semicolon on `--gradient-primary` in `.dark` block (index.css:124)
+- Deleted `verify_fix.py` and `fix_index.py` — one-time scripts, not part of the app
+
+**Files changed**: 12 files
+**Verification**: `tsc --noEmit` passes with zero errors. All changes are purely cosmetic — zero JavaScript reads these class names at runtime.
 
 **No backend changes** — no edge functions, migrations, `integrations/`, auth flows, or env vars touched.
