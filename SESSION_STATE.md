@@ -1,9 +1,9 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `9b2a809` — feat: delete Drive and Mega files from Storage page, session ID exchange for secure transfer, fix ESID error
+## CURRENT HEAD: `c33c3a4` — fix: multi-Drive refresh_token fallback by account_id, add error toast in fetchDriveFiles, clear breadcrumbs on drive switch
 
 ## Current Issues
-- Multi-account Drive: refresh_token lookup fixed in code; users must reconnect accounts once more to fix broken token pairs.
+- Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
 
 ## Current Status
 - **v19**: Browser-streamed Drive→Mega transfer. Moved CPU-intensive megajs AES encryption from server-side edge function to user's browser. New `transfer-ticket` edge function provides temporary decrypted credentials. Client-side `driveToMegaTransfer.ts` handles streaming upload. No server CPU limits — files of any size can transfer (subject to browser tab staying open).
@@ -779,3 +779,28 @@ npx.cmd supabase functions deploy transfer-ticket --no-verify-jwt
 - Add a cleanup cron to delete truly expired sessions (past `expires_at`)
 
 **Status**: Not implemented. Optional enhancement for improved UX.
+
+---
+
+### 33. `drive.file` Scope Shows Empty File List — Fixed (2026-07-10)
+
+**Symptom**: After changing scope from `drive.readonly` to `drive.file` (to support file deletion), the Drive file browser showed an empty list. Quota (usage/limit) displayed correctly, but no files appeared. No error toast — the Drive API returned success with zero files.
+
+**Root cause**: The `drive.file` scope only grants access to files **created by or opened with this app**. `files.list` under `drive.file` returns zero results for users who have never used FlowPost Studio to create or open a Drive file. The quota endpoint (`about/get`) works under `drive.file` because it's a metadata endpoint, not file-specific — this misled debugging into thinking the token was valid.
+
+**Fix**: Changed the OAuth scope from `drive.file` alone to a combined scope:
+```
+https://www.googleapis.com/auth/drive.file           ← delete files the app opened
+https://www.googleapis.com/auth/drive.readonly       ← list + download ALL files
+https://www.googleapis.com/auth/userinfo.profile     ← identity
+```
+- `drive.readonly` allows listing and downloading all files (replaces `drive.metadata.readonly`)
+- `drive.file` preserves the ability to delete files the app has opened
+- The token covers both scopes — one auth flow, one access token
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `supabase/functions/google-drive-auth/index.ts` | Replaced `drive.metadata.readonly` with `drive.readonly` in scope array (line 136) |
+
+**Note**: Users must reconnect Drive accounts after deploy so Google issues a new token with the combined scopes. The existing `prompt=consent` param ensures a fresh refresh_token on each reconnect.
