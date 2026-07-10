@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `2761418` — update SESSION_STATE.md: entry #34 (reconnect button), update HEAD
+## CURRENT HEAD: `252391b` — fix SESSION_STATE.md HEAD to 2761418
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
