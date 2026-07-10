@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `376c158` — feat: dual-mode light/dark theme system (Warm Cream Studio / Warm Cocoa) via next-themes
+## CURRENT HEAD: `d3f5e7b` — feat: aurora rose studio dual theme system (Aurora Rose / Aurora Rose Dark) via next-themes
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
