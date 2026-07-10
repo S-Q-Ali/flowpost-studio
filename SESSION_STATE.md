@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `17bae93` — feat: add reconnect button to Drive account cards with login_hint support
+## CURRENT HEAD: `2761418` — update SESSION_STATE.md: entry #34 (reconnect button), update HEAD
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
