@@ -828,3 +828,27 @@ https://www.googleapis.com/auth/userinfo.profile     ← identity
 6. The existing "Connect Google Drive" button at the bottom is unchanged.
 
 **Deploy**: `supabase functions deploy google-drive-auth --no-verify-jwt`
+
+---
+
+### 35. Single-Session Enforcement — Terminate Other Sessions on New Login (2026-07-10)
+
+**What**: When a user logs in from a new browser/profile with the same credentials, all existing sessions are deleted, terminating the old session. Only one active session at any time.
+
+**Why**: Without this, a user could be logged in from multiple profiles simultaneously — old sessions remain valid for 7 days. This is a security concern and UX issue for a single-admin tool.
+
+**How it works**: Before inserting a new session row, each login edge function now first deletes all existing rows from the `sessions` table. The old session token becomes invalid immediately — the next API call from the old tab gets a 401 from `verify-session`, `AuthContext` clears localStorage, and the user sees the login page.
+
+**Files changed**:
+| File | Line | Change |
+|------|------|--------|
+| `supabase/functions/verify-password/index.ts` | 72 | Added `sessions.delete()` before insert |
+| `supabase/functions/verify-security-questions/index.ts` | 38 (in `createAdminSession`) | Added `sessions.delete()` before insert |
+| `supabase/functions/google-oauth/index.ts` | 81 | Added `sessions.delete()` before insert |
+
+**Deploy**:
+```
+supabase functions deploy verify-password --no-verify-jwt
+supabase functions deploy verify-security-questions --no-verify-jwt
+supabase functions deploy google-oauth --no-verify-jwt
+```

@@ -78,6 +78,8 @@ Deno.serve(async (req) => {
     const token = crypto.randomUUID() + crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+    await supabase.from("sessions").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
     const { error: sessionError } = await supabase
       .from("sessions")
       .insert({ 

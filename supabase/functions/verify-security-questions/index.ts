@@ -36,6 +36,8 @@ async function createAdminSession(): Promise<string> {
     Date.now() + 7 * 24 * 60 * 60 * 1000,
   ).toISOString();
 
+  await supabase.from("sessions").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
   const { error } = await supabase
     .from("sessions")
     .insert({ token, expires_at: expiresAt, user_id: await getAdminUserId() });
