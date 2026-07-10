@@ -31,6 +31,14 @@ const VITE_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const VITE_SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 type Platform = "instagram" | "facebook";
+type DateRange = 7 | 14 | 30 | 90;
+
+const RANGE_OPTIONS: { label: string; value: DateRange }[] = [
+  { label: "7 days", value: 7 },
+  { label: "14 days", value: 14 },
+  { label: "30 days", value: 30 },
+  { label: "90 days", value: 90 },
+];
 
 interface ConnectedAccount {
   id: string;
@@ -43,6 +51,8 @@ interface ConnectedAccount {
 interface InsightsResponse {
   account: Record<string, unknown>;
   insights: Record<string, { date: string; value: number }[]>;
+  totals?: Record<string, number>;
+  range_days?: number;
   insights_errors?: Record<string, unknown>;
   flowpost_stats: {
     total_published: number;
@@ -71,7 +81,7 @@ const platformConfig: Record<Platform, {
   charts: {
     primary: { title: string; dataKey: string; metric: string };
     secondary: { title: string; dataKey: string; metric: string };
-    tertiary: { title: string; dataKey: string; metric: string };
+    tertiary?: { title: string; dataKey: string; metric: string };
   };
 }> = {
   instagram: {
@@ -91,7 +101,6 @@ const platformConfig: Record<Platform, {
     charts: {
       primary: { title: "Follower Growth (30 days)", dataKey: "Followers", metric: "follower_count" },
       secondary: { title: "Reach (30 days)", dataKey: "Reach", metric: "reach" },
-      tertiary: { title: "Impressions (30 days)", dataKey: "Impressions", metric: "impressions" },
     },
   },
   facebook: {
@@ -130,6 +139,7 @@ export default function InsightsPage() {
   const [platform, setPlatform] = useLocalStorage<Platform>("insights_platform", "instagram");
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+  const [dateRange, setDateRange] = useLocalStorage<DateRange>("insights_date_range", 30);
   const [data, setData] = useState<InsightsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
@@ -169,7 +179,7 @@ export default function InsightsPage() {
     setError(null);
     setData(null);
     fetch(
-      `${VITE_SUPABASE_URL}/functions/v1/${config.functionName}?account_id=${selectedAccountId}`,
+      `${VITE_SUPABASE_URL}/functions/v1/${config.functionName}?account_id=${selectedAccountId}&range=${dateRange}`,
       {
         headers: {
           Authorization: `Bearer ${VITE_SUPABASE_ANON_KEY}`,
@@ -193,7 +203,7 @@ export default function InsightsPage() {
         setError("Network error fetching insights");
       })
       .finally(() => setFetching(false));
-  }, [selectedAccountId, config]);
+  }, [selectedAccountId, config, dateRange]);
 
   useEffect(() => {
     fetchInsights();
@@ -263,7 +273,7 @@ export default function InsightsPage() {
   const chartMetrics = config.charts;
   const primaryData = (data?.insights[chartMetrics.primary.metric] || []);
   const secondaryData = (data?.insights[chartMetrics.secondary.metric] || []);
-  const tertiaryData = (data?.insights[chartMetrics.tertiary.metric] || []);
+  const tertiaryData = chartMetrics.tertiary ? (data?.insights[chartMetrics.tertiary.metric] || []) : [];
   const postsByDay = data?.flowpost_stats.posts_by_day || [];
 
   const formatPrimaryChart = primaryData.map((d) => ({
@@ -276,10 +286,12 @@ export default function InsightsPage() {
     [chartMetrics.secondary.dataKey]: d.value,
   }));
 
-  const formatTertiaryChart = tertiaryData.map((d) => ({
-    date: d.date.slice(5),
-    [chartMetrics.tertiary.dataKey]: d.value,
-  }));
+  const formatTertiaryChart = chartMetrics.tertiary
+    ? tertiaryData.map((d) => ({
+        date: d.date.slice(5),
+        [chartMetrics.tertiary!.dataKey]: d.value,
+      }))
+    : [];
 
   const formatPostsChart = postsByDay.map((d) => ({
     date: d.date.slice(5),
@@ -330,6 +342,18 @@ export default function InsightsPage() {
               ))}
             </SelectContent>
           </Select>
+          {platform === "instagram" && (
+            <Select value={String(dateRange)} onValueChange={(v) => setDateRange(Number(v) as DateRange)}>
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RANGE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
@@ -364,7 +388,7 @@ export default function InsightsPage() {
                 <p className="text-2xl font-bold">{primaryValue?.toLocaleString() || "—"}</p>
                 {primaryValue != null && primaryData.length >= 2 && growthValue !== undefined && (
                   <p className={`text-xs mt-1 ${growthValue >= 0 ? "text-status-published" : "text-destructive"}`}>
-                    {growthValue >= 0 ? "+" : ""}{growthValue} in 30 days
+                    {growthValue >= 0 ? "+" : ""}{growthValue} in {dateRange} days
                   </p>
                 )}
               </CardContent>
@@ -398,7 +422,7 @@ export default function InsightsPage() {
           <div className="grid grid-cols-3 gap-4">
             <Card className="col-span-2">
               <CardHeader>
-                <CardTitle className="text-sm">{chartMetrics.primary.title}</CardTitle>
+                <CardTitle className="text-sm">{chartMetrics.primary.title.replace("30 days", `${dateRange} days`)}</CardTitle>
               </CardHeader>
               <CardContent>
                 {formatPrimaryChart.length === 0 ? (
@@ -449,48 +473,85 @@ export default function InsightsPage() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">{chartMetrics.secondary.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {formatSecondaryChart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No data available</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <AreaChart data={formatSecondaryChart}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip />
-                      <Area type="monotone" dataKey={chartMetrics.secondary.dataKey} stroke="#22c55e" fill="#22c55e" fillOpacity={0.15} strokeWidth={2} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">{chartMetrics.tertiary.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {formatTertiaryChart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No data available</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <AreaChart data={formatTertiaryChart}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip />
-                      <Area type="monotone" dataKey={chartMetrics.tertiary.dataKey} stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          {chartMetrics.tertiary ? (
+            <div className="grid grid-cols-2 gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">{chartMetrics.secondary.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {formatSecondaryChart.length === 0 ? (
+                    <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No data available</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={formatSecondaryChart}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey={chartMetrics.secondary.dataKey} stroke="#22c55e" fill="#22c55e" fillOpacity={0.15} strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">{chartMetrics.tertiary.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {formatTertiaryChart.length === 0 ? (
+                    <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No data available</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={formatTertiaryChart}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey={chartMetrics.tertiary.dataKey} stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">{chartMetrics.secondary.title.replace("30 days", `${dateRange} days`)}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {formatSecondaryChart.length === 0 ? (
+                    <p className="text-sm text-muted-foreground h-48 flex items-center justify-center">No data available</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={formatSecondaryChart}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey={chartMetrics.secondary.dataKey} stroke="#22c55e" fill="#22c55e" fillOpacity={0.15} strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 flex flex-col justify-center h-full">
+                  <p className="text-sm text-muted-foreground mb-1">Views ({dateRange} days)</p>
+                  <p className="text-3xl font-bold">{data.totals?.views?.toLocaleString() || "—"}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 flex flex-col justify-center h-full">
+                  <p className="text-sm text-muted-foreground mb-1">Profile Visits ({dateRange} days)</p>
+                  <p className="text-3xl font-bold">{data.totals?.profile_views?.toLocaleString() || "—"}</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           <Card>
             <CardHeader>

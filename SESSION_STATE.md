@@ -1058,3 +1058,41 @@ supabase functions deploy google-oauth --no-verify-jwt
 **Note**: The outer shape is a straight-edge rectangle (no rounded corners), so cropping doesn't remove any design elements.
 
 **Follow-up**: Increased all Logo component sizes by ~20% (`sizeMap` in `Logo.tsx`): `w-8`→`w-10`, `w-10`→`w-12`, `w-14`→`w-16`. Combined with the viewBox crop, the "f" mark at 40px sidebar (md) now renders at ~35px — 3.5× larger than before the two changes.
+
+---
+
+### 46. Dedicated Favicon SVG with Tight ViewBox (2026-07-10)
+
+**What**: Created `public/favicon.svg` with an ultra-tight viewBox around the "f" letterform for use as the browser favicon tab icon.
+
+**Changes**:
+| File | Action |
+|------|--------|
+| `public/favicon.svg` | New — same paths as `logo.svg` but `viewBox="970 390 820 790"` for maximum zoom on the "f" mark, no background padding |
+| `index.html` | Changed favicon `href` from `/logo.svg` to `/favicon.svg` |
+
+**Result**: At 16–32px favicon sizes, the "f" fills ~91% of the icon area (up from ~26% with the original viewBox). The SVG has only the rose-colored letterform paths (no cream background), so it renders cleanly at small sizes on any background.
+
+---
+
+### 47. Instagram Insights — Views Fix + Date Range Dropdown (2026-07-10)
+
+**What**: Fixed empty views/profile_views arrays by accepting their `total_value` response format, and added a date range dropdown (7/14/30/90 days) for Instagram insights.
+
+**Root cause**: For Instagram Creator accounts, `views`, `profile_views`, and `content_views` **only** work with `metric_type=total_value` — they return `{ total_value: { value: number } }`, not the daily time-series `values[]` array that `follower_count` and `reach` return.
+
+**Diagnostics**: Deployed diagnostic logging that confirmed all three Creator-level metrics (`views`, `profile_views`, `content_views`) return empty `values[]` arrays without `total_value`, and `impressions` was deprecated in v22.0 (Apr 2025) — errors on v23.0+.
+
+**Changes**:
+- **Edge function**: Accept `?range=7|14|30|90` query param (default 30). Use `metric_type=total_value` for `views` and `profile_views` calls. Removed `content_views` (redundant — same format as views). Removed diagnostic logging. New response field `totals: { views: number, profile_views: number }`. Time-series metrics (`follower_count`, `reach`) stay in `insights` as before. `range_days` returned for frontend confirmation.
+- **Frontend**: Added `useLocalStorage`-backed `dateRange` state. New `<Select>` dropdown in header (7d / 14d / 30d / 90d). Replaced bottom `grid-cols-2` (Reach chart + broken Impressions chart) with `grid-cols-3` (Reach chart + Views stat card + Profile Visits stat card). Titles use dynamic `{dateRange} days`. Facebook's tertiary chart preserved as-is. Posting Activity (FlowPost data) stays at 30 days.
+
+**Files changed**:
+| File | Changes |
+|------|---------|
+| `supabase/functions/fetch-instagram-insights/index.ts` | ~25 lines — range param, total_value handling, totals response |
+| `src/pages/InsightsPage.tsx` | ~50 lines — dateRange state/UI/deps, stat cards, dynamic labels, conditional tertiary |
+
+**Result**: Instagram Insights now shows Views and Profile Visits as stat cards matching the Instagram app's Overview tab (single aggregate numbers, not charts). Date range dropdown re-fetches all metrics with the selected window. Follower Growth and Reach charts update dynamically.
+
+**Deploy**: `supabase functions deploy fetch-instagram-insights --no-verify-jwt`

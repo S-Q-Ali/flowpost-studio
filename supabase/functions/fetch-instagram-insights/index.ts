@@ -20,6 +20,9 @@ Deno.serve(async (req) => {
     );
   }
 
+  const rangeParam = url.searchParams.get("range");
+  const rangeDays = Math.max(7, Math.min(90, parseInt(rangeParam || "30", 10)));
+
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -51,21 +54,20 @@ Deno.serve(async (req) => {
   }
 
   const now = new Date();
-  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-  const since = Math.floor(thirtyDaysAgo.getTime() / 1000);
+  const since = Math.floor(new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000).getTime() / 1000);
   const until = Math.floor(now.getTime() / 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   async function fetchMeta(path: string): Promise<Response> {
     const base = "https://graph.facebook.com/v23.0";
     return fetch(`${base}${path}&access_token=${accessToken}`);
   }
 
-  const [profileRes, insightsRes1, insightsRes2] = await Promise.all([
+  const [profileRes, insightsRes1, resProfileViews, resViews] = await Promise.all([
     fetchMeta(`/${accountId}?fields=username,profile_picture_url,followers_count,media_count`),
     fetchMeta(`/${accountId}/insights?metric=follower_count,reach&period=day&since=${since}&until=${until}`),
-    fetchMeta(`/${accountId}/insights?metric=impressions,profile_views&period=day&since=${since}&until=${until}`),
+    fetchMeta(`/${accountId}/insights?metric=profile_views&period=day&metric_type=total_value&since=${since}&until=${until}`),
+    fetchMeta(`/${accountId}/insights?metric=views&period=day&metric_type=total_value&since=${since}&until=${until}`),
   ]);
 
   if (!profileRes.ok) {
@@ -80,25 +82,39 @@ Deno.serve(async (req) => {
   const profile = await profileRes.json();
   console.log(`[insights] Profile OK for ${accountId}:`, { username: profile.username, followers_count: profile.followers_count, media_count: profile.media_count });
 
+
+
   let insights: { name: string; values: { value: number; end_time: string }[] }[] = [];
+  const totalsMap: Record<string, number> = {};
   let insightsError: unknown = null;
 
-  for (const [idx, res] of ([insightsRes1, insightsRes2] as const).entries()) {
+  // Process time-series metrics (follower_count, reach)
+  if (insightsRes1.ok) {
+    const data = await insightsRes1.json();
+    const metrics = (data.data || []) as typeof insights;
+    insights.push(...metrics);
+  } else {
+    const errText = await insightsRes1.text();
+    let parsed: unknown;
+    try { parsed = JSON.parse(errText); } catch { parsed = errText; }
+    console.error(`[insights] Error fetching time-series metrics for ${accountId}:`, JSON.stringify(parsed));
+    insightsError = parsed;
+  }
+
+  // Process total_value metrics (profile_views, views)
+  for (const [label, res] of [["profile_views", resProfileViews], ["views", resViews]] as const) {
     if (res.ok) {
       const data = await res.json();
-      const metrics = (data.data || []) as typeof insights;
-      insights.push(...metrics);
-      if (metrics.length === 0) {
-        console.warn(`[insights] Insights API call ${idx+1} returned empty data for ${accountId}.`);
-      } else {
-        console.log(`[insights] Insights call ${idx+1} OK for ${accountId}:`, metrics.map(m => `${m.name}: ${m.values?.length || 0} data points`));
+      const metric = (data.data || [])[0];
+      if (metric?.total_value) {
+        totalsMap[label] = metric.total_value.value;
       }
     } else {
       const errText = await res.text();
       let parsed: unknown;
       try { parsed = JSON.parse(errText); } catch { parsed = errText; }
-      console.error(`[insights] Insights API error (call ${idx+1}) for ${accountId}:`, JSON.stringify(parsed));
-      insightsError = parsed;
+      console.error(`[insights] Error fetching ${label} for ${accountId}:`, JSON.stringify(parsed));
+      if (!insightsError) insightsError = parsed;
     }
   }
 
@@ -182,10 +198,10 @@ Deno.serve(async (req) => {
       },
       insights: {
         follower_count: followerGrowth,
-        views: insightsMap["views"] || [],
         reach: insightsMap["reach"] || [],
-        profile_views: insightsMap["profile_views"] || [],
       },
+      totals: totalsMap,
+      range_days: rangeDays,
       insights_error_detail: insightsError,
       flowpost_stats: {
         total_published: totalPublished.count || 0,
