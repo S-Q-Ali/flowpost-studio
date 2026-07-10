@@ -97,6 +97,9 @@ export default function StoragePage() {
   const [uploadProgress, setUploadProgress] = useState("");
   const [uploadPercent, setUploadPercent] = useState(0);
 
+  const [deletingSelected, setDeletingSelected] = useState(false);
+  const [deletingProgress, setDeletingProgress] = useState("");
+
   const [confirmDelete, setConfirmDelete] = useState<ConfirmDelete>({ open: false, platform: "drive", nodeId: "", name: "", isFolder: false });
 
   useEffect(() => {
@@ -305,18 +308,26 @@ export default function StoragePage() {
   }
 
   async function deleteSelectedItems() {
+    setDeletingSelected(true);
     const targetId = megaAccounts[0]?.id;
-    if (!targetId) return;
-    for (const f of selectedFiles) {
-      const { error } = await supabase.functions.invoke(`google-drive-auth?action=delete&account_id=${selectedDriveId}&file_id=${f.id}`, {
-        method: "GET",
-        headers: CALL_HEADERS,
-      });
-      if (error) { toast.error(`Failed to delete ${f.name}`); return; }
+    if (!targetId) { setDeletingSelected(false); return; }
+    const files = selectedFiles;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        setDeletingProgress(`Deleting (${i + 1}/${files.length}): ${files[i].name}`);
+        const { error } = await supabase.functions.invoke(`google-drive-auth?action=delete&account_id=${selectedDriveId}&file_id=${files[i].id}`, {
+          method: "GET",
+          headers: CALL_HEADERS,
+        });
+        if (error) { toast.error(`Failed to delete ${files[i].name}`); return; }
+      }
+      toast.success(`${files.length} file(s) deleted`);
+      setSelectedFileIds(new Set());
+      refreshCurrentFolder();
+    } finally {
+      setDeletingSelected(false);
+      setDeletingProgress("");
     }
-    toast.success(`${selectedFiles.length} file(s) deleted`);
-    setSelectedFileIds(new Set());
-    refreshCurrentFolder();
   }
 
   function refreshCurrentFolder() {
@@ -525,7 +536,7 @@ export default function StoragePage() {
                     ))}
                   </div>
                   {/* Folder list */}
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                  <div className="space-y-1 max-h-64 overflow-y-auto">
                     {megaBreadcrumbs.length > 0 && (
                       <button className="flex items-center gap-2 w-full p-2 rounded hover:bg-secondary text-sm text-muted-foreground" onClick={navigateMegaUp}>
                         <ChevronRight className="h-4 w-4 rotate-180" /> Back
@@ -602,10 +613,14 @@ export default function StoragePage() {
             size="lg"
             className="shadow-lg"
             onClick={deleteSelectedItems}
-            disabled={uploading}
+            disabled={uploading || deletingSelected}
           >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete {selectedFiles.length} selected from Drive
+            {deletingSelected ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4 mr-2" />
+            )}
+            {deletingSelected ? deletingProgress : `Delete ${selectedFiles.length} selected from Drive`}
           </Button>
         </div>
       )}

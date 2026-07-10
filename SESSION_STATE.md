@@ -950,3 +950,19 @@ supabase functions deploy google-oauth --no-verify-jwt
 **Action required**: Existing Drive connections must be reconnected so Google issues a new token with the `drive` scope. The reconnect button (entry #34) handles this.
 
 **Deploy**: `supabase functions deploy google-drive-auth --no-verify-jwt`
+
+---
+
+### 39. Bulk Delete Loader + Mega Container Height Fix (2026-07-10)
+
+**What**: Two Storage page UX fixes.
+
+**Bulk delete loader**: The "Delete N selected from Drive" button now shows a spinner and per-file progress text ("Deleting (2/5): filename.mp4") during bulk deletion. The button is disabled while deletion is in progress, preventing double-clicks.
+
+**Mega container height**: The Mega file list scroll container was `max-h-40` (160px) while the Drive side uses `max-h-64` (256px). Mega side now matches at `max-h-64`.
+
+**Changes**:
+
+| File | Change |
+|------|--------|
+| `src/pages/StoragePage.tsx` | Added `deletingSelected` + `deletingProgress` state vars; `deleteSelectedItems()` now sets loading state and shows per-file progress; button disabled + spinner when deleting; Mega container `max-h-40` → `max-h-64` |
