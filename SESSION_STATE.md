@@ -987,3 +987,26 @@ supabase functions deploy google-oauth --no-verify-jwt
 **New behavior**: Each range has a 5-minute post-target window `[target, target+5)`. With a `*/5` cron, the cron always lands inside the window exactly once, guaranteeing reliable execution without dedup interference between ranges.
 
 **Deploy**: `supabase functions deploy process-workflow --no-verify-jwt`
+
+---
+
+### 41. SVG Logo with Theme Adaptation (2026-07-10)
+
+**What**: Replaced the PNG logo (`/logo.png`) with an inline SVG component that adapts to both light and dark themes automatically.
+
+**Design**: Calligraphic lowercase "f" with a flowing tail that curves into a dot, suggesting "flow". Warm rose gradient on a rounded square background, matching the Aurora Rose Studio aesthetic.
+
+**Changes**:
+
+| File | Action |
+|------|--------|
+| `public/logo.svg` | New — SVG logo file with rounded square background and calligraphic "f" |
+| `src/components/Logo.tsx` | Rewrite — replaced `<img src="/logo.png">` with inline `<svg>` using CSS variables (`--primary`, `--card`) for automatic theme adaptation |
+| `index.html` | Updated favicon from `image/png` to `image/svg+xml` pointing to `/logo.svg` |
+| `public/logo.png` | Deleted |
+
+**Theme behavior**:
+- Light mode: warm rose (#D4848B) on cream (#F5F0ED)
+- Dark mode: slightly cooler rose (via `--primary` CSS variable) on dark card background (via `--card` CSS variable)
+
+**Migration**: All existing usages (`LoginPage`, `AppSidebar`, `App`, `PrivacyPage`, `TermsPage`) use `<Logo size={...} />` — component contract unchanged.
