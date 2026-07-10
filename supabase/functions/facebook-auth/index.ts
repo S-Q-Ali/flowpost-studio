@@ -131,6 +131,7 @@ Deno.serve(async (req) => {
         'pages_read_engagement',
         'pages_manage_posts',
         'business_management',
+        'read_insights',
         'instagram_basic',
         'instagram_content_publish',
         'instagram_manage_comments',

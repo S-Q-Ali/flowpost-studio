@@ -1120,3 +1120,22 @@ supabase functions deploy google-oauth --no-verify-jwt
 **Note**: Pages with <100 likes return 0 for all metrics regardless of date range — this is a Meta API limitation, not a bug.
 
 **Deploy**: `supabase functions deploy fetch-facebook-insights --no-verify-jwt`
+
+---
+
+### 49. Facebook Page Insights — Missing `read_insights` Permission (2026-07-11)
+
+**What**: All Facebook Page Insights returned empty `data: []` (200 OK, 0 data points) despite valid tokens and page having activity visible in the native Facebook app (e.g., "Viralspeedcontent" shows 1.4M views in-app but 0 via API).
+
+**Root cause**: The OAuth scope in `facebook-auth/index.ts` was missing the `read_insights` permission. The Page Insights API requires this permission in addition to `pages_read_engagement`. Without it, the API **silently returns empty data** — no error, no warning — making it appear as if the page has no activity.
+
+**Evidence**: Viralspeedcontent (740 fans) and Our Planet Sea (503 fans) both return 0 data points for all 4 metrics despite the Facebook app showing real engagement data. The 100-fan limitation was a red herring — the real issue was the missing permission.
+
+**Changes**:
+| File | Change |
+|------|--------|
+| `supabase/functions/facebook-auth/index.ts` | Added `'read_insights'` to OAuth scope array |
+
+**Action required**: Users must reconnect their Facebook accounts to obtain a new token with the `read_insights` permission. Existing tokens without this permission will continue to return empty data.
+
+**Deploy**: `supabase functions deploy facebook-auth --no-verify-jwt`
