@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `83eebc2` — fix: combine drive.file + drive.readonly scope to list, download, and delete files
+## CURRENT HEAD: `17bae93` — feat: add reconnect button to Drive account cards with login_hint support
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
