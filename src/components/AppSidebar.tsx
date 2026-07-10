@@ -10,6 +10,8 @@ import {
   Lock,
   FileText,
   Shield,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -24,6 +26,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "next-themes";
 import {
   Tooltip,
   TooltipContent,
@@ -44,7 +47,18 @@ const navItems = [
 ];
 
 function ThemeToggle({ collapsed }: { collapsed: boolean }) {
-  return null;
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark";
+
+  return (
+    <SidebarMenuButton
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground w-full"
+    >
+      {isDark ? <Sun size={18} /> : <Moon size={18} />}
+      {!collapsed && <span>{isDark ? "Light mode" : "Dark mode"}</span>}
+    </SidebarMenuButton>
+  );
 }
 
 export function AppSidebar() {

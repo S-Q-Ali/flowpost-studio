@@ -141,7 +141,7 @@ export default function LoginPage() {
               </div>
 
               {error && (
-                <p className="text-sm text-red-400 text-center">{error}</p>
+                <p className="text-sm text-destructive text-center">{error}</p>
               )}
 
               <Button

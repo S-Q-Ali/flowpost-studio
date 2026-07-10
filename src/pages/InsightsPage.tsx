@@ -358,7 +358,7 @@ export default function InsightsPage() {
                 <p className="text-sm text-muted-foreground mb-1">{stats.primaryLabel}</p>
                 <p className="text-2xl font-bold">{primaryValue?.toLocaleString() || "—"}</p>
                 {primaryValue != null && primaryData.length >= 2 && growthValue !== undefined && (
-                  <p className={`text-xs mt-1 ${growthValue >= 0 ? "text-green-500" : "text-red-500"}`}>
+                  <p className={`text-xs mt-1 ${growthValue >= 0 ? "text-status-published" : "text-destructive"}`}>
                     {growthValue >= 0 ? "+" : ""}{growthValue} in 30 days
                   </p>
                 )}

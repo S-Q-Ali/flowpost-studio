@@ -799,8 +799,8 @@ export default function AccountsPage() {
                         variant="outline"
                         className={
                           youtubeQuota.percentage >= 80
-                            ? "bg-red-500/20 text-red-400 border-red-500/30 text-[10px]"
-                            : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px]"
+                            ? "bg-red-500/20 text-destructive border-red-500/30 text-[10px]"
+                            : "bg-yellow-500/20 text-yellow-600 border-yellow-500/30 text-[10px]"
                         }
                       >
                         {youtubeQuota.percentage >= 80

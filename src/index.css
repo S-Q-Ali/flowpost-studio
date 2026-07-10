@@ -121,7 +121,7 @@
     --status-failed: 0 70% 60%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(330 70% 65%), hsl(340 75% 70%))
+    --gradient-primary: linear-gradient(135deg, hsl(330 70% 65%), hsl(340 75% 70%));
     --gradient-hero: linear-gradient(135deg, hsl(330 70% 65%) 0%, hsl(0 70% 70%) 50%, hsl(320 60% 75%) 100%);
     --gradient-card: linear-gradient(180deg, hsl(325 25% 14%) 0%, hsl(325 25% 10%) 100%);
 

@@ -289,7 +289,7 @@ export default function QueuePage() {
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <StatusBadge status={post.status as PostStatus} />
                         {(post as PostWithDetails).contains_altered_content && (
-                          <Badge variant="outline" className="bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 text-xs">
+                          <Badge variant="outline" className="bg-amber-500/20 text-amber-600 border-amber-500/40 text-xs">
                             AI Content
                           </Badge>
                         )}
@@ -314,7 +314,7 @@ export default function QueuePage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleRetry(post.id)}
-                        className="text-muted-foreground hover:text-green-500"
+                        className="text-muted-foreground hover:text-status-published"
                         title="Retry"
                       >
                         <RotateCw size={16} />

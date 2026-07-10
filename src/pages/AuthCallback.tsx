@@ -28,7 +28,7 @@ export default function AuthCallback() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         <div className="text-center">
-          <p className="text-red-400 mb-4">Sign in failed. Please try again.</p>
+          <p className="text-destructive mb-4">Sign in failed. Please try again.</p>
           <a href="/" className="text-primary hover:underline">Go back to login</a>
         </div>
       </div>

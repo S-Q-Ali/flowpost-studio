@@ -539,9 +539,9 @@ export default function WorkflowsPage() {
             </p>
             {driveAccounts.length === 0 ? (
               <div className="p-3 rounded-md bg-red-500/10 border border-red-500/30">
-                <p className="text-sm text-red-400">
+                <p className="text-sm text-destructive">
                   No Google Drive connected.{' '}
-                  <a href="/accounts" className="underline hover:text-red-300">
+                  <a href="/accounts" className="underline hover:text-destructive">
                     Connect one in Accounts
                   </a>.
                 </p>
@@ -1207,7 +1207,7 @@ export default function WorkflowsPage() {
                   <CardTitle className="text-foreground text-base flex items-center gap-2">
                     {wf.name}
                     {wf.is_active ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">
                         Active
                       </span>
                     ) : (

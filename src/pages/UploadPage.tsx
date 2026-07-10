@@ -664,8 +664,8 @@ export default function UploadPage() {
                       variant="outline"
                       className={
                         youtubeQuota.percentage >= 80
-                          ? "bg-red-500/20 text-red-400 border-red-500/30 text-[10px]"
-                          : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px]"
+                          ? "bg-red-500/20 text-destructive border-red-500/30 text-[10px]"
+                          : "bg-yellow-500/20 text-yellow-600 border-yellow-500/30 text-[10px]"
                       }
                     >
                       {youtubeQuota.percentage >= 80
@@ -782,7 +782,7 @@ export default function UploadPage() {
               </label>
               <label className="flex items-center gap-3 cursor-pointer">
                 <RadioGroupItem value="yes" />
-                <span className={cn("text-sm", containsAlteredContent ? "text-amber-600 dark:text-amber-400 font-medium" : "text-foreground")}>
+                <span className={cn("text-sm", containsAlteredContent ? "text-amber-600 font-medium" : "text-foreground")}>
                   Yes — This contains AI-generated/altered content
                 </span>
               </label>

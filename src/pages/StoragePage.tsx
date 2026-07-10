@@ -64,7 +64,7 @@ function QuotaBar({ used, total }: { used: number; total: number | null }) {
       </div>
       {total && total > 0 && (
         <div className="h-2 w-full rounded-full bg-secondary overflow-hidden">
-          <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
+          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
         </div>
       )}
     </div>
@@ -455,13 +455,13 @@ export default function StoragePage() {
                         {f.mimeType === "application/vnd.google-apps.folder" ? (
                           <FolderOpen className="h-4 w-4 text-yellow-500 shrink-0" />
                         ) : (
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selectedFileIds.has(f.id) ? "bg-blue-500 border-blue-500" : "border-muted-foreground"}`}>
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selectedFileIds.has(f.id) ? "bg-primary border-primary" : "border-muted-foreground"}`}>
                             {selectedFileIds.has(f.id) && <Check className="h-3 w-3 text-white" />}
                           </div>
                         )}
                         <span className="text-sm truncate flex-1">{f.name}</span>
                         {f.mimeType !== "application/vnd.google-apps.folder" && <span className="text-xs text-muted-foreground shrink-0">{formatBytes(f.size)}</span>}
-                        <button className="opacity-0 group-hover:opacity-100 hover:text-red-400 shrink-0 p-0.5" onClick={(e) => { e.stopPropagation(); deleteSingleItem("drive", f.id, f.name, f.mimeType === "application/vnd.google-apps.folder"); }}>
+                        <button className="opacity-0 group-hover:opacity-100 hover:text-destructive shrink-0 p-0.5" onClick={(e) => { e.stopPropagation(); deleteSingleItem("drive", f.id, f.name, f.mimeType === "application/vnd.google-apps.folder"); }}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -539,7 +539,7 @@ export default function StoragePage() {
                           <div key={f.name} className="flex items-center gap-2 p-2 rounded hover:bg-secondary cursor-pointer group" onClick={() => navigateMegaFolder(f.name)}>
                             <FolderOpen className="h-4 w-4 text-yellow-500 shrink-0" />
                             <span className="text-sm truncate flex-1">{f.name}</span>
-                            <button className="opacity-0 group-hover:opacity-100 hover:text-red-400 shrink-0 p-0.5" onClick={(e) => { e.stopPropagation(); deleteSingleItem("mega", f.nodeId!, f.name, true); }}>
+                            <button className="opacity-0 group-hover:opacity-100 hover:text-destructive shrink-0 p-0.5" onClick={(e) => { e.stopPropagation(); deleteSingleItem("mega", f.nodeId!, f.name, true); }}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
@@ -549,7 +549,7 @@ export default function StoragePage() {
                             <File className="h-4 w-4 text-muted-foreground shrink-0" />
                             <span className="text-sm truncate flex-1">{f.name}</span>
                             <span className="text-xs text-muted-foreground shrink-0">{formatBytes(f.size)}</span>
-                            <button className="opacity-0 group-hover:opacity-100 hover:text-red-400 shrink-0 p-0.5" onClick={() => deleteSingleItem("mega", f.nodeId!, f.name, false)}>
+                            <button className="opacity-0 group-hover:opacity-100 hover:text-destructive shrink-0 p-0.5" onClick={() => deleteSingleItem("mega", f.nodeId!, f.name, false)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
@@ -570,9 +570,9 @@ export default function StoragePage() {
           {uploading && (
             <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-4 py-2 shadow-lg">
               <svg width="32" height="32" viewBox="0 0 32 32" className="shrink-0">
-                <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="3" className="text-gray-700" />
+                <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="3" className="text-muted-foreground/30" />
                 <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="3"
-                  className="text-blue-500" strokeLinecap="round" transform="rotate(-90 16 16)"
+                  className="text-primary" strokeLinecap="round" transform="rotate(-90 16 16)"
                   strokeDasharray={`${2 * Math.PI * 13}`}
                   strokeDashoffset={`${2 * Math.PI * 13 * (1 - uploadPercent / 100)}`}
                 />
@@ -623,7 +623,7 @@ export default function StoragePage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
