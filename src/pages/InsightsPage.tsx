@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -126,7 +127,7 @@ function ChartLoader() {
 
 export default function InsightsPage() {
   const { userId } = useAuth();
-  const [platform, setPlatform] = useState<Platform>("instagram");
+  const [platform, setPlatform] = useLocalStorage<Platform>("insights_platform", "instagram");
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [data, setData] = useState<InsightsResponse | null>(null);
@@ -155,7 +156,10 @@ export default function InsightsPage() {
         }
         const list = (accountsData || []) as ConnectedAccount[];
         setAccounts(list);
-        setSelectedAccountId(list.length > 0 ? list[0].account_id : "");
+        if (list.length > 0) {
+          const storedAccount = list.find((a) => a.account_id === localStorage.getItem(`insights_account_${platform}`));
+          setSelectedAccountId(storedAccount ? storedAccount.account_id : list[0].account_id);
+        }
       });
   }, [userId, platform, config.label]);
 
@@ -196,6 +200,7 @@ export default function InsightsPage() {
   }, [fetchInsights]);
 
   const handlePlatformChange = (newPlatform: Platform) => {
+    localStorage.removeItem(`insights_account_${platform}`);
     setPlatform(newPlatform);
     setSelectedAccountId("");
     setData(null);
@@ -313,7 +318,7 @@ export default function InsightsPage() {
               </SelectItem>
             </SelectContent>
           </Select>
-          <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+          <Select value={selectedAccountId} onValueChange={(id) => { setSelectedAccountId(id); localStorage.setItem(`insights_account_${platform}`, id); }}>
             <SelectTrigger className="w-64">
               <SelectValue placeholder="Select account" />
             </SelectTrigger>

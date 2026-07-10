@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `2235239` — fix: theme audit — replace hardcoded Tailwind shades with CSS-variable/theme-aware classes, add theme toggle, delete .py scripts
+## CURRENT HEAD: `ef5eca3` — feat: persist InsightsPage platform + account selection via localStorage
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -911,3 +911,25 @@ supabase functions deploy google-oauth --no-verify-jwt
 **Verification**: `tsc --noEmit` passes with zero errors. All changes are purely cosmetic — zero JavaScript reads these class names at runtime.
 
 **No backend changes** — no edge functions, migrations, `integrations/`, auth flows, or env vars touched.
+
+---
+
+### 37. InsightsPage State Persistence via localStorage (2026-07-10)
+
+**What**: InsightsPage now remembers the selected platform (Instagram/Facebook) and the last selected account across page refreshes.
+
+**Why**: Switching between platforms and re-selecting accounts on every reload was a UX friction point. The page should restore the user's last view automatically.
+
+**Implementation**:
+
+| File | Change |
+|------|--------|
+| `src/hooks/useLocalStorage.ts` | New generic hook — `useLocalStorage<T>(key, initialValue)` reads from `localStorage` on mount, writes on every set, falls back to in-memory state on error (private browsing, storage full) |
+| `src/pages/InsightsPage.tsx` | `platform` state changed from `useState` to `useLocalStorage("insights_platform", "instagram")`. Account dropdown now saves selection to `localStorage.setItem("insights_account_{platform}", id)`. Platform switch clears the old platform's stored account. Account auto-select checks stored ID first, falls back to first account in list. |
+
+**Behavior**:
+- **Platform persists** — selected tab (Instagram/Facebook) survives refresh, navigation, and tab close
+- **Account persists per platform** — Instagram shows its own last-used account, Facebook remembers a different one
+- **Account removed** → fallback to first available account in the list (silent, no error state)
+- **localStorage unavailable** → hook silently falls back to in-memory state, no crash
+- **Platform switch** → clears the old platform's stored account selection; the new platform loads its own stored account on next render
