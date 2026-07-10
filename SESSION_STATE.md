@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `bf05ee8` — feat: persist InsightsPage platform + account selection via localStorage
+## CURRENT HEAD: `a3c0f3a` — feat: persist InsightsPage platform + account selection via localStorage
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
