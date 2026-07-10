@@ -1042,3 +1042,19 @@ supabase functions deploy google-oauth --no-verify-jwt
 | `index.html` | Fixed favicon `type` from `image/svg` to `image/svg+xml` |
 
 **Note**: The SVG renders as an `<img>` tag — no inline SVG, no CSS variable dependency. Simple, clean, and 19.5KB.
+
+---
+
+### 45. Logo Size Adjustment — viewBox Crop (2026-07-10)
+
+**What**: Cropped the SVG `viewBox` to zoom into the logo mark, making it visible at small display sizes.
+
+**Root cause**: The SVG `viewBox="0 0 2752 1536"` was a huge canvas with the actual rose "f" mark occupying only ~26% of the width. At 40px sidebar size, the "f" rendered at ~10px — barely visible.
+
+**Fix**: Changed `viewBox` from `0 0 2752 1536` to `650 100 1400 1400`, centering the crop on the "f" letterform.
+
+**Result**: The "f" fills ~72% of the visible area. At 40px sidebar size, the "f" renders at ~29px. At 56px login page, ~40px. All sizes are now clearly legible.
+
+**Note**: The outer shape is a straight-edge rectangle (no rounded corners), so cropping doesn't remove any design elements.
+
+**Follow-up**: Increased all Logo component sizes by ~20% (`sizeMap` in `Logo.tsx`): `w-8`→`w-10`, `w-10`→`w-12`, `w-14`→`w-16`. Combined with the viewBox crop, the "f" mark at 40px sidebar (md) now renders at ~35px — 3.5× larger than before the two changes.
