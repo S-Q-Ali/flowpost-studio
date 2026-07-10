@@ -1,6 +1,6 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: `a3c0f3a` — feat: persist InsightsPage platform + account selection via localStorage
+## CURRENT HEAD: `bbba98c` — fix: update SESSION_STATE.md HEAD hash to a3c0f3a
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
