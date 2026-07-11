@@ -77,6 +77,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // Safety timeout: if auth doesn't resolve in 10s, force-resolve to prevent
+    // infinite loading spinner. The route guard will show LoginPage which is
+    // recoverable — user can re-authenticate.
+    const safetyTimer = setTimeout(() => {
+      if (!resolved && !cancelled) {
+        console.warn("Auth resolve timed out — forcing resolve to prevent infinite loading");
+        resolve();
+      }
+    }, 10000);
+
     // 1. Check custom token (admin)
     const token = getStoredToken();
     if (token) {
@@ -171,6 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
       clearTimeout(timeoutId);
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, []);
@@ -197,9 +208,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPendingSecurityVerification(true);
         setIsAuthenticated(true);
         setUserId(data.session.user.id);
+        setCache({ userId: data.session.user.id, isAdmin: true });
       } else {
         setIsAuthenticated(true);
         setUserId(data.session.user.id);
+        setCache({ userId: data.session.user.id, isAdmin: false });
       }
     }
   }, []);
