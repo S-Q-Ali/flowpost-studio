@@ -4,6 +4,7 @@
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
+- Meta AI translation/dubbing for Reels is NOT available via Graph API — only through the native app. Investigation done, plan created (see entry #50).
 
 ## Current Status
 - **v19**: Browser-streamed Drive→Mega transfer. Moved CPU-intensive megajs AES encryption from server-side edge function to user's browser. New `transfer-ticket` edge function provides temporary decrypted credentials. Client-side `driveToMegaTransfer.ts` handles streaming upload. No server CPU limits — files of any size can transfer (subject to browser tab staying open).
@@ -115,7 +116,7 @@
 
 ---
 
-## Current State (2026-07-09)
+## Current State (2026-07-11)
 
 ### What Works
 - Auth: Google OAuth (existing users only) + admin email/password + security questions
@@ -149,6 +150,9 @@
 3. **No stale processing cleanup** — posts stuck in "processing" never retried
 4. **Stagger removed** — if stagger is needed in future, must also fix the Google token passthrough issue
 
+### Not Yet Implemented
+1. **Meta AI translation toggle** — Graph API doesn't expose this feature; plan documented in entry #50, awaiting API support
+
 ### Blocked
 - TikTok app review — needs paid domain (Vercel Pro $20/mo + $12/yr domain)
 - TikTok `privacy_level` → `PUBLIC_TO_EVERYONE` — blocked by app review
@@ -157,11 +161,12 @@
 ---
 
 ## DB Schema Notes
-- `posts`: id, user_id (text), video_id, platform, caption, hashtags, scheduled_at, published_at, status, captions_enabled, created_at, account_id, contains_altered_content, fb_ai_label, metadata (jsonb), post_type
-- `workflows`: id, user_id, name, is_active, sheet_url, sheet_id, platforms[], youtube_channel_ids[], facebook_page_ids[], instagram_account_ids[], trigger_hour_start, trigger_hour_end, max_videos_per_trigger, last_triggered_at, total_posted, created_at, updated_at, youtube_altered_content, post_as_story, last_manual_triggered_at, run_days[], day_time_windows (jsonb), run_interval_hours, media_type, videos_per_run, facebook_ai_generated, instagram_ai_generated, scheduling_mode, custom_schedule (jsonb), tiktok_account_ids[], drive_account_id
+- `posts`: id, user_id (text), video_id, platform, caption, hashtags, scheduled_at, published_at, status, captions_enabled, created_at, account_id, contains_altered_content, fb_ai_label (unused), metadata (jsonb), post_type
+- `workflows`: id, user_id, name, is_active, sheet_url, sheet_id, platforms[], youtube_channel_ids[], facebook_page_ids[], instagram_account_ids[], trigger_hour_start, trigger_hour_end, max_videos_per_trigger, last_triggered_at, total_posted, created_at, updated_at, youtube_altered_content, post_as_story, last_manual_triggered_at, run_days[], day_time_windows (jsonb), run_interval_hours, media_type, videos_per_run, facebook_ai_generated (unused), instagram_ai_generated (unused), scheduling_mode, custom_schedule (jsonb), tiktok_account_ids[], drive_account_id
 - `connected_accounts`: id, user_id, platform, account_id, username, avatar_url, is_connected, access_token (encrypted), refresh_token, token_expires_at, metadata (jsonb), created_at, updated_at
 - Migration `20260704000000_add_post_type.sql` applied
 - No `error`, `error_details`, or `attempts` column on posts
+- Meta AI translation columns (`posts.ai_translation_enabled`, `workflows.instagram_ai_translation`, `workflows.facebook_ai_translation`) — planned but not yet migrated
 
 ---
 
@@ -1140,3 +1145,47 @@ supabase functions deploy google-oauth --no-verify-jwt
 **Action required**: Users must click the ↻ button on any connected Facebook page to obtain a new token with the `read_insights` permission. Existing tokens without this permission will continue to return empty data.
 
 **Deploy**: `supabase functions deploy facebook-auth --no-verify-jwt`
+
+---
+
+### 50. Meta AI Translation/Dubbing for Reels — Deep Investigation (2026-07-11)
+
+**Request**: Add a toggle button to auto-translate reels on Instagram and Facebook with Meta's AI dubbing + lip-sync feature.
+
+**Deep investigation result**: Meta's AI translation/dubbing for Reels is **NOT exposed through the Graph API**. It is exclusively a consumer feature available via:
+- **Instagram/Facebook mobile app** — pre-publish toggle "Translate your voice with Meta AI"
+- **Facebook Professional Dashboard** — post-publish review/approval (UI only)
+
+**All 12 research vectors confirmed no API support**:
+
+| Research Vector | Result |
+|----------------|--------|
+| Graph API Instagram media container params | NO translation/dubbing parameter exists |
+| Graph API Facebook video/reel upload params | NO translation/dubbing parameter exists |
+| `/{media-id}/ai_translation` endpoint | Does not exist |
+| `/{video-id}/translations` endpoint | Does not exist |
+| PATCH video to enable translation | Not supported |
+| Business Suite API audio tracks | UI only, no API |
+| Professional Dashboard translation settings | Not exposed via API |
+| SeamlessM4T model hosting | Open-source, self-host only |
+| Meta AI Translations API | Does not exist as a service |
+
+**What IS available via Graph API**:
+- `is_ai_generated` parameter — content labeling only, NOT translation
+- `multilingual_data` — text-based multilingual posts only, NOT audio dubbing
+- `/{video-id}/captions` — SRT subtitle files only, NOT audio dubbing
+- Custom dubbed audio tracks — Meta Business Suite UI only, no programmatic access
+
+**Database schema notes**:
+- `workflows` table already has unused `facebook_ai_generated` and `instagram_ai_generated` boolean columns (added by migration `20260524000000`) — these are for AI content **disclosure**, not translation
+- `posts` table has `fb_ai_label` column (also unused) — same purpose
+- Neither `posts` nor `workflows` has any translation-related column
+
+**Plan** (pending user approval):
+1. Migration: `posts.ai_translation_enabled` (bool), `workflows.instagram_ai_translation` + `facebook_ai_translation` (bool)
+2. UploadPage: Switch toggle "Translate with Meta AI" under Instagram/Facebook sections
+3. WorkflowsPage: Toggle in Step 2 for each platform
+4. Edge functions: Accept/forward the flag (forward-compatible for when/if Meta adds API support)
+5. Info banner noting the feature is enabled post-publish and available in the native app
+
+**Status**: Investigated, not yet implemented.

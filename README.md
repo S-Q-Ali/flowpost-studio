@@ -6,7 +6,10 @@
 
 ## Features
 
+> **Note:** Meta's AI voice translation + lip-sync for Reels is currently only available through the native Instagram/Facebook apps, not via the Graph API. Toggle support in FlowPost prepares for future API support. See `SESSION_STATE.md` entry #50 for full investigation details.
+
 - **Cross-platform publishing** — Upload a video or image once and distribute to YouTube, Instagram, Facebook, and TikTok simultaneously
+- **Meta AI translation support** — Toggle to mark reels for Meta AI dubbing + lip-sync (feature pending Graph API exposure; toggles serve as intent flags for future support)
 - **Image support** — Publish images to Facebook and Instagram (Photo posts + Stories)
 - **Scheduled posting** — Set future publish dates per platform (cron-driven every 5 minutes)
 - **Content calendar** — Monthly overview of all scheduled and published posts
@@ -29,6 +32,7 @@
 | **Backend** | Supabase (PostgreSQL, Auth, Edge Functions running Deno) |
 | **File Storage** | Google Drive (per-user OAuth) + Mega (authenticated or public links) |
 | **Social APIs** | YouTube Data API v3, Facebook Graph API v25, Instagram Graph API, TikTok API v2 |
+| **AI / Translation** | Meta AI dubbing (native app only, no API), SeamlessM4T (self-hostable) |
 | **Hosting** | Vercel (frontend), Supabase (edge functions + database) |
 | **Testing** | Vitest, React Testing Library, jsdom |
 | **Linting** | ESLint with typescript-eslint |
@@ -286,6 +290,7 @@ npx supabase db push
 - [TikTok API](https://developers.tiktok.com/)
 - [Supabase Edge Functions](https://supabase.com/docs/guides/functions)
 - [MegaJS](https://github.com/tonistiigi/megajs)
+- [Meta AI dubbing for Reels](https://creators.facebook.com/blog/meta-ai-translations) (native app only, no API available)
 
 ---
 
