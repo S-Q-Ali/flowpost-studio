@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
+  const navigate = useNavigate();
   const { loginWithEmail, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,13 +38,14 @@ export default function LoginPage() {
 
     try {
       await loginWithEmail(email, password);
+      navigate("/dashboard");
     } catch (err: any) {
       const msg = err?.message || "Sign in failed";
       setError(msg);
     } finally {
       setEmailVerifying(false);
     }
-  }, [email, password, loginWithEmail]);
+  }, [email, password, loginWithEmail, navigate]);
 
   const handleGoogle = useCallback(async () => {
     setError(null);
