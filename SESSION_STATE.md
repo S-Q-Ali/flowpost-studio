@@ -116,7 +116,7 @@
 
 ---
 
-## Current State (2026-07-11)
+## Current State (2026-07-12)
 
 ### What Works
 - Auth: Google OAuth (existing users only) + admin email/password + security questions
@@ -157,6 +157,9 @@
 - TikTok app review — needs paid domain (Vercel Pro $20/mo + $12/yr domain)
 - TikTok `privacy_level` → `PUBLIC_TO_EVERYONE` — blocked by app review
 - Snapchat integration — blocked by API allowlist
+
+### Recently Fixed
+1. **Infinite loading when navigating away from SecurityQuestionsGate** — `loginWithEmail()` now calls `setCache()` so page reloads restore auth state; added 10s safety timeout to force-resolve spinner (commit `86b066e`)
 
 ---
 
@@ -1148,7 +1151,30 @@ supabase functions deploy google-oauth --no-verify-jwt
 
 ---
 
-### 50. Meta AI Translation/Dubbing for Reels — Deep Investigation (2026-07-11)
+### 51. Infinite Loading After Navigating Away from SecurityQuestionsGate (2026-07-11)
+
+**Symptom**: User logs in via email/password, sees the SecurityQuestionsGate, navigates to a different URL (or refreshes) — app shows an infinite "Verifying..." spinner. Only closing the tab and reopening the website fixes it.
+
+**Root cause**: Two bugs:
+
+1. **`loginWithEmail()` never calls `setCache()`** (`AuthContext.tsx`). After a successful email login, the auth state (`isAuthenticated=true`, `pendingSecurityVerification=true`) is set synchronously, but the cache in `sessionStorage` is only set by the `onAuthStateChange` SIGNED_IN handler — which fires asynchronously (sometimes after the user has already navigated away). On full page reload:
+   - `getStoredToken()` → null (no admin custom token — questions never answered)
+   - `getCache()` → null (SIGNED_IN didn't fire before unload)
+   - No auth state restored → infinite spinner if async events never complete cleanly
+
+2. **No fallback for stuck `isVerifying`** — if the async SIGNED_IN event is delayed or lost, `isVerifying` stays `true` permanently, and the only UI shown is "Verifying...". The user has no way to recover.
+
+3. **`navigate("/dashboard")` after login** — unnecessary navigation to a URL that will immediately be intercepted by the `pendingSecurityVerification` route guard, creating a confusing URL-vs-content mismatch.
+
+**Fix** (commit `86b066e`):
+
+| File | Change | Security impact |
+|------|--------|----------------|
+| `src/contexts/AuthContext.tsx:211,215` | `loginWithEmail()` now calls `setCache({ userId, isAdmin })` after setting auth state | None — `sessionStorage` is client-side UI state; server still validates via Supabase session + security questions + `sessions` table |
+| `src/contexts/AuthContext.tsx:80-88,184` | Added 10s safety timeout that force-resolves `isVerifying` → user lands on LoginPage if auth never resolves | None — LoginPage is the default unauthenticated state |
+| `src/pages/LoginPage.tsx:38` | Removed `navigate("/dashboard")` and unused `useNavigate` | None — route guard handles redirect |
+
+**Verification**: `tsc --noEmit` passes, lint shows only pre-existing warnings.
 
 **Request**: Add a toggle button to auto-translate reels on Instagram and Facebook with Meta's AI dubbing + lip-sync feature.
 
