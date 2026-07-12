@@ -161,6 +161,68 @@
 ### Recently Fixed
 1. **Infinite loading when navigating away from SecurityQuestionsGate** — `loginWithEmail()` now calls `setCache()` so page reloads restore auth state; added 10s safety timeout to force-resolve spinner (commit `86b066e`)
 
+### 52. get-file Egress Spike — R2 Cache Layer Plan (2026-07-12)
+
+**Symptom**: July 11 functions egress spiked to 9.071 GB (vs 1.866 GB baseline). Traced to 2 active Facebook+IG workflows posting 8 videos/day from Google Drive via `get-file` proxy.
+
+**Root cause**: Facebook/Instagram fetch video from Drive through `get-file` proxy because they can't authenticate to Google Drive directly. Each video is fetched once per platform — 16 fetches/day × ~500 MB avg = ~8 GB/day. Before entry #15, R2 cached the video (free egress); the R2 removal eliminated the cache layer.
+
+**Egress sources**:
+| Path | Egress per video | Note |
+|------|-----------------|------|
+| `youtube-upload` (PUT to YouTube) | **1× file size** | Unavoidable if YouTube active |
+| `post-story` (Facebook story PUT) | **1× file size** | Video bytes flow through edge |
+| `get-file` (FB/IG fetch from proxy) | **1× file size** | Per platform fetching video |
+| `facebook-upload` / `instagram-upload` | **0** | URL-based, platform fetches directly |
+| `drive-to-mega` (StoragePage) | **0** | Browser-direct, no Supabase data |
+
+**Fix planned**: Re-introduce R2 as a transparent cache inside `get-file`. First fetch proxies from Drive/Mega and asynchronously caches to R2. Subsequent fetches (second platform, retries, stories) served from R2 → zero egress.
+
+**Changes needed**:
+- `supabase/functions/get-file/index.ts` — R2 cache check before proxy; async R2 upload after first serve
+- New migration — `video_cache` table (source_url_hash PK, r2_key, created_at)
+- Supabase secrets — R2 credentials for edge function access
+
+**Egress impact**:
+| Before | After |
+|--------|-------|
+| 8 videos × 2 platforms × 500 MB = ~8 GB/day | 8 videos × 500 MB (first fetch to R2 only) = ~4 GB first day, ~0 GB subsequent |
+
+### 53. get-file Egress Spike — R2 Cache in process-workflow (2026-07-12)
+
+**What**: Replaced the `get-file` proxy path for Drive-sourced videos in automated workflows with a direct R2 upload + public URL. Now `process-workflow` uploads Drive files to Cloudflare R2 (streaming, no buffering) after creating the video record, and updates `video.file_url` to the R2 public URL. Platform upload functions serve the R2 URL directly — Facebook, Instagram, and stories fetch from R2 at zero Supabase egress.
+
+**Egress impact per video**:
+| Platform | Before | After |
+|----------|--------|-------|
+| Facebook | 1× file size (get-file proxy) | 0× (R2 public URL) |
+| Instagram | 1× file size (get-file proxy) | 0× (R2 public URL) |
+| FB Stories | 1× (via get-file → re-upload) | 0× (downloads from R2) |
+| IG Stories | 1× (via get-file proxy) | 0× (R2 URL) |
+| YouTube | 1× (unavoidable) | 1× (same) |
+| TikTok | 0× (Drive direct) | 0× (same) |
+
+With 8 videos/day × 500 MB avg: **~9 GB/day → ~0.5 GB/day** (~94% reduction)
+
+**Key design**: The R2 upload is wrapped in try/catch. On failure, the function falls back to the existing `get-file` proxy behavior (Drive creds passed in payload). Zero regression risk.
+
+**Files changed**:
+
+| File | Change |
+|------|--------|
+| `supabase/functions/process-workflow/index.ts` | Added S3 client import + env vars; R2 upload block after video insert; conditional filePayload (omit Drive creds when R2 succeeds); story URL uses R2 URL when available |
+| `supabase/functions/facebook-upload/index.ts` | Added R2 guard in Drive override block — skips get-file proxy when `video.file_url` is an R2 URL |
+| `supabase/functions/instagram-upload/index.ts` | Same R2 guard pattern as facebook-upload |
+
+**New env vars**: `R2_ENDPOINT`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` — all already set in Supabase secrets.
+
+**Not changed**: Mega source handling (still uses get-file proxy); manual uploads from UploadPage (still use get-file); `youtube-upload`, `tiktok-upload`, `post-story`; `get-file` function itself.
+
+**Deploy**:
+```powershell
+npx.cmd supabase functions deploy process-workflow facebook-upload instagram-upload --no-verify-jwt
+```
+
 ---
 
 ## DB Schema Notes

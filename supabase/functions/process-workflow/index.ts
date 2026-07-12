@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -10,6 +11,20 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const CRON_API_KEY = Deno.env.get("CRON_API_KEY");
 const GOOGLE_FALLBACK_SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID") || undefined;
+
+const R2_ENDPOINT = Deno.env.get("R2_ENDPOINT");
+const R2_ACCESS_KEY = Deno.env.get("R2_ACCESS_KEY");
+const R2_SECRET_KEY = Deno.env.get("R2_SECRET_KEY");
+const R2_BUCKET = Deno.env.get("R2_BUCKET");
+const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "pub-1d4bcccec36046308147315db8637398.r2.dev";
+
+const s3Client = (R2_ENDPOINT && R2_ACCESS_KEY && R2_SECRET_KEY && R2_BUCKET)
+  ? new S3Client({
+      region: "auto",
+      endpoint: R2_ENDPOINT,
+      credentials: { accessKeyId: R2_ACCESS_KEY, secretAccessKey: R2_SECRET_KEY },
+    })
+  : null;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for process-workflow");
@@ -461,6 +476,41 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Upload Drive-sourced files to R2 for zero-egress serving
+        let r2Succeeded = false;
+        let r2Url: string | null = null;
+        if (!isMegaAccount && !isMegaPublic && driveDownloadUrl && googleToken && s3Client) {
+          try {
+            const driveRes = await fetch(driveDownloadUrl, {
+              headers: { Authorization: `Bearer ${googleToken}` },
+            });
+            if (!driveRes.ok) {
+              console.error(`Drive download failed for video ${videoRecord.id}: ${driveRes.status}`);
+            } else {
+              const key = `${currentUserId}/${videoRecord.id}${fileExt}`;
+              await s3Client.send(new PutObjectCommand({
+                Bucket: R2_BUCKET,
+                Key: key,
+                Body: driveRes.body,
+                ContentType: driveRes.headers.get("Content-Type") || "video/mp4",
+              }));
+              r2Url = `https://${R2_PUBLIC_URL}/${key}`;
+              const { error: r2UpdateError } = await supabase
+                .from("videos")
+                .update({ file_url: r2Url })
+                .eq("id", videoRecord.id);
+              if (r2UpdateError) {
+                console.error(`Failed to update video file_url to R2 for ${videoRecord.id}:`, r2UpdateError);
+              } else {
+                r2Succeeded = true;
+                console.log(`Cached video ${videoRecord.id} to R2: ${r2Url}`);
+              }
+            }
+          } catch (r2Err) {
+            console.error(`R2 upload failed for video ${videoRecord.id}:`, r2Err);
+          }
+        }
+
         // Determine platforms
         let platforms: ("youtube" | "facebook" | "instagram" | "tiktok")[] = [];
         const rowPlatformsRaw = platformsIdx !== undefined ? row[platformsIdx] : "";
@@ -606,10 +656,12 @@ Deno.serve(async (req) => {
           filePayload.megaAccountId = megaAccountId;
         } else if (isMegaPublic) {
           filePayload.megaUrl = megaUrl;
-        } else {
+        } else if (!r2Succeeded) {
+          // Drive source without R2 cache — pass credentials for get-file proxy fallback
           filePayload.driveDownloadUrl = driveDownloadUrl;
           filePayload.googleAccessToken = googleToken;
         }
+        // If r2Succeeded, omit Drive creds — upload functions use video.file_url (R2 URL)
 
         for (const post of insertedPosts as { id: string; platform: string; account_id: string | null; status: string }[]) {
           if (post.status !== "processing") continue;
@@ -673,6 +725,9 @@ Deno.serve(async (req) => {
               exp: Date.now() + 15 * 60 * 1000,
             }));
             storyVideoUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(storyToken)}`;
+          } else if (r2Url) {
+            // Drive source cached on R2 — use public URL directly
+            storyVideoUrl = r2Url;
           } else {
             const storyToken = await encrypt(JSON.stringify({
               driveUrl: driveDownloadUrl,

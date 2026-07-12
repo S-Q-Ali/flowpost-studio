@@ -10,6 +10,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "pub-1d4bcccec36046308147315db8637398.r2.dev";
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for facebook-upload");
@@ -141,13 +142,19 @@ Deno.serve(async (req) => {
       mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
       console.log("Using Mega get-file proxy URL for Facebook:", mediaUrl);
     } else if (driveDownloadUrl && googleAccessToken) {
-      const fileToken = await encrypt(JSON.stringify({
-        driveUrl: driveDownloadUrl,
-        driveToken: googleAccessToken,
-        exp: Date.now() + 15 * 60 * 1000,
-      }));
-      mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
-      console.log("Using get-file proxy URL for Facebook:", mediaUrl);
+      // If video is already cached on R2, use it directly — skip get-file proxy
+      if (R2_PUBLIC_URL && video.file_url?.includes(R2_PUBLIC_URL)) {
+        mediaUrl = video.file_url;
+        console.log("Using R2 URL for Facebook:", mediaUrl);
+      } else {
+        const fileToken = await encrypt(JSON.stringify({
+          driveUrl: driveDownloadUrl,
+          driveToken: googleAccessToken,
+          exp: Date.now() + 15 * 60 * 1000,
+        }));
+        mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+        console.log("Using get-file proxy URL for Facebook:", mediaUrl);
+      }
     }
 
     let postRes: Response;
