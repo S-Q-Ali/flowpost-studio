@@ -160,6 +160,7 @@
 
 ### Recently Fixed
 1. **Infinite loading when navigating away from SecurityQuestionsGate** — `loginWithEmail()` now calls `setCache()` so page reloads restore auth state; added 10s safety timeout to force-resolve spinner (commit `86b066e`)
+2. **Hardcoded `R2_PUBLIC_URL` fallbacks removed from all 5 functions** — `process-workflow`, `facebook-upload`, `instagram-upload`, `youtube-upload`, `tiktok-upload` no longer silently fall back to a stale hardcoded URL. `R2_PUBLIC_URL` must be set as a Supabase function secret or the function fails at startup.
 
 ### 52. get-file Egress Spike — R2 Cache Layer Plan (2026-07-12)
 
@@ -214,7 +215,7 @@ With 8 videos/day × 500 MB avg: **~9 GB/day → ~0.5 GB/day** (~94% reduction)
 | `supabase/functions/facebook-upload/index.ts` | Added R2 guard in Drive override block — skips get-file proxy when `video.file_url` is an R2 URL |
 | `supabase/functions/instagram-upload/index.ts` | Same R2 guard pattern as facebook-upload |
 
-**New env vars**: `R2_ENDPOINT`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` — all already set in Supabase secrets.
+**New env vars**: `R2_ENDPOINT`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` — all set in Supabase secrets. Note: `R2_PUBLIC_URL` is now **required** (no code fallback — removed in entry #54).
 
 **Not changed**: Mega source handling (still uses get-file proxy); manual uploads from UploadPage (still use get-file); `youtube-upload`, `tiktok-upload`, `post-story`; `get-file` function itself.
 
@@ -1277,3 +1278,24 @@ supabase functions deploy google-oauth --no-verify-jwt
 5. Info banner noting the feature is enabled post-publish and available in the native app
 
 **Status**: Investigated, not yet implemented.
+
+---
+
+### 54. Hardcoded R2_PUBLIC_URL Fallbacks Removed (2026-07-12)
+
+**What**: Removed the hardcoded fallback `|| "pub-1d4bcccec36046308147315db8637398.r2.dev"` from all 5 functions that reference `R2_PUBLIC_URL`.
+
+**Files changed**:
+| File | Line | Before | After |
+|------|------|--------|-------|
+| `supabase/functions/process-workflow/index.ts` | 19 | `Deno.env.get("R2_PUBLIC_URL") \|\| "pub-..."` | `Deno.env.get("R2_PUBLIC_URL")!` |
+| `supabase/functions/facebook-upload/index.ts` | 13 | Same | Same |
+| `supabase/functions/instagram-upload/index.ts` | 13 | Same | Same |
+| `supabase/functions/youtube-upload/index.ts` | 13 | Same | Same |
+| `supabase/functions/tiktok-upload/index.ts` | 14 | Same | Same |
+
+**Why**: The hardcoded fallback silently masked a missing env var. If the bucket URL ever changed (new R2 bucket, custom domain, etc.), the stale default would continue working silently — and the next function that needs `R2_PUBLIC_URL` might copy-paste the same stale fallback pattern. Now each function fails at startup with a clear error if the secret is missing.
+
+**Action taken**: User confirmed `R2_PUBLIC_URL` is already set in Supabase function secrets. No deploy needed yet (pending next scheduled deploy).
+
+**Related**: Entry #53 — the original R2 cache implementation that introduced `R2_PUBLIC_URL` to these functions.

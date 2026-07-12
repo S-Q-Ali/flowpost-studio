@@ -16,7 +16,7 @@ const R2_ENDPOINT = Deno.env.get("R2_ENDPOINT");
 const R2_ACCESS_KEY = Deno.env.get("R2_ACCESS_KEY");
 const R2_SECRET_KEY = Deno.env.get("R2_SECRET_KEY");
 const R2_BUCKET = Deno.env.get("R2_BUCKET");
-const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL") || "pub-1d4bcccec36046308147315db8637398.r2.dev";
+const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL")!;
 
 const s3Client = (R2_ENDPOINT && R2_ACCESS_KEY && R2_SECRET_KEY && R2_BUCKET)
   ? new S3Client({
