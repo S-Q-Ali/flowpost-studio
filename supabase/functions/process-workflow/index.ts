@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
+import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -488,12 +489,22 @@ Deno.serve(async (req) => {
               console.error(`Drive download failed for video ${videoRecord.id}: ${driveRes.status}`);
             } else {
               const key = `${currentUserId}/${videoRecord.id}${fileExt}`;
-              await s3Client.send(new PutObjectCommand({
+              const contentType = driveRes.headers.get("Content-Type") || "video/mp4";
+              const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand({
                 Bucket: R2_BUCKET,
                 Key: key,
-                Body: driveRes.body,
-                ContentType: driveRes.headers.get("Content-Type") || "video/mp4",
-              }));
+                ContentType: contentType,
+              }), { expiresIn: 600 });
+              const putRes = await fetch(uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": contentType },
+                body: driveRes.body,
+                // @ts-ignore - duplex needed for streaming body
+                duplex: "half",
+              });
+              if (!putRes.ok) {
+                throw new Error(`R2 PUT failed: ${putRes.status}`);
+              }
               r2Url = `https://${R2_PUBLIC_URL}/${key}`;
               const { error: r2UpdateError } = await supabase
                 .from("videos")
@@ -656,12 +667,13 @@ Deno.serve(async (req) => {
           filePayload.megaAccountId = megaAccountId;
         } else if (isMegaPublic) {
           filePayload.megaUrl = megaUrl;
-        } else if (!r2Succeeded) {
-          // Drive source without R2 cache — pass credentials for get-file proxy fallback
+        } else if (r2Succeeded) {
+          // R2 cached — omit Drive creds, upload functions use video.file_url (R2 URL)
+        } else {
+          // R2 not available — pass Drive credentials for get-file proxy fallback
           filePayload.driveDownloadUrl = driveDownloadUrl;
           filePayload.googleAccessToken = googleToken;
         }
-        // If r2Succeeded, omit Drive creds — upload functions use video.file_url (R2 URL)
 
         for (const post of insertedPosts as { id: string; platform: string; account_id: string | null; status: string }[]) {
           if (post.status !== "processing") continue;
@@ -711,7 +723,7 @@ Deno.serve(async (req) => {
 
         if (wf.post_as_story && !isImageWorkflow) {
           // Generate a short-lived get-file proxy URL for the story
-          let storyVideoUrl: string;
+          let storyVideoUrl: string | undefined;
           if (isMegaAccount) {
             const storyToken = await encrypt(JSON.stringify({
               megaFileName,

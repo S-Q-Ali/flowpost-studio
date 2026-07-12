@@ -161,6 +161,7 @@
 ### Recently Fixed
 1. **Infinite loading when navigating away from SecurityQuestionsGate** — `loginWithEmail()` now calls `setCache()` so page reloads restore auth state; added 10s safety timeout to force-resolve spinner (commit `86b066e`)
 2. **Hardcoded `R2_PUBLIC_URL` fallbacks removed from all 5 functions** — `process-workflow`, `facebook-upload`, `instagram-upload`, `youtube-upload`, `tiktok-upload` no longer silently fall back to a stale hardcoded URL. `R2_PUBLIC_URL` must be set as a Supabase function secret or the function fails at startup.
+3. **R2 upload fixed + Drive fallback disabled for testing** — `S3Client.send(PutObjectCommand)` with streaming body was hashing a flowing stream (failed). Replaced with `getSignedUrl()` presigned URL + raw `fetch` PUT with `duplex: "half"` (same pattern as old R2 approach). ✅ **Tested successfully** — both Facebook and Instagram published from R2 URL. Drive fallback still commented out pending uncomment. See entry #55.
 
 ### 52. get-file Egress Spike — R2 Cache Layer Plan (2026-07-12)
 
@@ -1299,3 +1300,52 @@ supabase functions deploy google-oauth --no-verify-jwt
 **Action taken**: User confirmed `R2_PUBLIC_URL` is already set in Supabase function secrets. No deploy needed yet (pending next scheduled deploy).
 
 **Related**: Entry #53 — the original R2 cache implementation that introduced `R2_PUBLIC_URL` to these functions.
+
+---
+
+### 55. R2 Upload Fix + Drive Fallback Disabled for Testing (2026-07-12)
+
+**What**: Two changes to test R2 end-to-end:
+
+1. **Fixed R2 upload mechanism** — `S3Client.send(PutObjectCommand)` with streaming body failed with `Unable to calculate hash for flowing readable stream` (Deno runtime limitation with S3 SDK checksums). Replaced with presigned URL generation via `getSignedUrl(r2Client, command, { expiresIn: 600 })` + raw `fetch` PUT with `duplex: "half"` — the same pattern used in the original R2 approach (deleted in commit `3914232`).
+
+2. **Disabled Drive fallback** — commented out the `get-file` proxy fallback in 4 locations:
+   - `process-workflow/index.ts`: `filePayload` Drive fallback (no Drive creds passed to upload functions)
+   - `process-workflow/index.ts`: story URL Drive fallback (no get-file proxy token for stories)
+   - `facebook-upload/index.ts`: get-file proxy generation for Drive source
+   - `instagram-upload/index.ts`: same as facebook-upload
+
+**Why for testing**: When R2 succeeds, everything publishes from R2 URLs at 0 egress. When R2 fails, no fallback kicks in — upload functions get raw Drive URL which Facebook/Instagram can't authenticate to → explicit failure in logs. After R2 is confirmed working, Drive fallback will be uncommented for belt-and-suspenders safety.
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `supabase/functions/process-workflow/index.ts` | Added `import { getSignedUrl } from "@aws-sdk/s3-request-presigner"`; replaced `s3Client.send(PutObjectCommand({..., Body: driveRes.body}))` with `getSignedUrl()` + raw `fetch` PUT; commented out `filePayload` Drive fallback (lines ~659-663); commented out story URL Drive fallback (lines ~731-738) |
+| `supabase/functions/facebook-upload/index.ts` | Commented out get-file proxy `else` block inside `driveDownloadUrl && googleAccessToken` guard (lines ~149-157) |
+| `supabase/functions/instagram-upload/index.ts` | Same as facebook-upload |
+
+**New behavior when Drive source + R2 succeeds**:
+```
+process-workflow → uploads to R2 (presigned URL + raw PUT)
+                 → updates video.file_url to R2 URL
+                 → filePayload = {} (no Drive creds)
+                 → upload functions read video.file_url → R2 URL → 0 egress
+                 → story URL = r2Url → 0 egress
+```
+
+**New behavior when Drive source + R2 fails**:
+```
+process-workflow → R2 upload fails → r2Succeeded = false
+                 → filePayload = {} (no Drive creds passed)
+                 → upload functions read video.file_url = raw Drive URL
+                 → Facebook/Instagram can't auth → explicit failure
+                 → storyVideoUrl undefined → story skipped or fails
+```
+
+**Test results** (2026-07-12):
+- ✅ **R2 upload succeeded** — presigned URL + raw `fetch` PUT works. Both Facebook and Instagram published successfully from R2 URL.
+- ⚠️ **R2_PUBLIC_URL format issue** — user initially set the secret with `https://` prefix (`https://pub-...r2.dev`), but code prepends another `https://` — resulting in `https://https://pub-...r2.dev/...`. Facebook returned `Unable to fetch video file from URL` (code 389), Instagram containers failed with ERROR. Fixed by removing `https://` prefix from secret. Second run succeeded: `Using media URL: https://pub-...r2.dev/...`.
+- ⏱️ **Speed observation**: R2 path is slightly slower than direct Drive get-file proxy (extra hop: process-workflow downloads from Drive → uploads to R2 → platform fetches from R2). Acceptable trade-off for 0 egress per platform.
+- **Next step**: Uncomment Drive fallback to restore belt-and-suspenders behavior (R2 primary, Drive fallback if R2 fails).
+
+**Deploy**: Completed — `process-workflow`, `facebook-upload`, `instagram-upload` deployed.
