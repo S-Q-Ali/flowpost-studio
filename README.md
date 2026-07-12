@@ -15,6 +15,7 @@
 - **Content calendar** — Monthly overview of all scheduled and published posts
 - **Queue management** — Edit, reschedule, retry, or delete pending posts with bulk operations
 - **Google Sheets workflows** — Automatically pull videos or images from a spreadsheet and post on a recurring schedule (3 scheduling modes)
+- **Cloudflare R2 cache** — Drive-sourced workflow videos are cached to R2; Facebook, Instagram, and stories fetch from R2 at zero Supabase egress
 - **Connected accounts** — Manage OAuth connections for YouTube, Facebook, Instagram, TikTok, and Google Drive
 - **Mega integration** — Connect your Mega account or use public share links as an alternate file source alongside Google Drive
 - **Progress tracking** — Real-time upload progress and per-platform post status updates
@@ -30,7 +31,7 @@
 |-------|-----------|
 | **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router v6, TanStack Query |
 | **Backend** | Supabase (PostgreSQL, Auth, Edge Functions running Deno) |
-| **File Storage** | Google Drive (per-user OAuth) + Mega (authenticated or public links) |
+| **File Storage** | Google Drive (per-user OAuth) + Mega (authenticated or public links) + Cloudflare R2 (workflow cache) |
 | **Social APIs** | YouTube Data API v3, Facebook Graph API v25, Instagram Graph API, TikTok API v2 |
 | **AI / Translation** | Meta AI dubbing (native app only, no API), SeamlessM4T (self-hostable) |
 | **Hosting** | Vercel (frontend), Supabase (edge functions + database) |
@@ -72,7 +73,7 @@ flowpost-studio/
 │   ├── App.tsx                # Root component with router
 │   └── main.tsx               # Entry point
 ├── supabase/
-│   ├── functions/              # 17 Deno Edge Functions
+│   ├── functions/              # 23 Deno Edge Functions
 │   │   ├── _shared/             # Shared modules
 │   │   │   ├── crypto.ts             # AES-GCM token encryption
 │   │   │   ├── rate-limit.ts         # Rate limiting helpers
@@ -90,11 +91,14 @@ flowpost-studio/
 │   │   ├── tiktok-upload/
 │   │   ├── tiktok-auth/
 │   │   ├── post-story/
-│   │   ├── process-workflow/
+│   │   ├── process-workflow/        # R2 cache for Drive-sourced videos
 │   │   ├── process-scheduled-posts/
 │   │   ├── update-sheet-status/
 │   │   ├── google-drive-auth/        # Drive OAuth flow
+│   │   ├── google-oauth/             # Google sign-in OAuth
 │   │   ├── mega-auth/                # Mega account management
+│   │   ├── drive-to-mega/            # Browser-streamed Drive→Mega transfer
+│   │   ├── transfer-ticket/          # Temporary Mega session credentials
 │   │   ├── fetch-instagram-insights/
 │   │   └── fetch-facebook-insights/
 │   └── migrations/            # 22 database migration files
@@ -108,21 +112,26 @@ flowpost-studio/
 ## Architecture Overview
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
-│   Browser   │────>│   Supabase   │────>│  YouTube API     │
-│  (React)    │     │ Edge Functions│     │  Facebook API    │
-│             │     │  (Deno)      │     │  Instagram API   │
-│  ┌───────┐  │     │              │     │  TikTok API      │
-│  │ Drive │  │     │  ┌────────┐  │     └──────────────────┘
-│  │ OAuth │  │     │  │ get-file│  │
-│  └───────┘  │     │  │ proxy   │  │
-│             │     │  └────────┘  │
-│  ┌───────┐  │     │       │      │
-│  │ Mega  │  │     │  ┌────┴────┐ │
-│  │ Auth  │  │     │  │ Drive / │ │
-│  └───────┘  │     │  │ Mega    │ │
-│             │     │  └─────────┘ │
-└─────────────┘     └──────────────┘
+┌─────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   Browser   │────>│    Supabase      │────>│  YouTube API     │
+│  (React)    │     │  Edge Functions   │     │  Facebook API    │
+│             │     │    (Deno)        │     │  Instagram API   │
+│  ┌───────┐  │     │                  │     │  TikTok API      │
+│  │ Drive │  │     │  ┌────────────┐  │     └──────────────────┘
+│  │ OAuth │  │     │  │process-    │  │
+│  └───────┘  │     │  │workflow    │──┤──── R2 URL (0 egress)
+│             │     │  └───┬───┬────┘  │
+│  ┌───────┐  │     │      │   │       │
+│  │ Mega  │  │     │  ┌───┴───┴────┐  │
+│  │ Auth  │  │     │  │ get-file   │  │
+│  └───────┘  │     │  │ proxy      │  │
+│             │     │  └─────┬──────┘  │
+│             │     │        │         │
+│             │     │  ┌─────┴──────┐  │
+│             │     │  │ Cloudflare │  │
+│             │     │  │ R2 (cache) │  │
+│             │     │  └────────────┘  │
+└─────────────┘     └──────────────────┘
 ```
 
 **Data flow:**
@@ -130,10 +139,12 @@ flowpost-studio/
 1. User authenticates via email/password (admin) or Google OAuth (regular users)
 2. File sources: Google Drive (per-user OAuth) or Mega (authenticated or public links)
 3. For Google Sheets workflows, `process-workflow` reads sheets, resolves each row's source (Drive URL, Mega URL, or `mega:filename` pattern), and creates posts
-4. The `get-file` proxy streams files directly from Drive API or Mega to the target platform — no intermediate storage
-5. For immediate publishing, posts fire directly; for scheduled posts, a cron job picks up due posts every 5 minutes
-6. TikTok publishes via FILE_UPLOAD + DIRECT_POST flow (SELF_ONLY privacy in Beta)
-7. All OAuth tokens are encrypted at rest with AES-GCM
+4. For Drive-sourced videos, `process-workflow` uploads the file to Cloudflare R2 (presigned URL + raw PUT) and updates the video record with the R2 URL
+5. Facebook, Instagram, and story posts serve the R2 URL directly — **zero Supabase egress** per platform. If R2 upload fails, the `get-file` proxy acts as a fallback (1× egress)
+6. Mega-sourced files and manual uploads still use the `get-file` proxy to stream files directly to the target platform
+7. For immediate publishing, posts fire directly; for scheduled posts, a cron job picks up due posts every 5 minutes
+8. TikTok publishes via FILE_UPLOAD + DIRECT_POST flow (SELF_ONLY privacy in Beta)
+9. All OAuth tokens are encrypted at rest with AES-GCM
 
 **Sheet `video_url` supports 3 formats:**
 ```
@@ -215,6 +226,11 @@ Set these in **Supabase Dashboard → Edge Functions → Secrets**:
 | `FACEBOOK_CLIENT_SECRET` | Facebook app secret |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | GCP service account email for Sheets access |
 | `GOOGLE_PRIVATE_KEY` | GCP service account private key |
+| `R2_ENDPOINT` | Cloudflare R2 S3 endpoint URL |
+| `R2_ACCESS_KEY` | Cloudflare R2 access key ID |
+| `R2_SECRET_KEY` | Cloudflare R2 secret access key |
+| `R2_BUCKET` | Cloudflare R2 bucket name |
+| `R2_PUBLIC_URL` | Cloudflare R2 public bucket hostname (e.g. `pub-xxxxxxxxxxxx.r2.dev`) |
 
 Frontend variables (in `.env.local`):
 
