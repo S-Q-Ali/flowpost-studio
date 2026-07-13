@@ -1349,3 +1349,29 @@ process-workflow → R2 upload fails → r2Succeeded = false
 - **Next step**: Uncomment Drive fallback to restore belt-and-suspenders behavior (R2 primary, Drive fallback if R2 fails).
 
 **Deploy**: Completed — `process-workflow`, `facebook-upload`, `instagram-upload` deployed.
+
+---
+
+### 56. Sheet Status Not Updating After Workflow (Missing googleAccessToken) (2026-07-13)
+
+**Symptom**: Google Sheets video status cells never updated after workflow processing, even though videos published successfully.
+
+**Root cause**: When R2 caching succeeded (common path for Drive-sourced videos), `process-workflow` omitted `googleAccessToken` from the `filePayload` sent to upload functions. The `r2Succeeded` branch built `filePayload = { postId: "" }` with no Drive credentials — the comment said "omit Drive creds, upload functions use video.file_url (R2 URL)", but `googleAccessToken` is also needed for `updateSheetStatus()` to write results back to the sheet. Confirmed by production logs showing repeated `"No googleAccessToken provided, cannot update sheet"` from `update-sheet-status`.
+
+**Secondary issues found**:
+1. **tiktok-upload**: 3 error-path sites used raw `fetch` to `update-sheet-status` instead of the already-imported `updateSheetStatus()` helper — omitted `googleAccessToken` from the body entirely.
+2. **instagram-upload**: `catch` block updated `posts.status = "failed"` but never called `updateSheetStatus` (all other upload functions do on failure).
+3. **_shared/sheet-status.ts**: Non-2xx responses from `update-sheet-status` were silently discarded (only thrown exceptions were logged).
+
+**Files changed**:
+
+| File | Change |
+|------|--------|
+| `supabase/functions/process-workflow/index.ts` | Moved `driveDownloadUrl` / `googleAccessToken` out of the `else` branch — always included in `filePayload`, regardless of R2/Mega status (needed for sheet updates, not just video fetching) |
+| `supabase/functions/tiktok-upload/index.ts` | Replaced 3 raw `fetch` calls with `await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken)` at the `initData.error`, `no publish_id`, and `upload failed` error paths |
+| `supabase/functions/instagram-upload/index.ts` | Added `await updateSheetStatus(...)` in the catch block after `posts.status = "failed"` update |
+| `supabase/functions/_shared/sheet-status.ts` | Capture `fetch` response; log status code + body when non-2xx (was previously only logging thrown exceptions) |
+
+**Safety verification**: All 4 upload functions use `typeof === "string"` guards + truthiness checks when using `driveDownloadUrl` / `googleAccessToken`, so passing `undefined` for Mega sources is safe — the fields are simply not acted upon. `JSON.stringify` drops `undefined` keys.
+
+**Deploy**: Pending — `process-workflow`, `tiktok-upload`, `instagram-upload`, `update-sheet-status`.

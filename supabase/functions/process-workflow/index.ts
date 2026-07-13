@@ -667,13 +667,10 @@ Deno.serve(async (req) => {
           filePayload.megaAccountId = megaAccountId;
         } else if (isMegaPublic) {
           filePayload.megaUrl = megaUrl;
-        } else if (r2Succeeded) {
-          // R2 cached — omit Drive creds, upload functions use video.file_url (R2 URL)
-        } else {
-          // R2 not available — pass Drive credentials for get-file proxy fallback
-          filePayload.driveDownloadUrl = driveDownloadUrl;
-          filePayload.googleAccessToken = googleToken;
         }
+        // Always pass Drive credentials — needed for sheet status updates even when R2 succeeds
+        if (driveDownloadUrl) filePayload.driveDownloadUrl = driveDownloadUrl;
+        if (googleToken) filePayload.googleAccessToken = googleToken;
 
         for (const post of insertedPosts as { id: string; platform: string; account_id: string | null; status: string }[]) {
           if (post.status !== "processing") continue;

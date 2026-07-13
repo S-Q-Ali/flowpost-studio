@@ -307,15 +307,7 @@ Deno.serve(async (req) => {
         .update({ status: "failed" })
         .eq("id", postId);
       try {
-        await fetch(`${SUPABASE_URL}/functions/v1/update-sheet-status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            apikey: SUPABASE_SERVICE_ROLE_KEY!,
-          },
-          body: JSON.stringify({ postId, status: "failed" }),
-        });
+        await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       } catch (sheetErr) {
         console.error("Failed to update sheet status", sheetErr);
       }
@@ -330,15 +322,7 @@ Deno.serve(async (req) => {
         .update({ status: "failed" })
         .eq("id", postId);
       try {
-        await fetch(`${SUPABASE_URL}/functions/v1/update-sheet-status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            apikey: SUPABASE_SERVICE_ROLE_KEY!,
-          },
-          body: JSON.stringify({ postId, status: "failed" }),
-        });
+        await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       } catch (sheetErr) {
         console.error("Failed to update sheet status", sheetErr);
       }
@@ -398,15 +382,7 @@ Deno.serve(async (req) => {
         .update({ status: "failed" })
         .eq("id", postId);
       try {
-        await fetch(`${SUPABASE_URL}/functions/v1/update-sheet-status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            apikey: SUPABASE_SERVICE_ROLE_KEY!,
-          },
-          body: JSON.stringify({ postId, status: "failed" }),
-        });
+        await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       } catch (sheetErr) {
         console.error("Failed to update sheet status", sheetErr);
       }

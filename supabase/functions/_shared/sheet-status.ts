@@ -6,7 +6,7 @@ export async function updateSheetStatus(
   googleAccessToken?: string,
 ): Promise<void> {
   try {
-    await fetch(`${supabaseUrl}/functions/v1/update-sheet-status`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/update-sheet-status`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -15,6 +15,10 @@ export async function updateSheetStatus(
       },
       body: JSON.stringify({ postId, status, googleAccessToken }),
     });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("update-sheet-status returned", res.status, body);
+    }
   } catch (sheetErr) {
     console.error("Failed to update sheet status", sheetErr);
   }

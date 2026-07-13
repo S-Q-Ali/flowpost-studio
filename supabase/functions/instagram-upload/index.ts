@@ -259,6 +259,7 @@ Deno.serve(async (req) => {
           .from("posts")
           .update({ status: "failed" })
           .eq("id", postId);
+        await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       }
     } catch {
       // ignore
