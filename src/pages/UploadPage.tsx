@@ -34,7 +34,7 @@ const platforms: { id: Platform; label: string }[] = [
 export default function UploadPage() {
   const { userId } = useAuth();
   const navigate = useNavigate();
-  const [videos, setVideos] = useState<{ id: string; title: string; file_url: string; created_at: string }[]>([]);
+  const [videos, setVideos] = useState<{ id: string; title: string; file_url: string; uploaded_at: string }[]>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string>("");
   const [youtubeTitle, setYoutubeTitle] = useState("");
   const [youtubeDescription, setYoutubeDescription] = useState("");
@@ -119,9 +119,9 @@ export default function UploadPage() {
 
       const { data: vids } = await supabase
         .from("videos")
-        .select("id, title, file_url, created_at")
+        .select("id, title, file_url, uploaded_at")
         .eq("user_id", userId)
-        .order("created_at", { ascending: false });
+        .order("uploaded_at", { ascending: false });
       setVideos((vids ?? []) as any[]);
     };
     load();
@@ -212,7 +212,7 @@ export default function UploadPage() {
         },
       );
       if (error || !data?.video_id) throw new Error(error?.message || "Import failed");
-      const newVideo = { id: data.video_id, title: file.name, file_url: data.r2_url, created_at: new Date().toISOString() };
+      const newVideo = { id: data.video_id, title: file.name, file_url: data.r2_url, uploaded_at: new Date().toISOString() };
       setVideos((prev) => [newVideo, ...prev]);
       setSelectedVideoId(data.video_id);
       setDriveTab("videos");
@@ -632,7 +632,7 @@ export default function UploadPage() {
                   <option value="">-- Select a video --</option>
                   {videos.map((v) => (
                     <option key={v.id} value={v.id}>
-                      {v.title || v.file_url} — {format(new Date(v.created_at), "PP")}
+                      {v.title || v.file_url} — {format(new Date(v.uploaded_at), "PP")}
                     </option>
                   ))}
                 </select>

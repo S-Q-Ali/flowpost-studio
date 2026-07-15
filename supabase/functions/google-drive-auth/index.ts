@@ -445,7 +445,7 @@ Deno.serve(async (req) => {
           media_type: media_type || "video",
           video_size: size,
         })
-        .select("id, title, file_url, created_at")
+        .select("id, title, file_url, uploaded_at")
         .single();
 
       if (insertError || !videoRecord) throw new Error(`Failed to create video record: ${JSON.stringify(insertError)}`);
