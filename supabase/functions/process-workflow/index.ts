@@ -332,7 +332,10 @@ Deno.serve(async (req) => {
       }
 
       // Build synthetic header + data rows matching the sheet format expected below
-      const headerRow = ["video_url", "title", "yt_video_title", "yt_video_description", "fb_ig_caption", "tiktok_caption", "platforms", "status"];
+      const isImageWorkflow = (wf as any).media_type === "image";
+      const urlCol = isImageWorkflow ? "image_url" : "video_url";
+      const fbCaptionCol = isImageWorkflow ? "image_fb_ig_caption" : "fb_ig_caption";
+      const headerRow = [urlCol, "title", "yt_video_title", "yt_video_description", fbCaptionCol, "tiktok_caption", "platforms", "status"];
       const dataRows = items.map((item, idx) => {
         const rowIndex = idx + 2;
         workflowItemIdByRowIndex[rowIndex] = item.id;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -95,6 +96,7 @@ const platformOptions: { id: Platform; label: string; icon: React.ComponentType<
 
 export default function WorkflowsPage() {
   const { userId } = useAuth();
+  const navigate = useNavigate();
   const [workflows, setWorkflows] = useState<WorkflowRow[]>([]);
   const [youtubeAccounts, setYoutubeAccounts] = useState<ConnectedAccount[]>([]);
   const [facebookAccounts, setFacebookAccounts] = useState<ConnectedAccount[]>([]);
@@ -1502,6 +1504,18 @@ export default function WorkflowsPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/70">
+                  {(wf as any).data_source === "flowpost" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-blue-400 hover:text-blue-300"
+                      title="Manage Videos"
+                      onClick={() => navigate(`/workflows/${wf.id}/items`)}
+                    >
+                      <Folder className="h-3 w-3" />
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="ghost"

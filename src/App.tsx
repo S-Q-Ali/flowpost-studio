@@ -13,6 +13,7 @@ import UploadPage from "./pages/UploadPage";
 import WorkflowsPage from "./pages/WorkflowsPage";
 import CalendarPage from "./pages/CalendarPage";
 import QueuePage from "./pages/QueuePage";
+import WorkflowItemsPage from "./pages/WorkflowItemsPage";
 import AccountsPage from "./pages/AccountsPage";
 import StoragePage from "./pages/StoragePage";
 import InsightsPage from "./pages/InsightsPage";
@@ -80,6 +81,7 @@ function AppRoutes() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/workflows" element={<WorkflowsPage />} />
+          <Route path="/workflows/:id/items" element={<WorkflowItemsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/queue" element={<QueuePage />} />
           <Route path="/accounts" element={<AccountsPage />} />

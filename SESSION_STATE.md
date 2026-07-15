@@ -1634,6 +1634,31 @@ GET /{sourcePageId}/videos/{videoId}?fields=source,description
 
 StoragePage already handled pagination correctly (load-more button).
 
+---
+
+### 69. Phase 3 — Workflow Items Editor Page (2026-07-15)
+
+**What was built**: New `/workflows/:id/items` page for managing Drive-sourced workflow files.
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `src/pages/WorkflowItemsPage.tsx` | **NEW** — full items editor: table with inline caption inputs, status badges, Sync from Drive, Save All, bulk mark-ready, per-item remove |
+| `src/App.tsx` | Added route `/workflows/:id/items` |
+| `src/pages/WorkflowsPage.tsx` | Added "Manage Videos" button (Folder icon) on flowpost workflow cards |
+| `supabase/functions/process-workflow/index.ts` | Fixed flowpost branch: synthetic header now uses `image_url`/`image_fb_ig_caption` for image workflows |
+
+**Page features**:
+- Top bar: workflow name, **Sync from Drive** button (paginates all pages), **Save All** button
+- Stats bar: item counts by status
+- Bulk bar: Select All, Deselect All, Mark Selected as Ready
+- Table columns: Checkbox | File name+size | Status badge | YT Title input | YT Description textarea | FB/IG Caption textarea | TikTok Caption textarea | Actions
+- Per-row: Mark Ready / Unmark Ready toggle, Remove button
+- Dirty state tracking with asterisk indicator on modified rows
+- Empty state: prompt to sync from Drive
+
+**TypeScript**: `tsc --noEmit` passes with zero errors. Deployed `process-workflow` with image workflow fix.
+
 **What was built**: The data layer to support replacing Google Sheets with an in-app workflow editor.
 
 **Files changed**:
