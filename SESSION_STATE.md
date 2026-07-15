@@ -1491,3 +1491,85 @@ GET /{sourcePageId}/videos/{videoId}?fields=source,description
 - `src/pages/UploadPage.tsx` — Drive tab state, accounts/files loading, Drive browser UI, import handler (+110 lines)
 
 **Deployed**: `google-drive-auth` edge function redeployed with new action.
+
+---
+
+## Entry #61 — Fix: `created_at` → `uploaded_at` on videos table
+
+**Status**: Committed and pushed (024bb46)
+
+**Bug**: `UploadPage.tsx` and `google-drive-auth` edge function referenced `created_at` column which doesn't exist on the `videos` table (correct name: `uploaded_at`). Caused 400 Bad Request from Supabase REST API.
+
+**Fix**: 5 references across 2 files — `src/pages/UploadPage.tsx` (lines 37, 122, 124, 215, 635) and `supabase/functions/google-drive-auth/index.ts` (line 448).
+
+---
+
+## Entry #62 — UploadPage: Local machine upload tab
+
+**Status**: Committed and pushed (338edac), edge function deployed
+
+**What was built**:
+1. **New edge function action** `get-r2-upload-url` on `google-drive-auth` — accepts POST `{ user_id, file_name, file_size, media_type, content_type }`, creates `videos` record, returns presigned R2 upload URL + video_id + r2_url
+2. **UploadPage third tab** "Upload from Computer" — click-to-select file (video/image), shows file info, XHR upload with real-time progress bar, 200MB client-side size limit
+3. On completion: updates `file_url` via Supabase client, auto-selects video, switches to "My Videos" tab
+
+**Files modified**:
+- `supabase/functions/google-drive-auth/index.ts` — added `get-r2-upload-url` action handler (+40 lines)
+- `src/pages/UploadPage.tsx` — third tab, file input, XHR upload with progress, 200MB gate (+130 lines)
+
+---
+
+## Entry #63 — UploadPage: Post as Story toggle
+
+**Status**: Committed and pushed (c5584da), `process-scheduled-posts` deployed
+
+**What was built**:
+1. **StoryPlatforms state** — Set tracking which platforms (facebook/instagram) should post as story
+2. **UI** — "Post as Story" Switch shown below Facebook/Instagram account checkboxes (when at least one account selected)
+3. **Post creation** — sets `post_type: "story"` when story toggle is on
+4. **Publish Now routing** — story posts call `post-story` edge function; feed posts call existing upload functions
+5. **Cron fix** — `process-scheduled-posts` now routes Facebook story posts to `post-story` (was Instagram-only before)
+
+**Files modified**:
+- `src/pages/UploadPage.tsx` — story state, toggle handler, Switch UI, post routing (+68 lines)
+- `supabase/functions/process-scheduled-posts/index.ts` — added Facebook story routing (+3 lines)
+
+---
+
+## Entry #64 — Auth redirect fix: save & restore URL + /security-questions route
+
+**Status**: Committed and pushed (0be7aff)
+
+**Problem**: After logout/login flow, user always ended up at `/dashboard` regardless of where they were before. SecurityQuestionsGate rendered in-place at current URL (confusing URL bar).
+
+**What was built**:
+1. **Save redirectPath** — `App.tsx` saves `location.pathname + search` to `localStorage.redirectPath` before showing LoginPage
+2. **Restore redirectPath** — `LoginPage.tsx` and `AuthCallback.tsx` read `redirectPath` instead of hardcoded `/dashboard`
+3. **Dedicated `/security-questions` route** — instead of in-place rendering, with `RequireVerified` wrapper redirecting unverified users there
+4. **RootRedirect** — root `/` checks `redirectPath` first (survives `window.location.reload()` after security verification)
+5. **SecurityQuestionsGate guard** — redirects unauthenticated users to `/`, verified users to `redirectPath` or `/dashboard`
+
+**Files modified**:
+- `src/App.tsx` — RootRedirect, RequireVerified wrapper, `/security-questions` route, save redirectPath
+- `src/pages/LoginPage.tsx` — read redirectPath on login
+- `src/pages/AuthCallback.tsx` — read redirectPath on OAuth callback
+- `src/components/SecurityQuestionsGate.tsx` — redirect guard for unauthenticated/verified states
+
+---
+
+## Entry #65 — AuthContext: verify Supabase session after custom token
+
+**Status**: Committed and pushed (69b27e6)
+
+**Problem**: After browser restart + tab restore, `flowpost_token` survived in localStorage (custom admin token) so the app showed authenticated shell, but the Supabase session (user JWT) was stale/missing, causing all DB queries to fail — blank content with no error.
+
+**Fix**: After `verify-session` succeeds with the custom token, also call `supabase.auth.getSession()`. If no Supabase session exists, clear the custom token and fall back to unauthenticated state (shows LoginPage instead of broken shell).
+
+**Files modified**:
+- `src/contexts/AuthContext.tsx` — added Supabase session check after custom token validation (+9 lines)
+
+---
+
+## Current Issues
+- Facebook cross-page transfer — still unimplemented (entry #59)
+- Drive scope migration — users must reconnect accounts
