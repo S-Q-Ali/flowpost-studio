@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     let processed = 0;
     for (const post of scheduledPosts) {
     let functionName = "";
-      if (post.platform === "instagram" && (post as any).post_type === "story") {
+      if ((post.platform === "instagram" || post.platform === "facebook") && (post as any).post_type === "story") {
         functionName = "post-story";
       } else if (post.platform === "youtube") {
         functionName = "youtube-upload";

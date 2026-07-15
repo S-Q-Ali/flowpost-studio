@@ -74,6 +74,7 @@ export default function UploadPage() {
   const [localFile, setLocalFile] = useState<File | null>(null);
   const [localUploading, setLocalUploading] = useState(false);
   const [localUploadProgress, setLocalUploadProgress] = useState(0);
+  const [storyPlatforms, setStoryPlatforms] = useState<Set<"facebook" | "instagram">>(new Set());
   const localFileInputRef = useRef<HTMLInputElement>(null);
   const isSubmittingRef = useRef(false);
 
@@ -204,6 +205,15 @@ export default function UploadPage() {
     setSelectedTikTokAccountIds((prev) =>
       prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
     );
+  };
+
+  const toggleStoryPlatform = (p: "facebook" | "instagram") => {
+    setStoryPlatforms((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
   };
 
   const navigateDriveFolder = (folderId: string, folderName: string) => {
@@ -424,6 +434,7 @@ export default function UploadPage() {
               scheduled_at: scheduledAt,
               status: isPublishNow ? "processing" : "scheduled",
               captions_enabled: captionsEnabled,
+              post_type: storyPlatforms.has("instagram") ? "story" : "feed",
             });
           }
         } else if (platform === "facebook") {
@@ -453,6 +464,7 @@ export default function UploadPage() {
               scheduled_at: scheduledAt,
               status: isPublishNow ? "processing" : "scheduled",
               captions_enabled: captionsEnabled,
+              post_type: storyPlatforms.has("facebook") ? "story" : "feed",
             });
           }
         } else if (platform === "tiktok") {
@@ -539,10 +551,14 @@ export default function UploadPage() {
 
         const youtubePosts =
           insertedPosts.filter((p: any) => p.platform === "youtube") ?? [];
-        const facebookPosts =
-          insertedPosts.filter((p: any) => p.platform === "facebook") ?? [];
-        const instagramPosts =
-          insertedPosts.filter((p: any) => p.platform === "instagram") ?? [];
+        const facebookFeedPosts =
+          insertedPosts.filter((p: any) => p.platform === "facebook" && p.post_type !== "story") ?? [];
+        const facebookStoryPosts =
+          insertedPosts.filter((p: any) => p.platform === "facebook" && p.post_type === "story") ?? [];
+        const instagramFeedPosts =
+          insertedPosts.filter((p: any) => p.platform === "instagram" && p.post_type !== "story") ?? [];
+        const instagramStoryPosts =
+          insertedPosts.filter((p: any) => p.platform === "instagram" && p.post_type === "story") ?? [];
         const tiktokPosts =
           insertedPosts.filter((p: any) => p.platform === "tiktok") ?? [];
 
@@ -571,54 +587,34 @@ export default function UploadPage() {
           }
         }
 
-        if (facebookPosts.length > 0) {
-          toast.info("Uploading to Facebook...");
-          let allOk = true;
-          for (const post of facebookPosts) {
-            const res = await fetch(
-              `${supabaseUrl}/functions/v1/facebook-upload`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${anonKey}`,
-                  apikey: anonKey,
-                },
-                body: JSON.stringify({ postId: post.id }),
-              },
-            );
-            if (!res.ok) {
-              allOk = false;
-            }
-          }
-          if (!allOk) {
-            toast.error("Some Facebook uploads failed, check Queue");
-          }
-        }
+        const firePost = async (post: any, fn: string, label: string) => {
+          const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}`, apikey: anonKey },
+            body: JSON.stringify({ postId: post.id }),
+          });
+          return res.ok;
+        };
 
-        if (instagramPosts.length > 0) {
+        if (facebookFeedPosts.length > 0) {
+          toast.info("Uploading to Facebook...");
+          const results = await Promise.all(facebookFeedPosts.map((p: any) => firePost(p, "facebook-upload", "Facebook")));
+          if (results.some((r) => !r)) toast.error("Some Facebook uploads failed, check Queue");
+        }
+        if (facebookStoryPosts.length > 0) {
+          toast.info("Posting to Facebook Story...");
+          const results = await Promise.all(facebookStoryPosts.map((p: any) => firePost(p, "post-story", "Facebook Story")));
+          if (results.some((r) => !r)) toast.error("Some Facebook Story posts failed, check Queue");
+        }
+        if (instagramFeedPosts.length > 0) {
           toast.info("Uploading to Instagram...");
-          let allOk = true;
-          for (const post of instagramPosts) {
-            const res = await fetch(
-              `${supabaseUrl}/functions/v1/instagram-upload`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${anonKey}`,
-                  apikey: anonKey,
-                },
-                body: JSON.stringify({ postId: post.id }),
-              },
-            );
-            if (!res.ok) {
-              allOk = false;
-            }
-          }
-          if (!allOk) {
-            toast.error("Some Instagram uploads failed, check Queue");
-          }
+          const results = await Promise.all(instagramFeedPosts.map((p: any) => firePost(p, "instagram-upload", "Instagram")));
+          if (results.some((r) => !r)) toast.error("Some Instagram uploads failed, check Queue");
+        }
+        if (instagramStoryPosts.length > 0) {
+          toast.info("Posting to Instagram Story...");
+          const results = await Promise.all(instagramStoryPosts.map((p: any) => firePost(p, "post-story", "Instagram Story")));
+          if (results.some((r) => !r)) toast.error("Some Instagram Story posts failed, check Queue");
         }
 
         if (tiktokPosts.length > 0) {
@@ -648,8 +644,10 @@ export default function UploadPage() {
 
         if (
           youtubePosts.length > 0 ||
-          facebookPosts.length > 0 ||
-          instagramPosts.length > 0 ||
+          facebookFeedPosts.length > 0 ||
+          facebookStoryPosts.length > 0 ||
+          instagramFeedPosts.length > 0 ||
+          instagramStoryPosts.length > 0 ||
           tiktokPosts.length > 0
         ) {
           toast.success("Video publishing triggered!");
@@ -928,6 +926,15 @@ export default function UploadPage() {
                       </label>
                     ))
                   )}
+                  {selectedFacebookPageIds.length > 0 && (
+                    <label className="flex items-center gap-3 pt-1 border-t border-border/40">
+                      <Switch
+                        checked={storyPlatforms.has("facebook")}
+                        onCheckedChange={() => toggleStoryPlatform("facebook")}
+                      />
+                      <span className="text-xs text-muted-foreground">Post as Story</span>
+                    </label>
+                  )}
                 </div>
               )}
               {p.id === "instagram" && selectedPlatforms.includes("instagram") && (
@@ -948,6 +955,15 @@ export default function UploadPage() {
                         </span>
                       </label>
                     ))
+                  )}
+                  {selectedInstagramAccountIds.length > 0 && (
+                    <label className="flex items-center gap-3 pt-1 border-t border-border/40">
+                      <Switch
+                        checked={storyPlatforms.has("instagram")}
+                        onCheckedChange={() => toggleStoryPlatform("instagram")}
+                      />
+                      <span className="text-xs text-muted-foreground">Post as Story</span>
+                    </label>
                   )}
                 </div>
               )}
