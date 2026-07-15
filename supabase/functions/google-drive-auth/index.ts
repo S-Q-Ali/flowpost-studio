@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "quota") {
-      const accountIdParam = url.searchParams.get("account_id");
+      const accountIdParam = url.searchParams.get("account_id") || body?.account_id;
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
       const { data: account, error: fetchError } = await supabaseAdmin
@@ -342,9 +342,9 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create-folder") {
-      const accountIdParam = url.searchParams.get("account_id");
-      const folderName = url.searchParams.get("name");
-      const parentId = url.searchParams.get("parent_id") || "root";
+      const accountIdParam = url.searchParams.get("account_id") || body?.account_id;
+      const folderName = url.searchParams.get("name") || body?.name;
+      const parentId = url.searchParams.get("parent_id") || body?.parent_id || "root";
       if (!accountIdParam || !folderName) return json({ error: "Missing account_id or name" }, 400);
 
       const { data: account, error: fetchError } = await supabaseAdmin
@@ -380,8 +380,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === "get-token") {
-      const reqUserId = url.searchParams.get("user_id");
-      const accountIdParam = url.searchParams.get("account_id");
+      const reqUserId = url.searchParams.get("user_id") || body?.user_id;
+      const accountIdParam = url.searchParams.get("account_id") || body?.account_id;
       if (!reqUserId || !accountIdParam) return json({ error: "Missing user_id or account_id" }, 400);
 
       const { data: account, error: fetchError } = await supabaseAdmin
@@ -532,8 +532,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete") {
-      const accountIdParam = url.searchParams.get("account_id");
-      const fileId = url.searchParams.get("file_id");
+      const accountIdParam = url.searchParams.get("account_id") || body?.account_id;
+      const fileId = url.searchParams.get("file_id") || body?.file_id;
       if (!accountIdParam || !fileId) return json({ error: "Missing account_id or file_id" }, 400);
 
       const { data: account, error: fetchError } = await supabaseAdmin

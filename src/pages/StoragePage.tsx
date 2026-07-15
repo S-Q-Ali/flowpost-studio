@@ -141,9 +141,10 @@ export default function StoragePage() {
 
   async function fetchDriveQuota() {
     if (!selectedDriveId) return;
-    const { data, error } = await supabase.functions.invoke(`google-drive-auth?action=quota&account_id=${selectedDriveId}`, {
-      method: "GET",
+    const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+      method: "POST",
       headers: CALL_HEADERS,
+      body: JSON.stringify({ action: "quota", account_id: selectedDriveId }),
     });
     if (!error && data) setDriveQuota(data);
   }
@@ -265,10 +266,16 @@ export default function StoragePage() {
   async function createDriveFolder() {
     if (!driveNewFolderName.trim() || !selectedDriveId) return;
     const pid = driveBreadcrumbs.length > 0 ? driveBreadcrumbs[driveBreadcrumbs.length - 1].id : "root";
-    const { data, error } = await supabase.functions.invoke(
-      `google-drive-auth?action=create-folder&account_id=${selectedDriveId}&name=${encodeURIComponent(driveNewFolderName.trim())}&parent_id=${pid}`,
-      { method: "GET", headers: CALL_HEADERS },
-    );
+    const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+      method: "POST",
+      headers: CALL_HEADERS,
+      body: JSON.stringify({
+        action: "create-folder",
+        account_id: selectedDriveId,
+        name: driveNewFolderName.trim(),
+        parent_id: pid,
+      }),
+    });
     if (!error && data?.id) {
       toast.success(`Folder "${driveNewFolderName}" created`);
       setDriveNewFolderName("");
@@ -281,10 +288,15 @@ export default function StoragePage() {
 
   async function getDriveAccessToken(): Promise<string> {
     if (!selectedDriveId || !userId) throw new Error("No Drive account selected");
-    const { data, error } = await supabase.functions.invoke(
-      `google-drive-auth?action=get-token&account_id=${selectedDriveId}&user_id=${userId}`,
-      { method: "GET", headers: CALL_HEADERS },
-    );
+    const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+      method: "POST",
+      headers: CALL_HEADERS,
+      body: JSON.stringify({
+        action: "get-token",
+        account_id: selectedDriveId,
+        user_id: userId,
+      }),
+    });
     if (error || !data?.access_token) throw new Error(error?.message || "Failed to get Drive token");
     return data.access_token;
   }
@@ -381,9 +393,10 @@ export default function StoragePage() {
     } else {
       if (platform === "drive") {
         if (!selectedDriveId) return;
-        const { error } = await supabase.functions.invoke(`google-drive-auth?action=delete&account_id=${selectedDriveId}&file_id=${nodeId}`, {
-          method: "GET",
+        const { error } = await supabase.functions.invoke("google-drive-auth", {
+          method: "POST",
           headers: CALL_HEADERS,
+          body: JSON.stringify({ action: "delete", account_id: selectedDriveId, file_id: nodeId }),
         });
         if (error) { toast.error(`Failed to delete ${name}`); return; }
       } else {
@@ -405,9 +418,10 @@ export default function StoragePage() {
     const { platform, nodeId, name } = confirmDelete;
     if (platform === "drive") {
       if (!selectedDriveId) return;
-      const { error } = await supabase.functions.invoke(`google-drive-auth?action=delete&account_id=${selectedDriveId}&file_id=${nodeId}`, {
-        method: "GET",
+      const { error } = await supabase.functions.invoke("google-drive-auth", {
+        method: "POST",
         headers: CALL_HEADERS,
+        body: JSON.stringify({ action: "delete", account_id: selectedDriveId, file_id: nodeId }),
       });
       if (error) { toast.error(`Failed to delete ${name}`); setConfirmDelete({ open: false, platform: "drive", nodeId: "", name: "", isFolder: false }); return; }
     } else {
@@ -433,9 +447,10 @@ export default function StoragePage() {
     try {
       for (let i = 0; i < files.length; i++) {
         setDeletingProgress(`Deleting (${i + 1}/${files.length}): ${files[i].name}`);
-        const { error } = await supabase.functions.invoke(`google-drive-auth?action=delete&account_id=${selectedDriveId}&file_id=${files[i].id}`, {
-          method: "GET",
+        const { error } = await supabase.functions.invoke("google-drive-auth", {
+          method: "POST",
           headers: CALL_HEADERS,
+          body: JSON.stringify({ action: "delete", account_id: selectedDriveId, file_id: files[i].id }),
         });
         if (error) { toast.error(`Failed to delete ${files[i].name}`); return; }
       }
