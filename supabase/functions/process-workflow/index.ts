@@ -307,67 +307,113 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    // Read sheet
-    const sheetRes = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1`,
-      { headers: { Authorization: `Bearer ${googleToken}` } },
-    );
+    // Determine data source: FlowPost workflow_items or Google Sheet
+    let rows: string[][] = [];
+    let sheetIdForMetadata: string | undefined;
+    const workflowItemIdByRowIndex: Record<number, string> = {};
 
-    if (!sheetRes.ok) {
-      const text = await sheetRes.text();
-      console.error("Failed to read sheet", sheetRes.status, text);
-      errors.push(`Failed to read sheet for workflow ${wf.id}: ${sheetRes.status}`);
-      continue;
-    }
+    if (wf.data_source === 'flowpost' && wf.drive_folder_id) {
+      // FlowPost mode: read from workflow_items table where status = 'ready'
+      const { data: items, error: itemsError } = await supabase
+        .from("workflow_items")
+        .select("*")
+        .eq("workflow_id", wf.id)
+        .eq("status", "ready")
+        .order("sort_order");
 
-      const sheetData = (await sheetRes.json()) as SheetValuesResponse;
-      const rows = sheetData.values ?? [];
-      console.log(`Sheet rows count: ${rows.length}, headers: ${JSON.stringify(rows[0] ?? [])}`);
-      if (rows.length < 2) {
-        console.log(`Sheet for workflow ${wf.name} has fewer than 2 rows, skipping`);
+      if (itemsError) {
+        errors.push(`Failed to fetch workflow items for ${wf.id}: ${itemsError.message}`);
         continue;
       }
 
-     // Update trigger tracking now that we know we can read the sheet
-     const triggerUpdate = isManualRun
-       ? { last_manual_triggered_at: new Date().toISOString() }
-       : { last_triggered_at: new Date().toISOString() };
-     const { error: triggerError } = await supabase
-       .from("workflows")
-       .update(triggerUpdate)
-       .eq("id", wf.id);
-     if (triggerError) {
-       console.error("Failed to update trigger time", wf.id, triggerError);
-       errors.push(
-         `Failed to claim workflow ${wf.id}: ${triggerError.message}`,
-       );
-       continue;
-     }
+      if (!items || items.length === 0) {
+        console.log(`No ready workflow items for workflow ${wf.name}, skipping`);
+        continue;
+      }
 
-      const headers = rows[0] ?? [];
-      const headerIndex: Record<string, number> = {};
-      headers.forEach((h, idx) => { 
-        const key = h.toLowerCase();
-        if (!(key in headerIndex)) headerIndex[key] = idx;
+      // Build synthetic header + data rows matching the sheet format expected below
+      const headerRow = ["video_url", "title", "yt_video_title", "yt_video_description", "fb_ig_caption", "tiktok_caption", "platforms", "status"];
+      const dataRows = items.map((item, idx) => {
+        const rowIndex = idx + 2;
+        workflowItemIdByRowIndex[rowIndex] = item.id;
+        return [
+          `https://drive.google.com/file/d/${item.drive_file_id}`,
+          item.file_name ?? "",
+          item.yt_video_title ?? "",
+          item.yt_video_description ?? "",
+          item.fb_ig_caption ?? "",
+          item.tiktok_caption ?? "",
+          (item.platforms_override ?? []).join(","),
+          "ready to post",
+        ];
       });
-      console.log(`Header index for workflow ${wf.name}: ${JSON.stringify(headerIndex)}`);
+      rows = [headerRow, ...dataRows];
+      console.log(`FlowPost items count: ${items.length} for workflow ${wf.name}`);
+    } else {
+      // Legacy mode: read from Google Sheet
+      sheetIdForMetadata = sheetId;
+      const sheetRes = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1`,
+        { headers: { Authorization: `Bearer ${googleToken}` } },
+      );
 
-     const mediaType = (wf as any).media_type ?? "video";
-     const isImageWorkflow = mediaType === "image";
-     const urlColumn = isImageWorkflow ? "image_url" : "video_url";
-     const urlIdx = headerIndex[urlColumn];
-     const titleIdx = headerIndex["title"];
-     const ytTitleIdx = headerIndex["yt_video_title"];
-     const ytDescIdx = headerIndex["yt_video_description"];
-      const fbIgCaptionIdx = isImageWorkflow
-        ? headerIndex["image_fb_ig_caption"]
-        : headerIndex["fb_ig_caption"];
-     const platformsIdx = headerIndex["platforms"];
-     const statusIdx = headerIndex["status"];
-     console.log(`Columns for ${wf.name}: urlColumn=${urlColumn}, urlIdx=${urlIdx}, statusIdx=${statusIdx}`);
-      const ytChannelsIdx = headerIndex["youtube_channels"];
-      const fbPagesIdx = headerIndex["facebook_pages"];
-      const tiktokCaptionIdx = headerIndex["tiktok_caption"];
+      if (!sheetRes.ok) {
+        const text = await sheetRes.text();
+        console.error("Failed to read sheet", sheetRes.status, text);
+        errors.push(`Failed to read sheet for workflow ${wf.id}: ${sheetRes.status}`);
+        continue;
+      }
+
+      const sheetData = (await sheetRes.json()) as SheetValuesResponse;
+      const fetchedRows = sheetData.values ?? [];
+      console.log(`Sheet rows count: ${fetchedRows.length}, headers: ${JSON.stringify(fetchedRows[0] ?? [])}`);
+      if (fetchedRows.length < 2) {
+        console.log(`Sheet for workflow ${wf.name} has fewer than 2 rows, skipping`);
+        continue;
+      }
+      rows = fetchedRows;
+    }
+
+    // Update trigger tracking now that we know we have data
+    const triggerUpdate = isManualRun
+      ? { last_manual_triggered_at: new Date().toISOString() }
+      : { last_triggered_at: new Date().toISOString() };
+    const { error: triggerError } = await supabase
+      .from("workflows")
+      .update(triggerUpdate)
+      .eq("id", wf.id);
+    if (triggerError) {
+      console.error("Failed to update trigger time", wf.id, triggerError);
+      errors.push(
+        `Failed to claim workflow ${wf.id}: ${triggerError.message}`,
+      );
+      continue;
+    }
+
+    const headers = rows[0] ?? [];
+    const headerIndex: Record<string, number> = {};
+    headers.forEach((h, idx) => {
+      const key = h.toLowerCase();
+      if (!(key in headerIndex)) headerIndex[key] = idx;
+    });
+    console.log(`Header index for workflow ${wf.name}: ${JSON.stringify(headerIndex)}`);
+
+    const mediaType = (wf as any).media_type ?? "video";
+    const isImageWorkflow = mediaType === "image";
+    const urlColumn = isImageWorkflow ? "image_url" : "video_url";
+    const urlIdx = headerIndex[urlColumn];
+    const titleIdx = headerIndex["title"];
+    const ytTitleIdx = headerIndex["yt_video_title"];
+    const ytDescIdx = headerIndex["yt_video_description"];
+    const fbIgCaptionIdx = isImageWorkflow
+      ? headerIndex["image_fb_ig_caption"]
+      : headerIndex["fb_ig_caption"];
+    const platformsIdx = headerIndex["platforms"];
+    const statusIdx = headerIndex["status"];
+    console.log(`Columns for ${wf.name}: urlColumn=${urlColumn}, urlIdx=${urlIdx}, statusIdx=${statusIdx}`);
+    const ytChannelsIdx = headerIndex["youtube_channels"];
+    const fbPagesIdx = headerIndex["facebook_pages"];
+    const tiktokCaptionIdx = headerIndex["tiktok_caption"];
 
     if (urlIdx === undefined || statusIdx === undefined) {
       errors.push(`Sheet for workflow ${wf.id} is missing required columns (${urlColumn}/status)`);
@@ -658,6 +704,18 @@ Deno.serve(async (req) => {
 
         if (metadataUpdateError) {
           console.error("Failed to update post metadata with sheet info", metadataUpdateError);
+        }
+
+        // For FlowPost mode, mark the workflow_item as posted
+        const postedItemId = workflowItemIdByRowIndex[rowIndex];
+        if (postedItemId) {
+          const { error: itemUpdateError } = await supabase
+            .from("workflow_items")
+            .update({ status: "posted", posted_at: new Date().toISOString() })
+            .eq("id", postedItemId);
+          if (itemUpdateError) {
+            console.error(`Failed to mark workflow_item ${postedItemId} as posted:`, itemUpdateError);
+          }
         }
 
         // Kick off uploads via existing Edge Functions (fire-and-forget) — only for immediate slot

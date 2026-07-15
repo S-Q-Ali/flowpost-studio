@@ -27,12 +27,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { BetaBadge } from "@/components/BetaBadge";
-import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Clock3, Play, Loader2 } from "lucide-react";
+import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Clock3, Play, Loader2, Folder, File as FileIcon } from "lucide-react";
 import { toast } from "sonner";
 import type { Platform, ConnectedAccount } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
+
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 type WorkflowRow = {
   id: string;
@@ -59,6 +61,8 @@ type WorkflowRow = {
   scheduling_mode: string | null;
   custom_schedule: Record<string, { start: number; end: number }[]> | null;
   drive_account_id: string | null;
+  drive_folder_id: string | null;
+  data_source: string;
   created_at: string;
   updated_at: string;
 };
@@ -121,6 +125,13 @@ export default function WorkflowsPage() {
   const [youtubeAlteredContent, setYoutubeAlteredContent] = useState<boolean>(true);
   const [selectedDriveId, setSelectedDriveId] = useState<string>("");
   const [driveAccounts, setDriveAccounts] = useState<{ id: string; account_name: string | null; account_id: string | null; metadata: unknown }[]>([]);
+  const [dataSource, setDataSource] = useState<"g_sheet" | "flowpost">("g_sheet");
+  const [driveParentId, setDriveParentId] = useState<string>("root");
+  const [driveBreadcrumbs, setDriveBreadcrumbs] = useState<{ id: string; name: string }[]>([]);
+  const [driveFolderFiles, setDriveFolderFiles] = useState<any[]>([]);
+  const [driveFolderLoading, setDriveFolderLoading] = useState(false);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedFolderName, setSelectedFolderName] = useState<string | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<WorkflowRow | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -186,6 +197,14 @@ export default function WorkflowsPage() {
     loadAccounts();
   }, []);
 
+  useEffect(() => {
+    if (dataSource === "flowpost" && selectedDriveId) {
+      setDriveParentId("root");
+      setDriveBreadcrumbs([]);
+      fetchDriveFolder("root");
+    }
+  }, [dataSource, selectedDriveId]);
+
   const resetForm = () => {
     setWorkflowName("");
     setIsActive(true);
@@ -201,6 +220,12 @@ export default function WorkflowsPage() {
     setYoutubeAlteredContent(true);
     setSheetUrl("");
     setSelectedDriveId("");
+    setDataSource("g_sheet");
+    setSelectedFolderId(null);
+    setSelectedFolderName(null);
+    setDriveParentId("root");
+    setDriveBreadcrumbs([]);
+    setDriveFolderFiles([]);
     setSelectedWorkflow(null);
     setActiveStep(1);
     setSchedulingMode("once_daily");
@@ -242,6 +267,9 @@ export default function WorkflowsPage() {
     setPostAsStory(wf.post_as_story ?? false);
     setYoutubeAlteredContent(wf.youtube_altered_content ?? true);
     setSheetUrl(wf.sheet_url ?? "");
+    setDataSource((wf as any).data_source === "flowpost" ? "flowpost" : "g_sheet");
+    setSelectedFolderId((wf as any).drive_folder_id ?? null);
+    setSelectedFolderName(null);
     setSchedulingMode(wf.scheduling_mode ?? "once_daily");
     setCustomSchedule((wf.custom_schedule as Record<string, { start: number; end: number }[]>) ?? {});
     setSelectedDriveId(wf.drive_account_id ?? "");
@@ -281,6 +309,39 @@ export default function WorkflowsPage() {
     toast.success("Sheet URL looks valid!");
   };
 
+  const formatBytes = (b: number): string => {
+    if (!b) return "0 B";
+    if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
+    return (b / 1048576).toFixed(1) + " MB";
+  };
+
+  const fetchDriveFolder = async (parentId: string) => {
+    if (!selectedDriveId) return;
+    setDriveFolderLoading(true);
+    const { data, error } = await supabase.functions.invoke(
+      `google-drive-auth?action=list-files&account_id=${selectedDriveId}&parent_id=${parentId}`,
+      { method: "GET", headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json" } },
+    );
+    if (!error && data) {
+      setDriveFolderFiles(data.files ?? []);
+    } else {
+      console.error("list-files error:", error);
+      toast.error("Failed to list Drive folder. Try reconnecting the account.");
+    }
+    setDriveFolderLoading(false);
+  };
+
+  const navigateDriveFolder = (folderId: string, folderName: string) => {
+    setDriveBreadcrumbs((prev) => [...prev, { id: driveParentId, name: folderName }]);
+    setDriveParentId(folderId);
+    fetchDriveFolder(folderId);
+  };
+
+  const selectFolder = (folderId: string, folderName: string) => {
+    setSelectedFolderId(folderId);
+    setSelectedFolderName(folderName);
+  };
+
   const handleSave = async () => {
     if (!workflowName.trim()) {
       toast.error("Workflow name is required");
@@ -290,14 +351,21 @@ export default function WorkflowsPage() {
       toast.error("Select at least one platform");
       return;
     }
-    if (!sheetUrl.trim()) {
-      toast.error("Google Sheet URL is required");
-      return;
-    }
-    const id = extractSheetId(sheetUrl.trim());
-    if (!id) {
-      toast.error("Invalid Google Sheet URL format");
-      return;
+    if (dataSource === "g_sheet") {
+      if (!sheetUrl.trim()) {
+        toast.error("Google Sheet URL is required");
+        return;
+      }
+      const id = extractSheetId(sheetUrl.trim());
+      if (!id) {
+        toast.error("Invalid Google Sheet URL format");
+        return;
+      }
+    } else {
+      if (!selectedFolderId) {
+        toast.error("Select a Drive folder for your videos");
+        return;
+      }
     }
     if (!selectedDriveId) {
       toast.error("Select a Google Drive account");
@@ -306,7 +374,7 @@ export default function WorkflowsPage() {
 
     setIsSaving(true);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         user_id: userId,
         name: workflowName.trim(),
         is_active: isActive,
@@ -323,10 +391,20 @@ export default function WorkflowsPage() {
         run_days: runDays,
         scheduling_mode: schedulingMode,
         custom_schedule: Object.keys(customSchedule).length > 0 ? customSchedule : null,
-        sheet_url: sheetUrl.trim(),
-        sheet_id: id,
         drive_account_id: selectedDriveId,
+        data_source: dataSource,
       };
+
+      if (dataSource === "g_sheet") {
+        const id = extractSheetId(sheetUrl.trim());
+        payload.sheet_url = sheetUrl.trim();
+        payload.sheet_id = id;
+        payload.drive_folder_id = null;
+      } else {
+        payload.sheet_url = null;
+        payload.sheet_id = null;
+        payload.drive_folder_id = selectedFolderId;
+      }
 
       if (mode === "create") {
         const { error } = await supabase.from("workflows").insert(payload);
@@ -426,7 +504,7 @@ export default function WorkflowsPage() {
       { id: 1, label: "Basic Info" },
       { id: 2, label: "Platforms" },
       { id: 3, label: "Schedule" },
-      { id: 4, label: "Sheet" },
+      { id: 4, label: "Source" },
     ];
     return (
       <div className="flex items-center justify-between mb-4">
@@ -1000,47 +1078,181 @@ export default function WorkflowsPage() {
       );
     }
 
-    // Step 4 - Google Sheet
+    // Step 4 - Source
     return (
-        <div className="space-y-4">
+      <div className="space-y-4">
         <div className="space-y-1">
-          <Label>Google Sheet URL</Label>
+          <Label>Video Source</Label>
           <p className="text-xs text-muted-foreground">
-            Sheet must include these required columns:{" "}
-            <code className="text-[10px]">{mediaType === "image" ? "image_url" : "video_url"}, title, description, status, {mediaType === "image" ? "image_fb_ig_caption" : "fb_ig_caption"}</code>
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Optional columns:{" "}
-            <code className="text-[10px]">platforms, scheduled_time, yt_video_title, yt_video_description, fb_ig_caption, tiktok_caption, youtube_channels, facebook_pages</code>
+            Choose where this workflow reads videos and captions from.
           </p>
         </div>
-        <Input
-          placeholder="https://docs.google.com/spreadsheets/d/..."
-          value={sheetUrl}
-          onChange={(e) => setSheetUrl(e.target.value)}
-        />
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={handleTestSheet}
-          >
-            <Link2 className="h-3 w-3" />
-            Test Connection
-          </Button>
+
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="dataSource"
+              checked={dataSource === "g_sheet"}
+              onChange={() => setDataSource("g_sheet")}
+              className="accent-primary"
+            />
+            <span className="text-sm text-foreground">Google Sheet</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="dataSource"
+              checked={dataSource === "flowpost"}
+              onChange={() => setDataSource("flowpost")}
+              className="accent-primary"
+            />
+            <span className="text-sm text-foreground">FlowPost (recommended)</span>
+          </label>
         </div>
-        <details className="mt-2 text-xs text-muted-foreground space-y-1">
-          <summary className="cursor-pointer text-foreground text-sm">
-            How to set up your Google Sheet
-          </summary>
-          <p>
-            Each row represents a video to post. Use <code>platforms</code> to optionally override
-            the workflow platforms (e.g. <code>youtube,facebook</code>). Use <code>status</code> with
-            values like <code>ready to post</code> / <code>posted</code> to control posting.
-          </p>
-        </details>
+
+        {dataSource === "g_sheet" ? (
+          <>
+            <div className="space-y-1">
+              <Label>Google Sheet URL</Label>
+              <p className="text-xs text-muted-foreground">
+                Sheet must include these required columns:{" "}
+                <code className="text-[10px]">{mediaType === "image" ? "image_url" : "video_url"}, title, description, status, {mediaType === "image" ? "image_fb_ig_caption" : "fb_ig_caption"}</code>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Optional columns:{" "}
+                <code className="text-[10px]">platforms, scheduled_time, yt_video_title, yt_video_description, fb_ig_caption, tiktok_caption, youtube_channels, facebook_pages</code>
+              </p>
+            </div>
+            <Input
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              value={sheetUrl}
+              onChange={(e) => setSheetUrl(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={handleTestSheet}
+              >
+                <Link2 className="h-3 w-3" />
+                Test Connection
+              </Button>
+            </div>
+            <details className="mt-2 text-xs text-muted-foreground space-y-1">
+              <summary className="cursor-pointer text-foreground text-sm">
+                How to set up your Google Sheet
+              </summary>
+              <p>
+                Each row represents a video to post. Use <code>platforms</code> to optionally override
+                the workflow platforms (e.g. <code>youtube,facebook</code>). Use <code>status</code> with
+                values like <code>ready to post</code> / <code>posted</code> to control posting.
+              </p>
+            </details>
+          </>
+        ) : (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Drive Folder</Label>
+              <p className="text-xs text-muted-foreground">
+                Select the folder containing your videos. Files can be managed and captioned after workflow creation.
+              </p>
+            </div>
+
+            {selectedFolderId && selectedFolderName && (
+              <div className="flex items-center gap-2 p-2 rounded-md bg-primary/10 border border-primary/30">
+                <Folder size={14} className="text-primary shrink-0" />
+                <span className="text-xs text-foreground font-medium truncate">{selectedFolderName}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] ml-auto shrink-0"
+                  onClick={() => { setSelectedFolderId(null); setSelectedFolderName(null); }}
+                >
+                  Change
+                </Button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+              <button
+                type="button"
+                className="hover:text-foreground transition-colors"
+                onClick={() => { setDriveParentId("root"); setDriveBreadcrumbs([]); fetchDriveFolder("root"); }}
+              >
+                Root
+              </button>
+              {driveBreadcrumbs.map((cr, i) => (
+                <span key={cr.id} className="flex items-center gap-1">
+                  <span>/</span>
+                  <button
+                    type="button"
+                    className="hover:text-foreground transition-colors"
+                    onClick={() => {
+                      setDriveParentId(cr.id);
+                      setDriveBreadcrumbs((crumbs) => crumbs.slice(0, i));
+                      fetchDriveFolder(cr.id);
+                    }}
+                  >
+                    {cr.name}
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            {driveFolderLoading ? (
+              <div className="flex items-center gap-2 py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="text-xs text-muted-foreground">Loading files...</span>
+              </div>
+            ) : driveFolderFiles.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">
+                This folder is empty.
+              </p>
+            ) : (
+              <div className="max-h-64 overflow-y-auto space-y-1 border border-border rounded-md p-1">
+                {driveFolderFiles.map((f: any) => {
+                  const isFolder = f.mimeType === "application/vnd.google-apps.folder";
+                  return (
+                    <div key={f.id} className="flex items-center gap-2 p-2 rounded-md bg-secondary/40 border border-border/40">
+                      <Folder size={14} className="text-blue-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
+                        {!isFolder && (
+                          <p className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</p>
+                        )}
+                      </div>
+                      {isFolder && (
+                        <div className="flex gap-1 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => navigateDriveFolder(f.id, f.name)}
+                          >
+                            Open
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 text-xs gradient-primary text-primary-foreground"
+                            onClick={() => selectFolder(f.id, f.name)}
+                          >
+                            Select
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -1183,7 +1395,7 @@ export default function WorkflowsPage() {
           <CardContent className="flex flex-col items-center py-16 space-y-3">
             <Workflow size={48} className="text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              No workflows yet. Create your first workflow to automate posting from Google Sheets.
+              No workflows yet. Create your first workflow to automate posting from Google Sheets or Drive folders.
             </p>
             <Button
               variant="outline"
@@ -1253,10 +1465,10 @@ export default function WorkflowsPage() {
                     <span
                       className={cn(
                         "inline-block w-2 h-2 rounded-full",
-                        wf.sheet_url ? "bg-emerald-400" : "bg-yellow-400",
+                        (wf as any).data_source === "flowpost" ? "bg-blue-400" : wf.sheet_url ? "bg-emerald-400" : "bg-yellow-400",
                       )}
                     />
-                    {wf.sheet_url ? "Sheet connected" : "Sheet not set"}
+                    {(wf as any).data_source === "flowpost" ? "FlowPost folder" : wf.sheet_url ? "Sheet connected" : "Sheet not set"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">

@@ -52,8 +52,28 @@ export interface Workflow {
   post_as_story: boolean;
   youtube_altered_content: boolean;
   drive_account_id: string | null;
+  drive_folder_id: string | null;
+  data_source: "g_sheet" | "flowpost";
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkflowItem {
+  id: string;
+  workflow_id: string;
+  drive_file_id: string;
+  file_name: string;
+  file_size: number | null;
+  mime_type: string | null;
+  status: "pending" | "ready" | "posted" | "failed";
+  yt_video_title: string | null;
+  yt_video_description: string | null;
+  fb_ig_caption: string | null;
+  tiktok_caption: string | null;
+  platforms_override: string[] | null;
+  sort_order: number | null;
+  created_at: string;
+  posted_at: string | null;
 }
 
 export interface ConnectedAccount {

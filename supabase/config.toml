@@ -2,7 +2,6 @@ project_id = "ximorwzknbizpceaoflw"
 
 [functions.google-drive-auth]
 verify_jwt = false
-timeout = "600s"
 
 [functions.get-file]
 verify_jwt = false
@@ -60,7 +59,6 @@ verify_jwt = false
 
 [functions.drive-to-mega]
 verify_jwt = false
-timeout = "120s"
 
 [functions.transfer-ticket]
 verify_jwt = false

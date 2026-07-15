@@ -305,6 +305,59 @@ export type Database = {
         }
         Relationships: []
       }
+      workflow_items: {
+        Row: {
+          id: string
+          workflow_id: string
+          drive_file_id: string
+          file_name: string
+          file_size: number | null
+          mime_type: string | null
+          status: string
+          yt_video_title: string | null
+          yt_video_description: string | null
+          fb_ig_caption: string | null
+          tiktok_caption: string | null
+          platforms_override: string[] | null
+          sort_order: number | null
+          created_at: string
+          posted_at: string | null
+        }
+        Insert: {
+          id?: string
+          workflow_id: string
+          drive_file_id: string
+          file_name: string
+          file_size?: number | null
+          mime_type?: string | null
+          status?: string
+          yt_video_title?: string | null
+          yt_video_description?: string | null
+          fb_ig_caption?: string | null
+          tiktok_caption?: string | null
+          platforms_override?: string[] | null
+          sort_order?: number | null
+          created_at?: string
+          posted_at?: string | null
+        }
+        Update: {
+          id?: string
+          workflow_id?: string
+          drive_file_id?: string
+          file_name?: string
+          file_size?: number | null
+          mime_type?: string | null
+          status?: string
+          yt_video_title?: string | null
+          yt_video_description?: string | null
+          fb_ig_caption?: string | null
+          tiktok_caption?: string | null
+          platforms_override?: string[] | null
+          sort_order?: number | null
+          created_at?: string
+          posted_at?: string | null
+        }
+      }
       workflows: {
         Row: {
           created_at: string | null
@@ -336,12 +389,18 @@ export type Database = {
           user_id: string
           videos_per_run: number | null
           youtube_altered_content: boolean | null
+          drive_account_id: string | null
+          drive_folder_id: string | null
+          data_source: string
           youtube_channel_ids: string[] | null
         }
         Insert: {
           created_at?: string | null
           custom_schedule?: Json | null
           day_time_windows?: Json | null
+          drive_account_id?: string | null
+          drive_folder_id?: string | null
+          data_source?: string
           facebook_ai_generated?: boolean | null
           facebook_page_ids?: string[] | null
           id?: string
@@ -374,6 +433,9 @@ export type Database = {
           created_at?: string | null
           custom_schedule?: Json | null
           day_time_windows?: Json | null
+          drive_account_id?: string | null
+          drive_folder_id?: string | null
+          data_source?: string
           facebook_ai_generated?: boolean | null
           facebook_page_ids?: string[] | null
           id?: string

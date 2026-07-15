@@ -1573,3 +1573,66 @@ GET /{sourcePageId}/videos/{videoId}?fields=source,description
 ## Current Issues
 - Facebook cross-page transfer — still unimplemented (entry #59)
 - Drive scope migration — users must reconnect accounts
+- Phase 2-4 pending: workflow creation UI (Drive folder browser), items editor page, per-item platform override
+
+---
+
+### 66. Phase 1 — Foundation for FlowPost In-App Workflow Items (2026-07-15)
+
+**What was built**: The data layer to support replacing Google Sheets with an in-app workflow editor.
+
+**Files changed**:
+
+| File | Change |
+|------|--------|
+| `supabase/migrations/20260715000000_add_workflow_items.sql` | New — creates `workflow_items` table, `drive_folder_id` and `data_source` columns on `workflows` |
+| `src/lib/types.ts` | Added `WorkflowItem` interface (status, captions per platform, file info); added `drive_folder_id` and `data_source` to `Workflow` |
+| `src/integrations/supabase/types.ts` | Added `workflow_items` Row/Insert/Update types; added new columns to `workflows` Row/Insert/Update |
+| `supabase/functions/process-workflow/index.ts` | Added FlowPost data source branch — reads from `workflow_items` where `status='ready'` instead of Google Sheet; marks items as `posted` after successful run; existing sheet path untouched |
+
+**How it works**:
+- Workflows with `data_source = 'g_sheet'` (default, all existing workflows) — unchanged, still reads from Google Sheets
+- Workflows with `data_source = 'flowpost'` — reads from `workflow_items` table where `status = 'ready'`, builds synthetic rows matching sheet format, processes identically
+- After posting, workflow_items.status updated to `'posted'` and `posted_at` set
+- `process-workflow` backwards compatible — existing sheet path untouched
+
+**Not changed**: Platform upload functions, R2 caching, cron, locking, story posting, Mega handling — untouched.
+
+---
+
+### 67. Phase 2 — Workflow Creation UI with Drive Folder Browser (2026-07-15)
+
+**What was built**: Step 4 of the workflow creation form now supports both Google Sheet and FlowPost (Drive folder) sources.
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `src/pages/WorkflowsPage.tsx` | Step 4 source toggle (radio: Google Sheet / FlowPost); Drive folder browser (breadcrumb navigation, folder listing, Select button); `dataSource`, `selectedFolderId/Name`, `driveParentId`, `driveBreadcrumbs`, `driveFolderFiles` state; `fetchDriveFolder`, `navigateDriveFolder`, `selectFolder` handlers; conditional validation in `handleSave`; card display shows "FlowPost folder" or "Sheet connected" |
+
+**How it works**:
+- New "Source" step replaces "Sheet" step label
+- Radio toggle: **Google Sheet** (existing UI) or **FlowPost** (new)
+- FlowPost mode: Drive folder browser with breadcrumbs, folder listing, "Open" to navigate, "Select" to choose a folder
+- On save: sets `data_source`, `drive_folder_id` (or `sheet_url`/`sheet_id` for legacy mode)
+- Existing sheet workflows unaffected — `data_source` defaults to `'g_sheet'`
+
+**TypeScript**: `tsc --noEmit` passes with zero errors.
+
+**What was built**: The data layer to support replacing Google Sheets with an in-app workflow editor.
+
+**Files changed**:
+
+| File | Change |
+|------|--------|
+| `supabase/migrations/20260715000000_add_workflow_items.sql` | New — creates `workflow_items` table, `drive_folder_id` and `data_source` columns on `workflows` |
+| `src/lib/types.ts` | Added `WorkflowItem` interface (status, captions per platform, file info); added `drive_folder_id` and `data_source` to `Workflow` |
+| `src/integrations/supabase/types.ts` | Added `workflow_items` Row/Insert/Update types; added new columns to `workflows` Row/Insert/Update |
+| `supabase/functions/process-workflow/index.ts` | Added FlowPost data source branch — reads from `workflow_items` where `status='ready'` instead of Google Sheet; marks items as `posted` after successful run; existing sheet path untouched |
+
+**How it works**:
+- Workflows with `data_source = 'g_sheet'` (default, all existing workflows) — unchanged, still reads from Google Sheets
+- Workflows with `data_source = 'flowpost'` — reads from `workflow_items` table where `status = 'ready'`, builds synthetic rows matching sheet format, processes identically
+- After posting, workflow_items.status updated to `'posted'` and `posted_at` set
+- `process-workflow` backwards compatible — existing sheet path untouched
+
+**Not changed**: Platform upload functions, R2 caching, cron, locking, story posting, Mega handling — untouched.
