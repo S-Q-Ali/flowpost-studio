@@ -81,13 +81,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = getStoredToken();
     if (token) {
       supabase.functions.invoke<{ valid?: boolean; userId?: string }>("verify-session", { body: { token } })
-        .then(({ data, error }) => {
+        .then(async ({ data, error }) => {
           if (cancelled) return;
           if (!error && data?.valid) {
             setIsAuthenticated(true);
             setUserId(data.userId ?? "00000000-0000-0000-0000-000000000000");
             setIsAdmin(true);
             setPendingSecurityVerification(false);
+            // Verify Supabase session exists (needed for DB queries with RLS)
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session) {
+              setStoredToken(null);
+              setIsAuthenticated(false);
+              setUserId(null);
+              setIsAdmin(false);
+            }
           } else {
             setStoredToken(null);
           }
