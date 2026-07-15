@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Loader2, Youtube, Instagram, Facebook, Film } from "lucide-react";
+import { CalendarIcon, Loader2, Youtube, Instagram, Facebook, Film, Folder, FileIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -69,6 +69,8 @@ export default function UploadPage() {
   const [driveFiles, setDriveFiles] = useState<any[]>([]);
   const [driveLoading, setDriveLoading] = useState(false);
   const [importingFile, setImportingFile] = useState<string | null>(null);
+  const [driveParentId, setDriveParentId] = useState<string>("root");
+  const [driveBreadcrumbs, setDriveBreadcrumbs] = useState<{ id: string; name: string }[]>([]);
   const isSubmittingRef = useRef(false);
 
   useEffect(() => {
@@ -141,11 +143,18 @@ export default function UploadPage() {
   }, [selectedPlatforms]);
 
   useEffect(() => {
+    if (selectedDriveId) {
+      setDriveParentId("root");
+      setDriveBreadcrumbs([]);
+    }
+  }, [selectedDriveId]);
+
+  useEffect(() => {
     if (!selectedDriveId || driveTab !== "drive") return;
     (async () => {
       setDriveLoading(true);
       const { data, error } = await supabase.functions.invoke(
-        `google-drive-auth?action=list-files&account_id=${selectedDriveId}&parent_id=root`,
+        `google-drive-auth?action=list-files&account_id=${selectedDriveId}&parent_id=${driveParentId}`,
         { method: "GET", headers: { Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" } },
       );
       if (!error && data) {
@@ -156,7 +165,7 @@ export default function UploadPage() {
       }
       setDriveLoading(false);
     })();
-  }, [selectedDriveId, driveTab]);
+  }, [selectedDriveId, driveTab, driveParentId]);
 
   const togglePlatform = (p: Platform) => {
     setSelectedPlatforms((prev) => {
@@ -191,6 +200,18 @@ export default function UploadPage() {
     setSelectedTikTokAccountIds((prev) =>
       prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
     );
+  };
+
+  const navigateDriveFolder = (folderId: string, folderName: string) => {
+    setDriveBreadcrumbs((prev) => [...prev, { id: driveParentId, name: folderName }]);
+    setDriveParentId(folderId);
+  };
+
+  const goDriveBack = () => {
+    if (driveBreadcrumbs.length === 0) return;
+    const prev = driveBreadcrumbs[driveBreadcrumbs.length - 1];
+    setDriveBreadcrumbs((crumbs) => crumbs.slice(0, -1));
+    setDriveParentId(prev.id);
   };
 
   const importFileToR2 = async (file: { id: string; name: string; mimeType: string; size: number }) => {
@@ -647,52 +668,83 @@ export default function UploadPage() {
                   No Google Drive accounts connected.{" "}
                   <a href="/accounts" className="text-primary underline">Connect one</a>.
                 </p>
-              ) : driveAccounts.length > 1 ? (
-                <select
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground"
-                  value={selectedDriveId ?? ""}
-                  onChange={(e) => setSelectedDriveId(e.target.value || null)}
-                >
-                  {driveAccounts.map((a) => (
-                    <option key={a.id} value={a.id!}>{a.account_name}</option>
-                  ))}
-                </select>
-              ) : null}
-              {driveLoading ? (
-                <div className="flex items-center gap-2 py-4">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span className="text-xs text-muted-foreground">Loading files...</span>
-                </div>
-              ) : driveFiles.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">No files found in Drive root.</p>
               ) : (
-                <div className="max-h-64 overflow-y-auto space-y-1">
-                  {driveFiles.map((f: any) => {
-                    const isVideo = f.mimeType?.startsWith("video/");
-                    const isImage = f.mimeType?.startsWith("image/");
-                    if (!isVideo && !isImage) return null;
-                    const isImporting = importingFile === f.id;
-                    return (
-                      <div key={f.id} className="flex items-center gap-2 p-2 rounded-md bg-secondary/40 border border-border/40">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {formatBytes(f.size)} — {f.modifiedTime ? format(new Date(f.modifiedTime), "PP") : ""}
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs shrink-0"
-                          disabled={isImporting}
-                          onClick={() => importFileToR2(f)}
-                        >
-                          {isImporting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Import"}
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
+                <>
+                  {driveAccounts.length > 1 && (
+                    <select
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground"
+                      value={selectedDriveId ?? ""}
+                      onChange={(e) => setSelectedDriveId(e.target.value || null)}
+                    >
+                      {driveAccounts.map((a) => (
+                        <option key={a.id} value={a.id!}>{a.account_name}</option>
+                      ))}
+                    </select>
+                  )}
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+                    <button className="hover:text-foreground transition-colors" onClick={() => { setDriveParentId("root"); setDriveBreadcrumbs([]); }}>Root</button>
+                    {driveBreadcrumbs.map((cr, i) => (
+                      <span key={cr.id} className="flex items-center gap-1">
+                        <span>/</span>
+                        <button className="hover:text-foreground transition-colors" onClick={() => { setDriveParentId(cr.id); setDriveBreadcrumbs((crumbs) => crumbs.slice(0, i)); }}>
+                          {cr.name}
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  {driveLoading ? (
+                    <div className="flex items-center gap-2 py-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="text-xs text-muted-foreground">Loading files...</span>
+                    </div>
+                  ) : driveFiles.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2">
+                      {driveParentId === "root" ? "No files found in Drive root." : "This folder is empty."}
+                    </p>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto space-y-1">
+                      {driveFiles.map((f: any) => {
+                        const isFolder = f.mimeType === "application/vnd.google-apps.folder";
+                        const isImporting = importingFile === f.id;
+                        return (
+                          <div key={f.id} className="flex items-center gap-2 p-2 rounded-md bg-secondary/40 border border-border/40">
+                            <div className="shrink-0">
+                              {isFolder ? <Folder size={16} className="text-blue-400" /> : <FileIcon size={16} className="text-muted-foreground" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
+                              {!isFolder && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  {formatBytes(f.size)} — {f.modifiedTime ? format(new Date(f.modifiedTime), "PP") : ""}
+                                </p>
+                              )}
+                            </div>
+                            {isFolder ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs shrink-0"
+                                onClick={() => navigateDriveFolder(f.id, f.name)}
+                              >
+                                Open
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs shrink-0"
+                                disabled={isImporting}
+                                onClick={() => importFileToR2(f)}
+                              >
+                                {isImporting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Import"}
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
