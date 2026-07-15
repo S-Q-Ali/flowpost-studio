@@ -1407,3 +1407,30 @@ process-workflow → R2 upload fails → r2Succeeded = false
   - **Security**: change password (current → new + confirm) + security questions setup/re-setup
   - **Preferences**: placeholder for future settings
 - No backend changes, no DB migrations, no new Edge Functions
+
+---
+
+### 58. Drive Folder Creation & File Upload — Added (2026-07-14)
+
+**Feature**: Users can now create folders and upload files directly to Google Drive from the Storage page.
+
+**New actions on `google-drive-auth` edge function**:
+
+| Action | Method | Params | Description | Returns |
+|--------|--------|--------|-------------|---------|
+| `create-folder` | GET | `account_id`, `name`, `parent_id` (optional, default `root`) | Creates a folder on Drive | `{ id, name }` |
+| `get-token` | GET | `user_id`, `account_id` | Returns a fresh, decrypted Drive access token for client-side API calls | `{ access_token, expires_in }` |
+
+**Modified files**:
+
+| File | Change |
+|------|--------|
+| `supabase/functions/google-drive-auth/index.ts` | Added `create-folder` handler (POST to Drive API with folder MIME type) and `get-token` handler (token refresh + decryption, returned to caller) |
+| `src/pages/StoragePage.tsx` | Added: inline folder creation input in Drive panel; Upload button + hidden multi-file input; resumable upload via browser-direct Drive API (XMLHttpRequest with progress); per-file progress bar during uploads; `getDriveAccessToken()` helper; `uploadFileToDrive()` resumable upload implementation |
+
+**Behavior**:
+- **Create folder**: `+ Folder` button in Drive panel → inline input appears → enter name + Create → folder created in current directory → list refreshes
+- **Upload files**: `+ Upload` button opens native file picker (multi-select) → files upload sequentially via resumable upload protocol direct to Drive API (browser-to-Google, bypassing edge function) → per-file progress bar shown → list + quota refresh on completion
+- **Security**: Temporary Drive access token obtained server-side via `get-token` action (verifies account ownership), then used client-side for direct Drive API calls. Token never persisted in browser storage.
+
+**Deploy**: Run `npx.cmd supabase functions deploy google-drive-auth --no-verify-jwt` to deploy the updated edge function.

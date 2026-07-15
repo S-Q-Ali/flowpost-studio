@@ -324,6 +324,70 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "create-folder") {
+      const accountIdParam = url.searchParams.get("account_id");
+      const folderName = url.searchParams.get("name");
+      const parentId = url.searchParams.get("parent_id") || "root";
+      if (!accountIdParam || !folderName) return json({ error: "Missing account_id or name" }, 400);
+
+      const { data: account, error: fetchError } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", accountIdParam)
+        .eq("platform", "google_drive")
+        .eq("is_connected", true)
+        .single();
+
+      if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
+
+      const rawRefresh = await decrypt(account.refresh_token as string);
+      if (!rawRefresh) return json({ error: "Missing refresh token" }, 400);
+
+      const refreshed = await refreshAccessToken(rawRefresh);
+      const folderMeta = {
+        name: folderName,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: parentId !== "root" ? [parentId] : [],
+      };
+      const createRes = await fetch("https://www.googleapis.com/drive/v3/files", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${refreshed.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(folderMeta),
+      });
+      const createJson = await createRes.json();
+      if (!createRes.ok) throw new Error(`Drive create folder failed: ${JSON.stringify(createJson)}`);
+      return json({ id: createJson.id, name: createJson.name });
+    }
+
+    if (action === "get-token") {
+      const reqUserId = url.searchParams.get("user_id");
+      const accountIdParam = url.searchParams.get("account_id");
+      if (!reqUserId || !accountIdParam) return json({ error: "Missing user_id or account_id" }, 400);
+
+      const { data: account, error: fetchError } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", accountIdParam)
+        .eq("platform", "google_drive")
+        .eq("is_connected", true)
+        .eq("user_id", reqUserId)
+        .single();
+
+      if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
+
+      const rawRefresh = await decrypt(account.refresh_token as string);
+      if (!rawRefresh) return json({ error: "Missing refresh token" }, 400);
+
+      const refreshed = await refreshAccessToken(rawRefresh);
+      return json({
+        access_token: refreshed.access_token,
+        expires_in: refreshed.expires_in,
+      });
+    }
+
     if (action === "delete") {
       const accountIdParam = url.searchParams.get("account_id");
       const fileId = url.searchParams.get("file_id");

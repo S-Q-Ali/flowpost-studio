@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -92,6 +92,13 @@ export default function StoragePage() {
   const [megaBrowsing, setMegaBrowsing] = useState(false);
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+
+  const [showDriveNewFolder, setShowDriveNewFolder] = useState(false);
+  const [driveNewFolderName, setDriveNewFolderName] = useState("");
+
+  const [driveUploading, setDriveUploading] = useState(false);
+  const [driveUploadProgress, setDriveUploadProgress] = useState<{ fileName: string; percent: number; current: number; total: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -249,6 +256,113 @@ export default function StoragePage() {
     } else {
       toast.error(data?.error || "Failed to create folder");
     }
+  }
+
+  async function createDriveFolder() {
+    if (!driveNewFolderName.trim() || !selectedDriveId) return;
+    const pid = driveBreadcrumbs.length > 0 ? driveBreadcrumbs[driveBreadcrumbs.length - 1].id : "root";
+    const { data, error } = await supabase.functions.invoke(
+      `google-drive-auth?action=create-folder&account_id=${selectedDriveId}&name=${encodeURIComponent(driveNewFolderName.trim())}&parent_id=${pid}`,
+      { method: "GET", headers: CALL_HEADERS },
+    );
+    if (!error && data?.id) {
+      toast.success(`Folder "${driveNewFolderName}" created`);
+      setDriveNewFolderName("");
+      setShowDriveNewFolder(false);
+      fetchDriveFiles(pid);
+    } else {
+      toast.error(data?.error || error?.message || "Failed to create folder");
+    }
+  }
+
+  async function getDriveAccessToken(): Promise<string> {
+    if (!selectedDriveId || !userId) throw new Error("No Drive account selected");
+    const { data, error } = await supabase.functions.invoke(
+      `google-drive-auth?action=get-token&account_id=${selectedDriveId}&user_id=${userId}`,
+      { method: "GET", headers: CALL_HEADERS },
+    );
+    if (error || !data?.access_token) throw new Error(error?.message || "Failed to get Drive token");
+    return data.access_token;
+  }
+
+  async function uploadFileToDrive(
+    accessToken: string,
+    file: File,
+    parentId: string,
+    onProgress: (percent: number) => void,
+  ): Promise<{ id: string; name: string }> {
+    const meta: Record<string, unknown> = { name: file.name };
+    if (parentId !== "root") meta.parents = [parentId];
+
+    const sessionRes = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "X-Upload-Content-Type": file.type || "application/octet-stream",
+          "X-Upload-Content-Length": String(file.size),
+        },
+        body: JSON.stringify(meta),
+      },
+    );
+    if (!sessionRes.ok) {
+      const errBody = await sessionRes.json().catch(() => ({}));
+      throw new Error((errBody as any)?.error?.message || `Failed to create upload session (${sessionRes.status})`);
+    }
+    const uploadUrl = sessionRes.headers.get("Location");
+    if (!uploadUrl) throw new Error("No upload URL returned from Drive");
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", uploadUrl);
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); }
+          catch { resolve({ id: "", name: file.name }); }
+        } else {
+          reject(new Error(`Upload failed (${xhr.status})`));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.send(file);
+    });
+  }
+
+  async function handleDriveUpload(files: FileList | null) {
+    if (!files || files.length === 0 || !selectedDriveId) return;
+    const pid = driveBreadcrumbs.length > 0 ? driveBreadcrumbs[driveBreadcrumbs.length - 1].id : "root";
+    setDriveUploading(true);
+    let token: string;
+    try {
+      token = await getDriveAccessToken();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to authenticate");
+      setDriveUploading(false);
+      return;
+    }
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      setDriveUploadProgress({ fileName: f.name, percent: 0, current: i + 1, total: files.length });
+      try {
+        await uploadFileToDrive(token, f, pid, (pct) => {
+          setDriveUploadProgress((prev) => prev ? { ...prev, percent: pct } : null);
+        });
+        toast.success(`${f.name} uploaded`);
+      } catch (err: any) {
+        toast.error(`${f.name}: ${err.message || "Upload failed"}`);
+      }
+    }
+    setDriveUploadProgress(null);
+    setDriveUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    fetchDriveFiles(pid);
+    fetchDriveQuota();
   }
 
   function selectMegaTarget() {
@@ -435,16 +549,55 @@ export default function StoragePage() {
             )}
             {selectedDriveId && (
               <>
-                {/* Breadcrumbs */}
-                <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
-                  <button className="hover:text-foreground" onClick={() => { setDriveBreadcrumbs([]); setSelectedFileIds(new Set()); fetchDriveFiles("root"); }}>My Drive</button>
-                  {driveBreadcrumbs.map((b) => (
-                    <span key={b.id} className="flex items-center gap-1">
-                      <ChevronRight className="h-3 w-3" />
-                      <span className="text-foreground">{b.name}</span>
-                    </span>
-                  ))}
+                {/* Breadcrumbs + action buttons */}
+                <div className="flex items-center justify-between gap-1 text-xs text-muted-foreground flex-wrap">
+                  <div className="flex items-center gap-1">
+                    <button className="hover:text-foreground" onClick={() => { setDriveBreadcrumbs([]); setSelectedFileIds(new Set()); fetchDriveFiles("root"); }}>My Drive</button>
+                    {driveBreadcrumbs.map((b) => (
+                      <span key={b.id} className="flex items-center gap-1">
+                        <ChevronRight className="h-3 w-3" />
+                        <span className="text-foreground">{b.name}</span>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleDriveUpload(e.target.files)}
+                    />
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={driveUploading}>
+                      {driveUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                      <span className="ml-1">Upload</span>
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setShowDriveNewFolder(true)}>
+                      <Plus className="h-3 w-3 mr-1" /> Folder
+                    </Button>
+                  </div>
                 </div>
+                {/* Inline new folder input */}
+                {showDriveNewFolder && (
+                  <div className="flex gap-2">
+                    <Input className="h-8 text-xs" placeholder="Folder name" value={driveNewFolderName} onChange={(e) => setDriveNewFolderName(e.target.value)} />
+                    <Button variant="default" size="sm" onClick={createDriveFolder}><Check className="h-3 w-3" /></Button>
+                    <Button variant="outline" size="sm" onClick={() => { setShowDriveNewFolder(false); setDriveNewFolderName(""); }}>X</Button>
+                  </div>
+                )}
+                {/* Upload progress */}
+                {driveUploadProgress && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1.5">
+                    <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                    <span className="truncate flex-1">
+                      Uploading ({driveUploadProgress.current}/{driveUploadProgress.total}): {driveUploadProgress.fileName}
+                    </span>
+                    <span className="shrink-0">{driveUploadProgress.percent}%</span>
+                    <div className="h-1.5 w-16 rounded-full bg-secondary overflow-hidden shrink-0">
+                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${driveUploadProgress.percent}%` }} />
+                    </div>
+                  </div>
+                )}
                 {/* File list */}
                 <div className="space-y-1 max-h-64 overflow-y-auto">
                   {driveBreadcrumbs.length > 0 && (
