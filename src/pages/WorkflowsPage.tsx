@@ -325,10 +325,15 @@ export default function WorkflowsPage() {
     let hasError = false;
 
     do {
-      const url = `google-drive-auth?action=list-files&account_id=${selectedDriveId}&parent_id=${parentId}${pageToken ? `&page_token=${pageToken}` : ""}`;
-      const { data, error } = await supabase.functions.invoke(url, {
-        method: "GET",
+      const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+        method: "POST",
         headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "list-files",
+          account_id: selectedDriveId,
+          parent_id: parentId,
+          page_token: pageToken,
+        }),
       });
       if (error || !data) {
         console.error("list-files error:", error);

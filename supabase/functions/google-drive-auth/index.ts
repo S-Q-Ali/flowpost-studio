@@ -119,7 +119,8 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const action = url.searchParams.get("action");
+  const body = await req.json().catch(() => ({}));
+  const action = url.searchParams.get("action") || body?.action;
 
   if (action !== "callback" && action !== "url") {
     const authHeader = req.headers.get("Authorization");
@@ -294,9 +295,9 @@ Deno.serve(async (req) => {
     }
 
     if (action === "list-files") {
-      const accountIdParam = url.searchParams.get("account_id");
-      const parentId = url.searchParams.get("parent_id") || "root";
-      const pageToken = url.searchParams.get("page_token");
+      const accountIdParam = url.searchParams.get("account_id") || body?.account_id;
+      const parentId = url.searchParams.get("parent_id") || body?.parent_id || "root";
+      const pageToken = url.searchParams.get("page_token") || body?.page_token;
 
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 

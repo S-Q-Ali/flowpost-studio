@@ -163,10 +163,15 @@ export default function UploadPage() {
       let hasError = false;
 
       do {
-        const url = `google-drive-auth?action=list-files&account_id=${selectedDriveId}&parent_id=${driveParentId}${pageToken ? `&page_token=${pageToken}` : ""}`;
-        const { data, error } = await supabase.functions.invoke(url, {
-          method: "GET",
+        const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+          method: "POST",
           headers: { Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "list-files",
+            account_id: selectedDriveId,
+            parent_id: driveParentId,
+            page_token: pageToken,
+          }),
         });
         if (error || !data) {
           console.error("list-files error:", error);
