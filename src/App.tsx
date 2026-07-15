@@ -16,6 +16,7 @@ import QueuePage from "./pages/QueuePage";
 import AccountsPage from "./pages/AccountsPage";
 import StoragePage from "./pages/StoragePage";
 import InsightsPage from "./pages/InsightsPage";
+import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
 import TermsPage from "./pages/TermsPage";
@@ -69,6 +70,7 @@ function AppRoutes() {
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/storage" element={<StoragePage />} />
         <Route path="/insights" element={<InsightsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

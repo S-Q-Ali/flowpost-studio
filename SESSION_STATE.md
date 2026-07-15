@@ -1375,3 +1375,35 @@ process-workflow → R2 upload fails → r2Succeeded = false
 **Safety verification**: All 4 upload functions use `typeof === "string"` guards + truthiness checks when using `driveDownloadUrl` / `googleAccessToken`, so passing `undefined` for Mega sources is safe — the fields are simply not acted upon. `JSON.stringify` drops `undefined` keys.
 
 **Deploy**: Pending — `process-workflow`, `tiktok-upload`, `instagram-upload`, `update-sheet-status`.
+
+---
+
+### 57. Profile Section — Added (2026-07-14)
+
+**Feature**: User profile dashboard accessible via top-right avatar dropdown. Shows logged-in account identity, editable profile info, password change, and security questions management.
+
+**New files**:
+
+| File | Purpose |
+|------|---------|
+| `src/components/ui/avatar.tsx` | shadcn Avatar (image + initials fallback) |
+| `src/components/ui/tabs.tsx` | shadcn Tabs (tabbed page layout) |
+| `src/components/ui/dropdown-menu.tsx` | shadcn DropdownMenu (top-right menu) |
+| `src/components/UserMenu.tsx` | Avatar trigger + dropdown with user info, "Dashboard" link, "Lock" logout |
+| `src/pages/ProfilePage.tsx` | 3-tab profile dashboard (Personal Info, Security, Preferences) |
+
+**Modified files**:
+
+| File | Change |
+|------|--------|
+| `src/components/AppLayout.tsx` | Header now contains `<SidebarTrigger />` left + `<UserMenu />` right |
+| `src/App.tsx` | Imported `ProfilePage`; added `/profile` route under `<AppLayout>` |
+
+**Behavior**:
+- Top-right avatar (initials fallback) on every authenticated page
+- Dropdown shows: avatar, name, email, `[Admin]` badge → **"Dashboard"** link → **"Lock"** (logout)
+- `/profile` page has 3 tabs:
+  - **Personal Info**: avatar preview, editable name + avatar URL, read-only email, admin badge, member-since date
+  - **Security**: change password (current → new + confirm) + security questions setup/re-setup
+  - **Preferences**: placeholder for future settings
+- No backend changes, no DB migrations, no new Edge Functions
