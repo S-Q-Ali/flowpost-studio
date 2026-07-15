@@ -63,6 +63,12 @@ export default function UploadPage() {
   const [scheduleTime, setScheduleTime] = useState("17:00");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [containsAlteredContent, setContainsAlteredContent] = useState(true);
+  const [driveTab, setDriveTab] = useState<"videos" | "drive">("videos");
+  const [driveAccounts, setDriveAccounts] = useState<ConnectedAccount[]>([]);
+  const [selectedDriveId, setSelectedDriveId] = useState<string | null>(null);
+  const [driveFiles, setDriveFiles] = useState<any[]>([]);
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [importingFile, setImportingFile] = useState<string | null>(null);
   const isSubmittingRef = useRef(false);
 
   useEffect(() => {
@@ -100,6 +106,17 @@ export default function UploadPage() {
       setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
       setTiktokAccounts((tt as ConnectedAccount[]) ?? []);
 
+      const { data: drives } = await supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("platform", "google_drive")
+        .eq("is_connected", true);
+      setDriveAccounts((drives as ConnectedAccount[]) ?? []);
+      if (drives && drives.length > 0 && !selectedDriveId) {
+        setSelectedDriveId(drives[0].id!);
+      }
+
       const { data: vids } = await supabase
         .from("videos")
         .select("id, title, file_url, created_at")
@@ -122,6 +139,24 @@ export default function UploadPage() {
       })();
     }
   }, [selectedPlatforms]);
+
+  useEffect(() => {
+    if (!selectedDriveId || driveTab !== "drive") return;
+    (async () => {
+      setDriveLoading(true);
+      const { data, error } = await supabase.functions.invoke(
+        `google-drive-auth?action=list-files&account_id=${selectedDriveId}&parent_id=root`,
+        { method: "GET", headers: { Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" } },
+      );
+      if (!error && data) {
+        setDriveFiles(data.files ?? []);
+      } else {
+        console.error("list-files error:", error);
+        toast.error("Failed to list Drive files. Try reconnecting the account.");
+      }
+      setDriveLoading(false);
+    })();
+  }, [selectedDriveId, driveTab]);
 
   const togglePlatform = (p: Platform) => {
     setSelectedPlatforms((prev) => {
@@ -157,6 +192,42 @@ export default function UploadPage() {
       prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
     );
   };
+
+  const importFileToR2 = async (file: { id: string; name: string; mimeType: string; size: number }) => {
+    if (!selectedDriveId) return;
+    setImportingFile(file.id);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "google-drive-auth?action=upload-video-to-r2",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            account_id: selectedDriveId,
+            file_id: file.id,
+            file_name: file.name,
+            user_id: userId,
+            media_type: file.mimeType?.startsWith("image") ? "image" : "video",
+          }),
+        },
+      );
+      if (error || !data?.video_id) throw new Error(error?.message || "Import failed");
+      const newVideo = { id: data.video_id, title: file.name, file_url: data.r2_url, created_at: new Date().toISOString() };
+      setVideos((prev) => [newVideo, ...prev]);
+      setSelectedVideoId(data.video_id);
+      setDriveTab("videos");
+      toast.success(`Imported "${file.name}" from Drive`);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setImportingFile(null);
+  };
+
+  function formatBytes(b: number): string {
+    if (!b) return "0 B";
+    if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
+    return (b / 1048576).toFixed(1) + " MB";
+  }
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
@@ -525,16 +596,32 @@ export default function UploadPage() {
       </div>
 
       <Card className="bg-card border-border shadow-card">
-        <CardContent className="py-4">
-          <div className="flex items-center gap-3">
+        <CardContent className="py-4 space-y-3">
+          <div className="flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
               <Film size={20} className="text-muted-foreground" />
             </div>
+            <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
+              <button
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${driveTab === "videos" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                onClick={() => setDriveTab("videos")}
+              >
+                My Videos
+              </button>
+              <button
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${driveTab === "drive" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                onClick={() => setDriveTab("drive")}
+              >
+                Google Drive
+              </button>
+            </div>
+          </div>
+
+          {driveTab === "videos" && (
             <div className="flex-1">
-              <label className="text-sm font-medium text-foreground">Select Media</label>
               {videos.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  No media found. Use a Google Drive workflow to upload media.
+                  No media found. Switch to Google Drive to import a file.
                 </p>
               ) : (
                 <select
@@ -551,7 +638,64 @@ export default function UploadPage() {
                 </select>
               )}
             </div>
-          </div>
+          )}
+
+          {driveTab === "drive" && (
+            <div className="space-y-3">
+              {driveAccounts.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No Google Drive accounts connected.{" "}
+                  <a href="/accounts" className="text-primary underline">Connect one</a>.
+                </p>
+              ) : driveAccounts.length > 1 ? (
+                <select
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground"
+                  value={selectedDriveId ?? ""}
+                  onChange={(e) => setSelectedDriveId(e.target.value || null)}
+                >
+                  {driveAccounts.map((a) => (
+                    <option key={a.id} value={a.id!}>{a.account_name}</option>
+                  ))}
+                </select>
+              ) : null}
+              {driveLoading ? (
+                <div className="flex items-center gap-2 py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-xs text-muted-foreground">Loading files...</span>
+                </div>
+              ) : driveFiles.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">No files found in Drive root.</p>
+              ) : (
+                <div className="max-h-64 overflow-y-auto space-y-1">
+                  {driveFiles.map((f: any) => {
+                    const isVideo = f.mimeType?.startsWith("video/");
+                    const isImage = f.mimeType?.startsWith("image/");
+                    if (!isVideo && !isImage) return null;
+                    const isImporting = importingFile === f.id;
+                    return (
+                      <div key={f.id} className="flex items-center gap-2 p-2 rounded-md bg-secondary/40 border border-border/40">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {formatBytes(f.size)} — {f.modifiedTime ? format(new Date(f.modifiedTime), "PP") : ""}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs shrink-0"
+                          disabled={isImporting}
+                          onClick={() => importFileToR2(f)}
+                        >
+                          {isImporting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Import"}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

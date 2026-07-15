@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
+import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -11,9 +13,23 @@ const GD_CLIENT_SECRET = Deno.env.get("GD_CLIENT_SECRET");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
+const R2_ENDPOINT = Deno.env.get("R2_ENDPOINT");
+const R2_ACCESS_KEY = Deno.env.get("R2_ACCESS_KEY");
+const R2_SECRET_KEY = Deno.env.get("R2_SECRET_KEY");
+const R2_BUCKET = Deno.env.get("R2_BUCKET");
+const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL");
+
 if (!GD_CLIENT_ID || !GD_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing required secrets for google-drive-auth function");
 }
+
+const s3Client = (R2_ENDPOINT && R2_ACCESS_KEY && R2_SECRET_KEY && R2_BUCKET)
+  ? new S3Client({
+      region: "auto",
+      endpoint: R2_ENDPOINT,
+      credentials: { accessKeyId: R2_ACCESS_KEY, secretAccessKey: R2_SECRET_KEY },
+    })
+  : null;
 
 const supabaseAdmin = createClient(
   SUPABASE_URL!,
@@ -386,6 +402,88 @@ Deno.serve(async (req) => {
         access_token: refreshed.access_token,
         expires_in: refreshed.expires_in,
       });
+    }
+
+    if (action === "upload-video-to-r2") {
+      if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+      const { account_id, file_id, file_name, user_id, media_type } = await req.json();
+      if (!account_id || !file_id || !user_id) return json({ error: "Missing required fields" }, 400);
+
+      const { data: account, error: fetchError } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("*")
+        .eq("id", account_id)
+        .eq("platform", "google_drive")
+        .eq("is_connected", true)
+        .single();
+
+      if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
+
+      const rawRefresh = await decrypt(account.refresh_token as string);
+      if (!rawRefresh) return json({ error: "Missing refresh token" }, 400);
+      const refreshed = await refreshAccessToken(rawRefresh);
+
+      const metaRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${file_id}?fields=name,mimeType,size`,
+        { headers: { Authorization: `Bearer ${refreshed.access_token}` } },
+      );
+      const metaJson = await metaRes.json();
+      if (!metaRes.ok) throw new Error(`Drive file info failed: ${JSON.stringify(metaJson)}`);
+
+      const driveMimeType = metaJson.mimeType || "video/mp4";
+      const fileExt = `.${(metaJson.name || file_name || "video.mp4").split(".").pop() || "mp4"}`;
+      const size = metaJson.size ? parseInt(metaJson.size, 10) : 0;
+      const title = metaJson.name || file_name || "Untitled";
+
+      const { data: videoRecord, error: insertError } = await supabaseAdmin
+        .from("videos")
+        .insert({
+          user_id,
+          title,
+          file_url: null,
+          media_type: media_type || "video",
+          video_size: size,
+        })
+        .select("id, title, file_url, created_at")
+        .single();
+
+      if (insertError || !videoRecord) throw new Error(`Failed to create video record: ${JSON.stringify(insertError)}`);
+
+      if (!s3Client) return json({ error: "R2 not configured" }, 500);
+
+      const driveDownloadUrl = `https://www.googleapis.com/drive/v3/files/${file_id}?alt=media`;
+      const driveRes = await fetch(driveDownloadUrl, {
+        headers: { Authorization: `Bearer ${refreshed.access_token}` },
+      });
+      if (!driveRes.ok) throw new Error(`Drive download failed: ${driveRes.status}`);
+
+      const contentType = driveRes.headers.get("Content-Type") || driveMimeType || "video/mp4";
+      const key = `${user_id}/${videoRecord.id}${fileExt}`;
+      const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: key,
+        ContentType: contentType,
+      }), { expiresIn: 600 });
+
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: driveRes.body,
+        // @ts-ignore
+        duplex: "half",
+      });
+      if (!putRes.ok) throw new Error(`R2 PUT failed: ${putRes.status}`);
+
+      const r2Url = `https://${R2_PUBLIC_URL}/${key}`;
+      const { error: r2UpdateError } = await supabaseAdmin
+        .from("videos")
+        .update({ file_url: r2Url })
+        .eq("id", videoRecord.id);
+
+      if (r2UpdateError) throw new Error(`Failed to update video file_url: ${JSON.stringify(r2UpdateError)}`);
+
+      return json({ video_id: videoRecord.id, r2_url: r2Url });
     }
 
     if (action === "delete") {

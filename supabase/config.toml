@@ -2,6 +2,7 @@ project_id = "ximorwzknbizpceaoflw"
 
 [functions.google-drive-auth]
 verify_jwt = false
+timeout = "600s"
 
 [functions.get-file]
 verify_jwt = false

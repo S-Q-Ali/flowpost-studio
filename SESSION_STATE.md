@@ -1433,4 +1433,61 @@ process-workflow → R2 upload fails → r2Succeeded = false
 - **Upload files**: `+ Upload` button opens native file picker (multi-select) → files upload sequentially via resumable upload protocol direct to Drive API (browser-to-Google, bypassing edge function) → per-file progress bar shown → list + quota refresh on completion
 - **Security**: Temporary Drive access token obtained server-side via `get-token` action (verifies account ownership), then used client-side for direct Drive API calls. Token never persisted in browser storage.
 
-**Deploy**: Run `npx.cmd supabase functions deploy google-drive-auth --no-verify-jwt` to deploy the updated edge function.
+**Deploy**: Deployed via `npx.cmd supabase functions deploy google-drive-auth --no-verify-jwt`. Node.js v24.18.0 and Supabase CLI 2.109.1 installed on this machine.
+
+---
+
+### 59. Facebook Cross-Page Video Transfer — Feasibility Analysis (2026-07-14)
+
+**Question**: Can FlowPost transfer/republish a video from one Facebook page to another?
+
+**Current capability**: Simultaneous multi-page posting exists, but transfer of already-published content does not.
+
+**What exists today**:
+
+| Flow | Status |
+|------|--------|
+| Publish same video to multiple pages at once (manual Upload) | ✅ Multi-page checkbox selection, one post row per page |
+| Publish same video to multiple pages at once (Workflows) | ✅ `facebook_page_ids` array + per-row sheet override |
+| Read published posts from a page | ❌ No edge function |
+| Re-upload a Facebook-sourced video to another page | ❌ No fetch-from-Facebook logic |
+| UI for transfer flow | ❌ |
+
+**What would need to be built**:
+
+| Component | Description |
+|-----------|-------------|
+| New edge function (or action) | `GET /{sourcePageId}/videos/{videoId}?fields=source,description` with source page's token → returns video download URL + caption |
+| Video re-upload pipeline | Fetch video from Facebook's CDN (or proxy via `get-file`), then call existing `facebook-upload` with destination page's `account_id` |
+| Transfer UI | Source page selector → destination page selector → optional caption/schedule → confirm |
+| Post record creation | Create a new post row with `platform: "facebook"`, destination `account_id`, copied caption, status `"processing"` |
+
+**No new OAuth scopes needed** — `pages_read_engagement` (read posts) and `pages_manage_posts` (publish) already cover both sides.
+
+**Potential approach**:
+```
+GET /{sourcePageId}/videos/{videoId}?fields=source,description
+  → extract video download URL + caption
+  → download video (or proxy via get-file)
+  → POST /{destPageId}/videos (existing facebook-upload flow)
+```
+
+**Status**: Not implemented. Analysis complete.
+
+---
+
+## Entry #60 — UploadPage: Google Drive file browser + import to R2
+
+**Status**: Deployed and committed
+
+**What was built**:
+1. **New edge function action** `upload-video-to-r2` on `google-drive-auth` — accepts `{ account_id, file_id, file_name, user_id, media_type }` via POST; fetches Drive file metadata, creates `videos` DB record, streams file to R2 via presigned URL, updates record with R2 URL, returns `{ video_id, r2_url }`.
+2. **UploadPage Drive tab** — toggle between "My Videos" (existing dropdown) and "Google Drive" (file browser). File browser lists video/image files from Drive root, with account selector (if multiple accounts), file name/size/date, and "Import" button per file.
+3. **Import flow** — clicking "Import" calls `upload-video-to-r2`, shows spinner on that file, on success auto-selects the new video and switches back to "My Videos" tab. New video prepended to dropdown list.
+
+**Files modified**:
+- `supabase/functions/google-drive-auth/index.ts` — added S3 imports, R2 env vars, s3Client init, `upload-video-to-r2` action handler (+80 lines)
+- `supabase/config.toml` — added `timeout = "600s"` to `[functions.google-drive-auth]`
+- `src/pages/UploadPage.tsx` — Drive tab state, accounts/files loading, Drive browser UI, import handler (+110 lines)
+
+**Deployed**: `google-drive-auth` edge function redeployed with new action.
