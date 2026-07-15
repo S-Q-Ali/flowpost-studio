@@ -151,11 +151,15 @@ export default function StoragePage() {
   async function fetchDriveFiles(parentId: string, pageToken?: string) {
     if (!selectedDriveId) return;
     setDriveLoading(true);
-    let url = `google-drive-auth?action=list-files&account_id=${selectedDriveId}&parent_id=${parentId}`;
-    if (pageToken) url += `&page_token=${pageToken}`;
-    const { data, error } = await supabase.functions.invoke(url, {
-      method: "GET",
+    const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+      method: "POST",
       headers: CALL_HEADERS,
+      body: JSON.stringify({
+        action: "list-files",
+        account_id: selectedDriveId,
+        parent_id: parentId,
+        page_token: pageToken,
+      }),
     });
     if (!error && data) {
       if (pageToken) {

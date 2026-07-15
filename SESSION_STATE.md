@@ -1573,7 +1573,7 @@ GET /{sourcePageId}/videos/{videoId}?fields=source,description
 ## Current Issues
 - Facebook cross-page transfer — still unimplemented (entry #59)
 - Drive scope migration — users must reconnect accounts
-- Phase 2-4 pending: workflow creation UI (Drive folder browser), items editor page, per-item platform override
+- CORS on `google-drive-auth` `list-files` — fixed (changed to POST), deploy pending (entry #70)
 
 ---
 
@@ -1659,21 +1659,26 @@ StoragePage already handled pagination correctly (load-more button).
 
 **TypeScript**: `tsc --noEmit` passes with zero errors. Deployed `process-workflow` with image workflow fix.
 
-**What was built**: The data layer to support replacing Google Sheets with an in-app workflow editor.
+**[Duplicated content from entry 66 above — kept for reference]**
+
+**Not changed**: Platform upload functions, R2 caching, cron, locking, story posting, Mega handling — untouched.
+
+---
+
+### 70. CORS Fix — `list-files` Changed from GET to POST (2026-07-15)
+
+**Problem**: `list-files` calls to `google-drive-auth` from Vercel-hosted app were blocked by CORS because Supabase Functions Gateway returns its own error with no CORS headers on GET requests before the edge function runs.
+
+**Fix**: Changed all `list-files` callers from GET (params in URL) to POST (params in JSON body). The edge function now reads params from `body.action` / `body.account_id` / `body.parent_id` / `body.page_token` with URL fallback for backwards compatibility.
 
 **Files changed**:
 
 | File | Change |
 |------|--------|
-| `supabase/migrations/20260715000000_add_workflow_items.sql` | New — creates `workflow_items` table, `drive_folder_id` and `data_source` columns on `workflows` |
-| `src/lib/types.ts` | Added `WorkflowItem` interface (status, captions per platform, file info); added `drive_folder_id` and `data_source` to `Workflow` |
-| `src/integrations/supabase/types.ts` | Added `workflow_items` Row/Insert/Update types; added new columns to `workflows` Row/Insert/Update |
-| `supabase/functions/process-workflow/index.ts` | Added FlowPost data source branch — reads from `workflow_items` where `status='ready'` instead of Google Sheet; marks items as `posted` after successful run; existing sheet path untouched |
+| `supabase/functions/google-drive-auth/index.ts` | Added `body = await req.json().catch(() => ({}))`; `action` and `list-files` params fall back to `body.*` |
+| `src/pages/WorkflowItemsPage.tsx` | `syncFromDrive` — POST with JSON body |
+| `src/pages/WorkflowsPage.tsx` | `fetchDriveFolder` — POST with JSON body |
+| `src/pages/UploadPage.tsx` | Drive listing `useEffect` — POST with JSON body |
+| `src/pages/StoragePage.tsx` | `fetchDriveFiles` — POST with JSON body |
 
-**How it works**:
-- Workflows with `data_source = 'g_sheet'` (default, all existing workflows) — unchanged, still reads from Google Sheets
-- Workflows with `data_source = 'flowpost'` — reads from `workflow_items` table where `status = 'ready'`, builds synthetic rows matching sheet format, processes identically
-- After posting, workflow_items.status updated to `'posted'` and `posted_at` set
-- `process-workflow` backwards compatible — existing sheet path untouched
-
-**Not changed**: Platform upload functions, R2 caching, cron, locking, story posting, Mega handling — untouched.
+**Deploy pending**: Run `npx supabase functions deploy google-drive-auth --no-verify-jwt` manually (requires TTY for login). Code committed at `6d0d50e`.
