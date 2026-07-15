@@ -63,7 +63,7 @@ export default function UploadPage() {
   const [scheduleTime, setScheduleTime] = useState("17:00");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [containsAlteredContent, setContainsAlteredContent] = useState(true);
-  const [driveTab, setDriveTab] = useState<"videos" | "drive">("videos");
+  const [driveTab, setDriveTab] = useState<"videos" | "drive" | "local">("videos");
   const [driveAccounts, setDriveAccounts] = useState<ConnectedAccount[]>([]);
   const [selectedDriveId, setSelectedDriveId] = useState<string | null>(null);
   const [driveFiles, setDriveFiles] = useState<any[]>([]);
@@ -71,6 +71,10 @@ export default function UploadPage() {
   const [importingFile, setImportingFile] = useState<string | null>(null);
   const [driveParentId, setDriveParentId] = useState<string>("root");
   const [driveBreadcrumbs, setDriveBreadcrumbs] = useState<{ id: string; name: string }[]>([]);
+  const [localFile, setLocalFile] = useState<File | null>(null);
+  const [localUploading, setLocalUploading] = useState(false);
+  const [localUploadProgress, setLocalUploadProgress] = useState(0);
+  const localFileInputRef = useRef<HTMLInputElement>(null);
   const isSubmittingRef = useRef(false);
 
   useEffect(() => {
@@ -249,6 +253,67 @@ export default function UploadPage() {
     if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
     return (b / 1048576).toFixed(1) + " MB";
   }
+
+  const MAX_FILE_SIZE = 200 * 1024 * 1024;
+
+  const handleLocalUpload = async () => {
+    if (!localFile || localUploading) return;
+    if (localFile.size > MAX_FILE_SIZE) {
+      toast.error("File exceeds 200MB limit");
+      return;
+    }
+    setLocalUploading(true);
+    setLocalUploadProgress(0);
+    try {
+      const ext = localFile.name.split(".").pop()?.toLowerCase() || "mp4";
+      const isImage = ["jpg", "jpeg", "png", "gif", "webp"].includes(ext);
+      const { data, error } = await supabase.functions.invoke(
+        "google-drive-auth?action=get-r2-upload-url",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: userId,
+            file_name: localFile.name,
+            file_size: localFile.size,
+            media_type: isImage ? "image" : "video",
+            content_type: localFile.type || undefined,
+          }),
+        },
+      );
+      if (error || !data?.upload_url) throw new Error(error?.message || "Failed to get upload URL");
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", data.upload_url);
+        xhr.setRequestHeader("Content-Type", localFile.type || "application/octet-stream");
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setLocalUploadProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Upload failed: ${xhr.status}`));
+        };
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+        xhr.send(localFile);
+      });
+      const { error: updateError } = await supabase
+        .from("videos")
+        .update({ file_url: data.r2_url })
+        .eq("id", data.video_id);
+      if (updateError) throw updateError;
+      const newVideo = { id: data.video_id, title: localFile.name, file_url: data.r2_url, uploaded_at: new Date().toISOString() };
+      setVideos((prev) => [newVideo, ...prev]);
+      setSelectedVideoId(data.video_id);
+      setLocalFile(null);
+      setDriveTab("videos");
+      if (localFileInputRef.current) localFileInputRef.current.value = "";
+      toast.success(`Uploaded "${localFile.name}"`);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setLocalUploadProgress(0);
+    setLocalUploading(false);
+  };
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
@@ -635,6 +700,12 @@ export default function UploadPage() {
               >
                 Google Drive
               </button>
+              <button
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${driveTab === "local" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                onClick={() => setDriveTab("local")}
+              >
+                Upload from Computer
+              </button>
             </div>
           </div>
 
@@ -745,6 +816,66 @@ export default function UploadPage() {
                     </div>
                   )}
                 </>
+              )}
+            </div>
+          )}
+
+          {driveTab === "local" && (
+            <div className="space-y-3">
+              <input
+                ref={localFileInputRef}
+                type="file"
+                accept="video/*,image/*"
+                className="hidden"
+                onChange={(e) => setLocalFile(e.target.files?.[0] ?? null)}
+              />
+              {!localFile ? (
+                <div
+                  className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                  onClick={() => localFileInputRef.current?.click()}
+                >
+                  <Film size={32} className="mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">Click to select a video or image</p>
+                  <p className="text-xs text-muted-foreground mt-1">Max 200MB</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 p-3 rounded-md bg-secondary/40 border border-border/40">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{localFile.name}</p>
+                      <p className="text-xs text-muted-foreground">{formatBytes(localFile.size)}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => { setLocalFile(null); if (localFileInputRef.current) localFileInputRef.current.value = ""; }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                  {localUploading && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1.5">
+                      <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                      <span className="flex-1">Uploading to storage...</span>
+                      <span className="shrink-0">{localUploadProgress}%</span>
+                      <div className="h-1.5 w-16 rounded-full bg-secondary overflow-hidden shrink-0">
+                        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${localUploadProgress}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  <Button
+                    className="w-full"
+                    onClick={handleLocalUpload}
+                    disabled={localUploading}
+                  >
+                    {localUploading ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading…</>
+                    ) : (
+                      "Upload to FlowPost"
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
           )}

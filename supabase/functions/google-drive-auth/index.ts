@@ -486,6 +486,50 @@ Deno.serve(async (req) => {
       return json({ video_id: videoRecord.id, r2_url: r2Url });
     }
 
+    if (action === "get-r2-upload-url") {
+      if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+      const { user_id, file_name, file_size, media_type, content_type } = await req.json();
+      if (!user_id || !file_name) return json({ error: "Missing required fields" }, 400);
+
+      if (!s3Client) return json({ error: "R2 not configured" }, 500);
+
+      const detectedType = media_type || "video";
+      const fileExt = `.${file_name.split(".").pop() || "mp4"}`;
+      const extLower = fileExt.toLowerCase();
+      const contentType = content_type || (
+        extLower === ".jpg" || extLower === ".jpeg" ? "image/jpeg" :
+        extLower === ".png" ? "image/png" :
+        extLower === ".gif" ? "image/gif" :
+        extLower === ".webp" ? "image/webp" :
+        "video/mp4"
+      );
+
+      const { data: videoRecord, error: insertError } = await supabaseAdmin
+        .from("videos")
+        .insert({
+          user_id,
+          title: file_name,
+          file_url: null,
+          media_type: detectedType,
+          video_size: file_size ? parseInt(file_size, 10) : 0,
+        })
+        .select("id, title, file_url, uploaded_at")
+        .single();
+
+      if (insertError || !videoRecord) throw new Error(`Failed to create video record: ${JSON.stringify(insertError)}`);
+
+      const key = `${user_id}/${videoRecord.id}${fileExt}`;
+      const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: key,
+        ContentType: contentType,
+      }), { expiresIn: 600 });
+      const r2Url = `https://${R2_PUBLIC_URL}/${key}`;
+
+      return json({ upload_url: uploadUrl, video_id: videoRecord.id, key, r2_url: r2Url });
+    }
+
     if (action === "delete") {
       const accountIdParam = url.searchParams.get("account_id");
       const fileId = url.searchParams.get("file_id");
