@@ -1573,7 +1573,7 @@ GET /{sourcePageId}/videos/{videoId}?fields=source,description
 ## Current Issues
 - Facebook cross-page transfer — still unimplemented (entry #59)
 - Drive scope migration — users must reconnect accounts
-- CORS on `google-drive-auth` `list-files` — fixed (changed to POST), deploy pending (entry #70)
+- CORS on `google-drive-auth` — all 5 GET actions (`list-files`, `quota`, `create-folder`, `get-token`, `delete`) converted to POST, deploy pending (entry #70)
 
 ---
 
@@ -1681,4 +1681,13 @@ StoragePage already handled pagination correctly (load-more button).
 | `src/pages/UploadPage.tsx` | Drive listing `useEffect` — POST with JSON body |
 | `src/pages/StoragePage.tsx` | `fetchDriveFiles` — POST with JSON body |
 
-**Deploy pending**: Run `npx supabase functions deploy google-drive-auth --no-verify-jwt` manually (requires TTY for login). Code committed at `6d0d50e`.
+**Expanded (2026-07-15)**: Same fix applied to remaining 4 GET actions — `quota`, `create-folder`, `get-token`, `delete` (3 call sites). All now use POST + `body.*` fallbacks in edge function.
+
+| Action | Edge function handler | Frontend callers |
+|--------|-----------------------|------------------|
+| `quota` | `body?.account_id` (L265) | StoragePage fetchDriveQuota |
+| `create-folder` | `body?.account_id/name/parent_id` (L345-347) | StoragePage createDriveFolder |
+| `get-token` | `body?.user_id/account_id` (L383-384) | StoragePage getDriveAccessToken |
+| `delete` | `body?.account_id/file_id` (L535-536) | StoragePage deleteSingleItem, executeDelete, deleteSelectedItems |
+
+**Deploy pending**: Run `npx supabase functions deploy google-drive-auth --no-verify-jwt` manually (requires TTY for login). Commits: `6d0d50e` (list-files), `3e9b206` (quota, create-folder, get-token, delete).
