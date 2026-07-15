@@ -1618,6 +1618,22 @@ GET /{sourcePageId}/videos/{videoId}?fields=source,description
 
 **TypeScript**: `tsc --noEmit` passes with zero errors.
 
+---
+
+### 68. Drive Folder Pagination — All Pages Now Loaded (2026-07-15)
+
+**Problem**: `list-files` returns 50 items per page with a `nextPageToken`. The WorkflowsPage and UploadPage Drive browsers only fetched the first page, hiding files beyond 50.
+
+**Fix**: Both `fetchDriveFolder` (WorkflowsPage) and the Drive listing `useEffect` (UploadPage) now loop through all pages, passing `page_token` from each response until `nextPageToken` is null, then set the complete file list.
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `src/pages/WorkflowsPage.tsx` | `fetchDriveFolder` now paginates — `do/while` loop accumulates all files |
+| `src/pages/UploadPage.tsx` | Same pattern in the Drive listing `useEffect` |
+
+StoragePage already handled pagination correctly (load-more button).
+
 **What was built**: The data layer to support replacing Google Sheets with an in-app workflow editor.
 
 **Files changed**:

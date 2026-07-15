@@ -158,16 +158,27 @@ export default function UploadPage() {
     if (!selectedDriveId || driveTab !== "drive") return;
     (async () => {
       setDriveLoading(true);
-      const { data, error } = await supabase.functions.invoke(
-        `google-drive-auth?action=list-files&account_id=${selectedDriveId}&parent_id=${driveParentId}`,
-        { method: "GET", headers: { Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" } },
-      );
-      if (!error && data) {
-        setDriveFiles(data.files ?? []);
-      } else {
-        console.error("list-files error:", error);
-        toast.error("Failed to list Drive files. Try reconnecting the account.");
-      }
+      let allFiles: any[] = [];
+      let pageToken: string | null = null;
+      let hasError = false;
+
+      do {
+        const url = `google-drive-auth?action=list-files&account_id=${selectedDriveId}&parent_id=${driveParentId}${pageToken ? `&page_token=${pageToken}` : ""}`;
+        const { data, error } = await supabase.functions.invoke(url, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" },
+        });
+        if (error || !data) {
+          console.error("list-files error:", error);
+          toast.error("Failed to list Drive files. Try reconnecting the account.");
+          hasError = true;
+          break;
+        }
+        if (data.files) allFiles = allFiles.concat(data.files);
+        pageToken = data.nextPageToken ?? null;
+      } while (pageToken);
+
+      if (!hasError) setDriveFiles(allFiles);
       setDriveLoading(false);
     })();
   }, [selectedDriveId, driveTab, driveParentId]);
