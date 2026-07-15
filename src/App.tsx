@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SecurityQuestionsGate } from "@/components/SecurityQuestionsGate";
 import LoginPage from "./pages/LoginPage";
@@ -28,6 +28,22 @@ const queryClient = new QueryClient();
 
 const PUBLIC_PATHS = new Set(["/terms", "/privacy", "/auth/callback"]);
 
+function RootRedirect() {
+  const saved = localStorage.getItem("redirectPath");
+  if (saved) {
+    localStorage.removeItem("redirectPath");
+    return <Navigate to={saved} replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
+}
+
+function RequireVerified() {
+  const { isAuthenticated, pendingSecurityVerification } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  if (pendingSecurityVerification) return <Navigate to="/security-questions" replace />;
+  return <Outlet />;
+}
+
 function AppRoutes() {
   const { isAuthenticated, isVerifying, pendingSecurityVerification } = useAuth();
   const location = useLocation();
@@ -48,29 +64,29 @@ function AppRoutes() {
   }
 
   if (!isAuthenticated && !isPublicRoute) {
+    localStorage.setItem("redirectPath", location.pathname + location.search);
     return <LoginPage />;
-  }
-
-  if (isAuthenticated && pendingSecurityVerification) {
-    return <SecurityQuestionsGate />;
   }
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<RootRedirect />} />
+      <Route path="/security-questions" element={<SecurityQuestionsGate />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
-      <Route element={<AppLayout />}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/upload" element={<UploadPage />} />
-        <Route path="/workflows" element={<WorkflowsPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/queue" element={<QueuePage />} />
-        <Route path="/accounts" element={<AccountsPage />} />
-        <Route path="/storage" element={<StoragePage />} />
-        <Route path="/insights" element={<InsightsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
+      <Route element={<RequireVerified />}>
+        <Route element={<AppLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/upload" element={<UploadPage />} />
+          <Route path="/workflows" element={<WorkflowsPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/queue" element={<QueuePage />} />
+          <Route path="/accounts" element={<AccountsPage />} />
+          <Route path="/storage" element={<StoragePage />} />
+          <Route path="/insights" element={<InsightsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+        </Route>
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

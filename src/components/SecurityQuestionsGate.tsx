@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,8 @@ function setStoredToken(token: string | null) {
 }
 
 export function SecurityQuestionsGate() {
-  const { login, logout } = useAuth();
+  const { login, logout, isAuthenticated, pendingSecurityVerification } = useAuth();
+  const navigate = useNavigate();
   const [favTeacher, setFavTeacher] = useState("");
   const [bestNightDate, setBestNightDate] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +32,16 @@ export function SecurityQuestionsGate() {
   useEffect(() => {
     checkAdminQuestions();
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/", { replace: true });
+    } else if (!pendingSecurityVerification) {
+      const saved = localStorage.getItem("redirectPath");
+      localStorage.removeItem("redirectPath");
+      navigate(saved || "/dashboard", { replace: true });
+    }
+  }, [isAuthenticated, pendingSecurityVerification, navigate]);
 
   const checkAdminQuestions = async () => {
     try {

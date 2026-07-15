@@ -38,7 +38,9 @@ export default function LoginPage() {
 
     try {
       await loginWithEmail(email, password);
-      navigate("/dashboard");
+      const saved = localStorage.getItem("redirectPath") || "/dashboard";
+      localStorage.removeItem("redirectPath");
+      navigate(saved, { replace: true });
     } catch (err: any) {
       const msg = err?.message || "Sign in failed";
       setError(msg);

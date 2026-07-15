@@ -9,7 +9,9 @@ export default function AuthCallback() {
 
   useEffect(() => {
     if (!isVerifying && isAuthenticated) {
-      navigate("/dashboard", { replace: true });
+      const saved = localStorage.getItem("redirectPath") || "/dashboard";
+      localStorage.removeItem("redirectPath");
+      navigate(saved, { replace: true });
     }
   }, [isAuthenticated, isVerifying, navigate]);
 
