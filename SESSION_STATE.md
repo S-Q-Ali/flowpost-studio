@@ -1839,3 +1839,13 @@ StoragePage already handled pagination correctly (load-more button).
 1. Run migration (`supabase db push`)
 2. Deploy: `linkedin-auth`, `linkedin-upload`, `process-workflow`, `process-scheduled-posts`
 3. Frontend deploys with Vercel
+
+#### Prerequisites Status (2026-07-15)
+- LinkedIn Developer App created ✅
+- Company page created ✅
+- Client ID + Client Secret ready ✅
+- Redirect URI configured in portal ✅
+- `w_member_social` scope — pending **app review** (blocker for posting)
+- `LINKEDIN_CLIENT_ID` and `LINKEDIN_CLIENT_SECRET` — not yet set as Supabase secrets
+
+#### Implementation Ready to Start
