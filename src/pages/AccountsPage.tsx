@@ -19,6 +19,7 @@ export default function AccountsPage() {
   const [isFacebookConnecting, setIsFacebookConnecting] = useState(false);
   const [reconnectingFacebookId, setReconnectingFacebookId] = useState<string | null>(null);
   const [isTikTokConnecting, setIsTikTokConnecting] = useState(false);
+  const [isLinkedInConnecting, setIsLinkedInConnecting] = useState(false);
   const [isDriveConnecting, setIsDriveConnecting] = useState(false);
   const [reconnectingDriveId, setReconnectingDriveId] = useState<string | null>(null);
   const [isMegaConnecting, setIsMegaConnecting] = useState(false);
@@ -30,6 +31,7 @@ export default function AccountsPage() {
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [youtubeConnectedAccounts, setYoutubeConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
+  const [linkedinAccounts, setLinkedinAccounts] = useState<ConnectedAccount[]>([]);
   const [driveAccounts, setDriveAccounts] = useState<ConnectedAccount[]>([]);
   const [megaAccounts, setMegaAccounts] = useState<ConnectedAccount[]>([]);
   const [megaFiles, setMegaFiles] = useState<Record<string, { name: string; size: number }[]>>({});
@@ -144,10 +146,28 @@ export default function AccountsPage() {
     return list;
   };
 
+  const fetchLinkedIn = async (): Promise<ConnectedAccount[]> => {
+    const { data, error } = await supabase
+      .from("connected_accounts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("platform", "linkedin")
+      .eq("is_connected", true);
+
+    if (error) {
+      toast.error(error.message);
+      return [];
+    }
+
+    const list = (data as ConnectedAccount[]) ?? [];
+    setLinkedinAccounts(list);
+    return list;
+  };
+
   const [searchParams, setSearchParams] = useSearchParams();
 
   const refreshAll = async () => {
-    await Promise.all([fetchFacebook(), fetchInstagram(), fetchYouTube(), fetchTikTok(), fetchDrive(), fetchMega()]);
+    await Promise.all([fetchFacebook(), fetchInstagram(), fetchYouTube(), fetchTikTok(), fetchLinkedIn(), fetchDrive(), fetchMega()]);
   };
 
   useEffect(() => {
@@ -459,6 +479,67 @@ export default function AccountsPage() {
     }
   };
 
+  const connectLinkedIn = async () => {
+    setIsLinkedInConnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("linkedin-auth", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+        body: { action: "url", userId },
+      });
+
+      if (error) throw new Error(error.message || "Failed to start LinkedIn OAuth");
+      if (!data?.url) throw new Error("Missing OAuth URL");
+
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const channel = supabase
+        .channel("linkedin-connected")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "connected_accounts",
+            filter: "platform=eq.linkedin",
+          },
+          () => {
+            clearTimeout(timeoutId);
+            channel.unsubscribe();
+            fetchLinkedIn();
+            toast.success("LinkedIn connected!");
+            setIsLinkedInConnecting(false);
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "connected_accounts",
+            filter: "platform=eq.linkedin",
+          },
+          () => {
+            clearTimeout(timeoutId);
+            channel.unsubscribe();
+            fetchLinkedIn();
+            toast.success("LinkedIn connected!");
+            setIsLinkedInConnecting(false);
+          },
+        )
+        .subscribe();
+
+      timeoutId = setTimeout(() => {
+        channel.unsubscribe();
+        setIsLinkedInConnecting(false);
+      }, 5 * 60 * 1000);
+
+      window.open(data.url, "linkedin-auth", "width=600,height=700,scrollbars=yes");
+    } catch (e: any) {
+      toast.error(e.message || "LinkedIn connection failed");
+      setIsLinkedInConnecting(false);
+    }
+  };
+
   const connectDrive = async () => {
     setIsDriveConnecting(true);
     try {
@@ -657,6 +738,24 @@ export default function AccountsPage() {
     fetchTikTok();
   };
 
+  const disconnectLinkedIn = async (accountId: string | null | undefined) => {
+    if (!accountId) return;
+    const { error } = await supabase
+      .from("connected_accounts")
+      .update({ is_connected: false })
+      .eq("user_id", userId)
+      .eq("platform", "linkedin")
+      .eq("account_id", accountId);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("LinkedIn disconnected");
+    fetchLinkedIn();
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -828,6 +927,58 @@ export default function AccountsPage() {
                     </>
                   ) : (
                     "Connect TikTok Account"
+                  )}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* LinkedIn */}
+        <Card className="bg-card border-border shadow-card">
+          <CardContent className="flex items-center justify-between py-5">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+                <PlatformIcon platform="linkedin" size={24} />
+              </div>
+              <div>
+                <h3 className="font-medium text-foreground">LinkedIn <BetaBadge /></h3>
+                <p className="text-xs text-muted-foreground">
+                  {linkedinAccounts.length > 0 ? `${linkedinAccounts[0].account_name ?? "Connected"}` : "Not connected"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge
+                variant="outline"
+                className={linkedinAccounts.length > 0
+                  ? "bg-status-published/20 text-status-published border-status-published/30"
+                  : "bg-secondary text-muted-foreground border-border"}
+              >
+                {linkedinAccounts.length > 0 ? "Connected" : "Not Connected"}
+              </Badge>
+              {linkedinAccounts.length > 0 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => disconnectLinkedIn(linkedinAccounts[0].account_id)}
+                >
+                  Disconnect
+                </Button>
+              ) : (
+                <Button
+                  className="gradient-primary text-primary-foreground"
+                  size="sm"
+                  onClick={connectLinkedIn}
+                  disabled={isLinkedInConnecting}
+                >
+                  {isLinkedInConnecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting…
+                    </>
+                  ) : (
+                    "Connect LinkedIn Account"
                   )}
                 </Button>
               )}

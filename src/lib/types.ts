@@ -1,4 +1,4 @@
-export type Platform = 'facebook' | 'instagram' | 'youtube' | 'tiktok';
+export type Platform = 'facebook' | 'instagram' | 'youtube' | 'tiktok' | 'linkedin';
 export type PostStatus = 'scheduled' | 'processing' | 'published' | 'failed';
 
 export interface Video {
@@ -42,6 +42,7 @@ export interface Workflow {
   facebook_page_ids: string[] | null;
   instagram_account_ids: string[] | null;
   tiktok_account_ids: string[] | null;
+  linkedin_account_ids: string[] | null;
   run_interval_hours: number | null;
   videos_per_run: number | null;
   run_days: number[] | null;
@@ -70,6 +71,7 @@ export interface WorkflowItem {
   yt_video_description: string | null;
   fb_ig_caption: string | null;
   tiktok_caption: string | null;
+  linkedin_caption: string | null;
   platforms_override: string[] | null;
   sort_order: number | null;
   created_at: string;

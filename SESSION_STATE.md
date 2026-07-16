@@ -1795,57 +1795,46 @@ StoragePage already handled pagination correctly (load-more button).
 
 ---
 
-### 75. LinkedIn Integration — Implementation Plan (2026-07-15)
+### 75. LinkedIn Integration — Implementation Complete (2026-07-16)
 
-**Goal**: Add LinkedIn posting support (personal profiles + company pages).
+**Goal**: Add LinkedIn posting support (personal profiles + company pages). Implementation done.
 
-#### Files to Create (2)
-| File | Purpose |
-|------|---------|
-| `supabase/functions/linkedin-auth/index.ts` | OAuth flow — `url`, `callback`, `refresh` actions. Fetches user info + org pages, upserts into `connected_accounts` |
-| `supabase/functions/linkedin-upload/index.ts` | Asset registration → video/image upload to presigned URL → create UGC post |
+**What was built:**
+| Layer | Files | Status |
+|-------|-------|--------|
+| Migration | `20260716000000_add_linkedin_support.sql` — CHECK constraints, `linkedin_account_ids` on workflows, `linkedin_caption` on workflow_items | ✅ |
+| Types | `Platform` union, `Workflow.linkedin_account_ids`, `WorkflowItem.linkedin_caption` | ✅ |
+| PlatformIcon | `Linkedin` from lucide-react, `text-linkedin` color class | ✅ |
+| CSS/Tailwind | `--linkedin` HSL (211 72% 45%), `linkedin` color token | ✅ |
+| Config | `linkedin-auth` + `linkedin-upload` in `supabase/config.toml` | ✅ |
+| Edge: linkedin-auth | OAuth URL generation, code exchange, profile fetch, upsert | ✅ |
+| Edge: linkedin-upload | Register upload → upload binary → create post via `/rest/posts` | ✅ |
+| Edge: process-workflow | `normalizePlatform`, synthetic headers, account resolution, post creation, upload dispatch | ✅ |
+| Edge: process-scheduled-posts | `linkedin` → `linkedin-upload` routing | ✅ |
+| AccountsPage | fetch/connect/disconnect with Realtime subscription, UI card + BetaBadge | ✅ |
+| UploadPage | Platform toggle, account selector, caption field, validation, upload dispatch | ✅ |
+| WorkflowsPage | Platform options, account selector, save/load `linkedin_account_ids` | ✅ |
+| WorkflowItemsPage | `linkedin_caption` column, PLATFORM_LABEL/COLOR entries | ✅ |
 
-#### Files to Modify (11)
+**Blocked (post-deploy):**
+- `w_member_social` / `w_organization_social` require **LinkedIn Partner Program approval**
+- `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` not yet set as Supabase secrets
 
-| File | What to change |
-|------|----------------|
-| `supabase/migrations/20260716000000_add_linkedin_support.sql` | **NEW:** Update CHECK constraints on `connected_accounts`, `posts`, `workflows` (add `'linkedin'` + fix missing `'tiktok'`); add `linkedin_account_ids TEXT[]` to `workflows`; add `linkedin_caption TEXT` to `workflow_items` |
-| `src/lib/types.ts` | `Platform` union add `'linkedin'`; `Workflow` add `linkedin_account_ids`; `WorkflowItem` add `linkedin_caption` |
-| `src/components/PlatformIcon.tsx` | Add `LinkedInIcon` SVG + `linkedin` entry in config map |
-| `supabase/config.toml` | Add `[functions.linkedin-auth]` and `[functions.linkedin-upload]` with `verify_jwt = false` |
-| `supabase/functions/process-workflow/index.ts` | 5 changes: normalizePlatform, account resolution, post creation block, upload routing, synthetic sheet |
-| `supabase/functions/process-scheduled-posts/index.ts` | Add `'linkedin'` case to platform routing |
-| `src/pages/AccountsPage.tsx` | LinkedIn section: connect button, account list, disconnect |
-| `src/pages/UploadPage.tsx` | LinkedIn checkbox + account selector + caption input |
-| `src/pages/WorkflowsPage.tsx` | LinkedIn platform selector in Step 2 + payload + card display |
-| `src/integrations/supabase/types.ts` | Auto-generated types — regenerate after migration |
+**Deploy Order:**
+1. `npx supabase functions deploy linkedin-auth linkedin-upload --no-verify-jwt`
+2. `supabase secrets set LINKEDIN_CLIENT_ID=... LINKEDIN_CLIENT_SECRET=...`
+3. `npx supabase db push`
+4. Submit LinkedIn app review for `w_member_social` scope
+5. Vercel deploy (auto)
 
-#### LinkedIn API Details
+**API Details:**
 | Aspect | Detail |
 |--------|--------|
 | OAuth endpoint | `https://www.linkedin.com/oauth/v2/authorization` |
 | Token endpoint | `https://www.linkedin.com/oauth/v2/accessToken` |
-| API base | `https://api.linkedin.com/rest/posts` (versioned, header `LinkedIn-Version: YYYYMM`) |
-| Scopes | `w_member_social` (profile), `w_organization_social` (pages), `openid`, `profile`, `email` |
-| Token lifetime | Access: 60 days, Refresh: 365 days (MDP partnership required) |
-| Video upload | 2-step: `POST /rest/assets?action=registerUpload` → put bytes to presigned URL → `POST /rest/posts` with `content.media.id` |
-| Rate limits | 100 posts/user/day, 100K calls/app/day |
-| Post type | Feed only (no stories) |
-
-#### Blocker
-`w_member_social` and `w_organization_social` require **LinkedIn Partner Program approval** — same class as TikTok app review. OAuth + account listing works with auto-approved scopes; posting returns 403 until approved.
-
-#### Deploy Order
-1. Run migration (`supabase db push`)
-2. Deploy: `linkedin-auth`, `linkedin-upload`, `process-workflow`, `process-scheduled-posts`
-3. Frontend deploys with Vercel
-
-#### Prerequisites Status (2026-07-15)
-- LinkedIn Developer App created ✅
-- Company page created ✅
-- Client ID + Client Secret ready ✅
-- Redirect URI configured in portal ✅
-- `w_member_social` scope — pending **app review** (blocker for posting)
-- `LINKEDIN_CLIENT_ID` and `LINKEDIN_CLIENT_SECRET` — not yet set as Supabase secrets
-
-#### Implementation Ready to Start
+| API | `POST /rest/posts` with `LinkedIn-Version: 202412` header |
+| Scopes | `w_member_social` (profile), `openid profile email` |
+| Video upload | 3-step: register → upload binary to presigned URL → create post referencing asset URN |
+| Token lifetime | Access: 60 days, Refresh: 365 days (MDP partnership) |
+| Rate limits | 100 posts/user/day, 100K calls/day |
+| Post type | Feed only (no stories, no reels) |

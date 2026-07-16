@@ -29,6 +29,7 @@ const platforms: { id: Platform; label: string }[] = [
   { id: "instagram", label: "Instagram Reels" },
   { id: "youtube", label: "YouTube Shorts" },
   { id: "tiktok", label: "TikTok" },
+  { id: "linkedin", label: "LinkedIn" },
 ];
 
 export default function UploadPage() {
@@ -41,6 +42,7 @@ export default function UploadPage() {
   const [instagramCaption, setInstagramCaption] = useState("");
   const [facebookCaption, setFacebookCaption] = useState("");
   const [tiktokCaption, setTiktokCaption] = useState("");
+  const [linkedinCaption, setLinkedinCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
@@ -48,11 +50,13 @@ export default function UploadPage() {
   const [selectedFacebookPageIds, setSelectedFacebookPageIds] = useState<string[]>([]);
   const [selectedInstagramAccountIds, setSelectedInstagramAccountIds] = useState<string[]>([]);
   const [selectedTikTokAccountIds, setSelectedTikTokAccountIds] = useState<string[]>([]);
+  const [selectedLinkedInAccountIds, setSelectedLinkedInAccountIds] = useState<string[]>([]);
   const [youtubeAccounts, setYoutubeAccounts] = useState<ConnectedAccount[]>([]);
   const [youtubeQuota, setYoutubeQuota] = useState<{ used: number; percentage: number; uploadCount: number; estimatedUploadsRemaining: number } | null>(null);
   const [facebookAccounts, setFacebookAccounts] = useState<ConnectedAccount[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
+  const [linkedinAccounts, setLinkedinAccounts] = useState<ConnectedAccount[]>([]);
   const [publishMode, setPublishMode] = useState<"now" | "schedule">("now");
   const getDefaultScheduleDate = () => {
     const date = new Date();
@@ -108,10 +112,18 @@ export default function UploadPage() {
         .eq("platform", "tiktok")
         .eq("is_connected", true);
 
+      const { data: li } = await supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("platform", "linkedin")
+        .eq("is_connected", true);
+
       setYoutubeAccounts((yt as ConnectedAccount[]) ?? []);
       setFacebookAccounts((fb as ConnectedAccount[]) ?? []);
       setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
       setTiktokAccounts((tt as ConnectedAccount[]) ?? []);
+      setLinkedinAccounts((li as ConnectedAccount[]) ?? []);
 
       const { data: drives } = await supabase
         .from("connected_accounts")
@@ -195,6 +207,7 @@ export default function UploadPage() {
       if (p === "facebook" && !next.includes("facebook")) setSelectedFacebookPageIds([]);
       if (p === "instagram" && !next.includes("instagram")) setSelectedInstagramAccountIds([]);
       if (p === "tiktok" && !next.includes("tiktok")) setSelectedTikTokAccountIds([]);
+      if (p === "linkedin" && !next.includes("linkedin")) setSelectedLinkedInAccountIds([]);
       return next;
     });
   };
@@ -219,6 +232,12 @@ export default function UploadPage() {
 
   const toggleTikTokAccount = (accountId: string) => {
     setSelectedTikTokAccountIds((prev) =>
+      prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
+    );
+  };
+
+  const toggleLinkedInAccount = (accountId: string) => {
+    setSelectedLinkedInAccountIds((prev) =>
       prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
     );
   };
@@ -382,6 +401,11 @@ export default function UploadPage() {
         toast.error("Select a TikTok account");
         return;
       }
+      const linkedinSelected = selectedPlatforms.includes("linkedin");
+      if (linkedinSelected && selectedLinkedInAccountIds.length === 0) {
+        toast.error("Select a LinkedIn account");
+        return;
+      }
       const videoId = selectedVideoId;
 
       const isPublishNow = publishMode === "now";
@@ -510,6 +534,33 @@ export default function UploadPage() {
               captions_enabled: captionsEnabled,
             });
           }
+        } else if (platform === "linkedin") {
+          for (const accountId of selectedLinkedInAccountIds) {
+            const { data: existing } = await supabase
+              .from("posts")
+              .select("id")
+              .eq("video_id", videoId)
+              .eq("platform", platform)
+              .eq("account_id", accountId)
+              .eq("status", "scheduled")
+              .maybeSingle();
+            if (existing) {
+              console.log("Post already exists, skipping", { videoId, platform, accountId });
+              continue;
+            }
+            const platformCaption = linkedinCaption.trim() || null;
+            posts.push({
+              user_id: userId,
+              video_id: videoId,
+              platform: "linkedin",
+              account_id: accountId,
+              caption: platformCaption,
+              hashtags,
+              scheduled_at: scheduledAt,
+              status: isPublishNow ? "processing" : "scheduled",
+              captions_enabled: captionsEnabled,
+            });
+          }
         }
       }
 
@@ -577,6 +628,8 @@ export default function UploadPage() {
           insertedPosts.filter((p: any) => p.platform === "instagram" && p.post_type === "story") ?? [];
         const tiktokPosts =
           insertedPosts.filter((p: any) => p.platform === "tiktok") ?? [];
+        const linkedinPosts =
+          insertedPosts.filter((p: any) => p.platform === "linkedin") ?? [];
 
         if (youtubePosts.length > 0) {
           toast.info("Uploading to YouTube...");
@@ -658,13 +711,39 @@ export default function UploadPage() {
           }
         }
 
+        if (linkedinPosts.length > 0) {
+          toast.info("Posting to LinkedIn...");
+          let allOk = true;
+          for (const post of linkedinPosts) {
+            const res = await fetch(
+              `${supabaseUrl}/functions/v1/linkedin-upload`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${anonKey}`,
+                  apikey: anonKey,
+                },
+                body: JSON.stringify({ postId: post.id }),
+              },
+            );
+            if (!res.ok) {
+              allOk = false;
+            }
+          }
+          if (!allOk) {
+            toast.error("Some LinkedIn uploads failed, check Queue");
+          }
+        }
+
         if (
           youtubePosts.length > 0 ||
           facebookFeedPosts.length > 0 ||
           facebookStoryPosts.length > 0 ||
           instagramFeedPosts.length > 0 ||
           instagramStoryPosts.length > 0 ||
-          tiktokPosts.length > 0
+          tiktokPosts.length > 0 ||
+          linkedinPosts.length > 0
         ) {
           toast.success("Video publishing triggered!");
         }
@@ -905,6 +984,7 @@ export default function UploadPage() {
                 <Checkbox checked={selectedPlatforms.includes(p.id)} onCheckedChange={() => togglePlatform(p.id)} />
                 <span className="text-sm text-foreground">{p.label}</span>
                 {p.id === "tiktok" && <BetaBadge />}
+                {p.id === "linkedin" && <BetaBadge />}
               </label>
               {p.id === "youtube" && selectedPlatforms.includes("youtube") && (
                 <div className="ml-6 mt-2 space-y-2">
@@ -998,6 +1078,27 @@ export default function UploadPage() {
                         />
                         <span className="text-sm text-foreground">
                           {acc.account_name ?? "TikTok"} ({acc.account_id})
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+              {p.id === "linkedin" && selectedPlatforms.includes("linkedin") && (
+                <div className="ml-6 mt-2 space-y-2">
+                  {linkedinAccounts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No LinkedIn account connected. Connect in Accounts.
+                    </p>
+                  ) : (
+                    linkedinAccounts.map((acc) => (
+                      <label key={acc.id} className="flex items-center gap-3 cursor-pointer">
+                        <Checkbox
+                          checked={selectedLinkedInAccountIds.includes(acc.account_id ?? "")}
+                          onCheckedChange={() => toggleLinkedInAccount(acc.account_id ?? "")}
+                        />
+                        <span className="text-sm text-foreground">
+                          {acc.account_name ?? "LinkedIn"} ({acc.account_id})
                         </span>
                       </label>
                     ))
@@ -1105,6 +1206,25 @@ export default function UploadPage() {
                     placeholder="Caption for TikTok"
                     value={tiktokCaption}
                     onChange={(e) => setTiktokCaption(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedPlatforms.includes("linkedin") && (
+              <div className="space-y-3 border border-border/60 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <PlatformIcon platform="linkedin" size={16} />
+                  <span className="text-sm font-medium text-foreground">LinkedIn</span>
+                </div>
+                <div className="space-y-2">
+                  <Label>LinkedIn Caption (optional)</Label>
+                  <Textarea
+                    placeholder="Caption for LinkedIn post"
+                    value={linkedinCaption}
+                    onChange={(e) => setLinkedinCaption(e.target.value)}
                     rows={4}
                     className="resize-none"
                   />

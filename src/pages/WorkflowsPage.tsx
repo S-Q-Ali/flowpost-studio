@@ -49,6 +49,7 @@ type WorkflowRow = {
   facebook_page_ids: string[] | null;
   instagram_account_ids: string[] | null;
   tiktok_account_ids: string[] | null;
+  linkedin_account_ids: string[] | null;
   youtube_altered_content: boolean | null;
   post_as_story: boolean | null;
   max_videos_per_trigger: number | null;
@@ -92,6 +93,7 @@ const platformOptions: { id: Platform; label: string; icon: React.ComponentType<
   { id: "facebook", label: "Facebook Page", icon: Facebook, color: "text-blue-500" },
   { id: "instagram", label: "Instagram Reels", icon: Instagram, color: "text-pink-500" },
   { id: "tiktok", label: "TikTok", icon: TikTokWorkflowIcon, color: "text-foreground" },
+  { id: "linkedin", label: "LinkedIn", icon: TikTokWorkflowIcon, color: "text-linkedin" },
 ];
 
 export default function WorkflowsPage() {
@@ -102,6 +104,7 @@ export default function WorkflowsPage() {
   const [facebookAccounts, setFacebookAccounts] = useState<ConnectedAccount[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
+  const [linkedinAccounts, setLinkedinAccounts] = useState<ConnectedAccount[]>([]);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("create");
@@ -117,6 +120,7 @@ export default function WorkflowsPage() {
   const [selectedFacebookIds, setSelectedFacebookIds] = useState<string[]>([]);
   const [selectedInstagramIds, setSelectedInstagramIds] = useState<string[]>([]);
   const [selectedTiktokIds, setSelectedTiktokIds] = useState<string[]>([]);
+  const [selectedLinkedinIds, setSelectedLinkedinIds] = useState<string[]>([]);
   const [runIntervalHours, setRunIntervalHours] = useState<number>(1);
   const [videosPerRun, setVideosPerRun] = useState<number>(1);
   const [runDays, setRunDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
@@ -154,7 +158,7 @@ export default function WorkflowsPage() {
   };
 
   const loadAccounts = async () => {
-    const [{ data: yt }, { data: fb }, { data: ig }, { data: tt }, { data: gd }] = await Promise.all([
+    const [{ data: yt }, { data: fb }, { data: ig }, { data: tt }, { data: li }, { data: gd }] = await Promise.all([
       supabase
         .from("connected_accounts")
         .select("*")
@@ -181,6 +185,12 @@ export default function WorkflowsPage() {
         .eq("is_connected", true),
       supabase
         .from("connected_accounts")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("platform", "linkedin")
+        .eq("is_connected", true),
+      supabase
+        .from("connected_accounts")
         .select("id, account_name, account_id, metadata")
         .eq("user_id", userId)
         .eq("platform", "google_drive")
@@ -191,6 +201,7 @@ export default function WorkflowsPage() {
     setFacebookAccounts((fb as ConnectedAccount[]) ?? []);
     setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
     setTiktokAccounts((tt as ConnectedAccount[]) ?? []);
+    setLinkedinAccounts((li as ConnectedAccount[]) ?? []);
     setDriveAccounts((gd ?? []) as any[]);
   };
 
@@ -263,6 +274,7 @@ export default function WorkflowsPage() {
     setSelectedFacebookIds(wf.facebook_page_ids ?? []);
     setSelectedInstagramIds(wf.instagram_account_ids ?? []);
     setSelectedTiktokIds(wf.tiktok_account_ids ?? []);
+    setSelectedLinkedinIds(wf.linkedin_account_ids ?? []);
     setRunIntervalHours(wf.run_interval_hours ?? 1);
     setVideosPerRun(wf.videos_per_run ?? 1);
     setRunDays(wf.run_days ?? [0, 1, 2, 3, 4, 5, 6]);
@@ -402,6 +414,7 @@ export default function WorkflowsPage() {
         facebook_page_ids: selectedFacebookIds,
         instagram_account_ids: selectedInstagramIds,
         tiktok_account_ids: selectedTiktokIds,
+        linkedin_account_ids: selectedLinkedinIds,
         youtube_altered_content: youtubeAlteredContent,
         post_as_story: postAsStory,
         run_interval_hours: runIntervalHours,
@@ -695,6 +708,7 @@ export default function WorkflowsPage() {
                       <Icon className={cn("h-4 w-4", color)} />
                       <span className="text-sm text-foreground">{label}</span>
                       {id === "tiktok" && <BetaBadge />}
+                      {id === "linkedin" && <BetaBadge />}
                     </div>
                   </label>
                   {selected && id === "youtube" && (
@@ -811,6 +825,36 @@ export default function WorkflowsPage() {
                             />
                             <span className="text-foreground">
                               {acc.account_name ?? "TikTok"} ({acc.account_id})
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {selected && id === "linkedin" && (
+                    <div className="pl-6 sm:pl-7 space-y-1">
+                      {linkedinAccounts.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No LinkedIn account connected. Connect one in Accounts.
+                        </p>
+                      ) : (
+                        linkedinAccounts.map((acc) => (
+                          <label
+                            key={acc.id}
+                            className="flex items-center gap-2 cursor-pointer text-xs"
+                          >
+                            <Checkbox
+                              checked={selectedLinkedinIds.includes(acc.account_id ?? "")}
+                              onCheckedChange={() =>
+                                toggleAccount(
+                                  selectedLinkedinIds,
+                                  setSelectedLinkedinIds,
+                                  acc.account_id ?? "",
+                                )
+                              }
+                            />
+                            <span className="text-foreground">
+                              {acc.account_name ?? "LinkedIn"} ({acc.account_id})
                             </span>
                           </label>
                         ))

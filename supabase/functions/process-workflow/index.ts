@@ -57,12 +57,13 @@ function parseList(value: string | undefined | null): string[] {
     .filter(Boolean);
 }
 
-function normalizePlatform(p: string): "youtube" | "facebook" | "instagram" | "tiktok" | null {
+function normalizePlatform(p: "youtube" | "facebook" | "instagram" | "tiktok" | "linkedin"): "youtube" | "facebook" | "instagram" | "tiktok" | "linkedin" | null {
   const v = p.toLowerCase();
   if (v === "youtube") return "youtube";
   if (v === "facebook") return "facebook";
   if (v === "instagram") return "instagram";
   if (v === "tiktok") return "tiktok";
+  if (v === "linkedin") return "linkedin";
   return null;
 }
 
@@ -335,7 +336,7 @@ Deno.serve(async (req) => {
       const isImageWorkflow = (wf as any).media_type === "image";
       const urlCol = isImageWorkflow ? "image_url" : "video_url";
       const fbCaptionCol = isImageWorkflow ? "image_fb_ig_caption" : "fb_ig_caption";
-      const headerRow = [urlCol, "title", "yt_video_title", "yt_video_description", fbCaptionCol, "tiktok_caption", "platforms", "status"];
+      const headerRow = [urlCol, "title", "yt_video_title", "yt_video_description", fbCaptionCol, "tiktok_caption", "linkedin_caption", "platforms", "status"];
       const dataRows = items.map((item, idx) => {
         const rowIndex = idx + 2;
         workflowItemIdByRowIndex[rowIndex] = item.id;
@@ -346,6 +347,7 @@ Deno.serve(async (req) => {
           item.yt_video_description ?? "",
           item.fb_ig_caption ?? "",
           item.tiktok_caption ?? "",
+          item.linkedin_caption ?? "",
           (item.platforms_override ?? []).join(","),
           "ready to post",
         ];
@@ -417,6 +419,7 @@ Deno.serve(async (req) => {
     const ytChannelsIdx = headerIndex["youtube_channels"];
     const fbPagesIdx = headerIndex["facebook_pages"];
     const tiktokCaptionIdx = headerIndex["tiktok_caption"];
+    const linkedinCaptionIdx = headerIndex["linkedin_caption"];
 
     if (urlIdx === undefined || statusIdx === undefined) {
       errors.push(`Sheet for workflow ${wf.id} is missing required columns (${urlColumn}/status)`);
@@ -572,17 +575,17 @@ Deno.serve(async (req) => {
         }
 
         // Determine platforms
-        let platforms: ("youtube" | "facebook" | "instagram" | "tiktok")[] = [];
+        let platforms: ("youtube" | "facebook" | "instagram" | "tiktok" | "linkedin")[] = [];
         const rowPlatformsRaw = platformsIdx !== undefined ? row[platformsIdx] : "";
         if (rowPlatformsRaw) {
           const parsed = parseList(rowPlatformsRaw)
             .map(normalizePlatform)
-            .filter((p): p is "youtube" | "facebook" | "instagram" | "tiktok" => !!p);
+            .filter((p): p is "youtube" | "facebook" | "instagram" | "tiktok" | "linkedin" => !!p);
           platforms = parsed;
         } else if (Array.isArray(wf.platforms)) {
           const parsed = (wf.platforms as string[])
             .map(normalizePlatform)
-            .filter((p): p is "youtube" | "facebook" | "instagram" | "tiktok" => !!p);
+            .filter((p): p is "youtube" | "facebook" | "instagram" | "tiktok" | "linkedin" => !!p);
           platforms = parsed;
         }
 
@@ -598,6 +601,7 @@ Deno.serve(async (req) => {
         const fbAccounts = rowFbPages.length ? rowFbPages : (wf.facebook_page_ids ?? []);
         const igAccounts = wf.instagram_account_ids ?? [];
         const ttAccounts = (wf as any).tiktok_account_ids ?? [];
+        const liAccounts = (wf as any).linkedin_account_ids ?? [];
 
         if (isImageWorkflow) {
           platforms = platforms.filter((p) => p !== "youtube" && p !== "tiktok");
@@ -667,6 +671,22 @@ Deno.serve(async (req) => {
                 platform: "tiktok",
                 account_id: accountId,
                 caption: ttCaption,
+                hashtags: null,
+                scheduled_at: nowIso,
+                status: "processing",
+                captions_enabled: true,
+              });
+              slotIndex++;
+            }
+          } else if (p === "linkedin") {
+            for (const accountId of liAccounts) {
+              const liCaption = linkedinCaptionIdx !== undefined && row[linkedinCaptionIdx] ? row[linkedinCaptionIdx] : "";
+              postsPayload.push({
+                user_id: currentUserId,
+                video_id: videoRecord.id,
+                platform: "linkedin",
+                account_id: accountId,
+                caption: liCaption,
                 hashtags: null,
                 scheduled_at: nowIso,
                 status: "processing",
@@ -768,6 +788,16 @@ Deno.serve(async (req) => {
             });
           } else if (post.platform === "tiktok") {
             void fetch(`${SUPABASE_URL}/functions/v1/tiktok-upload`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                apikey: SUPABASE_SERVICE_ROLE_KEY!,
+              },
+              body: JSON.stringify(body),
+            });
+          } else if (post.platform === "linkedin") {
+            void fetch(`${SUPABASE_URL}/functions/v1/linkedin-upload`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",

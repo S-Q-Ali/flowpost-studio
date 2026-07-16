@@ -1,4 +1,4 @@
-import { Facebook, Instagram, Youtube } from "lucide-react";
+import { Facebook, Instagram, Youtube, Linkedin } from "lucide-react";
 import type { Platform } from "@/lib/types";
 
 const TikTokIcon = ({ size = 16, className = "" }: { size?: number; className?: string }) => (
@@ -20,6 +20,7 @@ const config = {
   instagram: { icon: Instagram, className: "text-instagram", label: "Instagram" },
   youtube: { icon: Youtube, className: "text-youtube", label: "YouTube" },
   tiktok: { icon: TikTokIcon, className: "text-tiktok", label: "TikTok" },
+  linkedin: { icon: Linkedin, className: "text-linkedin", label: "LinkedIn" },
 } as const;
 
 export function PlatformIcon({ platform, size = 16 }: { platform: Platform; size?: number }) {

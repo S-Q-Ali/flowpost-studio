@@ -62,3 +62,9 @@ verify_jwt = false
 
 [functions.transfer-ticket]
 verify_jwt = false
+
+[functions.linkedin-auth]
+verify_jwt = false
+
+[functions.linkedin-upload]
+verify_jwt = false

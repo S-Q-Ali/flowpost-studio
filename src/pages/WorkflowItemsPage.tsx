@@ -27,12 +27,14 @@ const PLATFORM_LABEL: Record<string, string> = {
   facebook: "FB",
   instagram: "IG",
   tiktok: "TT",
+  linkedin: "LI",
 };
 const PLATFORM_COLOR: Record<string, string> = {
   youtube: "bg-red-500/10 text-red-600 border-red-500/30",
   facebook: "bg-blue-500/10 text-blue-600 border-blue-500/30",
   instagram: "bg-pink-500/10 text-pink-600 border-pink-500/30",
   tiktok: "bg-foreground/10 text-foreground border-foreground/30",
+  linkedin: "bg-blue-700/10 text-blue-700 border-blue-700/30",
 };
 
 const statusBadge: Record<string, { label: string; className: string }> = {
@@ -439,6 +441,7 @@ export default function WorkflowItemsPage() {
                 <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[180px]">YT Description</th>
                 <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[180px]">FB/IG Caption</th>
                 <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[140px]">TikTok Caption</th>
+                <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[140px]">LinkedIn Caption</th>
                 <th className="p-2 text-left text-xs text-muted-foreground font-medium w-24">Platforms</th>
                 <th className="w-24 p-2 text-left text-xs text-muted-foreground font-medium">Actions</th>
               </tr>
@@ -508,6 +511,15 @@ export default function WorkflowItemsPage() {
                         value={getField(item, "tiktok_caption") ?? ""}
                         onChange={(e) => updateLocal(item.id, "tiktok_caption", e.target.value || null)}
                         placeholder="TikTok caption"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Textarea
+                        className="h-8 text-xs min-h-0 resize-none"
+                        rows={1}
+                        value={getField(item, "linkedin_caption") ?? ""}
+                        onChange={(e) => updateLocal(item.id, "linkedin_caption", e.target.value || null)}
+                        placeholder="LinkedIn caption"
                       />
                     </td>
                     <td className="p-2">

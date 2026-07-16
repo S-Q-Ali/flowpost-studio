@@ -319,6 +319,7 @@ export type Database = {
           fb_ig_caption: string | null
           tiktok_caption: string | null
           platforms_override: string[] | null
+          linkedin_caption: string | null
           sort_order: number | null
           created_at: string
           posted_at: string | null
@@ -336,6 +337,7 @@ export type Database = {
           fb_ig_caption?: string | null
           tiktok_caption?: string | null
           platforms_override?: string[] | null
+          linkedin_caption?: string | null
           sort_order?: number | null
           created_at?: string
           posted_at?: string | null
@@ -353,6 +355,7 @@ export type Database = {
           fb_ig_caption?: string | null
           tiktok_caption?: string | null
           platforms_override?: string[] | null
+          linkedin_caption?: string | null
           sort_order?: number | null
           created_at?: string
           posted_at?: string | null
@@ -382,6 +385,7 @@ export type Database = {
           sheet_id: string | null
           sheet_url: string | null
           tiktok_account_ids: string[] | null
+          linkedin_account_ids: string[] | null
           total_posted: number | null
           trigger_hour_end: number
           trigger_hour_start: number
@@ -420,6 +424,7 @@ export type Database = {
           sheet_id?: string | null
           sheet_url?: string | null
           tiktok_account_ids?: string[] | null
+          linkedin_account_ids?: string[] | null
           total_posted?: number | null
           trigger_hour_end?: number
           trigger_hour_start?: number
@@ -455,6 +460,7 @@ export type Database = {
           sheet_id?: string | null
           sheet_url?: string | null
           tiktok_account_ids?: string[] | null
+          linkedin_account_ids?: string[] | null
           total_posted?: number | null
           trigger_hour_end?: number
           trigger_hour_start?: number
