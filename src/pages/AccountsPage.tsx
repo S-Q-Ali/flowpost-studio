@@ -273,7 +273,7 @@ export default function AccountsPage() {
         setIsYouTubeConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "_blank");
+      window.open(data.url, "youtube-auth", "width=600,height=700,scrollbars=yes");
     } catch (e: any) {
       toast.error(e.message || "YouTube connection failed");
       setIsYouTubeConnecting(false);
@@ -333,7 +333,7 @@ export default function AccountsPage() {
         setIsFacebookConnecting(false);
       }, 10 * 60 * 1000);
 
-      window.open(data.url, "_blank");
+      window.open(data.url, "facebook-auth", "width=600,height=700,scrollbars=yes");
     } catch (e: any) {
       toast.error(e.message || "Facebook connection failed");
       setIsFacebookConnecting(false);
@@ -373,7 +373,7 @@ export default function AccountsPage() {
         toast.error("Reconnection timed out. Try again.");
       }, 10 * 60 * 1000);
 
-      window.open(data.url, "_blank");
+      window.open(data.url, "facebook-auth", "width=600,height=700,scrollbars=yes");
     } catch (e: any) {
       toast.error(e.message || "Facebook reconnection failed");
       setReconnectingFacebookId(null);
@@ -433,7 +433,7 @@ export default function AccountsPage() {
         setIsTikTokConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "_blank");
+      window.open(data.url, "tiktok-auth", "width=600,height=700,scrollbars=yes");
     } catch (e: any) {
       toast.error(e.message || "TikTok connection failed");
       setIsTikTokConnecting(false);
@@ -477,7 +477,7 @@ export default function AccountsPage() {
         setIsDriveConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "_blank");
+      window.open(data.url, "drive-auth", "width=600,height=700,scrollbars=yes");
     } catch (e: any) {
       toast.error(e.message || "Google Drive connection failed");
       setIsDriveConnecting(false);
@@ -524,7 +524,7 @@ export default function AccountsPage() {
         toast.error("Reconnection timed out. Try again.");
       }, 30_000);
 
-      window.open(data.url, "_blank");
+      window.open(data.url, "drive-auth", "width=600,height=700,scrollbars=yes");
     } catch (e: any) {
       toast.error(e.message || "Google Drive reconnection failed");
       setReconnectingDriveId(null);
@@ -680,6 +680,8 @@ export default function AccountsPage() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Connecting…
                   </>
+                ) : facebookPages.length > 0 ? (
+                  "Add another account"
                 ) : (
                   "Connect Facebook & Instagram"
                 )}
@@ -752,6 +754,8 @@ export default function AccountsPage() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Connecting…
                   </>
+                ) : youtubeAccounts.length > 0 ? (
+                  "Add another channel"
                 ) : (
                   "Connect YouTube Account"
                 )}

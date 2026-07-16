@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("access_type", "offline");
       authUrl.searchParams.set("state", reqUserId);
-      authUrl.searchParams.set("prompt", "consent");
+      authUrl.searchParams.set("prompt", "select_account consent");
       if (loginHint) authUrl.searchParams.set("login_hint", loginHint);
       authUrl.searchParams.set(
         "scope",
