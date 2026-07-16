@@ -1691,3 +1691,23 @@ StoragePage already handled pagination correctly (load-more button).
 | `delete` | `body?.account_id/file_id` (L535-536) | StoragePage deleteSingleItem, executeDelete, deleteSelectedItems |
 
 **Deploy pending**: Run `npx supabase functions deploy google-drive-auth --no-verify-jwt` manually (requires TTY for login). Commits: `6d0d50e` (list-files), `3e9b206` (quota, create-folder, get-token, delete).
+
+---
+
+### 71. Phase 4 — Per-Item Platform Overrides UI (2026-07-15)
+
+**What was built**: A "Platforms" column in the WorkflowItemsPage table with per-row popover editor for `platforms_override`.
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `src/pages/WorkflowItemsPage.tsx` | +138 lines: `Platforms` column header; per-row popover with checkboxes (YT/FB/IG/TT); `setPlatforms()`/`getPlatforms()` helpers; bulk "Set Platforms" action for selected items; platform label/color constants |
+
+**How it works**:
+- Each row shows colored platform badges (YT/FB/IG/TT) when override is set, or muted "All" when using workflow defaults
+- Click the cell → popover with checkboxes for each platform in `workflow.platforms`
+- Unchecking a platform creates an override excluding it; checking all resets to `null` (uses defaults)
+- Changes tracked via existing dirty system (asterisk + Save All)
+- Bulk mode: Select items → "Set Platforms" button → popover → "Apply" updates all selected
+
+**Backend**: Already handled — `process-workflow` line 349 reads `platforms_override` and joins into synthetic sheet. Zero edge function changes needed.
