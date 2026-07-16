@@ -165,7 +165,26 @@ export default function AccountsPage() {
     };
     toast.success(`${label[platform] || platform} connected!`);
     setSearchParams({}, { replace: true });
+    if (window.opener) {
+      window.opener.postMessage({ type: "oauth-connected", platform }, "*");
+      setTimeout(() => window.close(), 1500);
+    }
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === "oauth-connected") {
+        const p = event.data.platform;
+        if (p === "facebook") setIsFacebookConnecting(false);
+        else if (p === "youtube") setIsYouTubeConnecting(false);
+        else if (p === "drive") setIsDriveConnecting(false);
+        else if (p === "tiktok") setIsTikTokConnecting(false);
+        refreshAll();
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   useEffect(() => {
     (async () => {
