@@ -1774,3 +1774,21 @@ StoragePage already handled pagination correctly (load-more button).
 - Popup windows: keep user on FlowPost tab; OAuth feels like a dialog rather than leaving the app
 
 **No DB changes needed** — unique constraint `(user_id, platform, account_id)` already supports multiple accounts per platform.
+
+---
+
+### 74. Auto-Close OAuth Popup + Instant State Reset (2026-07-15)
+
+**Problem**: After successful OAuth, popup stayed open showing the AccountsPage. Parent still showed "Connecting..." animation until Realtime subscription fired (1-3s latency).
+
+**Fix** (1 file, `src/pages/AccountsPage.tsx`, +19 lines):
+- Popup now sends `postMessage({ type: "oauth-connected", platform })` to parent, then auto-closes after 1.5s
+- Parent listens for `message` events: instantly resets the `is{Platform}Connecting` state + calls `refreshAll()`
+- Realtime subscription stays as fallback for edge cases
+
+**Flow**:
+1. User clicks "Connect" → popup opens (600×700)
+2. User authenticates → popup redirects to `FlowPost?connected={platform}`
+3. Popup detects param → shows toast → `postMessage` to parent → closes after 1.5s
+4. Parent instantly stops spinner + refreshes account list
+5. If popup blocked or closed early, Realtime subscription catches it within a few seconds
