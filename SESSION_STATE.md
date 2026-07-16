@@ -1816,16 +1816,22 @@ StoragePage already handled pagination correctly (load-more button).
 | WorkflowsPage | Platform options, account selector, save/load `linkedin_account_ids` | ✅ |
 | WorkflowItemsPage | `linkedin_caption` column, PLATFORM_LABEL/COLOR entries | ✅ |
 
-**Blocked (post-deploy):**
+**Bugs fixed (post-audit, `2d542db`):**
+| Bug | Fix |
+|-----|-----|
+| `linkedin-auth` — userId read only from query params → 400 | Read from POST body with `url.searchParams` fallback |
+| `linkedin-auth` — `SUPABASE_ANON_KEY` missing from env/validKeys → 401 | Added `SUPABASE_ANON_KEY` env var + included in `validKeys` |
+| `process-workflow` — `normalizePlatform(p)` param type too strict → TS error | Reverted to `p: string` |
+
+**Blocked:**
 - `w_member_social` / `w_organization_social` require **LinkedIn Partner Program approval**
-- `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` not yet set as Supabase secrets
+- Secrets (`LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`) set ✅
 
 **Deploy Order:**
-1. `npx supabase functions deploy linkedin-auth linkedin-upload --no-verify-jwt`
-2. `supabase secrets set LINKEDIN_CLIENT_ID=... LINKEDIN_CLIENT_SECRET=...`
-3. `npx supabase db push`
-4. Submit LinkedIn app review for `w_member_social` scope
-5. Vercel deploy (auto)
+1. `npx supabase functions deploy linkedin-auth linkedin-upload google-drive-auth facebook-auth youtube-auth --no-verify-jwt`
+2. `npx supabase db push`
+3. Submit LinkedIn app review for `w_member_social` scope
+4. Vercel deploy (auto)
 
 **API Details:**
 | Aspect | Detail |
