@@ -1751,3 +1751,26 @@ StoragePage already handled pagination correctly (load-more button).
 **Blocker**: `w_member_social` and `w_organization_social` scopes require **LinkedIn Partner Program approval** (manual review, like TikTok app review). Without it, posting API calls return 403. OAuth connection and account listing work with auto-approved scopes (`openid`, `profile`, `email`).
 
 **Recommended approach**: Implement full code including posting function. Test OAuth flow and account connection immediately. Posting will be gated behind partner approval (same status as TikTok's `PUBLIC_TO_EVERYONE` privacy level).
+
+---
+
+### 73. Multi-Account OAuth Flow Improvements (2026-07-15)
+
+**Problem**: Connecting multiple accounts of the same platform (e.g., two Facebook profiles) required using a different browser or incognito, because OAuth auto-logged in with the current browser session.
+
+**Changes** (4 files, 13 lines):
+
+| File | Change |
+|------|--------|
+| `supabase/functions/facebook-auth/index.ts` | Added `auth_type=rerequest` to OAuth URL — forces Facebook login dialog even when user has an active session |
+| `supabase/functions/youtube-auth/index.ts` | `prompt=consent` → `prompt=select_account consent` — shows Google account picker |
+| `supabase/functions/google-drive-auth/index.ts` | Same prompt change as YouTube |
+| `src/pages/AccountsPage.tsx` | 6x `window.open(url, "_blank")` → popup windows (`width=600,height=700`); Facebook button shows "Add another account" when connected; YouTube shows "Add another channel" |
+
+**How it works**:
+- Facebook: `auth_type=rerequest` forces re-auth dialog. User clicks "Log in as different user" → enters second account credentials → pages upserted with unique `(user_id, platform, account_id)` constraint
+- Google: `select_account` shows account picker. User selects or adds a different Google account → channel/Drive account upserted as new row
+- TikTok: unchanged (1-account limit, always shows fresh login)
+- Popup windows: keep user on FlowPost tab; OAuth feels like a dialog rather than leaving the app
+
+**No DB changes needed** — unique constraint `(user_id, platform, account_id)` already supports multiple accounts per platform.
