@@ -10,8 +10,9 @@ const LI_CLIENT_ID = Deno.env.get("LINKEDIN_CLIENT_ID");
 const LI_CLIENT_SECRET = Deno.env.get("LINKEDIN_CLIENT_SECRET");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
-if (!LI_CLIENT_ID || !LI_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+if (!LI_CLIENT_ID || !LI_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
   console.error("Missing required secrets for linkedin-auth function");
 }
 
@@ -79,17 +80,16 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  let action = url.searchParams.get("action");
-  if (!action) {
-    try {
-      const body = await req.json();
-      action = typeof body?.action === "string" ? body.action : null;
-    } catch { /* ignore */ }
-  }
+
+  let body: Record<string, unknown> = {};
+  try { body = await req.json(); } catch { /* ignore */ }
+
+  const action = (url.searchParams.get("action") || body?.action) as string | undefined;
+  const reqUserId = (url.searchParams.get("userId") || body?.userId) as string | undefined;
 
   if (action !== "callback") {
     const authHeader = req.headers.get("Authorization");
-    const validKeys = [SUPABASE_SERVICE_ROLE_KEY, Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
+    const validKeys = [SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
     const token = authHeader?.replace("Bearer ", "");
     if (!token || !validKeys.includes(token)) {
       return json({ error: "Unauthorized" }, 401);
@@ -102,7 +102,6 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/linkedin-auth?action=callback`;
 
     if (action === "url") {
-      const reqUserId = url.searchParams.get("userId");
       if (!reqUserId) return json({ error: "Missing userId" }, 400);
       const authUrl = new URL("https://www.linkedin.com/oauth/v2/authorization");
       authUrl.searchParams.set("client_id", LI_CLIENT_ID!);

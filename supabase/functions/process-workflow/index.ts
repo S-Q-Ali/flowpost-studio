@@ -57,7 +57,7 @@ function parseList(value: string | undefined | null): string[] {
     .filter(Boolean);
 }
 
-function normalizePlatform(p: "youtube" | "facebook" | "instagram" | "tiktok" | "linkedin"): "youtube" | "facebook" | "instagram" | "tiktok" | "linkedin" | null {
+function normalizePlatform(p: string): "youtube" | "facebook" | "instagram" | "tiktok" | "linkedin" | null {
   const v = p.toLowerCase();
   if (v === "youtube") return "youtube";
   if (v === "facebook") return "facebook";
