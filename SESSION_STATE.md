@@ -157,6 +157,7 @@
 - TikTok app review — needs paid domain (Vercel Pro $20/mo + $12/yr domain)
 - TikTok `privacy_level` → `PUBLIC_TO_EVERYONE` — blocked by app review
 - Snapchat integration — blocked by API allowlist
+- LinkedIn `w_member_social` / `w_organization_social` — needs LinkedIn Partner Program approval (entry #72)
 
 ### Recently Fixed
 1. **Infinite loading when navigating away from SecurityQuestionsGate** — `loginWithEmail()` now calls `setCache()` so page reloads restore auth state; added 10s safety timeout to force-resolve spinner (commit `86b066e`)
@@ -1711,3 +1712,42 @@ StoragePage already handled pagination correctly (load-more button).
 - Bulk mode: Select items → "Set Platforms" button → popover → "Apply" updates all selected
 
 **Backend**: Already handled — `process-workflow` line 349 reads `platforms_override` and joins into synthetic sheet. Zero edge function changes needed.
+
+---
+
+### 72. LinkedIn Integration — Feasibility Analysis (2026-07-15)
+
+**Goal**: Add LinkedIn as a new posting platform (personal profiles + company pages).
+
+**API pattern**: Standard OAuth 2.0 + REST API, same architecture as Facebook integration.
+
+**Technical details**:
+
+| Aspect | Detail |
+|--------|--------|
+| API base | `https://api.linkedin.com/rest/posts` (modern) or `/v2/ugcPosts` (legacy) |
+| Scopes needed | `w_member_social` (profile), `w_organization_social` (pages), `openid`, `profile`, `email` |
+| Token lifetime | Access: 60 days, Refresh: 365 days (refresh tokens require MDP partnership) |
+| Video upload | 2-step: register asset via `/assets?action=registerUpload` → upload to presigned S3 URL → create UGC post with media URN |
+| Image upload | Same 2-step with `image:standard` recipe |
+| Rate limits | 100 posts/user/day, 100K calls/app/day |
+| Story support | Not supported |
+
+**Files to create (2)**:
+- `supabase/functions/linkedin-auth/index.ts` — OAuth flow (url, callback, refresh)
+- `supabase/functions/linkedin-upload/index.ts` — Asset registration, video/image upload, UGC post creation
+
+**Files to modify (~10)**:
+- `supabase/config.toml` — register both functions with `verify_jwt = false`
+- `src/lib/types.ts` — add `'linkedin'` to platform union types
+- `src/components/PlatformIcon.tsx` — add LinkedIn SVG icon
+- `src/pages/AccountsPage.tsx` — LinkedIn connect/disconnect card
+- `src/pages/UploadPage.tsx` — LinkedIn account selector + caption field
+- `src/pages/WorkflowsPage.tsx` — LinkedIn account selector in Step 2
+- `supabase/functions/process-workflow/index.ts` — add `'linkedin'` to routing
+- `supabase/functions/process-scheduled-posts/index.ts` — add `'linkedin'` routing
+- `supabase/migrations/YYYYMMDDHHMMSS_add_linkedin.sql` — add `linkedin_account_ids`, `linkedin_caption`, extend CHECK constraints
+
+**Blocker**: `w_member_social` and `w_organization_social` scopes require **LinkedIn Partner Program approval** (manual review, like TikTok app review). Without it, posting API calls return 403. OAuth connection and account listing work with auto-approved scopes (`openid`, `profile`, `email`).
+
+**Recommended approach**: Implement full code including posting function. Test OAuth flow and account connection immediately. Posting will be gated behind partner approval (same status as TikTok's `PUBLIC_TO_EVERYONE` privacy level).
