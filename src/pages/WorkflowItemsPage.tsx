@@ -8,7 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
@@ -20,6 +21,19 @@ function formatBytes(b: number): string {
   if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
   return (b / 1048576).toFixed(1) + " MB";
 }
+
+const PLATFORM_LABEL: Record<string, string> = {
+  youtube: "YT",
+  facebook: "FB",
+  instagram: "IG",
+  tiktok: "TT",
+};
+const PLATFORM_COLOR: Record<string, string> = {
+  youtube: "bg-red-500/10 text-red-600 border-red-500/30",
+  facebook: "bg-blue-500/10 text-blue-600 border-blue-500/30",
+  instagram: "bg-pink-500/10 text-pink-600 border-pink-500/30",
+  tiktok: "bg-foreground/10 text-foreground border-foreground/30",
+};
 
 const statusBadge: Record<string, { label: string; className: string }> = {
   pending: { label: "Pending", className: "bg-gray-500/10 text-gray-500 border-gray-500/30" },
@@ -41,6 +55,8 @@ export default function WorkflowItemsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
   const [localItems, setLocalItems] = useState<Record<string, Partial<WorkflowItem>>>({});
+  const [bulkPlatformsOpen, setBulkPlatformsOpen] = useState(false);
+  const [bulkPlatformsValue, setBulkPlatformsValue] = useState<string[]>([]);
 
   useEffect(() => {
     if (!workflowId || !userId) return;
@@ -74,6 +90,24 @@ export default function WorkflowItemsPage() {
       next.add(itemId);
       return next;
     });
+  };
+
+  const setPlatforms = (itemId: string, platforms: string[] | null) => {
+    setLocalItems((prev) => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], platforms_override: platforms },
+    }));
+    setDirtyIds((prev) => {
+      const next = new Set(prev);
+      next.add(itemId);
+      return next;
+    });
+  };
+
+  const getPlatforms = (item: WorkflowItem): string[] | null => {
+    const local = localItems[item.id];
+    if (local && "platforms_override" in local) return local.platforms_override ?? null;
+    return item.platforms_override;
   };
 
   const getField = (item: WorkflowItem, field: keyof WorkflowItem): string | null => {
@@ -180,6 +214,17 @@ export default function WorkflowItemsPage() {
     }
     setItems((prev) => prev.map((i) => (ids.includes(i.id) ? { ...i, status: "ready" as const } : i)));
     toast.success(`${ids.length} items marked as ready`);
+  };
+
+  const applyBulkPlatforms = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const platforms = bulkPlatformsValue.length > 0 ? bulkPlatformsValue : null;
+    for (const id of ids) {
+      setPlatforms(id, platforms);
+    }
+    setBulkPlatformsOpen(false);
+    toast.success(`Platforms set for ${ids.length} items`);
   };
 
   const syncFromDrive = async () => {
@@ -323,15 +368,46 @@ export default function WorkflowItemsPage() {
             <Circle className="h-3 w-3" /> Deselect All
           </Button>
           {selectedIds.size > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={markSelectedReady}
-            >
-              <CheckCircle2 className="h-3 w-3" />
-              Mark Selected as Ready ({selectedIds.size})
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={markSelectedReady}
+              >
+                <CheckCircle2 className="h-3 w-3" />
+                Mark Selected as Ready ({selectedIds.size})
+              </Button>
+              <Popover open={bulkPlatformsOpen} onOpenChange={setBulkPlatformsOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Set Platforms ({selectedIds.size})
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-3" align="start">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium">Set platforms for selected</p>
+                    {(workflow.platforms || []).map((p) => (
+                      <label key={p} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={bulkPlatformsValue.includes(p)}
+                          onCheckedChange={(checked) => {
+                            setBulkPlatformsValue((prev) =>
+                              checked ? [...prev, p] : prev.filter((x) => x !== p),
+                            );
+                          }}
+                        />
+                        {PLATFORM_LABEL[p] || p}
+                      </label>
+                    ))}
+                    <Button size="sm" className="w-full text-xs h-7" onClick={applyBulkPlatforms}>
+                      Apply
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </>
           )}
         </div>
       )}
@@ -363,6 +439,7 @@ export default function WorkflowItemsPage() {
                 <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[180px]">YT Description</th>
                 <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[180px]">FB/IG Caption</th>
                 <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[140px]">TikTok Caption</th>
+                <th className="p-2 text-left text-xs text-muted-foreground font-medium w-24">Platforms</th>
                 <th className="w-24 p-2 text-left text-xs text-muted-foreground font-medium">Actions</th>
               </tr>
             </thead>
@@ -432,6 +509,57 @@ export default function WorkflowItemsPage() {
                         onChange={(e) => updateLocal(item.id, "tiktok_caption", e.target.value || null)}
                         placeholder="TikTok caption"
                       />
+                    </td>
+                    <td className="p-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="flex items-center gap-1 flex-wrap cursor-pointer">
+                            {(() => {
+                              const override = getPlatforms(item);
+                              const platforms = override ?? workflow.platforms ?? [];
+                              if (!override) {
+                                return <span className="text-[10px] text-muted-foreground">All</span>;
+                              }
+                              return platforms.map((p) => (
+                                <span
+                                  key={p}
+                                  className={`text-[10px] px-1 py-0 rounded border ${PLATFORM_COLOR[p] || ""}`}
+                                >
+                                  {PLATFORM_LABEL[p] || p}
+                                </span>
+                              ));
+                            })()}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-44 p-3" align="start">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">Platforms</p>
+                            {(workflow.platforms || []).map((p) => {
+                              const override = getPlatforms(item);
+                              const active = override ?? workflow.platforms ?? [];
+                              return (
+                                <label key={p} className="flex items-center gap-2 text-xs cursor-pointer">
+                                  <Checkbox
+                                    checked={active.includes(p)}
+                                    onCheckedChange={(checked) => {
+                                      const current = override ?? workflow.platforms ?? [];
+                                      const updated = checked
+                                        ? [...current, p]
+                                        : current.filter((x) => x !== p);
+                                      const defaults = workflow.platforms ?? [];
+                                      const sameAsDefault =
+                                        updated.length === defaults.length &&
+                                        updated.every((x) => defaults.includes(x));
+                                      setPlatforms(item.id, sameAsDefault ? null : updated);
+                                    }}
+                                  />
+                                  {PLATFORM_LABEL[p] || p}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </td>
                     <td className="p-2">
                       <div className="flex items-center gap-1">
