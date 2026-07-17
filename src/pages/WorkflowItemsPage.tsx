@@ -425,7 +425,7 @@ export default function WorkflowItemsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto border border-border rounded-lg max-h-[600px] overflow-y-auto">
+        <div className="overflow-x-auto border border-border rounded-lg">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/40 border-b border-border">
