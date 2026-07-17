@@ -1,7 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
-import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
-import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
@@ -19,13 +17,7 @@ const R2_SECRET_KEY = Deno.env.get("R2_SECRET_KEY");
 const R2_BUCKET = Deno.env.get("R2_BUCKET");
 const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL")!;
 
-const s3Client = (R2_ENDPOINT && R2_ACCESS_KEY && R2_SECRET_KEY && R2_BUCKET)
-  ? new S3Client({
-      region: "auto",
-      endpoint: R2_ENDPOINT,
-      credentials: { accessKeyId: R2_ACCESS_KEY, secretAccessKey: R2_SECRET_KEY },
-    })
-  : null;
+const hasR2Config = !!(R2_ENDPOINT && R2_ACCESS_KEY && R2_SECRET_KEY && R2_BUCKET);
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for process-workflow");
@@ -65,6 +57,67 @@ function normalizePlatform(p: string): "youtube" | "facebook" | "instagram" | "t
   if (v === "tiktok") return "tiktok";
   if (v === "linkedin") return "linkedin";
   return null;
+}
+
+async function hmacSha256(key: string | Uint8Array, data: string): Promise<Uint8Array> {
+  const keyBytes = typeof key === "string" ? new TextEncoder().encode(key) : key;
+  const cryptoKey = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return new Uint8Array(await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(data)));
+}
+
+async function sha256Hex(data: string): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(data));
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function putToR2(
+  key: string,
+  body: ReadableStream<Uint8Array>,
+  contentType: string,
+): Promise<string> {
+  if (!R2_ENDPOINT || !R2_ACCESS_KEY || !R2_SECRET_KEY || !R2_BUCKET || !R2_PUBLIC_URL) {
+    throw new Error("R2 not configured");
+  }
+  const host = R2_ENDPOINT;
+  const path = `/${R2_BUCKET}/${key}`;
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]/g, "").replace(/\.\d{3}/, "");
+  const dateStamp = amzDate.slice(0, 8);
+  const algorithm = "AWS4-HMAC-SHA256";
+  const credentialScope = `${dateStamp}/auto/s3/aws4_request`;
+  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+  const bodyHashHex = "UNSIGNED-PAYLOAD";
+
+  const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${bodyHashHex}\nx-amz-date:${amzDate}\n`;
+  const canonicalRequest = `PUT\n${path}\n\n${canonicalHeaders}\n${signedHeaders}\n${bodyHashHex}`;
+  const canonicalRequestHash = await sha256Hex(canonicalRequest);
+  const stringToSign = `${algorithm}\n${amzDate}\n${credentialScope}\n${canonicalRequestHash}`;
+
+  const kDate = await hmacSha256(`AWS4${R2_SECRET_KEY}`, dateStamp);
+  const kRegion = await hmacSha256(kDate, "auto");
+  const kService = await hmacSha256(kRegion, "s3");
+  const kSigning = await hmacSha256(kService, "aws4_request");
+  const signature = Array.from(await hmacSha256(kSigning, stringToSign))
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+
+  const url = `https://${host}${path}`;
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": contentType,
+      "x-amz-content-sha256": bodyHashHex,
+      "x-amz-date": amzDate,
+      Authorization: `${algorithm} Credential=${R2_ACCESS_KEY}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    },
+    body,
+    // @ts-ignore - duplex needed for streaming body
+    duplex: "half",
+  });
+
+  if (!response.ok) {
+    throw new Error(`R2 PUT failed: ${response.status}`);
+  }
+  return `https://${R2_PUBLIC_URL}/${key}`;
 }
 
 Deno.serve(async (req) => {
@@ -532,7 +585,7 @@ Deno.serve(async (req) => {
         // Upload Drive-sourced files to R2 for zero-egress serving
         let r2Succeeded = false;
         let r2Url: string | null = null;
-        if (!isMegaAccount && !isMegaPublic && driveDownloadUrl && googleToken && s3Client) {
+        if (!isMegaAccount && !isMegaPublic && driveDownloadUrl && googleToken && hasR2Config) {
           try {
             const driveRes = await fetch(driveDownloadUrl, {
               headers: { Authorization: `Bearer ${googleToken}` },
@@ -542,22 +595,7 @@ Deno.serve(async (req) => {
             } else {
               const key = `${currentUserId}/${videoRecord.id}${fileExt}`;
               const contentType = driveRes.headers.get("Content-Type") || "video/mp4";
-              const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand({
-                Bucket: R2_BUCKET,
-                Key: key,
-                ContentType: contentType,
-              }), { expiresIn: 600 });
-              const putRes = await fetch(uploadUrl, {
-                method: "PUT",
-                headers: { "Content-Type": contentType },
-                body: driveRes.body,
-                // @ts-ignore - duplex needed for streaming body
-                duplex: "half",
-              });
-              if (!putRes.ok) {
-                throw new Error(`R2 PUT failed: ${putRes.status}`);
-              }
-              r2Url = `https://${R2_PUBLIC_URL}/${key}`;
+              r2Url = await putToR2(key, driveRes.body, contentType);
               const { error: r2UpdateError } = await supabase
                 .from("videos")
                 .update({ file_url: r2Url })

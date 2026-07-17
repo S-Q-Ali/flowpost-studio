@@ -254,7 +254,7 @@ export default function QueuePage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
+        <div className="max-h-[600px] overflow-y-auto space-y-4 pr-1">
           {posts.map((post) => (
             <Card key={post.id} className="bg-card border-border shadow-card overflow-hidden">
               <CardContent className="p-0">

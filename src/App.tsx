@@ -1,8 +1,8 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SecurityQuestionsGate } from "@/components/SecurityQuestionsGate";
@@ -16,7 +16,6 @@ import QueuePage from "./pages/QueuePage";
 import WorkflowItemsPage from "./pages/WorkflowItemsPage";
 import AccountsPage from "./pages/AccountsPage";
 import StoragePage from "./pages/StoragePage";
-import InsightsPage from "./pages/InsightsPage";
 import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
@@ -25,7 +24,7 @@ import PrivacyPage from "./pages/PrivacyPage";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
-const queryClient = new QueryClient();
+const InsightsPage = lazy(() => import("./pages/InsightsPage"));
 
 const PUBLIC_PATHS = new Set(["/terms", "/privacy", "/auth/callback"]);
 
@@ -86,7 +85,7 @@ function AppRoutes() {
           <Route path="/queue" element={<QueuePage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/storage" element={<StoragePage />} />
-          <Route path="/insights" element={<InsightsPage />} />
+          <Route path="/insights" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><InsightsPage /></Suspense>} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>
@@ -96,19 +95,17 @@ function AppRoutes() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </AuthProvider>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
+    </TooltipProvider>
+  </ThemeProvider>
 );
 
 export default App;

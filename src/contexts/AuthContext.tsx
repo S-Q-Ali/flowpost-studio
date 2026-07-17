@@ -4,6 +4,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -247,21 +248,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
+  const value = useMemo(() => ({
+    isAuthenticated,
+    isVerifying,
+    userId,
+    isAdmin,
+    pendingSecurityVerification,
+    loginWithEmail,
+    loginWithGoogle,
+    login,
+    logout,
+    setPendingSecurityVerification,
+  }), [isAuthenticated, isVerifying, userId, isAdmin, pendingSecurityVerification, loginWithEmail, loginWithGoogle, login, logout, setPendingSecurityVerification]);
+
   return (
-    <AuthContext.Provider
-      value={{
-        isAuthenticated,
-        isVerifying,
-        userId,
-        isAdmin,
-        pendingSecurityVerification,
-        loginWithEmail,
-        loginWithGoogle,
-        login,
-        logout,
-        setPendingSecurityVerification,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

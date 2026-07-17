@@ -249,7 +249,7 @@ export default function AccountsPage() {
 
     const timeoutId = setTimeout(() => {
       channel.unsubscribe();
-    }, 10 * 60 * 1000);
+    }, 5 * 60 * 1000);
 
     return () => {
       clearTimeout(timeoutId);
@@ -370,7 +370,7 @@ export default function AccountsPage() {
       timeoutId = setTimeout(() => {
         channel.unsubscribe();
         setIsFacebookConnecting(false);
-      }, 10 * 60 * 1000);
+      }, 5 * 60 * 1000);
 
       window.open(data.url, "facebook-auth", "width=600,height=700,scrollbars=yes");
     } catch (e: any) {
@@ -410,7 +410,7 @@ export default function AccountsPage() {
         channel.unsubscribe();
         setReconnectingFacebookId(null);
         toast.error("Reconnection timed out. Try again.");
-      }, 10 * 60 * 1000);
+      }, 5 * 60 * 1000);
 
       window.open(data.url, "facebook-auth", "width=600,height=700,scrollbars=yes");
     } catch (e: any) {
