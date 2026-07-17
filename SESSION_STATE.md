@@ -1963,3 +1963,12 @@ StoragePage already handled pagination correctly (load-more button).
 6. [ ] Memory: open/close AccountsPage modal 20x — check subscription leaks
 7. [ ] DB: EXPLAIN ANALYZE before/after adding indexes
 ```
+
+### Behavioral Risk Assessment
+
+| Priority | Items | Behavior Risk | Can Deploy? |
+|----------|-------|---------------|-------------|
+| **P0** | DB indexes, N+1 query fixes | ✅ Zero change — indexes only speed up queries; batched queries return same data | **Safe anytime** |
+| **P1** | Lazy-load InsightsPage, remove unused deps (`react-query`, `react-hook-form`), wrap AuthContext in `useMemo` | ✅ Zero change — same UI, same APIs, less bundle weight | **Safe anytime** |
+| **P2** | Replace AWS SDK with raw `fetch()` in process-workflow, add virtualization to QueuePage/WorkflowItemsPage, reduce subscription timeouts | ⚠️ AWS SDK swap needs testing (S3 signature calculation); virtualization preserves all interactions; timeout reduction is generous (30s for OAuth) | **Safe with per-item testing** |
+| **P3** | Replace `select("*")` with specific columns, combine edge functions | ✅ Column selects safe (frontend only uses returned columns); ⚠️ Combining functions changes API surface — needs migration plan with backward-compatible URLs | **Column selects safe; function combining needs planned migration** |
