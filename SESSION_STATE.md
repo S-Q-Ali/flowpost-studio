@@ -1844,3 +1844,122 @@ StoragePage already handled pagination correctly (load-more button).
 | Token lifetime | Access: 60 days, Refresh: 365 days (MDP partnership) |
 | Rate limits | 100 posts/user/day, 100K calls/day |
 | Post type | Feed only (no stories, no reels) |
+
+---
+
+## SQA & Performance Audit Plan
+
+### Test Infrastructure
+| Task | Status |
+|------|--------|
+| Create `src/test/setup.ts` — jest-dom imports, Supabase mock, `window.matchMedia` mock | ❌ |
+| Install `@testing-library/user-event`, `@vitest/coverage-v8`, `msw` | ❌ |
+| Add `npm run test:coverage` script | ❌ |
+
+### Phase 1 — Unit Tests
+| Module | Test Candidates | Priority |
+|--------|----------------|----------|
+| `src/lib/utils.ts` — `cn()` | Merge class names with clsx+twMerge | P2 |
+| `src/lib/driveToMegaTransfer.ts` | File parsing, progress calc, error handling | P1 |
+| `_shared/crypto.ts` | encrypt/decrypt round-trip, invalid ciphertext fallback | P0 |
+| `_shared/rate-limit.ts` | check/record/reset lifecycle, over-limit rejection | P1 |
+| `_shared/sheet-status.ts` | PATCH request format, error handling | P1 |
+| `src/hooks/*` | use-toast, useLocalStorage | P2 |
+
+### Phase 2 — Edge Function Integration Tests
+| Function | Key Test Cases |
+|----------|---------------|
+| `linkedin-auth` | `action=url` returns valid OAuth URL; `action=callback` exchanges code, fetches profile, upserts |
+| `linkedin-upload` | Video path vs image path; missing file_url → 404; invalid platform → 400 |
+| `facebook-auth` | OAuth URL with `auth_type=rerequest`; long-lived token exchange; pages+IG fetch |
+| `youtube-auth` | OAuth URL with `prompt=select_account consent`; channel fetch; refresh token preserve |
+| `google-drive-auth` | All 5 actions via POST body with url.searchParams fallback |
+| `facebook-upload`, `instagram-upload`, `tiktok-upload`, `youtube-upload` | Upload with Drive/Mega/R2 source routing |
+| `process-workflow` | FlowPost branch reads `workflow_items`; Legacy branch reads sheet; Per-platform captions; platforms_override |
+| `process-scheduled-posts` | Fetches due posts; routes to correct upload function; story vs feed |
+
+### Phase 3 — React Component Tests
+| Page / Component | Test Scenarios |
+|-----------------|----------------|
+| `PlatformIcon`, `PlatformBadge`, `StatusBadge`, `BetaBadge` | Renders correct icon/variant per platform/status |
+| `AccountsPage` | Lists accounts per platform; Connect opens popup; Disconnect removes; LinkedIn section with BetaBadge |
+| `UploadPage` | Platform toggle shows/hides account pickers; LinkedIn caption field; Validation (platform+account required); Submit creates posts + fires uploads |
+| `WorkflowsPage` | Step wizard; LinkedIn selector; Save/load linkedin_account_ids; Media type filter |
+| `WorkflowItemsPage` | Table with all caption columns; LinkedIn caption editable; Bulk platforms action |
+| `QueuePage` | Lists posts with PlatformIcon; Status badges; Retry failed |
+
+### Phase 4 — Manual E2E Test Cases
+```
+1. [ ] LinkedIn OAuth: Accounts → Connect → popup → authorize → connected
+2. [ ] LinkedIn upload: UploadPage → select LinkedIn → caption → post
+3. [ ] LinkedIn image upload: image file → select LinkedIn → post
+4. [ ] Workflow with LinkedIn: create → add items → trigger → posted
+5. [ ] Multi-platform upload: Facebook + Instagram + YouTube + TikTok + LinkedIn
+6. [ ] Multi-account: connect 2 YouTube channels, 2 Facebook pages
+7. [ ] Expired token → error message
+8. [ ] Network failure → status=failed
+9. [ ] 0 ready items → workflow skipped gracefully
+```
+
+### Phase 5 — Post-Deploy Smoke Tests
+```
+1. [ ] supabase functions serve linkedin-auth → curl test locally
+2. [ ] curl POST /linkedin-auth → 401 without auth
+3. [ ] curl POST /linkedin-auth?action=url&userId=test → OAuth URL
+4. [ ] supabase functions serve linkedin-upload → smoke with mock post
+5. [ ] npm run test → all unit tests pass
+```
+
+### Performance Audit (Phase 6)
+
+#### Bundle Size
+| Issue | Savings | Fix |
+|-------|---------|-----|
+| `recharts` in main bundle | **-250 KB** | Lazy-load InsightsPage via `React.lazy()` |
+| `@tanstack/react-query` unused | **-15 KB** | Remove from deps + App.tsx |
+| `react-hook-form` unused | **-12 KB** | Remove from deps |
+| `vite-plugin-node-polyfills` | **-50 KB** | Targeted polyfills or remove |
+| AWS SDK in `process-workflow` | **-130 KB** cold-start | Replace with raw `fetch()` to S3 REST API |
+
+#### Database — Missing Indexes (P0)
+| Table | Columns | Priority |
+|-------|---------|----------|
+| `posts` | `(user_id, status, scheduled_at)` | P0 |
+| `posts` | `(user_id, video_id, platform, account_id, status)` | P0 |
+| `connected_accounts` | `(user_id, platform, is_connected)` | P0 — most queried |
+| `videos` | `(user_id)` | P1 |
+| `workflows` | `(user_id, is_active)` | P1 |
+| `workflow_items` | `(workflow_id, status)` | P1 |
+
+#### Database — Over-fetching
+- Replace `select("*")` with explicit columns in AccountsPage (7 calls), UploadPage (6 calls), WorkflowsPage (6 calls)
+
+#### N+1 Query Patterns
+- `process-workflow` lines 475–481: batch Mega account query before loop
+- `process-workflow` lines 843–848, 877–882: batch `connected_accounts` queries for story posts
+
+#### Rendering
+- Missing virtualization: QueuePage, WorkflowItemsPage, StoragePage file lists
+- Missing `useMemo`: CalendarPage day computation, AuthContext value, QueuePage derivations, InsightsPage chart data
+- AuthContext re-render: wrap context value in `useMemo`
+
+#### Realtime Subscriptions
+- Reduce `"connected-accounts-live"` timeout from 10min → 30s
+- Duplicate `refreshAll()` calls from overlapping channels
+
+#### Edge Function Architecture (post-MVP)
+- Combine 5 `*-upload` → single `platform-upload`
+- Combine 5 `*-auth` → single `oauth`
+- Combine 3 `verify-*` → single `verify`
+- Reduces 28 functions → ~15, cuts cold-start surface by ~46%
+
+#### Performance Test Script
+```
+1. [ ] Lighthouse audit on Dashboard, Upload, Workflows, Queue, Accounts
+2. [ ] TTI target < 3s, LCP target < 2.5s
+3. [ ] Bundle analysis: npm run build -- --analyze
+4. [ ] Edge function cold-start: first-response latency per function
+5. [ ] Stress: 500 items in WorkflowItemsPage + 500 posts in QueuePage
+6. [ ] Memory: open/close AccountsPage modal 20x — check subscription leaks
+7. [ ] DB: EXPLAIN ANALYZE before/after adding indexes
+```
