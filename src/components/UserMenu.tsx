@@ -49,7 +49,7 @@ export function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
         <Avatar className="h-8 w-8 border border-border">
-          <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.name || "User"} />
+          <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.name || "User"} loading="lazy" />
           <AvatarFallback className="text-xs font-medium bg-primary/10 text-primary">
             {initials}
           </AvatarFallback>

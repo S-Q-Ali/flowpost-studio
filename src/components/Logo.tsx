@@ -16,6 +16,9 @@ export function Logo({ size = "md", className }: LogoProps) {
     <img
       src="/logo.svg"
       alt="FlowPost"
+      width={size === "sm" ? 40 : size === "md" ? 48 : 64}
+      height={size === "sm" ? 40 : size === "md" ? 48 : 64}
+      fetchpriority="high"
       className={cn("rounded-xl object-cover", sizeMap[size], className)}
     />
   );

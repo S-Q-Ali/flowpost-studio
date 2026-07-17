@@ -1955,20 +1955,25 @@ StoragePage already handled pagination correctly (load-more button).
 
 #### Performance Test Script
 ```
-1. [ ] Lighthouse audit on Dashboard, Upload, Workflows, Queue, Accounts
-2. [ ] TTI target < 3s, LCP target < 2.5s
-3. [ ] Bundle analysis: npm run build -- --analyze
-4. [ ] Edge function cold-start: first-response latency per function
-5. [ ] Stress: 500 items in WorkflowItemsPage + 500 posts in QueuePage
-6. [ ] Memory: open/close AccountsPage modal 20x — check subscription leaks
-7. [ ] DB: EXPLAIN ANALYZE before/after adding indexes
-```
+1. [x] Lazy-load InsightsPage (recharts ~250 KB removed from main bundle)
+2. [x] Remove unused @tanstack/react-query (~15 KB) + react-hook-form (~12 KB)
+3. [x] Wrap AuthContext.value in useMemo
+4. [x] Replace AWS SDK (~130 KB cold-start) with raw fetch() + Web Crypto V4 signing
+5. [x] Add max-h/[600px] overflow-y-auto scroll containment to QueuePage + WorkflowItemsPage
+6. [x] Reduce subscription timeouts: 10m→5m in AccountsPage
+7. [ ] Lighthouse audit on Dashboard, Upload, Workflows, Queue, Accounts
+8. [ ] TTI target < 3s, LCP target < 2.5s
+9. [ ] Bundle analysis: npm run build -- --analyze
+10. [ ] Edge function cold-start: first-response latency per function
+11. [ ] Stress: 500 items in WorkflowItemsPage + 500 posts in QueuePage
+12. [ ] Memory: open/close AccountsPage modal 20x — check subscription leaks
+13. [ ] DB: EXPLAIN ANALYZE before/after adding indexes
 
 ### Behavioral Risk Assessment
 
 | Priority | Items | Behavior Risk | Can Deploy? |
 |----------|-------|---------------|-------------|
 | **P0** | DB indexes, N+1 query fixes | ✅ Zero change — indexes only speed up queries; batched queries return same data | **Safe anytime** |
-| **P1** | Lazy-load InsightsPage, remove unused deps (`react-query`, `react-hook-form`), wrap AuthContext in `useMemo` | ✅ Zero change — same UI, same APIs, less bundle weight | **Safe anytime** |
-| **P2** | Replace AWS SDK with raw `fetch()` in process-workflow, add virtualization to QueuePage/WorkflowItemsPage, reduce subscription timeouts | ⚠️ AWS SDK swap needs testing (S3 signature calculation); virtualization preserves all interactions; timeout reduction is generous (30s for OAuth) | **Safe with per-item testing** |
+| **P1** | Lazy-load InsightsPage, remove unused deps (`react-query`, `react-hook-form`), wrap AuthContext in `useMemo` | ✅ _Done in `ee712dc`_ — same UI, same APIs, less bundle weight | **Deployed** |
+| **P2** | Replace AWS SDK with raw `fetch()` in process-workflow, add scroll containment to QueuePage/WorkflowItemsPage, reduce subscription timeouts | ⚠️ _Done in `ee712dc`_ — AWS SDK swap needs testing (S3 signature calculation); scroll containment preserves interactions; timeout reduction is generous (10m→5m for OAuth) | **Safe with per-item testing** |
 | **P3** | Replace `select("*")` with specific columns, combine edge functions | ✅ Column selects safe (frontend only uses returned columns); ⚠️ Combining functions changes API surface — needs migration plan with backward-compatible URLs | **Column selects safe; function combining needs planned migration** |

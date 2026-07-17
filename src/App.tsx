@@ -1,31 +1,30 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SecurityQuestionsGate } from "@/components/SecurityQuestionsGate";
 import LoginPage from "./pages/LoginPage";
 import { AppLayout } from "@/components/AppLayout";
-import Dashboard from "./pages/Dashboard";
-import UploadPage from "./pages/UploadPage";
-import WorkflowsPage from "./pages/WorkflowsPage";
-import CalendarPage from "./pages/CalendarPage";
-import QueuePage from "./pages/QueuePage";
-import WorkflowItemsPage from "./pages/WorkflowItemsPage";
-import AccountsPage from "./pages/AccountsPage";
-import StoragePage from "./pages/StoragePage";
-import InsightsPage from "./pages/InsightsPage";
-import ProfilePage from "./pages/ProfilePage";
-import NotFound from "./pages/NotFound";
-import AuthCallback from "./pages/AuthCallback";
-import TermsPage from "./pages/TermsPage";
-import PrivacyPage from "./pages/PrivacyPage";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
-const queryClient = new QueryClient();
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const UploadPage = lazy(() => import("./pages/UploadPage"));
+const WorkflowsPage = lazy(() => import("./pages/WorkflowsPage"));
+const CalendarPage = lazy(() => import("./pages/CalendarPage"));
+const QueuePage = lazy(() => import("./pages/QueuePage"));
+const WorkflowItemsPage = lazy(() => import("./pages/WorkflowItemsPage"));
+const AccountsPage = lazy(() => import("./pages/AccountsPage"));
+const StoragePage = lazy(() => import("./pages/StoragePage"));
+const InsightsPage = lazy(() => import("./pages/InsightsPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const TermsPage = lazy(() => import("./pages/TermsPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 
 const PUBLIC_PATHS = new Set(["/terms", "/privacy", "/auth/callback"]);
 
@@ -73,42 +72,40 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/security-questions" element={<SecurityQuestionsGate />} />
-      <Route path="/auth/callback" element={<AuthCallback />} />
-      <Route path="/terms" element={<TermsPage />} />
-      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/auth/callback" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><AuthCallback /></Suspense>} />
+      <Route path="/terms" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><TermsPage /></Suspense>} />
+      <Route path="/privacy" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><PrivacyPage /></Suspense>} />
       <Route element={<RequireVerified />}>
         <Route element={<AppLayout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/upload" element={<UploadPage />} />
-          <Route path="/workflows" element={<WorkflowsPage />} />
-          <Route path="/workflows/:id/items" element={<WorkflowItemsPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/queue" element={<QueuePage />} />
-          <Route path="/accounts" element={<AccountsPage />} />
-          <Route path="/storage" element={<StoragePage />} />
-          <Route path="/insights" element={<InsightsPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/dashboard" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><Dashboard /></Suspense>} />
+          <Route path="/upload" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><UploadPage /></Suspense>} />
+          <Route path="/workflows" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><WorkflowsPage /></Suspense>} />
+          <Route path="/workflows/:id/items" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><WorkflowItemsPage /></Suspense>} />
+          <Route path="/calendar" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><CalendarPage /></Suspense>} />
+          <Route path="/queue" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><QueuePage /></Suspense>} />
+          <Route path="/accounts" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><AccountsPage /></Suspense>} />
+          <Route path="/storage" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><StoragePage /></Suspense>} />
+          <Route path="/insights" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><InsightsPage /></Suspense>} />
+          <Route path="/profile" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><ProfilePage /></Suspense>} />
         </Route>
       </Route>
-      <Route path="*" element={<NotFound />} />
+      <Route path="*" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><NotFound /></Suspense>} />
     </Routes>
   );
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </AuthProvider>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
+    </TooltipProvider>
+  </ThemeProvider>
 );
 
 export default App;

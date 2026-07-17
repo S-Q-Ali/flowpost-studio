@@ -268,7 +268,7 @@ export default function QueuePage() {
                   </div>
                   <div className="w-24 h-24 rounded-lg bg-secondary flex-shrink-0 overflow-hidden flex items-center justify-center">
                     {videoThumb(post) ? (
-                      <img src={videoThumb(post)!} alt="" className="w-full h-full object-cover" />
+                      <img src={videoThumb(post)!} alt="" loading="lazy" className="w-full h-full object-cover" />
                     ) : (
                       <Video className="h-8 w-8 text-muted-foreground" />
                     )}
