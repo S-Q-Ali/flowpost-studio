@@ -1,14 +1,16 @@
 # FlowPost Studio — Session State
 
-## CURRENT HEAD: see `git log --oneline -1`
+## CURRENT HEAD: `de02541` — LCP improvements (code splitting, font loading, bundle optimization)
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
 - Meta AI translation/dubbing for Reels is NOT available via Graph API — only through the native app. Investigation done, plan created (see entry #50).
+- **`POST /auth/v1/token?grant_type=refresh_token` returns 429**: `autoRefreshToken: true` combined with `getSession()` on AuthProvider mount causes excessive refresh requests across multiple tabs. Fix planned — see entry #14.
 
 ## Current Status
 - **v19**: Browser-streamed Drive→Mega transfer. Moved CPU-intensive megajs AES encryption from server-side edge function to user's browser. New `transfer-ticket` edge function provides temporary decrypted credentials. Client-side `driveToMegaTransfer.ts` handles streaming upload. No server CPU limits — files of any size can transfer (subject to browser tab staying open).
 - **Delete files**: Users can delete files and folders from both Drive and Mega directly in the Storage page. Drive scope upgraded from `drive.readonly` to `drive.file` — existing Drive accounts must be reconnected.
+- **LCP improvements** (`de02541`): Monolithic 1.4 MB bundle split into 34 parallel-loadable chunks (critical path ~666 KB). Google Fonts moved from CSS `@import` to HTML `<link>` with preconnect hints. All 14 route pages lazy-loaded via `React.lazy` + `Suspense`. Logo preloaded with `fetchpriority="high"` + explicit dimensions. Removed ~77 KB unused deps (`react-query`, `react-hook-form`, `buffer`, `nodePolyfills`).
 
 ---
 
@@ -113,6 +115,19 @@
 - `profile_views` (lifetime) ❌ no data available
 - `views` (lifetime) ❌ no data available
 - Accounts must be reconnected from `/accounts` after the scope fix to get a token with `instagram_manage_insights`
+
+### 14. `POST /auth/v1/token?grant_type=refresh_token` Returns 429 (2026-07-17)
+
+**Symptom**: Users see `429 (Too Many Requests)` errors in console from the Supabase auth refresh endpoint. No immediate user-facing impact (token still works) but excessive background requests risk hitting Supabase project rate limits.
+
+**Root cause**: Three contributing factors:
+1. **`autoRefreshToken: true`** (`src/integrations/supabase/client.ts:15`): Supabase client automatically polls every ~30-60 min to refresh the access token. Each browser tab runs its own independent timer.
+2. **`getSession()` on AuthProvider mount** (`src/contexts/AuthContext.tsx:92`): On every app load, `getSession()` is called. If the cached session is expired/close to expiry, it triggers an immediate refresh on top of the auto-refresh timer.
+3. **Multiple tabs**: Each open tab independently attempts refresh, multiplying requests.
+
+**Status**: NOT YET FIXED. Fix plan:
+- [#1] Remove redundant `getSession()` call — `onAuthStateChange` already propagates session state
+- [#2] Add `BroadcastChannel` coordination so only one tab handles token refresh at a time
 
 ---
 
@@ -1955,25 +1970,28 @@ StoragePage already handled pagination correctly (load-more button).
 
 #### Performance Test Script
 ```
-1. [x] Lazy-load InsightsPage (recharts ~250 KB removed from main bundle)
-2. [x] Remove unused @tanstack/react-query (~15 KB) + react-hook-form (~12 KB)
-3. [x] Wrap AuthContext.value in useMemo
-4. [x] Replace AWS SDK (~130 KB cold-start) with raw fetch() + Web Crypto V4 signing
-5. [x] Add max-h/[600px] overflow-y-auto scroll containment to QueuePage + WorkflowItemsPage
-6. [x] Reduce subscription timeouts: 10m→5m in AccountsPage
-7. [ ] Lighthouse audit on Dashboard, Upload, Workflows, Queue, Accounts
-8. [ ] TTI target < 3s, LCP target < 2.5s
-9. [ ] Bundle analysis: npm run build -- --analyze
-10. [ ] Edge function cold-start: first-response latency per function
-11. [ ] Stress: 500 items in WorkflowItemsPage + 500 posts in QueuePage
-12. [ ] Memory: open/close AccountsPage modal 20x — check subscription leaks
+1. [x] Lazy-load all 14 route pages with React.lazy + Suspense (de02541)
+2. [x] Replace CSS @import for Google Fonts with HTML <link> + preconnect (de02541)
+3. [x] Vite manualChunks: vendor, ui, supabase, charts splits (de02541)
+4. [x] Preload /logo.svg with fetchpriority=high, explicit width/height (de02541)
+5. [x] Remove unused @tanstack/react-query (~15 KB) + react-hook-form (~12 KB) (de02541)
+6. [x] Remove vite-plugin-node-polyfills (~50 KB unused shims) (de02541)
+7. [x] Add loading=lazy to QueuePage thumbnails + UserMenu avatar (de02541)
+8. [ ] Lighthouse audit on Dashboard, Upload, Workflows, Queue, Accounts
+9. [ ] TTI target < 3s, LCP target < 2.5s
+10. [ ] Bundle analysis: npm run build -- --analyze
+11. [ ] Edge function cold-start: first-response latency per function
+12. [ ] Stress: 500 items in WorkflowItemsPage + 500 posts in QueuePage
 13. [ ] DB: EXPLAIN ANALYZE before/after adding indexes
 
 ### Behavioral Risk Assessment
 
-| Priority | Items | Behavior Risk | Can Deploy? |
-|----------|-------|---------------|-------------|
+| Priority | Items | Behavior Risk | Status |
+|----------|-------|---------------|--------|
+| **P0-LCP** | Code splitting (React.lazy + manualChunks), font @import→<link>, preload/width/height on Logo | ✅ Zero change — same UI, same APIs, smaller bundles | **Deployed `de02541`** |
+| **P0-LCP** | Remove unused deps (react-query, react-hook-form, buffer, nodePolyfills) | ✅ Zero change — code was already dead | **Deployed `de02541`** |
 | **P0** | DB indexes, N+1 query fixes | ✅ Zero change — indexes only speed up queries; batched queries return same data | **Safe anytime** |
-| **P1** | Lazy-load InsightsPage, remove unused deps (`react-query`, `react-hook-form`), wrap AuthContext in `useMemo` | ✅ _Done in `ee712dc`_ — same UI, same APIs, less bundle weight | **Deployed** |
-| **P2** | Replace AWS SDK with raw `fetch()` in process-workflow, add scroll containment to QueuePage/WorkflowItemsPage, reduce subscription timeouts | ⚠️ _Done in `ee712dc`_ — AWS SDK swap needs testing (S3 signature calculation); scroll containment preserves interactions; timeout reduction is generous (10m→5m for OAuth) | **Safe with per-item testing** |
-| **P3** | Replace `select("*")` with specific columns, combine edge functions | ✅ Column selects safe (frontend only uses returned columns); ⚠️ Combining functions changes API surface — needs migration plan with backward-compatible URLs | **Column selects safe; function combining needs planned migration** |
+| **P1** | Lazy-load InsightsPage, wrap AuthContext in useMemo | ✅ Same UI, same APIs | **Done in revert, pending re-apply** |
+| **P2** | Replace AWS SDK with raw `fetch()` in process-workflow, scroll containment, reduce subscription timeouts | ⚠️ AWS SDK swap needs testing; timeout reduction generous (10m→5m) | **Done in revert, pending re-apply** |
+| **P3** | Replace `select("*")` with specific columns, combine edge functions | ✅ Column selects safe; ⚠️ function combining needs migration plan | **Column selects safe; combining needs planning** |
+| **—** | Fix 429 rate limit on auth refresh token (entry #14) | ✅ Remove redundant `getSession()`, add BroadcastChannel tab coordination | **Not started** |
