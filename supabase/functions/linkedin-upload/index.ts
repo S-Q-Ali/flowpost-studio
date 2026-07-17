@@ -86,6 +86,8 @@ Deno.serve(async (req) => {
       return json({ error: "Video not found or missing file_url" }, 404);
     }
 
+    const isImage = (video as any).media_type === "image";
+
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
       .select("account_id, access_token, metadata")
@@ -102,9 +104,12 @@ Deno.serve(async (req) => {
     const personId = account.account_id;
     const uploadUrl = mediaUrl || video.file_url;
 
-    // Step 1: Register the video upload with LinkedIn
+    // Step 1: Register the upload with LinkedIn (different endpoint for images vs video)
+    const registerEndpoint = isImage
+      ? "https://api.linkedin.com/rest/images?action=initializeUpload"
+      : "https://api.linkedin.com/rest/videos?action=initializeUpload";
     const registerRes = await fetch(
-      "https://api.linkedin.com/rest/videos?action=initializeUpload",
+      registerEndpoint,
       {
         method: "POST",
         headers: {
@@ -129,14 +134,14 @@ Deno.serve(async (req) => {
     }
 
     const uploadUrlLinkedIn = registerData.value?.uploadInstructions?.[0]?.uploadUrl;
-    const videoUrn = registerData.value?.video;
-    if (!uploadUrlLinkedIn || !videoUrn) {
-      console.error("LinkedIn upload registration missing upload URL or video URN", registerData);
+    const mediaUrn = isImage ? registerData.value?.image : registerData.value?.video;
+    if (!uploadUrlLinkedIn || !mediaUrn) {
+      console.error("LinkedIn upload registration missing upload URL or media URN", registerData);
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
       return json({ error: "LinkedIn upload registration missing upload URL" }, 502);
     }
 
-    // Step 2: Upload the video binary to the provided URL
+    // Step 2: Upload the binary to the provided URL
     const videoRes = await fetch(uploadUrl);
     if (!videoRes.ok) {
       console.error("Failed to fetch source video for LinkedIn upload", uploadUrl, videoRes.status);
@@ -181,7 +186,7 @@ Deno.serve(async (req) => {
           },
           content: {
             media: {
-              id: videoUrn,
+              id: mediaUrn,
             },
           },
           lifecycleState: "PUBLISHED",
