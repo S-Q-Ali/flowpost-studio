@@ -88,9 +88,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUserId(data.userId ?? "00000000-0000-0000-0000-000000000000");
             setIsAdmin(true);
             setPendingSecurityVerification(false);
-            // Verify Supabase session exists (needed for DB queries with RLS)
-            const { data: sessionData } = await supabase.auth.getSession();
-            if (!sessionData?.session) {
+            // Check if Supabase session exists in localStorage (synchronous, no API call)
+            const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
+            const hasSession = !!localStorage.getItem(storageKey);
+            if (!hasSession) {
               setStoredToken(null);
               setIsAuthenticated(false);
               setUserId(null);
@@ -182,7 +183,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
-
+useEffect(() => {
+  // Start auto-refresh after 30s so rapid refreshes don't race
+  const timer = setTimeout(() => {
+    supabase.auth.startAutoRefresh();
+  }, 30000);
+  return () => clearTimeout(timer);
+}, []);
   const loginWithEmail = useCallback(async (email: string, password: string) => {
     const result = await Promise.race([
       supabase.auth.signInWithPassword({ email, password }),
@@ -190,6 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTimeout(() => reject(new Error("Connection timed out. Check your network or try again.")), 15000)
       ),
     ]);
+    
     const { data, error } = result;
     if (error) throw error;
 
