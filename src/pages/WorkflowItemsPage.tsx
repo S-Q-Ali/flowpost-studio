@@ -47,14 +47,6 @@ const platformCaptionConfig: Record<string, { field: string; label: string; inpu
   linkedin: [{ field: "linkedin_caption", label: "LinkedIn Caption", inputType: "textarea" }],
 };
 
-const postStatusConfig: Record<string, { label: string; className: string }> = {
-  scheduled: { label: "Scheduled", className: "bg-blue-500/10 text-blue-600 border-blue-500/30" },
-  processing: { label: "Processing", className: "bg-amber-500/10 text-amber-600 border-amber-500/30" },
-  publishing: { label: "Publishing", className: "bg-blue-500/10 text-blue-600 border-blue-500/30" },
-  published: { label: "Published", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" },
-  failed: { label: "Failed", className: "bg-red-500/10 text-red-600 border-red-500/30" },
-};
-
 const statusBadge: Record<string, { label: string; className: string }> = {
   pending: { label: "Pending", className: "bg-gray-500/10 text-gray-500 border-gray-500/30" },
   ready: { label: "Ready", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" },
@@ -143,6 +135,32 @@ export default function WorkflowItemsPage() {
       setLoading(false);
     })();
   }, [workflowId, userId]);
+
+  // Realtime subscription for post status updates
+  useEffect(() => {
+    if (!items.length) return;
+    const ids = items.map((i) => i.id);
+    const channel = supabase
+      .channel("workflow-items-post-status")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "posts" },
+        (payload) => {
+          const row = payload.new as { workflow_item_id?: string; platform?: string; status?: string };
+          if (!row.workflow_item_id || !row.platform || !row.status) return;
+          if (!ids.includes(row.workflow_item_id)) return;
+          setPostStatusMap((prev) => ({
+            ...prev,
+            [row.workflow_item_id]: {
+              ...(prev[row.workflow_item_id] ?? {}),
+              [row.platform]: row.status,
+            },
+          }));
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [items]);
 
   const updateLocal = (itemId: string, field: string, value: string | null) => {
     setLocalItems((prev) => ({
@@ -530,15 +548,11 @@ export default function WorkflowItemsPage() {
                           <span className={`text-xs font-semibold ${PLATFORM_COLOR[platId]?.split(" ")[1] || "text-foreground"}`}>
                             {platLabel}
                           </span>
-                          {itemPostStatuses[platId] && postStatusConfig[itemPostStatuses[platId]] && (
-                            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${postStatusConfig[itemPostStatuses[platId]].className}`}>
-                              {postStatusConfig[itemPostStatuses[platId]].label}
-                            </Badge>
+                          {itemPostStatuses[platId] === "published" && (
+                            <span className="text-xs text-green-600 font-medium">{platLabel} posted</span>
                           )}
-                          {!itemPostStatuses[platId] && item.status !== "pending" && item.status !== "ready" && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gray-500/10 text-gray-500 border-gray-500/30">
-                              No post
-                            </Badge>
+                          {itemPostStatuses[platId] === "failed" && (
+                            <span className="text-xs text-red-600 font-medium">{platLabel} failed</span>
                           )}
                         </div>
                         {fields.map((f) =>
