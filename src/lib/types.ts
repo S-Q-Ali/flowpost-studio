@@ -26,6 +26,7 @@ export interface Post {
   published_at: string | null;
   status: PostStatus;
   captions_enabled: boolean;
+  workflow_item_id?: string | null;
   created_at: string;
   videos?: Video;
 }

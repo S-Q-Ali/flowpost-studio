@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, X } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +36,25 @@ const PLATFORM_COLOR: Record<string, string> = {
   linkedin: "bg-blue-700/10 text-blue-700 border-blue-700/30",
 };
 
+const platformCaptionConfig: Record<string, { field: string; label: string; inputType: "input" | "textarea" }[]> = {
+  youtube: [
+    { field: "yt_video_title", label: "YT Title", inputType: "input" },
+    { field: "yt_video_description", label: "YT Description", inputType: "textarea" },
+  ],
+  facebook: [{ field: "fb_ig_caption", label: "FB/IG Caption", inputType: "textarea" }],
+  instagram: [{ field: "fb_ig_caption", label: "FB/IG Caption", inputType: "textarea" }],
+  tiktok: [{ field: "tiktok_caption", label: "TikTok Caption", inputType: "textarea" }],
+  linkedin: [{ field: "linkedin_caption", label: "LinkedIn Caption", inputType: "textarea" }],
+};
+
+const postStatusConfig: Record<string, { label: string; className: string }> = {
+  scheduled: { label: "Scheduled", className: "bg-blue-500/10 text-blue-600 border-blue-500/30" },
+  processing: { label: "Processing", className: "bg-amber-500/10 text-amber-600 border-amber-500/30" },
+  publishing: { label: "Publishing", className: "bg-blue-500/10 text-blue-600 border-blue-500/30" },
+  published: { label: "Published", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" },
+  failed: { label: "Failed", className: "bg-red-500/10 text-red-600 border-red-500/30" },
+};
+
 const statusBadge: Record<string, { label: string; className: string }> = {
   pending: { label: "Pending", className: "bg-gray-500/10 text-gray-500 border-gray-500/30" },
   ready: { label: "Ready", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" },
@@ -59,6 +77,24 @@ export default function WorkflowItemsPage() {
   const [localItems, setLocalItems] = useState<Record<string, Partial<WorkflowItem>>>({});
   const [bulkPlatformsOpen, setBulkPlatformsOpen] = useState(false);
   const [bulkPlatformsValue, setBulkPlatformsValue] = useState<string[]>([]);
+  const [postStatusMap, setPostStatusMap] = useState<Record<string, Record<string, string>>>({});
+
+  const visiblePlatforms = (() => {
+    const platforms = workflow?.platforms ?? [];
+    const result: { platformId: string; label: string; fields: { field: string; label: string; inputType: "input" | "textarea" }[] }[] = [];
+    const addedFields = new Set<string>();
+    for (const p of platforms) {
+      const fields = platformCaptionConfig[p];
+      if (!fields) continue;
+      const fieldKey = fields[0].field;
+      if (fieldKey && addedFields.has(fieldKey)) continue;
+      if (fieldKey) addedFields.add(fieldKey);
+      const hasBoth = platforms.includes("facebook") && platforms.includes("instagram");
+      const label = p === "facebook" ? (hasBoth ? "FB/IG" : "FB") : p === "instagram" ? (hasBoth ? "FB/IG" : "IG") : p.charAt(0).toUpperCase() + p.slice(1);
+      result.push({ platformId: p, label, fields });
+    }
+    return result;
+  })();
 
   useEffect(() => {
     if (!workflowId || !userId) return;
@@ -77,6 +113,32 @@ export default function WorkflowItemsPage() {
         .eq("workflow_id", workflowId)
         .order("sort_order");
       if (wfItems) setItems(wfItems as WorkflowItem[]);
+
+      // Fetch per-platform post statuses
+      if (wfItems && wfItems.length > 0) {
+        const itemIds = wfItems.map((i) => i.id);
+        const { data: postData } = await supabase
+          .from("posts")
+          .select("workflow_item_id, platform, status")
+          .in("workflow_item_id", itemIds);
+        if (postData) {
+          const map: Record<string, Record<string, string>> = {};
+          for (const p of postData) {
+            const iid = p.workflow_item_id as string;
+            const plat = p.platform as string;
+            const st = p.status as string;
+            if (!iid || !plat || !st) continue;
+            if (!map[iid]) map[iid] = {};
+            const current = map[iid][plat];
+            // Derive worst status per platform
+            const rank: Record<string, number> = { failed: 0, publishing: 1, processing: 2, scheduled: 3, published: 4 };
+            if (current === undefined || (rank[st] ?? 99) < (rank[current] ?? 99)) {
+              map[iid][plat] = st;
+            }
+          }
+          setPostStatusMap(map);
+        }
+      }
 
       setLoading(false);
     })();
@@ -425,107 +487,88 @@ export default function WorkflowItemsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto border border-border rounded-lg">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b border-border">
-                <th className="w-10 p-2 text-left">
-                  <Checkbox
-                    checked={selectedIds.size === items.length}
-                    onCheckedChange={(checked) => checked ? selectAll() : deselectAll()}
-                  />
-                </th>
-                <th className="p-2 text-left text-xs text-muted-foreground font-medium">File</th>
-                <th className="p-2 text-left text-xs text-muted-foreground font-medium w-20">Status</th>
-                <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[140px]">YT Title</th>
-                <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[180px]">YT Description</th>
-                <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[180px]">FB/IG Caption</th>
-                <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[140px]">TikTok Caption</th>
-                <th className="p-2 text-left text-xs text-muted-foreground font-medium min-w-[140px]">LinkedIn Caption</th>
-                <th className="p-2 text-left text-xs text-muted-foreground font-medium w-24">Platforms</th>
-                <th className="w-24 p-2 text-left text-xs text-muted-foreground font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => {
-                const sb = statusBadge[item.status] ?? statusBadge.pending;
-                const isVideo = !item.mime_type || item.mime_type.startsWith("video/");
-                return (
-                  <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20">
-                    <td className="p-2">
+        <div className="space-y-4">
+          {items.map((item) => {
+            const sb = statusBadge[item.status] ?? statusBadge.pending;
+            const isVideo = !item.mime_type || item.mime_type.startsWith("video/");
+            const itemPostStatuses = postStatusMap[item.id] ?? {};
+            return (
+              <Card key={item.id} className="bg-card border-border">
+                <CardContent className="p-4 space-y-4">
+                  {/* Header row */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <Checkbox
                         checked={selectedIds.has(item.id)}
                         onCheckedChange={() => toggleSelect(item.id)}
                       />
-                    </td>
-                    <td className="p-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {isVideo ? (
-                          <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <FileIcon className="h-4 w-4 shrink-0 text-amber-400" />
+                      {isVideo ? (
+                        <FileIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <FileIcon className="h-5 w-5 shrink-0 text-amber-400" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm text-foreground truncate max-w-[300px]">{item.file_name}</p>
+                        {item.file_size && (
+                          <p className="text-xs text-muted-foreground">{formatBytes(item.file_size)}</p>
                         )}
-                        <div className="min-w-0">
-                          <p className="text-xs text-foreground truncate max-w-[180px]">{item.file_name}</p>
-                          {item.file_size && (
-                            <p className="text-[10px] text-muted-foreground">{formatBytes(item.file_size)}</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 ${sb.className}`}>
+                      {sb.label}
+                    </Badge>
+                  </div>
+
+                  {/* Platform containers */}
+                  <div className="grid gap-3">
+                    {visiblePlatforms.map(({ platformId: platId, label: platLabel, fields }) => (
+                      <div key={platId} className="border border-border rounded-md p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-semibold ${PLATFORM_COLOR[platId]?.split(" ")[1] || "text-foreground"}`}>
+                            {platLabel}
+                          </span>
+                          {itemPostStatuses[platId] && postStatusConfig[itemPostStatuses[platId]] && (
+                            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${postStatusConfig[itemPostStatuses[platId]].className}`}>
+                              {postStatusConfig[itemPostStatuses[platId]].label}
+                            </Badge>
+                          )}
+                          {!itemPostStatuses[platId] && item.status !== "pending" && item.status !== "ready" && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-gray-500/10 text-gray-500 border-gray-500/30">
+                              No post
+                            </Badge>
                           )}
                         </div>
+                        {fields.map((f) =>
+                          f.inputType === "input" ? (
+                            <Input
+                              key={f.field}
+                              className="h-8 text-xs"
+                              value={getField(item, f.field as keyof WorkflowItem) ?? ""}
+                              onChange={(e) => updateLocal(item.id, f.field, e.target.value || null)}
+                              placeholder={f.label}
+                            />
+                          ) : (
+                            <Textarea
+                              key={f.field}
+                              className="h-8 text-xs min-h-0 resize-none"
+                              rows={1}
+                              value={getField(item, f.field as keyof WorkflowItem) ?? ""}
+                              onChange={(e) => updateLocal(item.id, f.field, e.target.value || null)}
+                              placeholder={f.label}
+                            />
+                          )
+                        )}
                       </div>
-                    </td>
-                    <td className="p-2">
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${sb.className}`}>
-                        {sb.label}
-                      </Badge>
-                    </td>
-                    <td className="p-2">
-                      <Input
-                        className="h-8 text-xs"
-                        value={getField(item, "yt_video_title") ?? ""}
-                        onChange={(e) => updateLocal(item.id, "yt_video_title", e.target.value || null)}
-                        placeholder="YouTube title"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Textarea
-                        className="h-8 text-xs min-h-0 resize-none"
-                        rows={1}
-                        value={getField(item, "yt_video_description") ?? ""}
-                        onChange={(e) => updateLocal(item.id, "yt_video_description", e.target.value || null)}
-                        placeholder="YouTube description"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Textarea
-                        className="h-8 text-xs min-h-0 resize-none"
-                        rows={1}
-                        value={getField(item, "fb_ig_caption") ?? ""}
-                        onChange={(e) => updateLocal(item.id, "fb_ig_caption", e.target.value || null)}
-                        placeholder="FB/IG caption"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Textarea
-                        className="h-8 text-xs min-h-0 resize-none"
-                        rows={1}
-                        value={getField(item, "tiktok_caption") ?? ""}
-                        onChange={(e) => updateLocal(item.id, "tiktok_caption", e.target.value || null)}
-                        placeholder="TikTok caption"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Textarea
-                        className="h-8 text-xs min-h-0 resize-none"
-                        rows={1}
-                        value={getField(item, "linkedin_caption") ?? ""}
-                        onChange={(e) => updateLocal(item.id, "linkedin_caption", e.target.value || null)}
-                        placeholder="LinkedIn caption"
-                      />
-                    </td>
-                    <td className="p-2">
+                    ))}
+                  </div>
+
+                  {/* Footer: Platforms override + Actions */}
+                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/50">
+                    <div className="flex items-center gap-2">
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className="flex items-center gap-1 flex-wrap cursor-pointer">
+                          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+                            <span className="text-muted-foreground">Platforms:</span>
                             {(() => {
                               const override = getPlatforms(item);
                               const platforms = override ?? workflow.platforms ?? [];
@@ -541,7 +584,7 @@ export default function WorkflowItemsPage() {
                                 </span>
                               ));
                             })()}
-                          </button>
+                          </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-44 p-3" align="start">
                           <div className="space-y-2">
@@ -572,53 +615,51 @@ export default function WorkflowItemsPage() {
                           </div>
                         </PopoverContent>
                       </Popover>
-                    </td>
-                    <td className="p-2">
-                      <div className="flex items-center gap-1">
-                        {(item.status === "pending" || item.status === "failed") && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-emerald-500 hover:text-emerald-400"
-                            title="Mark as Ready"
-                            onClick={() => markReady(item.id)}
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {item.status === "ready" && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                            title="Unmark Ready"
-                            onClick={() => markPending(item.id)}
-                          >
-                            <Circle className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {(item.status === "pending" || item.status === "failed") && (
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive/70 hover:text-destructive"
-                          title="Remove"
-                          onClick={() => removeItem(item.id)}
+                          size="sm"
+                          className="h-7 text-xs gap-1 text-emerald-500 hover:text-emerald-400"
+                          onClick={() => markReady(item.id)}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Ready
                         </Button>
-                        {isDirty(item.id) && (
-                          <span className="text-[10px] text-amber-500 font-medium">*</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      )}
+                      {item.status === "ready" && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => markPending(item.id)}
+                        >
+                          <Circle className="h-3.5 w-3.5" />
+                          Unmark
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive/70 hover:text-destructive"
+                        title="Remove"
+                        onClick={() => removeItem(item.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                      {isDirty(item.id) && (
+                        <span className="text-[10px] text-amber-500 font-medium">*</span>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

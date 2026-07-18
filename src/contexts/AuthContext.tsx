@@ -58,6 +58,30 @@ function clearCache() {
   sessionStorage.removeItem(CACHE_KEY);
 }
 
+const VERIFY_CACHE_KEY = "flowpost_verify_cache";
+
+function getVerifyCache(): { valid: boolean; userId: string } | null {
+  try {
+    const raw = sessionStorage.getItem(VERIFY_CACHE_KEY);
+    if (!raw) return null;
+    const { data, timestamp } = JSON.parse(raw);
+    if (Date.now() - timestamp < 5000) return data;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function setVerifyCache(data: { valid: boolean; userId: string }) {
+  try {
+    sessionStorage.setItem(VERIFY_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch {}
+}
+
+function clearVerifyCache() {
+  try { sessionStorage.removeItem(VERIFY_CACHE_KEY); } catch {}
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
@@ -80,10 +104,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 1. Check custom token (admin)
     const token = getStoredToken();
     if (token) {
+      // Check sessionStorage cache first (survives page refreshes within 5s TTL)
+      const cached = getVerifyCache();
+      if (cached) {
+        if (cached.valid) {
+          setIsAuthenticated(true);
+          setUserId(cached.userId ?? "00000000-0000-0000-0000-000000000000");
+          setIsAdmin(true);
+          setPendingSecurityVerification(false);
+          // Check if Supabase session exists in localStorage
+          const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
+          const hasSession = !!localStorage.getItem(storageKey);
+          if (!hasSession) {
+            setStoredToken(null);
+            setIsAuthenticated(false);
+            setUserId(null);
+            setIsAdmin(false);
+          }
+        } else {
+          // Cached as invalid — clear token
+          setStoredToken(null);
+        }
+        resolve();
+        return;
+      }
+
       supabase.functions.invoke<{ valid?: boolean; userId?: string }>("verify-session", { body: { token } })
         .then(async ({ data, error }) => {
           if (cancelled) return;
-          if (!error && data?.valid) {
+          if (data?.valid) {
+            setVerifyCache({ valid: true, userId: data.userId ?? "00000000-0000-0000-0000-000000000000" });
             setIsAuthenticated(true);
             setUserId(data.userId ?? "00000000-0000-0000-0000-000000000000");
             setIsAdmin(true);
@@ -97,13 +147,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setUserId(null);
               setIsAdmin(false);
             }
-          } else {
+          } else if (!error) {
+            // Token is genuinely invalid (edge function ran successfully)
+            setVerifyCache({ valid: false, userId: "" });
             setStoredToken(null);
           }
+          // else: HTTP error (429, 5xx, etc.) — preserve token, try again next load
           resolve();
         })
         .catch(() => {
-          setStoredToken(null);
+          // Network error — preserve token, try again next load
           resolve();
         });
       return;
@@ -248,6 +301,7 @@ useEffect(() => {
   const logout = useCallback(async () => {
     setStoredToken(null);
     clearCache();
+    clearVerifyCache();
     setIsAuthenticated(false);
     setUserId(null);
     setIsAdmin(false);

@@ -625,6 +625,7 @@ Deno.serve(async (req) => {
                 scheduled_at: nowIso,
                 status: "processing",
                 captions_enabled: true,
+                workflow_item_id: workflowItemIdByRowIndex[rowIndex],
                 contains_altered_content: wf.youtube_altered_content ?? true,
                 metadata: { youtube_video_title: ytVideoTitle },
               });
@@ -643,6 +644,7 @@ Deno.serve(async (req) => {
                 scheduled_at: nowIso,
                 status: "processing",
                 captions_enabled: true,
+                workflow_item_id: workflowItemIdByRowIndex[rowIndex],
               });
               slotIndex++;
             }
@@ -659,6 +661,7 @@ Deno.serve(async (req) => {
                 scheduled_at: nowIso,
                 status: "processing",
                 captions_enabled: true,
+                workflow_item_id: workflowItemIdByRowIndex[rowIndex],
               });
               slotIndex++;
             }
@@ -675,6 +678,7 @@ Deno.serve(async (req) => {
                 scheduled_at: nowIso,
                 status: "processing",
                 captions_enabled: true,
+                workflow_item_id: workflowItemIdByRowIndex[rowIndex],
               });
               slotIndex++;
             }
@@ -691,6 +695,7 @@ Deno.serve(async (req) => {
                 scheduled_at: nowIso,
                 status: "processing",
                 captions_enabled: true,
+                workflow_item_id: workflowItemIdByRowIndex[rowIndex],
               });
               slotIndex++;
             }
