@@ -188,7 +188,7 @@ export default function WorkflowItemsPage() {
     setSaving(true);
     let errorCount = 0;
     for (const itemId of dirtyIds) {
-      const updates = localItems[itemId];
+      const updates = { ...localItems[itemId], status: "ready" };
       if (!updates) continue;
       const { error } = await supabase
         .from("workflow_items")
@@ -210,16 +210,19 @@ export default function WorkflowItemsPage() {
   };
 
   const markReady = async (itemId: string) => {
+    const pendingEdits = localItems[itemId] ?? {};
+    const updates = { ...pendingEdits, status: "ready" };
     const { error } = await supabase
       .from("workflow_items")
-      .update({ status: "ready" })
+      .update(updates)
       .eq("id", itemId);
     if (error) {
       toast.error("Failed to mark as ready");
       return;
     }
-    setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, status: "ready" as const } : i)));
+    setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, ...updates, status: "ready" as const } : i)));
     setDirtyIds((prev) => { const n = new Set(prev); n.delete(itemId); return n; });
+    setLocalItems((prev) => { const n = { ...prev }; delete n[itemId]; return n; });
   };
 
   const markPending = async (itemId: string) => {

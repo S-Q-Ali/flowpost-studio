@@ -221,11 +221,13 @@ Deno.serve(async (req) => {
   const utcMinute = now.getUTCMinutes();
 
   for (const wf of list) {
-    const sheetId: string | undefined =
-      wf.sheet_id || GOOGLE_FALLBACK_SHEET_ID;
-    if (!sheetId) {
-      errors.push(`Workflow ${wf.id} has no sheet_id and no GOOGLE_SHEET_ID fallback`);
-      continue;
+    if (wf.data_source !== 'flowpost') {
+      const sheetId: string | undefined =
+        wf.sheet_id || GOOGLE_FALLBACK_SHEET_ID;
+      if (!sheetId) {
+        errors.push(`Workflow ${wf.id} has no sheet_id and no GOOGLE_SHEET_ID fallback`);
+        continue;
+      }
     }
 
     if (!isManualRun) {
