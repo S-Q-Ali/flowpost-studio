@@ -269,11 +269,15 @@ async function groqGenerateCaptions(
     ? `\n\nIMPORTANT: Only generate captions for these platforms: ${platforms.join(", ")}.`
     : "";
 
+  const promptJson = masterPrompt.raw_prompt
+    ? JSON.stringify(JSON.parse(masterPrompt.raw_prompt), null, 2)
+    : JSON.stringify(masterPrompt, null, 2);
+
   const systemPrompt = `You are an expert social media content strategist. Generate captions for a video file named "${fileName}".
 
 Follow this prompt template EXACTLY — return valid JSON matching the output_format below.
 
-${JSON.stringify(masterPrompt, null, 2)}
+${promptJson}
 ${platformHint}
 
 Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
@@ -331,6 +335,14 @@ export interface GenerateCaptionsOptions {
   platforms?: string[];
   onProgress?: OnProgress;
 }
+
+const PLATFORM_ALLOWED_KEYS: Record<string, string[]> = {
+  youtube: ["yt_video_title", "yt_video_description"],
+  facebook: ["fb_ig_caption", "caption"],
+  instagram: ["fb_ig_caption", "caption"],
+  tiktok: ["tiktok_caption"],
+  linkedin: ["linkedin_caption"],
+};
 
 export async function generateAICaptions(options: GenerateCaptionsOptions): Promise<Record<string, string>> {
   const { item, masterPrompt, platforms, onProgress } = options;
@@ -395,6 +407,14 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     } catch (err) {
       console.error("[captions] FAIL groqGenerateCaptions", err);
       throw new Error(`generate: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // Strip keys not relevant to selected platforms
+    if (platforms?.length) {
+      const allowed = new Set(platforms.flatMap((p) => PLATFORM_ALLOWED_KEYS[p] || []));
+      for (const key of Object.keys(captions)) {
+        if (!allowed.has(key)) delete captions[key];
+      }
     }
 
     emit(onProgress, "done", 100);

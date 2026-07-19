@@ -49,6 +49,7 @@ export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProp
           example_output: normalizeField(parsed.example_output),
           hashtags: normalizeField(parsed.hashtags),
           generation_instruction: normalizeField(parsed.generation_instruction),
+          raw_prompt: jsonBuffer,
         };
         onChange(normalized);
         setJsonError(false);

@@ -63,16 +63,35 @@ async function transcribeAudio(audioUrl: string, mimeType: string, driveToken: s
   return await groqRes.text();
 }
 
+const PLATFORM_ALLOWED_KEYS: Record<string, string[]> = {
+  youtube: ["yt_video_title", "yt_video_description"],
+  facebook: ["fb_ig_caption", "caption"],
+  instagram: ["fb_ig_caption", "caption"],
+  tiktok: ["tiktok_caption"],
+  linkedin: ["linkedin_caption"],
+};
+
 async function generateCaptions(
   transcript: string,
   masterPrompt: Record<string, unknown>,
   fileName: string,
+  platforms?: string[],
 ): Promise<Record<string, string>> {
+  const rawPrompt = masterPrompt.raw_prompt as string | undefined;
+  const promptJson = rawPrompt
+    ? JSON.stringify(JSON.parse(rawPrompt), null, 2)
+    : JSON.stringify(masterPrompt, null, 2);
+
+  const platformHint = platforms?.length
+    ? `\n\nIMPORTANT: Only generate captions for these platforms: ${platforms.join(", ")}.`
+    : "";
+
   const systemPrompt = `You are an expert social media content strategist. Generate captions for a video file named "${fileName}".
 
 Follow this prompt template EXACTLY — return valid JSON matching the output_format below.
 
-${JSON.stringify(masterPrompt, null, 2)}
+${promptJson}
+${platformHint}
 
 Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
 
@@ -108,11 +127,21 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
   }
 
+  let captions: Record<string, string>;
   try {
-    return JSON.parse(cleaned);
+    captions = JSON.parse(cleaned);
   } catch {
     return {};
   }
+
+  if (platforms?.length) {
+    const allowed = new Set(platforms.flatMap((p) => PLATFORM_ALLOWED_KEYS[p] || []));
+    for (const key of Object.keys(captions)) {
+      if (!allowed.has(key)) delete captions[key];
+    }
+  }
+
+  return captions;
 }
 
 async function getDriveAccount(userId: string, driveAccountId?: string | null) {
@@ -309,7 +338,8 @@ Deno.serve(async (req) => {
 
     const transcript = await transcribeAudio(downloadUrl, mimeType, driveToken);
 
-    const captions = await generateCaptions(transcript, masterPrompt, item.file_name);
+    const wfPlatforms = (workflow.platforms as string[]) ?? [];
+    const captions = await generateCaptions(transcript, masterPrompt, item.file_name, wfPlatforms);
 
     return json({
       item_id: itemId,

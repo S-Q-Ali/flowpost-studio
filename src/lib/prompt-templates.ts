@@ -4,6 +4,7 @@ export interface MasterPrompt {
   example_output: string;
   hashtags: string;
   generation_instruction: string;
+  raw_prompt?: string;
 }
 
 export interface PromptTemplate {

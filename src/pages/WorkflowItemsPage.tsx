@@ -397,6 +397,7 @@ export default function WorkflowItemsPage() {
     try {
       const captions = await generateAICaptions({
         item: { id: item.id, file_name: item.file_name, mime_type: item.mime_type },
+        masterPrompt: workflow?.caption_master_prompt ?? undefined,
         platforms: workflow?.platforms ?? [],
         onProgress: (progress) => setPreviewProgress(progress),
       });
