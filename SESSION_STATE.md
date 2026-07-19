@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `ee7c0f3` — Add browser-native audio extraction via AudioContext+MediaRecorder to fix Groq Whisper 413
+## CURRENT HEAD: `e2c0ef4` — Normalize array/object fields when switching Raw JSON → Template tab
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2201,3 +2201,15 @@ StoragePage already handled pagination correctly (load-more button).
 - Pushed to `main` + edge function deployed to `ximorwzknbizpceaoflw`
 
 **Commits:** `b71d0d9`, `1ae5e16`, `217a303`, `ee7c0f3`
+
+---
+
+### 81. Raw JSON → Template tab: normalize arrays/objects to string (2026-07-19)
+
+**Problem:** Pasting a JSON with `strict_rules` as an array or `output_format`/`hashtags` as objects into the Raw JSON tab, then switching to Template tab, showed `[object Object]` for object fields and empty values for array fields. The `MasterPrompt` interface expects all 5 fields as `string`, but `handleTabChange` passed the parsed JSON directly to `onChange` without type normalization.
+
+**Fix:** Added `normalizeField(v)` helper in `CaptionPromptEditor.tsx` — arrays → joined with `\n`, objects → `JSON.stringify(v, null, 2)`, strings pass through. Called during Raw JSON → Template transition. Matches the edge function's existing `promptValue()` behavior.
+
+**Known remaining issue:** `default_hashtags` key vs `hashtags` — users must use `"hashtags"` for the field to populate in the Template tab. Extra keys (`name`, `description`, `input`) are ignored but harmless.
+
+**Commit:** `e2c0ef4`
