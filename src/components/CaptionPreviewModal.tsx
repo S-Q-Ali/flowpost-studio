@@ -3,13 +3,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Loader2, Sparkles, Check, CircleDot } from "lucide-react";
 
-interface CaptionData {
-  yt_video_title: string;
-  yt_video_description: string;
-  fb_ig_caption: string;
-  tiktok_caption: string;
-  linkedin_caption: string;
-}
+const CAPTION_LABELS: Record<string, string> = {
+  yt_video_title: "YouTube Title",
+  yt_video_description: "YouTube Description",
+  fb_ig_caption: "Facebook / Instagram Caption",
+  tiktok_caption: "TikTok Caption",
+  linkedin_caption: "LinkedIn Caption",
+  caption: "Caption",
+};
 
 type StepId =
   | "fetching-key"
@@ -42,22 +43,14 @@ const STEP_LABELS: Record<StepId, string> = {
 interface CaptionPreviewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  captions: CaptionData | null;
+  captions: Record<string, string> | null;
   loading: boolean;
   fileName: string;
-  onSave: (captions: CaptionData) => void;
+  onSave: (captions: Record<string, string>) => void;
   progressStep: StepId | null;
   progressPercent: number;
   progressLabel: string | null;
 }
-
-const platformSections: { key: keyof CaptionData; label: string; note: string }[] = [
-  { key: "yt_video_title", label: "YouTube Title", note: "Max 100 chars" },
-  { key: "yt_video_description", label: "YouTube Description", note: "Max 1000 chars" },
-  { key: "fb_ig_caption", label: "Facebook / Instagram Caption", note: "Max 500 chars" },
-  { key: "tiktok_caption", label: "TikTok Caption", note: "Max 500 chars" },
-  { key: "linkedin_caption", label: "LinkedIn Caption", note: "Max 1000 chars" },
-];
 
 export function CaptionPreviewModal({
   open,
@@ -129,12 +122,9 @@ export function CaptionPreviewModal({
         ) : captions ? (
           <>
             <div className="flex-1 overflow-y-auto max-h-[55vh] space-y-4 pr-1">
-              {platformSections.map(({ key, label, note }) => (
+              {Object.keys(captions).filter((k) => captions[k]).map((key) => (
                 <div key={key} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-foreground">{label}</label>
-                    <span className="text-[10px] text-muted-foreground">{note}</span>
-                  </div>
+                  <label className="text-xs font-medium text-foreground">{CAPTION_LABELS[key] || key}</label>
                   <Textarea
                     className="text-xs min-h-[60px] resize-y"
                     value={captions[key] ?? ""}

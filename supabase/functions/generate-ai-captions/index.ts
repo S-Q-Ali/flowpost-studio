@@ -36,13 +36,6 @@ const isAuthorized =
     bearerToken === FRONTEND_API_KEY ||
     apiKeyHeader === FRONTEND_API_KEY;
 
-function promptValue(v: unknown): string {
-  if (typeof v === "string") return v;
-  if (Array.isArray(v)) return v.map((x) => String(x)).join("\n");
-  if (v !== null && typeof v === "object") return JSON.stringify(v, null, 2);
-  return String(v ?? "");
-}
-
 async function transcribeAudio(audioUrl: string, mimeType: string, driveToken: string): Promise<string> {
   const response = await fetch(audioUrl, {
     headers: { Authorization: `Bearer ${driveToken}` },
@@ -75,22 +68,11 @@ async function generateCaptions(
   masterPrompt: Record<string, unknown>,
   fileName: string,
 ): Promise<Record<string, string>> {
-  const systemPrompt = `You are an expert social media content strategist. Generate platform-optimized captions for a video file named "${fileName}".
+  const systemPrompt = `You are an expert social media content strategist. Generate captions for a video file named "${fileName}".
 
-## STRICT RULES
-${promptValue(masterPrompt.strict_rules) || "Follow the output format exactly."}
+Follow this prompt template EXACTLY — return valid JSON matching the output_format below.
 
-## OUTPUT FORMAT
-${promptValue(masterPrompt.output_format) || "Return JSON with yt_video_title, yt_video_description, fb_ig_caption, tiktok_caption, linkedin_caption."}
-
-## EXAMPLE OUTPUT
-${promptValue(masterPrompt.example_output) || "See the generation instruction below."}
-
-## DEFAULT HASHTAGS
-${promptValue(masterPrompt.hashtags) || ""}
-
-## GENERATION INSTRUCTION
-${promptValue(masterPrompt.generation_instruction) || "Generate captions based on the transcript."}
+${JSON.stringify(masterPrompt, null, 2)}
 
 Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
 
@@ -126,26 +108,11 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
   }
 
-  let captions: Record<string, string>;
   try {
-    captions = JSON.parse(cleaned);
+    return JSON.parse(cleaned);
   } catch {
-    captions = {
-      yt_video_title: fileName.replace(/\.[^/.]+$/, "").slice(0, 60),
-      yt_video_description: cleaned.slice(0, 300),
-      fb_ig_caption: "",
-      tiktok_caption: "",
-      linkedin_caption: "",
-    };
+    return {};
   }
-
-  return {
-    yt_video_title: (captions.yt_video_title || fileName.replace(/\.[^/.]+$/, "").slice(0, 60)).slice(0, 100),
-    yt_video_description: (captions.yt_video_description || "").slice(0, 1000),
-    fb_ig_caption: (captions.fb_ig_caption || "").slice(0, 500),
-    tiktok_caption: (captions.tiktok_caption || "").slice(0, 500),
-    linkedin_caption: (captions.linkedin_caption || "").slice(0, 1000),
-  };
 }
 
 async function getDriveAccount(userId: string, driveAccountId?: string | null) {

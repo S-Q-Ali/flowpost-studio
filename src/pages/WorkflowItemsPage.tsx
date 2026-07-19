@@ -397,6 +397,7 @@ export default function WorkflowItemsPage() {
     try {
       const captions = await generateAICaptions({
         item: { id: item.id, file_name: item.file_name, mime_type: item.mime_type },
+        platforms: workflow?.platforms ?? [],
         onProgress: (progress) => setPreviewProgress(progress),
       });
       setPreviewCaptions(captions);
@@ -414,12 +415,19 @@ export default function WorkflowItemsPage() {
 
   const applyCaptions = async (captions: Record<string, string>) => {
     if (!previewItemId) return;
+    const CAPTION_KEY_MAP: Record<string, string> = {
+      caption: "fb_ig_caption",
+      yt_video_title: "yt_video_title",
+      yt_video_description: "yt_video_description",
+      fb_ig_caption: "fb_ig_caption",
+      tiktok_caption: "tiktok_caption",
+      linkedin_caption: "linkedin_caption",
+    };
     const updates: Record<string, string | null> = {};
-    if (captions.yt_video_title) updates.yt_video_title = captions.yt_video_title;
-    if (captions.yt_video_description) updates.yt_video_description = captions.yt_video_description;
-    if (captions.fb_ig_caption) updates.fb_ig_caption = captions.fb_ig_caption;
-    if (captions.tiktok_caption) updates.tiktok_caption = captions.tiktok_caption;
-    if (captions.linkedin_caption) updates.linkedin_caption = captions.linkedin_caption;
+    for (const [key, value] of Object.entries(captions)) {
+      const dbField = CAPTION_KEY_MAP[key] || key;
+      if (value) updates[dbField] = value;
+    }
 
     const { error } = await supabase
       .from("workflow_items")

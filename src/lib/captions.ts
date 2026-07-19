@@ -260,26 +260,21 @@ async function groqGenerateCaptions(
   fileName: string,
   masterPrompt: MasterPrompt,
   apiKey: string,
+  platforms?: string[],
   onProgress?: OnProgress,
 ): Promise<Record<string, string>> {
   emit(onProgress, "generating-captions", 0);
 
-  const systemPrompt = `You are an expert social media content strategist. Generate platform-optimized captions for a video file named "${fileName}".
+  const platformHint = platforms?.length
+    ? `\n\nIMPORTANT: Only generate captions for these platforms: ${platforms.join(", ")}.`
+    : "";
 
-## STRICT RULES
-${masterPrompt.strict_rules}
+  const systemPrompt = `You are an expert social media content strategist. Generate captions for a video file named "${fileName}".
 
-## OUTPUT FORMAT
-${masterPrompt.output_format}
+Follow this prompt template EXACTLY — return valid JSON matching the output_format below.
 
-## EXAMPLE OUTPUT
-${masterPrompt.example_output}
-
-## DEFAULT HASHTAGS
-${masterPrompt.hashtags}
-
-## GENERATION INSTRUCTION
-${masterPrompt.generation_instruction}
+${JSON.stringify(masterPrompt, null, 2)}
+${platformHint}
 
 Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
 
@@ -319,23 +314,11 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
   try {
     captions = JSON.parse(cleaned);
   } catch {
-    captions = {
-      yt_video_title: fileName.replace(/\.[^/.]+$/, "").slice(0, 60),
-      yt_video_description: cleaned.slice(0, 300),
-      fb_ig_caption: "",
-      tiktok_caption: "",
-      linkedin_caption: "",
-    };
+    captions = {};
   }
 
   emit(onProgress, "generating-captions", 100);
-  return {
-    yt_video_title: (captions.yt_video_title || fileName.replace(/\.[^/.]+$/, "").slice(0, 60)).slice(0, 100),
-    yt_video_description: (captions.yt_video_description || "").slice(0, 1000),
-    fb_ig_caption: (captions.fb_ig_caption || "").slice(0, 500),
-    tiktok_caption: (captions.tiktok_caption || "").slice(0, 500),
-    linkedin_caption: (captions.linkedin_caption || "").slice(0, 1000),
-  };
+  return captions;
 }
 
 export interface GenerateCaptionsOptions {
@@ -345,11 +328,12 @@ export interface GenerateCaptionsOptions {
     mime_type: string | null;
   };
   masterPrompt?: MasterPrompt | null;
+  platforms?: string[];
   onProgress?: OnProgress;
 }
 
 export async function generateAICaptions(options: GenerateCaptionsOptions): Promise<Record<string, string>> {
-  const { item, masterPrompt, onProgress } = options;
+  const { item, masterPrompt, platforms, onProgress } = options;
   const prompt = masterPrompt || getDefaultMasterPrompt();
 
   try {
@@ -407,7 +391,7 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
 
     let captions: Record<string, string>;
     try {
-      captions = await groqGenerateCaptions(transcript, visualDescription, item.file_name, prompt, apiKey, onProgress);
+      captions = await groqGenerateCaptions(transcript, visualDescription, item.file_name, prompt, apiKey, platforms, onProgress);
     } catch (err) {
       console.error("[captions] FAIL groqGenerateCaptions", err);
       throw new Error(`generate: ${err instanceof Error ? err.message : String(err)}`);
