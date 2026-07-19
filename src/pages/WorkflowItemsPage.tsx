@@ -402,6 +402,7 @@ export default function WorkflowItemsPage() {
       setPreviewCaptions(captions);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to generate captions";
+      console.error("[WorkflowItemsPage] generateCaptions error", err);
       toast.error(msg);
       setPreviewOpen(false);
     } finally {

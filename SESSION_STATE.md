@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `48ade63` — AI caption generation: Groq Whisper + Llama 3.3 70B, master prompt editor, per-item AI Captions button
+## CURRENT HEAD: `f560526` — Fix 401: check apikey header as fallback for Supabase auth
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2132,3 +2132,22 @@ StoragePage already handled pagination correctly (load-more button).
 |---------|-----|
 | Raw JSON textarea frozen on paste/type | Switched to local `jsonBuffer` state — always accepts input. Validated on tab switch to Template |
 | Arrays/objects render as `[object Object]` in prompt | Added `promptValue(v)` normalizer: arrays→joined, objects→JSON.stringify, strings→pass-through |
+
+---
+
+### 79. Fixed 401 on generate-ai-captions — apikey header fallback (2026-07-19)
+
+**Problem:** Frontend got `401 Unauthorized` when calling `generate-ai-captions` edge function.
+
+**Root cause:** Two issues stacked:
+1. `SUPABASE_ANON_KEY` env var deprecated/empty in edge functions — `Deno.env.get("SUPABASE_ANON_KEY")` returns null
+2. Frontend sends `Authorization: Bearer localStorage.getItem("flowpost_token") || SUPABASE_ANON_KEY`. If `flowpost_token` exists (authenticated users), the Bearer token is a session token, not the anon key — it matches no trusted key
+
+**Fix (2 changes):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| Replace `SUPABASE_ANON_KEY` with `FRONTEND_API_KEY` | `generate-ai-captions/index.ts` | `FRONTEND_API_KEY` is a non-deprecated custom secret holding the correct anon key value |
+| Add `apikey` header fallback | `generate-ai-captions/index.ts` | `supabase.functions.invoke()` always sends the anon key in the `apikey` header regardless of `Authorization`. The edge function now accepts `apiKeyHeader === FRONTEND_API_KEY` as valid auth |
+
+**Commit:** `f560526`

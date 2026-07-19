@@ -324,23 +324,65 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
 
   try {
     emit(onProgress, "fetching-key", 0);
-    const apiKey = await getGroqKey();
+    let apiKey: string;
+    try {
+      apiKey = await getGroqKey();
+    } catch (err) {
+      console.error("[captions] FAIL getGroqKey", err);
+      throw new Error(`getKey: ${err instanceof Error ? err.message : String(err)}`);
+    }
     emit(onProgress, "fetching-key", 100);
 
     emit(onProgress, "downloading", 0);
-    const fileToken = await getFileToken(item.id);
-    const videoBlob = await downloadVideo(fileToken);
+    let videoBlob: Blob;
+    try {
+      const fileToken = await getFileToken(item.id);
+      videoBlob = await downloadVideo(fileToken);
+    } catch (err) {
+      console.error("[captions] FAIL download", err);
+      throw new Error(`download: ${err instanceof Error ? err.message : String(err)}`);
+    }
     emit(onProgress, "downloading", 100);
 
-    const ffmpegInstance = await loadFFmpeg(onProgress);
+    let ffmpegInstance: FFmpeg;
+    try {
+      ffmpegInstance = await loadFFmpeg(onProgress);
+    } catch (err) {
+      console.error("[captions] FAIL loadFFmpeg", err);
+      throw new Error(`ffmpeg: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
-    const { audioBlob, frames } = await extractAudioAndFrames(ffmpegInstance, videoBlob, item.file_name, onProgress);
+    let audioBlob: Blob; let frames: string[];
+    try {
+      ({ audioBlob, frames } = await extractAudioAndFrames(ffmpegInstance, videoBlob, item.file_name, onProgress));
+    } catch (err) {
+      console.error("[captions] FAIL extractAudioAndFrames", err);
+      throw new Error(`extract: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
-    const transcript = await groqWhisper(audioBlob, apiKey, onProgress);
+    let transcript: string;
+    try {
+      transcript = await groqWhisper(audioBlob, apiKey, onProgress);
+    } catch (err) {
+      console.error("[captions] FAIL groqWhisper", err);
+      throw new Error(`whisper: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
-    const visualDescription = await groqDescribeFrames(frames, apiKey, onProgress);
+    let visualDescription: string;
+    try {
+      visualDescription = await groqDescribeFrames(frames, apiKey, onProgress);
+    } catch (err) {
+      console.error("[captions] FAIL groqDescribeFrames", err);
+      throw new Error(`vision: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
-    const captions = await groqGenerateCaptions(transcript, visualDescription, item.file_name, prompt, apiKey, onProgress);
+    let captions: Record<string, string>;
+    try {
+      captions = await groqGenerateCaptions(transcript, visualDescription, item.file_name, prompt, apiKey, onProgress);
+    } catch (err) {
+      console.error("[captions] FAIL groqGenerateCaptions", err);
+      throw new Error(`generate: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     emit(onProgress, "done", 100);
     return captions;
