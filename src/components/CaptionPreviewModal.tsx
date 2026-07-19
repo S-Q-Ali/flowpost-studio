@@ -14,36 +14,27 @@ interface CaptionData {
 type StepId =
   | "fetching-key"
   | "downloading"
-  | "loading-ffmpeg"
-  | "extracting"
   | "transcribing"
   | "analyzing-visuals"
   | "generating-captions"
-  | "saving"
   | "done"
   | "error";
 
 const STEP_ORDER: StepId[] = [
   "fetching-key",
   "downloading",
-  "loading-ffmpeg",
-  "extracting",
   "transcribing",
   "analyzing-visuals",
   "generating-captions",
-  "saving",
   "done",
 ];
 
 const STEP_LABELS: Record<StepId, string> = {
   "fetching-key": "Authenticating",
   downloading: "Downloading video",
-  "loading-ffmpeg": "Loading FFmpeg engine",
-  extracting: "Extracting audio & frames",
   transcribing: "Transcribing audio",
   "analyzing-visuals": "Analyzing video frames",
   "generating-captions": "Generating captions",
-  saving: "Saving captions",
   done: "Completed",
   error: "Error",
 };

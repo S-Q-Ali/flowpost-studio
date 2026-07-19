@@ -1,5 +1,3 @@
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { supabase } from "@/integrations/supabase/client";
 import { getDefaultMasterPrompt, type MasterPrompt } from "@/lib/prompt-templates";
 
@@ -8,18 +6,13 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const GROQ_API_BASE = "https://api.groq.com/openai/v1";
 
 let groqApiKey: string | null = null;
-let ffmpeg: FFmpeg | null = null;
-let ffmpegLoaded = false;
 
 export type StepId =
   | "fetching-key"
   | "downloading"
-  | "loading-ffmpeg"
-  | "extracting"
   | "transcribing"
   | "analyzing-visuals"
   | "generating-captions"
-  | "saving"
   | "done"
   | "error";
 
@@ -34,12 +27,9 @@ export type OnProgress = (progress: StepProgress) => void;
 const STEP_LABELS: Record<StepId, string> = {
   "fetching-key": "Authenticating...",
   downloading: "Downloading video from Drive...",
-  "loading-ffmpeg": "Loading FFmpeg engine...",
-  extracting: "Extracting audio & frames...",
   transcribing: "Transcribing audio with Whisper...",
   "analyzing-visuals": "Analyzing video frames...",
   "generating-captions": "Generating platform captions...",
-  saving: "Saving captions...",
   done: "Done!",
   error: "Error",
 };
@@ -87,85 +77,74 @@ async function getFileToken(itemId: string): Promise<string> {
   return data.token;
 }
 
-async function downloadVideo(encryptedToken: string): Promise<Blob> {
+async function downloadVideo(encryptedToken: string, onProgress?: OnProgress): Promise<Blob> {
   const funcUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(encryptedToken)}`;
   const res = await fetch(funcUrl);
   if (!res.ok) {
     throw new Error(`Failed to download video: ${res.status}`);
   }
-  return await res.blob();
-}
 
-async function loadFFmpeg(onProgress?: OnProgress): Promise<FFmpeg> {
-  if (ffmpegLoaded && ffmpeg) return ffmpeg;
+  const contentLength = res.headers.get("Content-Length");
+  const total = contentLength ? parseInt(contentLength, 10) : 0;
+  const reader = res.body!.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
 
-  emit(onProgress, "loading-ffmpeg", 0);
-
-  ffmpeg = new FFmpeg();
-
-  const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-  });
-
-  ffmpegLoaded = true;
-  emit(onProgress, "loading-ffmpeg", 100);
-  return ffmpeg;
-}
-
-async function extractAudioAndFrames(
-  ffmpegInstance: FFmpeg,
-  videoBlob: Blob,
-  fileName: string,
-  onProgress?: OnProgress,
-): Promise<{ audioBlob: Blob; frames: string[] }> {
-  emit(onProgress, "extracting", 0);
-
-  const inputName = fileName || "input.mp4";
-  await ffmpegInstance.writeFile(inputName, await fetchFile(videoBlob));
-  emit(onProgress, "extracting", 20);
-
-  const audioName = "output.mp3";
-  await ffmpegInstance.exec(["-i", inputName, "-vn", "-acodec", "libmp3lame", "-b:a", "128k", audioName]);
-  emit(onProgress, "extracting", 60);
-
-  const audioData = await ffmpegInstance.readFile(audioName);
-  const audioBlob = new Blob([audioData], { type: "audio/mpeg" });
-
-  const durationSec = 30;
-  const frameTimestamps = [2, durationSec / 2, durationSec - 2];
-  const frames: string[] = [];
-
-  for (let i = 0; i < frameTimestamps.length; i++) {
-    const frameName = `frame_${i}.jpg`;
-    await ffmpegInstance.exec([
-      "-i", inputName,
-      "-ss", String(frameTimestamps[i]),
-      "-vframes", "1",
-      "-q:v", "2",
-      frameName,
-    ]);
-    const frameData = await ffmpegInstance.readFile(frameName);
-    const uint8 = new Uint8Array(frameData as ArrayBuffer);
-    let binary = "";
-    for (let j = 0; j < uint8.byteLength; j++) {
-      binary += String.fromCharCode(uint8[j]);
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total) {
+      emit(onProgress, "downloading", Math.round((received / total) * 100));
     }
-    frames.push(`data:image/jpeg;base64,${btoa(binary)}`);
   }
 
-  await ffmpegInstance.exec(["-i", inputName, "-ss", "00:00:02", "-vframes", "1", "frame_0.jpg"]);
-
-  emit(onProgress, "extracting", 100);
-  return { audioBlob, frames };
+  return new Blob(chunks);
 }
 
-async function groqWhisper(audioBlob: Blob, apiKey: string, onProgress?: OnProgress): Promise<string> {
+async function extractFrames(videoBlob: Blob): Promise<string[]> {
+  const url = URL.createObjectURL(videoBlob);
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.src = url;
+
+  await video.play();
+  video.pause();
+
+  const duration = video.duration || 30;
+  const timestamps = [
+    Math.min(2, duration / 2),
+    duration / 2,
+    Math.max(duration - 2, duration / 2),
+  ];
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 360;
+  const ctx = canvas.getContext("2d")!;
+
+  const frames: string[] = [];
+  for (const t of timestamps) {
+    video.currentTime = t;
+    await new Promise<void>((resolve) => {
+      video.onseeked = () => resolve();
+    });
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    frames.push(canvas.toDataURL("image/jpeg", 0.6));
+  }
+
+  URL.revokeObjectURL(url);
+  video.remove();
+  return frames;
+}
+
+async function groqWhisper(videoBlob: Blob, apiKey: string, onProgress?: OnProgress): Promise<string> {
   emit(onProgress, "transcribing", 0);
 
   const formData = new FormData();
-  formData.append("file", audioBlob, "audio.mp3");
+  formData.append("file", videoBlob, "video.mp4");
   formData.append("model", "whisper-large-v3-turbo");
   formData.append("response_format", "text");
 
@@ -337,32 +316,16 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     let videoBlob: Blob;
     try {
       const fileToken = await getFileToken(item.id);
-      videoBlob = await downloadVideo(fileToken);
+      videoBlob = await downloadVideo(fileToken, onProgress);
     } catch (err) {
       console.error("[captions] FAIL download", err);
       throw new Error(`download: ${err instanceof Error ? err.message : String(err)}`);
     }
     emit(onProgress, "downloading", 100);
 
-    let ffmpegInstance: FFmpeg;
-    try {
-      ffmpegInstance = await loadFFmpeg(onProgress);
-    } catch (err) {
-      console.error("[captions] FAIL loadFFmpeg", err);
-      throw new Error(`ffmpeg: ${err instanceof Error ? err.message : String(err)}`);
-    }
-
-    let audioBlob: Blob; let frames: string[];
-    try {
-      ({ audioBlob, frames } = await extractAudioAndFrames(ffmpegInstance, videoBlob, item.file_name, onProgress));
-    } catch (err) {
-      console.error("[captions] FAIL extractAudioAndFrames", err);
-      throw new Error(`extract: ${err instanceof Error ? err.message : String(err)}`);
-    }
-
     let transcript: string;
     try {
-      transcript = await groqWhisper(audioBlob, apiKey, onProgress);
+      transcript = await groqWhisper(videoBlob, apiKey, onProgress);
     } catch (err) {
       console.error("[captions] FAIL groqWhisper", err);
       throw new Error(`whisper: ${err instanceof Error ? err.message : String(err)}`);
@@ -370,10 +333,17 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
 
     let visualDescription: string;
     try {
-      visualDescription = await groqDescribeFrames(frames, apiKey, onProgress);
+      const frames = await extractFrames(videoBlob);
+      if (frames.length > 0) {
+        visualDescription = await groqDescribeFrames(frames, apiKey, onProgress);
+      } else {
+        visualDescription = "";
+        emit(onProgress, "analyzing-visuals", 100);
+      }
     } catch (err) {
-      console.error("[captions] FAIL groqDescribeFrames", err);
-      throw new Error(`vision: ${err instanceof Error ? err.message : String(err)}`);
+      console.error("[captions] FAIL extractFrames/describe", err);
+      visualDescription = "";
+      emit(onProgress, "analyzing-visuals", 100);
     }
 
     let captions: Record<string, string>;
