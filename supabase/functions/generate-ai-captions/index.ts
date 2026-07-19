@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
         return json({ error: "No Google Drive token available" }, 400);
       }
 
-      const driveUrl = `https://www.googleapis.com/drive/v3/files/${item.drive_file_id}?alt=media`;
+      const driveUrl = `https://drive.google.com/uc?export=download&id=${item.drive_file_id}`;
       const tokenPayload = JSON.stringify({
         driveUrl,
         driveToken,
@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
       return json({ error: "No Google Drive token available" }, 400);
     }
 
-    const downloadUrl = `https://www.googleapis.com/drive/v3/files/${item.drive_file_id}?alt=media`;
+    const downloadUrl = `https://drive.google.com/uc?export=download&id=${item.drive_file_id}`;
     const mimeType = item.mime_type || "video/mp4";
 
     const transcript = await transcribeAudio(downloadUrl, mimeType, driveToken);
