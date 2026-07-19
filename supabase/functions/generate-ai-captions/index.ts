@@ -166,6 +166,37 @@ async function getDriveAccount(userId: string, driveAccountId?: string | null) {
 async function getDriveToken(userId: string, driveAccountId?: string | null): Promise<string | null> {
   const { data: driveAccount } = await getDriveAccount(userId, driveAccountId);
   if (!driveAccount?.access_token) return null;
+
+  const tokenExpiry = driveAccount.token_expiry ? new Date(driveAccount.token_expiry) : null;
+  if (tokenExpiry && tokenExpiry.getTime() - Date.now() < 5 * 60 * 1000) {
+    // Token expiring soon — refresh it
+    const rawRefresh = await decrypt(driveAccount.refresh_token as string);
+    if (rawRefresh) {
+      try {
+        const refreshUrl = `${SUPABASE_URL}/functions/v1/google-drive-auth?action=refresh&user_id=${userId}${driveAccountId ? `&account_id=${driveAccountId}` : ""}`;
+        const refreshRes = await fetch(
+          refreshUrl,
+          { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
+        );
+        if (refreshRes.ok) {
+          // Re-fetch the updated token
+          let refreshQuery = supabase
+            .from("connected_accounts")
+            .select("access_token")
+            .eq("user_id", userId)
+            .eq("platform", "google_drive");
+          if (driveAccountId) {
+            refreshQuery = refreshQuery.eq("id", driveAccountId);
+          }
+          const { data: refreshed } = await refreshQuery.single();
+          if (refreshed?.access_token) return await decrypt(refreshed.access_token as string);
+        }
+      } catch (e) {
+        console.warn(`Drive token refresh failed for user ${userId}:`, e);
+      }
+    }
+  }
+
   return await decrypt(driveAccount.access_token as string);
 }
 
@@ -234,10 +265,12 @@ Deno.serve(async (req) => {
         return json({ error: "No Google Drive token available" }, 400);
       }
 
-      const driveUrl = `https://drive.google.com/uc?export=download&id=${item.drive_file_id}`;
+      const driveUrl = `https://www.googleapis.com/drive/v3/files/${item.drive_file_id}?alt=media`;
       const tokenPayload = JSON.stringify({
         driveUrl,
         driveToken,
+        driveAccountId: workflow.drive_account_id,
+        userId: workflow.user_id,
         exp: Date.now() + 30 * 60 * 1000, // 30 min expiry
       });
       const encrypted = await encrypt(tokenPayload);
@@ -304,7 +337,7 @@ Deno.serve(async (req) => {
       return json({ error: "No Google Drive token available" }, 400);
     }
 
-    const downloadUrl = `https://drive.google.com/uc?export=download&id=${item.drive_file_id}`;
+    const downloadUrl = `https://www.googleapis.com/drive/v3/files/${item.drive_file_id}?alt=media`;
     const mimeType = item.mime_type || "video/mp4";
 
     const transcript = await transcribeAudio(downloadUrl, mimeType, driveToken);

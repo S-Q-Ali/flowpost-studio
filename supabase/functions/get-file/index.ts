@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     return new Response("Missing token", { status: 400, headers: corsHeaders });
   }
 
-  let tokenPayload: { driveUrl?: string; driveToken?: string; megaUrl?: string; megaFileName?: string; megaAccountId?: string; exp?: number };
+  let tokenPayload: { driveUrl?: string; driveToken?: string; driveAccountId?: string; userId?: string; megaUrl?: string; megaFileName?: string; megaAccountId?: string; exp?: number };
   try {
     const decrypted = await decrypt(encrypted);
     tokenPayload = JSON.parse(decrypted);
@@ -103,8 +103,48 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Refresh the Drive token if it's near expiry
+    let driveToken = tokenPayload.driveToken;
+    if (driveToken && tokenPayload.driveAccountId && tokenPayload.userId) {
+      const { data: driveAccount } = await supabase
+        .from("connected_accounts")
+        .select("access_token, refresh_token, token_expiry")
+        .eq("id", tokenPayload.driveAccountId)
+        .eq("user_id", tokenPayload.userId)
+        .eq("platform", "google_drive")
+        .eq("is_connected", true)
+        .maybeSingle();
+
+      if (driveAccount) {
+        const tokenExpiry = driveAccount.token_expiry ? new Date(driveAccount.token_expiry) : null;
+        if (tokenExpiry && tokenExpiry.getTime() - Date.now() < 5 * 60 * 1000) {
+          const rawRefresh = await decrypt(driveAccount.refresh_token as string);
+          if (rawRefresh) {
+            try {
+              const refreshUrl = `${SUPABASE_URL}/functions/v1/google-drive-auth?action=refresh&user_id=${tokenPayload.userId}&account_id=${tokenPayload.driveAccountId}`;
+              const res = await fetch(refreshUrl, {
+                headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+              });
+              if (res.ok) {
+                const { data: refreshed } = await supabase
+                  .from("connected_accounts")
+                  .select("access_token")
+                  .eq("id", tokenPayload.driveAccountId)
+                  .single();
+                if (refreshed?.access_token) {
+                  driveToken = await decrypt(refreshed.access_token as string);
+                }
+              }
+            } catch (e) {
+              console.warn("[get-file] Drive token refresh failed:", e);
+            }
+          }
+        }
+      }
+    }
+
     const driveRes = await fetch(tokenPayload.driveUrl!, {
-      headers: { Authorization: `Bearer ${tokenPayload.driveToken!}` },
+      headers: { Authorization: `Bearer ${driveToken}` },
     });
 
     if (!driveRes.ok) {
