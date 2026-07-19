@@ -26,6 +26,24 @@ const templateOptions = [
 
 export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProps) {
   const [activeTab, setActiveTab] = useState<string>("template");
+  const [jsonBuffer, setJsonBuffer] = useState("{}");
+  const [jsonError, setJsonError] = useState(false);
+
+  const handleTabChange = (tab: string) => {
+    if (tab === "json") {
+      setJsonBuffer(value ? JSON.stringify(value, null, 2) : "{}");
+      setJsonError(false);
+    } else if (tab === "template" && jsonBuffer) {
+      try {
+        const parsed = JSON.parse(jsonBuffer);
+        onChange(parsed);
+        setJsonError(false);
+      } catch {
+        setJsonError(true);
+      }
+    }
+    setActiveTab(tab);
+  };
 
   const handleTemplateSelect = (templateName: string) => {
     if (templateName === "custom") return;
@@ -40,16 +58,7 @@ export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProp
     onChange({ ...current, [field]: val });
   };
 
-  const jsonString = value ? JSON.stringify(value, null, 2) : "{}";
-
-  const handleJsonChange = (raw: string) => {
-    try {
-      const parsed = JSON.parse(raw) as MasterPrompt;
-      onChange(parsed);
-    } catch {
-      // Don't update on parse error — user is typing
-    }
-  };
+  const current = value ?? { strict_rules: "", output_format: "", example_output: "", hashtags: "", generation_instruction: "" };
 
   return (
     <div className="space-y-3">
@@ -68,7 +77,7 @@ export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProp
         )}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="h-8">
           <TabsTrigger value="template" className="text-xs px-3">Template</TabsTrigger>
           <TabsTrigger value="json" className="text-xs px-3">Raw JSON</TabsTrigger>
@@ -94,7 +103,7 @@ export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProp
                 <Label className="text-[10px] text-muted-foreground">Strict Rules</Label>
                 <Textarea
                   className="text-xs min-h-[60px] resize-y"
-                  value={value.strict_rules}
+                  value={current.strict_rules}
                   onChange={(e) => updateField("strict_rules", e.target.value)}
                   placeholder="Rules the AI must follow..."
                 />
@@ -103,7 +112,7 @@ export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProp
                 <Label className="text-[10px] text-muted-foreground">Output Format</Label>
                 <Textarea
                   className="text-xs min-h-[40px] resize-y"
-                  value={value.output_format}
+                  value={current.output_format}
                   onChange={(e) => updateField("output_format", e.target.value)}
                 />
               </div>
@@ -111,7 +120,7 @@ export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProp
                 <Label className="text-[10px] text-muted-foreground">Example Output</Label>
                 <Textarea
                   className="text-xs min-h-[80px] resize-y font-mono"
-                  value={value.example_output}
+                  value={current.example_output}
                   onChange={(e) => updateField("example_output", e.target.value)}
                 />
               </div>
@@ -119,7 +128,7 @@ export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProp
                 <Label className="text-[10px] text-muted-foreground">Default Hashtags</Label>
                 <Textarea
                   className="text-xs min-h-[40px] resize-y"
-                  value={value.hashtags}
+                  value={current.hashtags}
                   onChange={(e) => updateField("hashtags", e.target.value)}
                 />
               </div>
@@ -127,7 +136,7 @@ export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProp
                 <Label className="text-[10px] text-muted-foreground">Generation Instruction</Label>
                 <Textarea
                   className="text-xs min-h-[80px] resize-y"
-                  value={value.generation_instruction}
+                  value={current.generation_instruction}
                   onChange={(e) => updateField("generation_instruction", e.target.value)}
                 />
               </div>
@@ -147,12 +156,27 @@ export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProp
         <TabsContent value="json" className="mt-3">
           <Textarea
             className="text-xs min-h-[300px] resize-y font-mono"
-            value={jsonString}
-            onChange={(e) => handleJsonChange(e.target.value)}
+            value={jsonBuffer}
+            onChange={(e) => {
+              setJsonBuffer(e.target.value);
+              try {
+                JSON.parse(e.target.value);
+                setJsonError(false);
+              } catch {
+                setJsonError(true);
+              }
+            }}
           />
-          <p className="text-[10px] text-muted-foreground mt-1">
-            Edit the raw JSON prompt. Invalid JSON will not be saved.
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            {jsonError ? (
+              <span className="text-[10px] text-red-500 font-medium">Invalid JSON</span>
+            ) : (
+              <span className="text-[10px] text-emerald-500 font-medium">Valid JSON</span>
+            )}
+            <span className="text-[10px] text-muted-foreground ml-auto">
+              Switch to Template tab to validate and save.
+            </span>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

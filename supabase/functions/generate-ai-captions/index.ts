@@ -30,6 +30,13 @@ function json(data: unknown, status = 200) {
   });
 }
 
+function promptValue(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) return v.map((x) => String(x)).join("\n");
+  if (v !== null && typeof v === "object") return JSON.stringify(v, null, 2);
+  return String(v ?? "");
+}
+
 async function transcribeAudio(audioUrl: string, mimeType: string, driveToken: string): Promise<string> {
   const response = await fetch(audioUrl, {
     headers: { Authorization: `Bearer ${driveToken}` },
@@ -59,25 +66,25 @@ async function transcribeAudio(audioUrl: string, mimeType: string, driveToken: s
 
 async function generateCaptions(
   transcript: string,
-  masterPrompt: Record<string, string>,
+  masterPrompt: Record<string, unknown>,
   fileName: string,
 ): Promise<Record<string, string>> {
   const systemPrompt = `You are an expert social media content strategist. Generate platform-optimized captions for a video file named "${fileName}".
 
 ## STRICT RULES
-${masterPrompt.strict_rules || "Follow the output format exactly."}
+${promptValue(masterPrompt.strict_rules) || "Follow the output format exactly."}
 
 ## OUTPUT FORMAT
-${masterPrompt.output_format || "Return JSON with yt_video_title, yt_video_description, fb_ig_caption, tiktok_caption, linkedin_caption."}
+${promptValue(masterPrompt.output_format) || "Return JSON with yt_video_title, yt_video_description, fb_ig_caption, tiktok_caption, linkedin_caption."}
 
 ## EXAMPLE OUTPUT
-${masterPrompt.example_output || "See the generation instruction below."}
+${promptValue(masterPrompt.example_output) || "See the generation instruction below."}
 
 ## DEFAULT HASHTAGS
-${masterPrompt.hashtags || ""}
+${promptValue(masterPrompt.hashtags) || ""}
 
 ## GENERATION INSTRUCTION
-${masterPrompt.generation_instruction || "Generate captions based on the transcript."}
+${promptValue(masterPrompt.generation_instruction) || "Generate captions based on the transcript."}
 
 Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
 
@@ -204,9 +211,9 @@ Deno.serve(async (req) => {
       return json({ error: "Workflow not found" }, 404);
     }
 
-    let masterPrompt: Record<string, string> = getDefaultMasterPrompt();
+    let masterPrompt: Record<string, unknown> = { ...getDefaultMasterPrompt() };
     if (workflow.caption_master_prompt) {
-      const stored = workflow.caption_master_prompt as Record<string, string>;
+      const stored = workflow.caption_master_prompt as Record<string, unknown>;
       if (body.template_name && body.template_name !== "custom") {
         const template = PROMPT_TEMPLATES.find((t) => t.name === body.template_name);
         if (template) {
