@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { decrypt } from "../_shared/crypto.ts";
+import { decrypt, encrypt } from "../_shared/crypto.ts";
 import { PROMPT_TEMPLATES, getDefaultMasterPrompt } from "./prompt-templates.ts";
 
 const corsHeaders = {
@@ -29,6 +29,12 @@ function json(data: unknown, status = 200) {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
+const isAuthorized =
+  (bearerToken: string | null, apiKeyHeader: string | null) =>
+    bearerToken === SUPABASE_SERVICE_ROLE_KEY ||
+    bearerToken === FRONTEND_API_KEY ||
+    apiKeyHeader === FRONTEND_API_KEY;
 
 function promptValue(v: unknown): string {
   if (typeof v === "string") return v;
@@ -142,7 +148,7 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
   };
 }
 
-async function getDriveToken(userId: string, driveAccountId?: string | null): Promise<string | null> {
+async function getDriveAccount(userId: string, driveAccountId?: string | null) {
   let query = supabase
     .from("connected_accounts")
     .select("*")
@@ -154,7 +160,11 @@ async function getDriveToken(userId: string, driveAccountId?: string | null): Pr
     query = query.eq("id", driveAccountId);
   }
 
-  const { data: driveAccount } = await query.maybeSingle();
+  return await query.maybeSingle();
+}
+
+async function getDriveToken(userId: string, driveAccountId?: string | null): Promise<string | null> {
+  const { data: driveAccount } = await getDriveAccount(userId, driveAccountId);
   if (!driveAccount?.access_token) return null;
   return await decrypt(driveAccount.access_token as string);
 }
@@ -171,22 +181,78 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
   const apiKeyHeader = req.headers.get("apikey");
   const bearerToken = authHeader?.replace("Bearer ", "");
-  const isAuthorized =
-    bearerToken === SUPABASE_SERVICE_ROLE_KEY ||
-    bearerToken === FRONTEND_API_KEY ||
-    apiKeyHeader === FRONTEND_API_KEY;
 
-  if (!isAuthorized) {
+  if (!isAuthorized(bearerToken, apiKeyHeader)) {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  let body: { workflow_item_id?: string; template_name?: string };
+  let body: { mode?: string; workflow_item_id?: string; template_name?: string };
   try {
     body = await req.json();
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
+  // --- GET-KEY mode: return Groq API key to client ---
+  if (body.mode === "get-key") {
+    if (!GROQ_API_KEY) {
+      return json({ error: "Groq API key not configured" }, 500);
+    }
+    return json({ key: GROQ_API_KEY });
+  }
+
+  // --- GET-FILE-TOKEN mode: return encrypted token for get-file edge function ---
+  if (body.mode === "get-file-token") {
+    const itemId = body.workflow_item_id;
+    if (!itemId) {
+      return json({ error: "workflow_item_id is required" }, 400);
+    }
+
+    try {
+      const { data: item, error: itemError } = await supabase
+        .from("workflow_items")
+        .select("id, drive_file_id, workflow_id")
+        .eq("id", itemId)
+        .single();
+
+      if (itemError || !item) {
+        return json({ error: "Workflow item not found" }, 404);
+      }
+
+      const { data: workflow, error: wfError } = await supabase
+        .from("workflows")
+        .select("user_id, drive_account_id")
+        .eq("id", item.workflow_id)
+        .single();
+
+      if (wfError || !workflow) {
+        return json({ error: "Workflow not found" }, 404);
+      }
+
+      const driveToken = await getDriveToken(workflow.user_id, workflow.drive_account_id);
+      if (!driveToken) {
+        return json({ error: "No Google Drive token available" }, 400);
+      }
+
+      const driveUrl = `https://www.googleapis.com/drive/v3/files/${item.drive_file_id}?alt=media`;
+      const tokenPayload = JSON.stringify({
+        driveUrl,
+        driveToken,
+        exp: Date.now() + 30 * 60 * 1000, // 30 min expiry
+      });
+      const encrypted = await encrypt(tokenPayload);
+
+      return json({ token: encrypted });
+    } catch (err) {
+      console.error("get-file-token error", err);
+      return json(
+        { error: err instanceof Error ? err.message : "Unknown error" },
+        500,
+      );
+    }
+  }
+
+  // --- GENERATE mode (original behavior) ---
   const itemId = body.workflow_item_id;
   if (!itemId) {
     return json({ error: "workflow_item_id is required" }, 400);

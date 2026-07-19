@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Sparkles } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Loader2, Sparkles, Check, CircleDot } from "lucide-react";
 
 interface CaptionData {
   yt_video_title: string;
@@ -11,6 +11,43 @@ interface CaptionData {
   linkedin_caption: string;
 }
 
+type StepId =
+  | "fetching-key"
+  | "downloading"
+  | "loading-ffmpeg"
+  | "extracting"
+  | "transcribing"
+  | "analyzing-visuals"
+  | "generating-captions"
+  | "saving"
+  | "done"
+  | "error";
+
+const STEP_ORDER: StepId[] = [
+  "fetching-key",
+  "downloading",
+  "loading-ffmpeg",
+  "extracting",
+  "transcribing",
+  "analyzing-visuals",
+  "generating-captions",
+  "saving",
+  "done",
+];
+
+const STEP_LABELS: Record<StepId, string> = {
+  "fetching-key": "Authenticating",
+  downloading: "Downloading video",
+  "loading-ffmpeg": "Loading FFmpeg engine",
+  extracting: "Extracting audio & frames",
+  transcribing: "Transcribing audio",
+  "analyzing-visuals": "Analyzing video frames",
+  "generating-captions": "Generating captions",
+  saving: "Saving captions",
+  done: "Completed",
+  error: "Error",
+};
+
 interface CaptionPreviewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -18,6 +55,9 @@ interface CaptionPreviewModalProps {
   loading: boolean;
   fileName: string;
   onSave: (captions: CaptionData) => void;
+  progressStep: StepId | null;
+  progressPercent: number;
+  progressLabel: string | null;
 }
 
 const platformSections: { key: keyof CaptionData; label: string; note: string }[] = [
@@ -35,7 +75,12 @@ export function CaptionPreviewModal({
   loading,
   fileName,
   onSave,
+  progressStep,
+  progressPercent,
+  progressLabel,
 }: CaptionPreviewModalProps) {
+  const activeIdx = progressStep ? STEP_ORDER.indexOf(progressStep) : -1;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
@@ -45,14 +90,50 @@ export function CaptionPreviewModal({
             AI-Generated Captions
           </DialogTitle>
           <DialogDescription>
-            Preview and edit captions for "{fileName}" before saving.
+            {loading
+              ? `Generating captions for "${fileName}"...`
+              : `Preview and edit captions for "${fileName}" before saving.`}
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Generating captions with AI...</p>
+          <div className="py-4 space-y-3">
+            {STEP_ORDER.map((step, idx) => {
+              const isDone = idx < activeIdx;
+              const isActive = idx === activeIdx;
+              return (
+                <div
+                  key={step}
+                  className={`flex items-center gap-3 text-sm ${
+                    isActive ? "text-foreground" : isDone ? "text-primary" : "text-muted-foreground/40"
+                  }`}
+                >
+                  <div className="flex items-center justify-center w-5 h-5 shrink-0">
+                    {isDone ? (
+                      <Check className="h-4 w-4" />
+                    ) : isActive ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CircleDot className="h-4 w-4" />
+                    )}
+                  </div>
+                  <span className={isActive ? "font-medium" : ""}>{STEP_LABELS[step]}</span>
+                  {isActive && progressLabel && (
+                    <span className="text-xs text-muted-foreground ml-auto">{progressLabel}</span>
+                  )}
+                  {isActive && (
+                    <div className="flex-1 max-w-[100px] ml-auto">
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all duration-300"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : captions ? (
           <>
@@ -72,7 +153,7 @@ export function CaptionPreviewModal({
               ))}
             </div>
 
-            <div className="flex justify-end gap-2 pt-4 border-t border-border mt-4 shrink-0">
+            <DialogFooter className="flex justify-end gap-2 pt-4 border-t border-border mt-4">
               <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
@@ -84,7 +165,7 @@ export function CaptionPreviewModal({
                 <Sparkles className="h-3.5 w-3.5" />
                 Apply to Item
               </Button>
-            </div>
+            </DialogFooter>
           </>
         ) : null}
       </DialogContent>

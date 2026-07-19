@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
 import { CaptionPreviewModal } from "@/components/CaptionPreviewModal";
+import { generateAICaptions, type StepProgress } from "@/lib/captions";
 
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -77,6 +78,7 @@ export default function WorkflowItemsPage() {
   const [previewFileName, setPreviewFileName] = useState<string>("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewProgress, setPreviewProgress] = useState<StepProgress | null>(null);
 
   const visiblePlatforms = (() => {
     const platforms = workflow?.platforms ?? [];
@@ -389,25 +391,24 @@ export default function WorkflowItemsPage() {
     setPreviewOpen(true);
     setPreviewItemId(item.id);
     setPreviewFileName(item.file_name);
+    setPreviewCaptions(null);
+    setPreviewProgress({ step: "fetching-key", label: "Starting...", progress: 0 });
 
-    const token = localStorage.getItem("flowpost_token") || SUPABASE_ANON_KEY;
-
-    const { data, error } = await supabase.functions.invoke("generate-ai-captions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ workflow_item_id: item.id }),
-    });
-
-    setPreviewLoading(false);
-    setGeneratingId(null);
-
-    if (error || data?.error) {
-      toast.error(data?.error || error?.message || "Failed to generate captions");
+    try {
+      const captions = await generateAICaptions({
+        item: { id: item.id, file_name: item.file_name, mime_type: item.mime_type },
+        onProgress: (progress) => setPreviewProgress(progress),
+      });
+      setPreviewCaptions(captions);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to generate captions";
+      toast.error(msg);
       setPreviewOpen(false);
-      return;
+    } finally {
+      setPreviewLoading(false);
+      setGeneratingId(null);
+      setPreviewProgress(null);
     }
-
-    setPreviewCaptions(data.captions);
   };
 
   const applyCaptions = async (captions: Record<string, string>) => {
@@ -760,11 +761,14 @@ export default function WorkflowItemsPage() {
       {/* AI Caption Preview Modal */}
       <CaptionPreviewModal
         open={previewOpen}
-        onOpenChange={(open) => { setPreviewOpen(open); if (!open) setPreviewCaptions(null); }}
+        onOpenChange={(open) => { setPreviewOpen(open); if (!open) { setPreviewCaptions(null); setPreviewProgress(null); } }}
         captions={previewCaptions}
         loading={previewLoading}
         fileName={previewFileName}
         onSave={applyCaptions}
+        progressStep={previewProgress?.step ?? null}
+        progressPercent={previewProgress?.progress ?? 0}
+        progressLabel={previewProgress?.label ?? null}
       />
     </div>
   );
