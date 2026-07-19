@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+const FRONTEND_API_KEY = Deno.env.get("FRONTEND_API_KEY");
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -169,10 +169,12 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = req.headers.get("Authorization");
+  const apiKeyHeader = req.headers.get("apikey");
   const bearerToken = authHeader?.replace("Bearer ", "");
   const isAuthorized =
     bearerToken === SUPABASE_SERVICE_ROLE_KEY ||
-    bearerToken === SUPABASE_ANON_KEY;
+    bearerToken === FRONTEND_API_KEY ||
+    apiKeyHeader === FRONTEND_API_KEY;
 
   if (!isAuthorized) {
     return json({ error: "Unauthorized" }, 401);

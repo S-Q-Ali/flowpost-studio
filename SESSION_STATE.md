@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `0303ef9` — Realtime post status updates + simplified per-platform display
+## CURRENT HEAD: `48ade63` — AI caption generation: Groq Whisper + Llama 3.3 70B, master prompt editor, per-item AI Captions button
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2093,3 +2093,42 @@ StoragePage already handled pagination correctly (load-more button).
 | `supabase/functions/process-workflow/index.ts` | Fix 1 — moved sheet_id check behind `data_source !== 'flowpost'` guard |
 | `src/pages/WorkflowItemsPage.tsx` | Fix 2 — saveAll includes `status: "ready"`; Fix 3 — markReady merges pending edits; Fix 4 — new Realtime `useEffect`; Fix 5 — simplified per-platform text |
 | `SESSION_STATE.md` | Updated with this entry |
+
+---
+
+### 78. AI Caption Generation — Groq Whisper + Llama 3.3 70B (2026-07-18)
+
+**Architecture:**
+- **Phase 1** (shipped): Groq Whisper (transcribe) → Groq Llama 3.3 70B (caption gen). Free tiers: 2,000 Whisper req/day, 1,000 LLM req/day — handles 200+ videos easily.
+- **Master prompt** stored as `caption_master_prompt JSONB` on `workflows` table. 4 template presets (Wrestling/Viral, Gaming/Trendy, Dance/Funny, Educational/Professional) + Custom raw JSON.
+- Per-item `[✨ AI Captions]` button on WorkflowItemsPage → edge function downloads video from Drive → Whisper transcription → Llama with prompt → preview modal → apply to fields.
+
+**Files created:**
+| File | Purpose |
+|------|---------|
+| `supabase/migrations/20260718000001_add_caption_master_prompt.sql` | `ALTER TABLE workflows ADD COLUMN caption_master_prompt JSONB` |
+| `supabase/functions/generate-ai-captions/index.ts` | Edge function: Groq Whisper + Llama 3.3 70B pipeline with `promptValue` normalizer |
+| `supabase/functions/generate-ai-captions/prompt-templates.ts` | 4 template presets + `getDefaultMasterPrompt()` |
+| `src/components/CaptionPreviewModal.tsx` | Dialog showing 5 platform fields before apply |
+| `src/components/CaptionPromptEditor.tsx` | Template picker + raw JSON editor with local buffer state |
+| `src/lib/prompt-templates.ts` | Frontend copy of templates |
+
+**Files modified:**
+| File | Change |
+|------|--------|
+| `src/lib/types.ts` | Added `MasterPrompt` interface, `caption_master_prompt` to `Workflow` |
+| `src/pages/WorkflowItemsPage.tsx` | "AI Captions" button per item + preview modal + save flow |
+| `src/pages/WorkflowsPage.tsx` | Step 5 "AI Captions" + `CaptionPromptEditor` in create/edit form |
+| `supabase/config.toml` | Register `generate-ai-captions` function |
+| `.env.example` | Documented `GROQ_API_KEY` |
+
+**Post-deploy steps (user action required):**
+1. Run migration: `ALTER TABLE workflows ADD COLUMN caption_master_prompt JSONB;`
+2. Add `GROQ_API_KEY` to Supabase Edge Function secrets
+3. Deploy `generate-ai-captions` edge function
+
+**Fixes applied in `48ade63`:**
+| Problem | Fix |
+|---------|-----|
+| Raw JSON textarea frozen on paste/type | Switched to local `jsonBuffer` state — always accepts input. Validated on tab switch to Template |
+| Arrays/objects render as `[object Object]` in prompt | Added `promptValue(v)` normalizer: arrays→joined, objects→JSON.stringify, strings→pass-through |
