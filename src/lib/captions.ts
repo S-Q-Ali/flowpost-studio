@@ -27,7 +27,7 @@ export type OnProgress = (progress: StepProgress) => void;
 const STEP_LABELS: Record<StepId, string> = {
   "fetching-key": "Authenticating...",
   downloading: "Downloading video from Drive...",
-  transcribing: "Transcribing audio with Whisper...",
+  transcribing: "Extracting audio & transcribing...",
   "analyzing-visuals": "Analyzing video frames...",
   "generating-captions": "Generating platform captions...",
   done: "Done!",
@@ -140,11 +140,62 @@ async function extractFrames(videoBlob: Blob): Promise<string[]> {
   return frames;
 }
 
-async function groqWhisper(videoBlob: Blob, apiKey: string, onProgress?: OnProgress): Promise<string> {
-  emit(onProgress, "transcribing", 0);
+async function extractAudio(videoBlob: Blob, onProgress?: OnProgress): Promise<Blob> {
+  const url = URL.createObjectURL(videoBlob);
+  const video = document.createElement("video");
+  video.muted = false;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.src = url;
 
+  await video.play();
+  video.pause();
+
+  const audioCtx = new AudioContext();
+  if (audioCtx.state === "suspended") await audioCtx.resume();
+
+  const source = audioCtx.createMediaElementSource(video);
+  const dest = audioCtx.createMediaStreamDestination();
+  source.connect(dest);
+
+  const mimeType = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+  ].find((t) => MediaRecorder.isTypeSupported(t)) || "";
+
+  const recorder = new MediaRecorder(dest.stream, mimeType ? { mimeType } : {});
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+  const done = new Promise<void>((resolve) => { recorder.onstop = () => resolve(); });
+  recorder.start(2000);
+
+  video.ontimeupdate = () => {
+    const pct = Math.round((video.currentTime / video.duration) * 100);
+    emit(onProgress, "transcribing", Math.min(pct, 90));
+  };
+  video.play();
+
+  await new Promise<void>((resolve) => { video.onended = () => resolve(); });
+  await new Promise((r) => setTimeout(r, 500));
+  recorder.stop();
+  await done;
+
+  audioCtx.close();
+  URL.revokeObjectURL(url);
+  video.remove();
+
+  const ext = recorder.mimeType.includes("mp4") ? "m4a" : "webm";
+  return new Blob(chunks, { type: `audio/${ext}` });
+}
+
+async function groqWhisper(audioBlob: Blob, apiKey: string, onProgress?: OnProgress): Promise<string> {
+  emit(onProgress, "transcribing", 95);
+
+  const ext = audioBlob.type.includes("mp4") ? "m4a" : "webm";
   const formData = new FormData();
-  formData.append("file", videoBlob, "video.mp4");
+  formData.append("file", audioBlob, `audio.${ext}`);
   formData.append("model", "whisper-large-v3-turbo");
   formData.append("response_format", "text");
 
@@ -323,9 +374,17 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     }
     emit(onProgress, "downloading", 100);
 
+    let audioBlob: Blob;
+    try {
+      audioBlob = await extractAudio(videoBlob, onProgress);
+    } catch (err) {
+      console.error("[captions] FAIL extractAudio", err);
+      throw new Error(`audio: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
     let transcript: string;
     try {
-      transcript = await groqWhisper(videoBlob, apiKey, onProgress);
+      transcript = await groqWhisper(audioBlob, apiKey, onProgress);
     } catch (err) {
       console.error("[captions] FAIL groqWhisper", err);
       throw new Error(`whisper: ${err instanceof Error ? err.message : String(err)}`);
