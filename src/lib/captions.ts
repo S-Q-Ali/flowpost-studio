@@ -236,7 +236,7 @@ async function groqDescribeFrames(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "llama-3.2-11b-vision-preview",
+      model: "qwen/qwen3.6-27b",
       messages: [{ role: "user", content }],
       temperature: 0.6,
       max_tokens: 512,
