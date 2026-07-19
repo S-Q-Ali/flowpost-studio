@@ -28,9 +28,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { BetaBadge } from "@/components/BetaBadge";
+import { CaptionPromptEditor } from "@/components/CaptionPromptEditor";
 import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Clock3, Play, Loader2, Folder, File as FileIcon } from "lucide-react";
 import { toast } from "sonner";
-import type { Platform, ConnectedAccount } from "@/lib/types";
+import type { Platform, ConnectedAccount, MasterPrompt } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
@@ -70,7 +71,7 @@ type WorkflowRow = {
 };
 
 type Mode = "create" | "edit";
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 const hourOptions = Array.from({ length: 24 }, (_, i) => i); // 0-23 UTC
 
@@ -138,6 +139,7 @@ export default function WorkflowsPage() {
   const [driveFolderLoading, setDriveFolderLoading] = useState(false);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedFolderName, setSelectedFolderName] = useState<string | null>(null);
+  const [captionMasterPrompt, setCaptionMasterPrompt] = useState<MasterPrompt | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<WorkflowRow | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -243,6 +245,7 @@ export default function WorkflowsPage() {
     setActiveStep(1);
     setSchedulingMode("once_daily");
     setCustomSchedule({});
+    setCaptionMasterPrompt(null);
   };
 
   const fetchDriveAccounts = async () => {
@@ -287,6 +290,7 @@ export default function WorkflowsPage() {
     setSchedulingMode(wf.scheduling_mode ?? "once_daily");
     setCustomSchedule((wf.custom_schedule as Record<string, { start: number; end: number }[]>) ?? {});
     setSelectedDriveId(wf.drive_account_id ?? "");
+    setCaptionMasterPrompt((wf as any).caption_master_prompt ?? null);
     fetchDriveAccounts();
     setActiveStep(1);
     setSheetOpen(true);
@@ -424,6 +428,7 @@ export default function WorkflowsPage() {
         custom_schedule: Object.keys(customSchedule).length > 0 ? customSchedule : null,
         drive_account_id: selectedDriveId,
         data_source: dataSource,
+        caption_master_prompt: captionMasterPrompt,
       };
 
       if (dataSource === "g_sheet") {
@@ -536,6 +541,7 @@ export default function WorkflowsPage() {
       { id: 2, label: "Platforms" },
       { id: 3, label: "Schedule" },
       { id: 4, label: "Source" },
+      { id: 5, label: "AI Captions" },
     ];
     return (
       <div className="flex items-center justify-between mb-4">
@@ -559,7 +565,7 @@ export default function WorkflowsPage() {
                 </span>
                 <span className="hidden sm:inline">{step.label}</span>
               </div>
-              {step.id !== 4 && (
+                  {step.id !== 5 && (
                 <div className="flex-1 h-px mx-1 sm:mx-2 bg-border" />
               )}
             </div>
@@ -1140,6 +1146,23 @@ export default function WorkflowsPage() {
       );
     }
 
+    if (activeStep === 5) {
+      return (
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label>AI Caption Generation</Label>
+            <p className="text-xs text-muted-foreground">
+              Configure how AI generates captions for your videos. Choose a template preset or write a custom prompt.
+            </p>
+          </div>
+          <CaptionPromptEditor
+            value={captionMasterPrompt}
+            onChange={setCaptionMasterPrompt}
+          />
+        </div>
+      );
+    }
+
     // Step 4 - Source
     return (
       <div className="space-y-4">
@@ -1426,12 +1449,12 @@ export default function WorkflowsPage() {
                 >
                   Back
                 </Button>
-                {activeStep < 4 ? (
+                {activeStep < 5 ? (
                   <Button
                     type="button"
                     size="sm"
                     className="gradient-primary text-primary-foreground"
-                    onClick={() => setActiveStep((prev) => (prev < 4 ? ((prev + 1) as Step) : prev))}
+                    onClick={() => setActiveStep((prev) => (prev < 5 ? ((prev + 1) as Step) : prev))}
                   >
                     Next
                   </Button>

@@ -31,6 +31,14 @@ export interface Post {
   videos?: Video;
 }
 
+export interface MasterPrompt {
+  strict_rules: string;
+  output_format: string;
+  example_output: string;
+  hashtags: string;
+  generation_instruction: string;
+}
+
 export interface Workflow {
   id: string;
   user_id: string;
@@ -56,6 +64,7 @@ export interface Workflow {
   drive_account_id: string | null;
   drive_folder_id: string | null;
   data_source: "g_sheet" | "flowpost";
+  caption_master_prompt: MasterPrompt | null;
   created_at: string;
   updated_at: string;
 }

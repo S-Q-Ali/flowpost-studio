@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.linkedin-upload]
 verify_jwt = false
+
+[functions.generate-ai-captions]
+verify_jwt = false

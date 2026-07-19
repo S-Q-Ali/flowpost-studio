@@ -8,10 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, X } from "lucide-react";
+import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
+import { CaptionPreviewModal } from "@/components/CaptionPreviewModal";
 
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -70,6 +71,12 @@ export default function WorkflowItemsPage() {
   const [bulkPlatformsOpen, setBulkPlatformsOpen] = useState(false);
   const [bulkPlatformsValue, setBulkPlatformsValue] = useState<string[]>([]);
   const [postStatusMap, setPostStatusMap] = useState<Record<string, Record<string, string>>>({});
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [previewCaptions, setPreviewCaptions] = useState<Record<string, string> | null>(null);
+  const [previewItemId, setPreviewItemId] = useState<string | null>(null);
+  const [previewFileName, setPreviewFileName] = useState<string>("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const visiblePlatforms = (() => {
     const platforms = workflow?.platforms ?? [];
@@ -376,6 +383,62 @@ export default function WorkflowItemsPage() {
     setSyncing(false);
   };
 
+  const generateCaptions = async (item: WorkflowItem) => {
+    setGeneratingId(item.id);
+    setPreviewLoading(true);
+    setPreviewOpen(true);
+    setPreviewItemId(item.id);
+    setPreviewFileName(item.file_name);
+
+    const token = localStorage.getItem("flowpost_token") || SUPABASE_ANON_KEY;
+
+    const { data, error } = await supabase.functions.invoke("generate-ai-captions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ workflow_item_id: item.id }),
+    });
+
+    setPreviewLoading(false);
+    setGeneratingId(null);
+
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || "Failed to generate captions");
+      setPreviewOpen(false);
+      return;
+    }
+
+    setPreviewCaptions(data.captions);
+  };
+
+  const applyCaptions = async (captions: Record<string, string>) => {
+    if (!previewItemId) return;
+    const updates: Record<string, string | null> = {};
+    if (captions.yt_video_title) updates.yt_video_title = captions.yt_video_title;
+    if (captions.yt_video_description) updates.yt_video_description = captions.yt_video_description;
+    if (captions.fb_ig_caption) updates.fb_ig_caption = captions.fb_ig_caption;
+    if (captions.tiktok_caption) updates.tiktok_caption = captions.tiktok_caption;
+    if (captions.linkedin_caption) updates.linkedin_caption = captions.linkedin_caption;
+
+    const { error } = await supabase
+      .from("workflow_items")
+      .update(updates)
+      .eq("id", previewItemId);
+
+    if (error) {
+      toast.error("Failed to save captions: " + error.message);
+      return;
+    }
+
+    setItems((prev) =>
+      prev.map((i) => (i.id === previewItemId ? { ...i, ...updates } as WorkflowItem : i)),
+    );
+
+    toast.success("AI captions applied!");
+    setPreviewOpen(false);
+    setPreviewCaptions(null);
+    setPreviewItemId(null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -634,6 +697,21 @@ export default function WorkflowItemsPage() {
                       </Popover>
                     </div>
                     <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs gap-1 text-primary hover:text-primary"
+                        onClick={() => generateCaptions(item)}
+                        disabled={generatingId === item.id}
+                      >
+                        {generatingId === item.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" />
+                        )}
+                        {generatingId === item.id ? "Generating..." : "AI Captions"}
+                      </Button>
                       {(item.status === "pending" || item.status === "failed") && (
                         <Button
                           type="button"
@@ -679,6 +757,15 @@ export default function WorkflowItemsPage() {
           })}
         </div>
       )}
+      {/* AI Caption Preview Modal */}
+      <CaptionPreviewModal
+        open={previewOpen}
+        onOpenChange={(open) => { setPreviewOpen(open); if (!open) setPreviewCaptions(null); }}
+        captions={previewCaptions}
+        loading={previewLoading}
+        fileName={previewFileName}
+        onSave={applyCaptions}
+      />
     </div>
   );
 }
