@@ -24,6 +24,13 @@ const templateOptions = [
   ...PROMPT_TEMPLATES.map((t) => ({ value: t.name, label: t.name })),
 ];
 
+function normalizeField(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) return v.map((x) => String(x)).join("\n");
+  if (v !== null && typeof v === "object") return JSON.stringify(v, null, 2);
+  return String(v ?? "");
+}
+
 export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProps) {
   const [activeTab, setActiveTab] = useState<string>("template");
   const [jsonBuffer, setJsonBuffer] = useState("{}");
@@ -36,7 +43,14 @@ export function CaptionPromptEditor({ value, onChange }: CaptionPromptEditorProp
     } else if (tab === "template" && jsonBuffer) {
       try {
         const parsed = JSON.parse(jsonBuffer);
-        onChange(parsed);
+        const normalized: MasterPrompt = {
+          strict_rules: normalizeField(parsed.strict_rules),
+          output_format: normalizeField(parsed.output_format),
+          example_output: normalizeField(parsed.example_output),
+          hashtags: normalizeField(parsed.hashtags),
+          generation_instruction: normalizeField(parsed.generation_instruction),
+        };
+        onChange(normalized);
         setJsonError(false);
       } catch {
         setJsonError(true);

@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `f560526` — Fix 401: check apikey header as fallback for Supabase auth
+## CURRENT HEAD: `ee7c0f3` — Add browser-native audio extraction via AudioContext+MediaRecorder to fix Groq Whisper 413
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2151,3 +2151,53 @@ StoragePage already handled pagination correctly (load-more button).
 | Add `apikey` header fallback | `generate-ai-captions/index.ts` | `supabase.functions.invoke()` always sends the anon key in the `apikey` header regardless of `Authorization`. The edge function now accepts `apiKeyHeader === FRONTEND_API_KEY` as valid auth |
 
 **Commit:** `f560526`
+
+---
+
+### 80. Client-side AI captions pipeline — removed edge function bottleneck (2026-07-19)
+
+**Problem:** Old pipeline ran entirely in the `generate-ai-captions` edge function: download video from Drive → Groq Whisper → Groq Llama. Three blockers:
+1. **413 Request Entity Too Large** — sending 100MB+ video blobs to Groq Whisper exceeded their request size limit
+2. **5s edge function timeout** — Supabase free plan kills edge functions after 5s; Whisper + Llama takes 30-60s
+3. **Exceeded egress** — each caption generation routed ~100MB through Supabase's network
+
+**Architecture pivot:** Move ALL AI work to the browser. Supabase only stores the final caption result (~5KB write per video).
+
+**Pipeline (iterative implementation):**
+
+| Iteration | Approach | Problem |
+|-----------|----------|---------|
+| 1 (`b71d0d9`) | FFmpeg WASM extracts audio + frames in browser, send audio to Whisper | `memory access out of bounds` — FFmpeg WASM heap can't handle large videos |
+| 2 (`217a303`) | `<video>`+`<canvas>` for frames (browser-native), send raw video to Whisper | 413 Content Too Large — Groq rejects files > ~25MB |
+| 3 (`ee7c0f3`) | `AudioContext`+`createMediaStreamDestination`+`MediaRecorder` extracts audio as Opus webm, send audio only to Whisper | Working — audio is ~100-500KB for a 3-min video |
+
+**Final client-side pipeline:**
+1. `getGroqKey()` → edge function `get-key` mode returns `GROQ_API_KEY` (cached in memory)
+2. `getFileToken()` → edge function `get-file-token` mode returns encrypted token (driveUrl + driveToken)
+3. `downloadVideo()` → `get-file` edge function streams video to browser with chunked progress reporting
+4. `extractAudio()` → browser-native Web Audio API: `<video>` → `AudioContext` → `MediaStream` → `MediaRecorder` (Opus). Plays in real-time, progress fills via `ontimeupdate`. No WASM, no memory issues, works on iOS.
+5. `groqWhisper()` → sends tiny audio blob to Groq Whisper (`whisper-large-v3-turbo`) — no more 413
+6. `extractFrames()` → `<video>` seek + `<canvas> drawImage` → 3 JPEG data URLs
+7. `groqDescribeFrames()` → Groq Llama 4 Scout 17B (vision) → visual description
+8. `groqGenerateCaptions()` → Groq Llama 3.3 70B → platform captions
+9. User previews in modal → clicks "Apply to Item" → saves to Supabase (~5KB write)
+
+**Files created:**
+| File | Purpose |
+|------|---------|
+| `src/lib/captions.ts` | Client-side pipeline: all 8 steps + progress callbacks |
+
+**Files modified:**
+| File | Change |
+|------|--------|
+| `supabase/functions/generate-ai-captions/index.ts` | Added `get-key` mode (returns `GROQ_API_KEY`), `get-file-token` mode (returns encrypted token), refactored `isAuthorized` into function |
+| `src/pages/WorkflowItemsPage.tsx` | `generateCaptions()` replaced to call client-side pipeline with step-progress state |
+| `src/components/CaptionPreviewModal.tsx` | Step progress overlay with 6 steps, transitions to preview on completion |
+| `package.json` | Added `@ffmpeg/ffmpeg` + `@ffmpeg/util` (later effectively unused; iteration 1 approach) |
+
+**Progress modal steps:** Authenticating → Downloading (chunked progress) → Transcribing (audio extraction playback progress 0-90% + API 90-100%) → Analyzing → Generating → Done
+
+**Deploy:**
+- Pushed to `main` + edge function deployed to `ximorwzknbizpceaoflw`
+
+**Commits:** `b71d0d9`, `1ae5e16`, `217a303`, `ee7c0f3`
