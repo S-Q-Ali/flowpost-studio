@@ -223,8 +223,7 @@ Deno.serve(async (req) => {
 
     for (const wf of list) {
       if (wf.data_source !== 'flowpost') {
-        const sheetId: string | undefined =
-          wf.sheet_id || GOOGLE_FALLBACK_SHEET_ID;
+        sheetId = wf.sheet_id || GOOGLE_FALLBACK_SHEET_ID;
         if (!sheetId) {
           errors.push(`Workflow ${wf.id} has no sheet_id and no GOOGLE_SHEET_ID fallback`);
           continue;
