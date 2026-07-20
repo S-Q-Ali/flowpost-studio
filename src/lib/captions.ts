@@ -296,7 +296,7 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
         { role: "user", content: userMessage },
       ],
       temperature: 0.7,
-      max_tokens: 2048,
+      max_tokens: 4096
     }),
   });
 

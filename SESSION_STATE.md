@@ -2349,3 +2349,45 @@ StoragePage already handled pagination correctly (load-more button).
 **TypeScript:** 107 → 90 errors (remaining 90 are pre-existing supabase type issues — separate task)
 
 **Commit:** `2718247`
+
+---
+
+### 87. Snapchat Integration — Plan & Setup (2026-07-20)
+
+**Session type**: Research & planning. No code changes.
+
+**Decision**: Direct Snapchat Public Profile API (not Zernio/Ayrshare). Allowlist required.
+
+**Completed this session**:
+- ✅ Snap Business account created at [ads.snapchat.com](https://ads.snapchat.com)
+- ✅ OAuth app created in Snap Business Manager → client_id + client_secret in Supabase secrets
+- ✅ Allowlist request email sent to `dev-support@snap.com` with client_id
+- ✅ Zernio account created & evaluated (Snapchat shows "Coming Soon" in dashboard — unavailable)
+- ✅ Make.com evaluated (only has Snap Ads API, not Public Profile — cannot post organic content)
+- ✅ Bundle.social evaluated (Snapchat on waitlist — not ready)
+- ✅ Full Snapchat Public Profile API endpoint inventory compiled (13 endpoints across 5 phases)
+
+**Snapchat Public Profile API — Endpoints Inventory**:
+
+| Phase | # | Method | Endpoint | Purpose |
+|-------|---|--------|----------|---------|
+| OAuth | 1 | `GET` | `accounts.snapchat.com/login/oauth2/authorize` | User authorization |
+| OAuth | 2 | `POST` | `accounts.snapchat.com/login/oauth2/access_token` | Code → token exchange |
+| OAuth | 3 | `POST` | `accounts.snapchat.com/login/oauth2/access_token` | Token refresh (30min TTL) |
+| Profile | 4 | `GET` | `adsapi.snapchat.com/v1/me` | Get org ID |
+| Profile | 5 | `GET` | `businessapi.snapchat.com/v1/organizations/{org_id}/public_profiles` | List profiles |
+| Media | 6 | `POST` | `businessapi.snapchat.com/v1/public_profiles/{profile_id}/media` | Create media container (key+IV base64) |
+| Media | 7 | `POST` | `businessapi.snapchat.com/{add_path}` | Upload encrypted chunk (multipart) |
+| Media | 8 | `POST` | `businessapi.snapchat.com/{finalize_path}` | Finalize multipart upload |
+| Post | 9 | `POST` | `businessapi.snapchat.com/v1/public_profiles/{profile_id}/spotlights` | Post Spotlight (media_id + description) |
+| Analytics | 10 | `GET` | `businessapi.snapchat.com/v1/public_profiles/{profile_id}/spotlights` | List spotlights (check LIVE/REJECTED) |
+| Analytics | 11 | `GET` | `businessapi.snapchat.com/v1/public_profiles/{profile_id}/spotlights/{id}/stats` | Per-spotlight stats |
+| Analytics | 12 | `GET` | `businessapi.snapchat.com/v1/public_profiles/{profile_id}/stats` | Aggregate profile stats |
+
+**Edge functions to create (pending allowlist)**:
+- `supabase/functions/snapchat-auth/index.ts` — OAuth flow (get-url, callback, token refresh)
+- `supabase/functions/snapchat-upload/index.ts` — AES-256-CBC encrypt video → create media → multipart upload → post Spotlight → update status
+
+**Complexity**: AES-256-CBC encryption + chunked upload (≤32MB per chunk) required on every video publish. This is the main complexity Zernio/Ayrshare would have handled.
+
+**Next**: Waiting for Snap allowlist approval. No ETA — typical wait is weeks to months.
