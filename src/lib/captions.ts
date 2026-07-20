@@ -223,7 +223,7 @@ async function groqDescribeFrames(
   emit(onProgress, "analyzing-visuals", 0);
 
   const content: { type: "text" | "image_url"; text?: string; image_url?: { url: string } }[] = [
-    { type: "text", text: "Describe what's happening in these video frames in detail. Include: setting, people/objects, actions, mood, text overlays, and overall vibe. This will be used alongside an audio transcript to generate social media captions." },
+    { type: "text", text: "Analyze these video frames in detail. Identify any celebrities, athletes, streamers, or well-known personalities visible. Be specific — use full names (e.g. 'Cristiano Ronaldo', 'iShowSpeed'). Describe: setting, people/objects, actions, mood, text overlays, and overall vibe. This will be used alongside an audio transcript to generate social media captions." },
   ];
   for (const frame of frames) {
     content.push({ type: "image_url", image_url: { url: frame } });
