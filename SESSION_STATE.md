@@ -2391,3 +2391,19 @@ StoragePage already handled pagination correctly (load-more button).
 **Complexity**: AES-256-CBC encryption + chunked upload (≤32MB per chunk) required on every video publish. This is the main complexity Zernio/Ayrshare would have handled.
 
 **Next**: Waiting for Snap allowlist approval. No ETA — typical wait is weeks to months.
+
+---
+
+### 88. JSON Editor Frozen + Edge Function Normalizer — Fixed (2026-07-20)
+
+**Plan file**: `.opencode/plans/fix-json-editor-and-normalizer.md` — deleted.
+
+**Problem 1 — Frozen JSON textarea** (`CaptionPromptEditor.tsx`): The editor derived `jsonString` from `JSON.parse`. While typing invalid JSON (most keystrokes), `onChange` never fired → textarea appeared frozen.
+
+**Problem 2 — `[object Object]` in prompts**: Arrays/objects from `masterPrompt` were interpolated directly in template literals, rendering as `[object Object]` in the caption prompt sent to Groq.
+
+**Fixes**:
+- `src/components/CaptionPromptEditor.tsx`: Replaced derived `jsonString` with local `jsonBuffer` state + live valid/invalid JSON indicator
+- `supabase/functions/generate-ai-captions/index.ts`: Added `promptValue(v)` helper that handles strings, arrays, and objects; changed `masterPrompt` type from `Record<string, string>` to `Record<string, unknown>`; wrapped all field accesses with `promptValue()`
+
+**Action**: Plan file archived (deleted).
