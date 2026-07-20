@@ -387,9 +387,7 @@ export default function WorkflowItemsPage() {
 
   const generateCaptions = async (item: WorkflowItem) => {
     setGeneratingId(item.id);
-    setPreviewFileName(item.file_name);
     setPreviewProgress({ step: "fetching-key", label: "Preparing...", progress: 0 });
-    setPreviewOpen(true);
 
     try {
       const captions = await generateAICaptions({
@@ -399,14 +397,10 @@ export default function WorkflowItemsPage() {
         onProgress: (progress) => setPreviewProgress(progress),
       });
       setResults((prev) => ({ ...prev, [item.id]: { captions, fileName: item.file_name } }));
-      setPreviewCaptions(captions);
-      setPreviewFileName(item.file_name);
-      setViewingItemId(item.id);
       toast.success("Captions generated!");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to generate captions";
       console.error("[WorkflowItemsPage] generateCaptions error", err);
-      setPreviewOpen(false);
       toast.error(msg);
     } finally {
       setGeneratingId(null);
@@ -747,10 +741,16 @@ export default function WorkflowItemsPage() {
                         disabled={generatingId === item.id && !results[item.id]}
                       >
                         {generatingId === item.id ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            Generating...
-                          </>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="relative w-6 h-6 shrink-0">
+                              <svg className="w-6 h-6 -rotate-90" viewBox="0 0 36 36">
+                                <circle cx="18" cy="18" r="14" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
+                                <circle cx="18" cy="18" r="14" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeLinecap="round" strokeDasharray={2 * Math.PI * 14} strokeDashoffset={2 * Math.PI * 14 * (1 - (previewProgress?.progress ?? 0) / 100)} className="transition-all duration-500 ease-out" />
+                              </svg>
+                              <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-foreground">{Math.round(previewProgress?.progress ?? 0)}</span>
+                            </div>
+                            <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">{previewProgress?.label || "Generating..."}</span>
+                          </div>
                         ) : results[item.id] ? (
                           <>
                             <Check className="h-3.5 w-3.5 text-green-500" />
