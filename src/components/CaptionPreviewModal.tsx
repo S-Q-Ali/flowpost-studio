@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { RefreshCw } from "lucide-react";
+import { Sparkles, RefreshCw } from "lucide-react";
 
 const CAPTION_LABELS: Record<string, string> = {
   yt_video_title: "YouTube Title",
