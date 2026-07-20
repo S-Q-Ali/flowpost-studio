@@ -8,6 +8,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -71,6 +81,7 @@ export default function WorkflowItemsPage() {
   const [localItems, setLocalItems] = useState<Record<string, Partial<WorkflowItem>>>({});
   const [bulkPlatformsOpen, setBulkPlatformsOpen] = useState(false);
   const [bulkPlatformsValue, setBulkPlatformsValue] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [postStatusMap, setPostStatusMap] = useState<Record<string, Record<string, string>>>({});
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const queueRef = useRef<WorkflowItem[]>([]);
@@ -316,6 +327,26 @@ export default function WorkflowItemsPage() {
     }
     setItems((prev) => prev.map((i) => (ids.includes(i.id) ? { ...i, status: "ready" as const } : i)));
     toast.success(`${ids.length} items marked as ready`);
+  };
+
+  const bulkDeleteItems = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    const { error } = await supabase
+      .from("workflow_items")
+      .delete()
+      .in("id", ids);
+
+    if (error) {
+      toast.error("Failed to delete items");
+      return;
+    }
+
+    setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+    setSelectedIds(new Set());
+    setBulkDeleteOpen(false);
+    toast.success(`${ids.length} items deleted`);
   };
 
   const applyBulkPlatforms = () => {
@@ -651,6 +682,15 @@ export default function WorkflowItemsPage() {
                   </div>
                 </PopoverContent>
               </Popover>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                <Trash2 className="h-3 w-3" />
+                Delete Selected ({selectedIds.size})
+              </Button>
             </>
           )}
         </div>
@@ -891,6 +931,30 @@ export default function WorkflowItemsPage() {
         progressPercent={previewProgress?.progress ?? 0}
         progressLabel={previewProgress?.label ?? null}
       />
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} items?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The items will be permanently removed from this workflow.
+              {selectedIds.size > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Deleting: {items.filter((i) => selectedIds.has(i.id)).map((i) => i.file_name).slice(0, 5).join(", ")}{items.filter((i) => selectedIds.has(i.id)).length > 5 ? ` and ${items.filter((i) => selectedIds.has(i.id)).length - 5} more...` : ""}
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={bulkDeleteItems}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete {selectedIds.size} items
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
