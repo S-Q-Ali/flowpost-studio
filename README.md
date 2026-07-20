@@ -1,27 +1,27 @@
 # FlowPost Studio
 
-> Upload once, publish everywhere. Multi-platform video and image scheduling dashboard supporting YouTube Shorts, Instagram Reels & Stories, Facebook Pages, and TikTok.
+> Upload once, publish everywhere. Multi-platform video and image scheduling dashboard supporting YouTube Shorts, Instagram Reels & Stories, Facebook Pages, TikTok, and LinkedIn.
 
 ---
 
 ## Features
 
-> **Note:** Meta's AI voice translation + lip-sync for Reels is currently only available through the native Instagram/Facebook apps, not via the Graph API. Toggle support in FlowPost prepares for future API support. See `SESSION_STATE.md` entry #50 for full investigation details.
-
-- **Cross-platform publishing** — Upload a video or image once and distribute to YouTube, Instagram, Facebook, and TikTok simultaneously
-- **Meta AI translation support** — Toggle to mark reels for Meta AI dubbing + lip-sync (feature pending Graph API exposure; toggles serve as intent flags for future support)
-- **Image support** — Publish images to Facebook and Instagram (Photo posts + Stories)
+- **Cross-platform publishing** — Upload a video or image once and distribute to YouTube, Instagram, Facebook, TikTok, and LinkedIn simultaneously
+- **AI caption generation** — Auto-generate per-platform captions via Groq Whisper (transcription) + Vision (frame analysis) + LLM pipeline, entirely client-side
 - **Scheduled posting** — Set future publish dates per platform (cron-driven every 5 minutes)
 - **Content calendar** — Monthly overview of all scheduled and published posts
 - **Queue management** — Edit, reschedule, retry, or delete pending posts with bulk operations
-- **Google Sheets workflows** — Automatically pull videos or images from a spreadsheet and post on a recurring schedule (3 scheduling modes)
+- **Google Sheets & FlowPost workflows** — Two modes: pull content from a Google Sheet or use the built-in workflow_items table. 3 scheduling modes (once daily, every N hours, custom time ranges)
+- **AI-powered workflows** — Auto-generate captions for entire workflow runs with per-platform prompts
 - **Cloudflare R2 cache** — Drive-sourced workflow videos are cached to R2; Facebook, Instagram, and stories fetch from R2 at zero Supabase egress
-- **Connected accounts** — Manage OAuth connections for YouTube, Facebook, Instagram, TikTok, and Google Drive
+- **Connected accounts** — Manage OAuth connections for YouTube, Facebook, Instagram, TikTok, LinkedIn, and Google Drive
 - **Mega integration** — Connect your Mega account or use public share links as an alternate file source alongside Google Drive
-- **Progress tracking** — Real-time upload progress and per-platform post status updates
+- **Storage manager** — Browse, upload files to, and create folders in both Google Drive and Mega; transfer files from Drive to Mega directly in the browser
+- **Dual theme** — Light ("Warm Cream") and dark ("Warm Cocoa") modes with terracotta accents, follows OS preference
+- **Profile & security** — User profile dashboard with avatar, password change, and security questions for admin 2FA
 - **YouTube quota monitoring** — Dashboard badges warn when daily quota reaches 50% / 80%
-- **TikTok integration** — Beta support with FILE_UPLOAD + DIRECT_POST publishing flow
-- **Insights dashboard** — Instagram and Facebook analytics with adaptive charts
+- **TikTok & LinkedIn integration** — Supported with FILE_UPLOAD + DIRECT_POST publishing flow (TikTok) and standard OAuth (LinkedIn)
+- **Insights dashboard** — Instagram and Facebook analytics with adaptive charts and configurable date ranges
 
 ---
 
@@ -29,13 +29,12 @@
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router v6, TanStack Query |
+| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router v6 |
 | **Backend** | Supabase (PostgreSQL, Auth, Edge Functions running Deno) |
 | **File Storage** | Google Drive (per-user OAuth) + Mega (authenticated or public links) + Cloudflare R2 (workflow cache) |
-| **Social APIs** | YouTube Data API v3, Facebook Graph API v25, Instagram Graph API, TikTok API v2 |
-| **AI / Translation** | Meta AI dubbing (native app only, no API), SeamlessM4T (self-hostable) |
+| **Social APIs** | YouTube Data API v3, Facebook Graph API v25, Instagram Graph API, TikTok API v2, LinkedIn API |
+| **AI** | Groq API (Whisper for transcription, vision for frame analysis, LLM for caption generation) |
 | **Hosting** | Vercel (frontend), Supabase (edge functions + database) |
-| **Testing** | Vitest, React Testing Library, jsdom |
 | **Linting** | ESLint with typescript-eslint |
 
 ---
@@ -73,7 +72,7 @@ flowpost-studio/
 │   ├── App.tsx                # Root component with router
 │   └── main.tsx               # Entry point
 ├── supabase/
-│   ├── functions/              # 23 Deno Edge Functions
+│   ├── functions/              # 26 Deno Edge Functions
 │   │   ├── _shared/             # Shared modules
 │   │   │   ├── crypto.ts             # AES-GCM token encryption
 │   │   │   ├── rate-limit.ts         # Rate limiting helpers
@@ -83,6 +82,7 @@ flowpost-studio/
 │   │   ├── verify-security-questions/
 │   │   ├── get-quota-usage/
 │   │   ├── get-file/                 # Drive/Mega file proxy
+│   │   ├── generate-ai-captions/     # AI caption generation (Whisper + Vision + LLM)
 │   │   ├── youtube-upload/
 │   │   ├── youtube-auth/
 │   │   ├── facebook-upload/
@@ -90,6 +90,8 @@ flowpost-studio/
 │   │   ├── instagram-upload/
 │   │   ├── tiktok-upload/
 │   │   ├── tiktok-auth/
+│   │   ├── linkedin-upload/
+│   │   ├── linkedin-auth/
 │   │   ├── post-story/
 │   │   ├── process-workflow/        # R2 cache for Drive-sourced videos
 │   │   ├── process-scheduled-posts/
@@ -101,7 +103,7 @@ flowpost-studio/
 │   │   ├── transfer-ticket/          # Temporary Mega session credentials
 │   │   ├── fetch-instagram-insights/
 │   │   └── fetch-facebook-insights/
-│   └── migrations/            # 22 database migration files
+│   └── migrations/            # 28 database migration files
 ├── public/                    # Static assets
 ├── .env.example               # Environment variable template
 └── vercel.json                # Vercel deployment config
@@ -117,6 +119,8 @@ flowpost-studio/
 │  (React)    │     │  Edge Functions   │     │  Facebook API    │
 │             │     │    (Deno)        │     │  Instagram API   │
 │  ┌───────┐  │     │                  │     │  TikTok API      │
+│  │ Drive │  │     │                  │     │  LinkedIn API    │
+│  │ OAuth │  │     │  ┌────────────┐  │     └──────────────────┘
 │  │ Drive │  │     │  ┌────────────┐  │     └──────────────────┘
 │  │ OAuth │  │     │  │process-    │  │
 │  └───────┘  │     │  │workflow    │──┤──── R2 URL (0 egress)
@@ -145,6 +149,15 @@ flowpost-studio/
 7. For immediate publishing, posts fire directly; for scheduled posts, a cron job picks up due posts every 5 minutes
 8. TikTok publishes via FILE_UPLOAD + DIRECT_POST flow (SELF_ONLY privacy in Beta)
 9. All OAuth tokens are encrypted at rest with AES-GCM
+
+**AI caption generation runs entirely in the browser:**
+1. `get-file-token` returns a raw Google Drive OAuth token (no Supabase egress)
+2. Browser downloads the video directly from `googleapis.com` using the Drive token
+3. `AudioContext` + `MediaRecorder` extract audio → sent to **Groq Whisper** (transcription)
+4. `<video>` + `<canvas>` extract 3 frames → sent to **Groq Vision** (celebrity/subject identification)
+5. Transcription + vision results → sent to **Groq GPT-OSS** → generates per-platform captions
+6. Results displayed in modal with per-platform preview; user reviews and applies
+7. All audio/video blobs freed after use (~1.3 GB video + ~50 MB audio)
 
 **Sheet `video_url` supports 3 formats:**
 ```
@@ -191,7 +204,7 @@ npm install supabase --save-dev
 npx supabase link
 
 # Deploy all functions
-npx supabase functions deploy verify-password verify-session verify-security-questions get-quota-usage youtube-upload youtube-auth facebook-upload facebook-auth instagram-upload tiktok-upload tiktok-auth post-story process-workflow process-scheduled-posts update-sheet-status google-drive-auth mega-auth get-file fetch-instagram-insights fetch-facebook-insights
+npx supabase functions deploy verify-password verify-session verify-security-questions get-quota-usage youtube-upload youtube-auth facebook-upload facebook-auth instagram-upload tiktok-upload tiktok-auth linkedin-upload linkedin-auth post-story process-workflow process-scheduled-posts update-sheet-status google-drive-auth mega-auth get-file generate-ai-captions drive-to-mega transfer-ticket fetch-instagram-insights fetch-facebook-insights
 ```
 
 ### Deploy Database Migrations
@@ -224,6 +237,9 @@ Set these in **Supabase Dashboard → Edge Functions → Secrets**:
 | `YOUTUBE_CLIENT_SECRET` | YouTube OAuth client secret |
 | `FACEBOOK_CLIENT_ID` | Facebook app ID |
 | `FACEBOOK_CLIENT_SECRET` | Facebook app secret |
+| `LINKEDIN_CLIENT_ID` | LinkedIn OAuth app client ID |
+| `LINKEDIN_CLIENT_SECRET` | LinkedIn OAuth app client secret |
+| `GROQ_API_KEY` | Groq API key for AI caption generation |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | GCP service account email for Sheets access |
 | `GOOGLE_PRIVATE_KEY` | GCP service account private key |
 | `R2_ENDPOINT` | Cloudflare R2 S3 endpoint URL |
@@ -248,8 +264,7 @@ Frontend variables (in `.env.local`):
 |--------|---------|-------------|
 | `dev` | `npm run dev` | Start dev server on port 8080 |
 | `build` | `npm run build` | Production build |
-| `test` | `npm run test` | Run test suite |
-| `test:watch` | `npm run test:watch` | Run tests in watch mode |
+| `test` | `npm run test` | Run test suite (requires Vitest setup) |
 | `lint` | `npm run lint` | Lint all source files |
 | `preview` | `npm run preview` | Preview production build locally |
 
@@ -274,7 +289,7 @@ Frontend variables (in `.env.local`):
 npm run test
 ```
 
-The test suite uses Vitest with React Testing Library.
+The test suite uses Vitest.
 
 ---
 
@@ -304,9 +319,10 @@ npx supabase db push
 - [Facebook Graph API](https://developers.facebook.com/docs/graph-api)
 - [Instagram Graph API](https://developers.facebook.com/docs/instagram-api)
 - [TikTok API](https://developers.tiktok.com/)
+- [LinkedIn API](https://developer.linkedin.com/docs)
+- [Groq API](https://console.groq.com/docs)
 - [Supabase Edge Functions](https://supabase.com/docs/guides/functions)
 - [MegaJS](https://github.com/tonistiigi/megajs)
-- [Meta AI dubbing for Reels](https://creators.facebook.com/blog/meta-ai-translations) (native app only, no API available)
 
 ---
 
