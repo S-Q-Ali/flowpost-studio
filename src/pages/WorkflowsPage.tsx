@@ -28,7 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { BetaBadge } from "@/components/BetaBadge";
 import { CaptionPromptEditor } from "@/components/CaptionPromptEditor";
-import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Clock3, Play, Loader2, Folder } from "lucide-react";
+import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Clock3, Play, Loader2, Folder, Copy } from "lucide-react";
 import { toast } from "sonner";
 import type { Platform, ConnectedAccount, MasterPrompt } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -489,6 +489,47 @@ export default function WorkflowsPage() {
     toast.success("Workflow deleted");
     setDeleteTarget(null);
     loadWorkflows();
+  };
+
+  const cloneWorkflow = async (wf: WorkflowRow) => {
+    const { id, created_at, updated_at, last_triggered_at,
+            last_manual_triggered_at, total_posted, is_active, ...settings } = wf;
+
+    const { data: newWf, error } = await supabase
+      .from("workflows")
+      .insert({ ...(settings as any), name: `${wf.name} (Copy)`, is_active: false })
+      .select()
+      .single();
+
+    if (error) { toast.error("Failed to clone workflow"); return; }
+
+    const { data: items } = await supabase
+      .from("workflow_items")
+      .select("*")
+      .eq("workflow_id", id);
+
+    if (items?.length) {
+      const clonedItems = items.map(
+        ({ id: _i, workflow_id, created_at, posted_at, status, ...rest }) => ({
+          ...(rest as any),
+          workflow_id: newWf.id,
+          status: "pending" as const,
+        }),
+      );
+      const { error: itemsError } = await supabase
+        .from("workflow_items")
+        .insert(clonedItems);
+      if (itemsError) console.error("Failed to clone items", itemsError);
+    }
+
+    setWorkflows((prev) => {
+      const idx = prev.findIndex((w) => w.id === wf.id);
+      const copy = [...prev];
+      copy.splice(idx + 1, 0, newWf as WorkflowRow);
+      return copy;
+    });
+
+    toast.success(`Workflow cloned as "${newWf.name}"`);
   };
 
   const runWorkflow = async (workflowId: string) => {
@@ -1600,6 +1641,15 @@ export default function WorkflowsPage() {
                     ) : (
                       <Play className="h-3 w-3" />
                     )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={() => cloneWorkflow(wf)}
+                  >
+                    <Copy className="h-3 w-3" />
                   </Button>
                   <Button
                     type="button"
