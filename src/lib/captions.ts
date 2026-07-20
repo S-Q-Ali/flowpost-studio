@@ -23,11 +23,11 @@ export interface StepProgress {
 export type OnProgress = (progress: StepProgress) => void;
 
 const STEP_LABELS: Record<StepId, string> = {
-  "fetching-key": "Authenticating...",
-  downloading: "Downloading video from Drive...",
-  transcribing: "Extracting audio & transcribing...",
-  "analyzing-visuals": "Analyzing video frames...",
-  "generating-captions": "Generating platform captions...",
+  "fetching-key": "Preparing...",
+  downloading: "Downloading file...",
+  transcribing: "Transcribing audio...",
+  "analyzing-visuals": "Analyzing content...",
+  "generating-captions": "Creating captions...",
   done: "Done!",
   error: "Error",
 };

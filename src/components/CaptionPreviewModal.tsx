@@ -22,11 +22,11 @@ type StepId =
   | "error";
 
 const STEP_LABELS: Record<StepId, string> = {
-  "fetching-key": "Authenticating",
-  downloading: "Downloading video",
+  "fetching-key": "Preparing",
+  downloading: "Downloading file",
   transcribing: "Transcribing audio",
-  "analyzing-visuals": "Analyzing video frames",
-  "generating-captions": "Generating captions",
+  "analyzing-visuals": "Analyzing content",
+  "generating-captions": "Creating captions",
   done: "Completed",
   error: "Error",
 };

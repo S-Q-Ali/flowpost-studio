@@ -78,7 +78,7 @@ export default function WorkflowItemsPage() {
   const [viewingItemId, setViewingItemId] = useState<string | null>(null);
   const [previewCaptions, setPreviewCaptions] = useState<Record<string, string> | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string>("");
-  const [previewLoading] = useState(false);
+  const previewLoading = previewProgress !== null;
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewProgress, setPreviewProgress] = useState<StepProgress | null>(null);
 
@@ -387,7 +387,9 @@ export default function WorkflowItemsPage() {
 
   const generateCaptions = async (item: WorkflowItem) => {
     setGeneratingId(item.id);
-    setPreviewProgress({ step: "fetching-key", label: "Starting...", progress: 0 });
+    setPreviewFileName(item.file_name);
+    setPreviewProgress({ step: "fetching-key", label: "Preparing...", progress: 0 });
+    setPreviewOpen(true);
 
     try {
       const captions = await generateAICaptions({
@@ -397,10 +399,14 @@ export default function WorkflowItemsPage() {
         onProgress: (progress) => setPreviewProgress(progress),
       });
       setResults((prev) => ({ ...prev, [item.id]: { captions, fileName: item.file_name } }));
+      setPreviewCaptions(captions);
+      setPreviewFileName(item.file_name);
+      setViewingItemId(item.id);
       toast.success("Captions generated!");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to generate captions";
       console.error("[WorkflowItemsPage] generateCaptions error", err);
+      setPreviewOpen(false);
       toast.error(msg);
     } finally {
       setGeneratingId(null);
