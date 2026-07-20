@@ -2213,3 +2213,52 @@ StoragePage already handled pagination correctly (load-more button).
 **Known remaining issue:** `default_hashtags` key vs `hashtags` — users must use `"hashtags"` for the field to populate in the Template tab. Extra keys (`name`, `description`, `input`) are ignored but harmless.
 
 **Commit:** `e2c0ef4`
+
+---
+
+### 82. Caption model migration: `llama-3.3-70b-versatile` → `openai/gpt-oss-120b` (2026-07-19)
+
+**What:** Replaced the deprecated `llama-3.3-70b-versatile` (shutdown Aug 16, 2026) with `openai/gpt-oss-120b` in both client and edge function. Both are free on Groq's free tier — no cost change.
+
+**Files changed:**
+| File | Line | Before | After |
+|------|------|--------|-------|
+| `src/lib/captions.ts` | 294 | `llama-3.3-70b-versatile` | `openai/gpt-oss-120b` |
+| `supabase/functions/generate-ai-captions/index.ts` | 107 | `llama-3.3-70b-versatile` | `openai/gpt-oss-120b` |
+
+**Performance:** GPT-OSS 120B is faster (500 vs 280 tok/s) and cheaper ($0.15 vs $0.59/M input on paid tier). Free tier rate limits: 30 RPM, 8K TPM, 200K TPD.
+
+---
+
+### 83. Video blob memory release (2026-07-19)
+
+**What:** Added `videoBlob = null!;` after frame extraction to release the ~1.3 GB video blob from memory without requiring a page refresh. Browser can GC the blob immediately while the Groq API call runs.
+
+**File changed:**
+| File | Line | Detail |
+|------|------|--------|
+| `src/lib/captions.ts` | ~403 | Inserted `videoBlob = null!;` after last use of videoBlob (frame extraction) |
+
+**Safety:** Object URLs already revoked in `extractFrames()` (line 138) and `extractAudio()` (line 186). The blob reference was the only remaining hold.
+
+---
+
+### 84. Background caption generation with queue + results review (2026-07-19)
+
+**What:** Replaced the auto-opening modal with a background generation flow. Users can click "AI Captions" on multiple items — they queue and run sequentially. Results stored per-item in a `results` map. "View Captions" button opens modal with stored results for review/apply.
+
+**Changes in `src/pages/WorkflowItemsPage.tsx`** (+57/-21 lines):
+
+| Change | Detail |
+|--------|--------|
+| **State** | Added `results` map `Record<itemId, {captions, fileName}>`, `viewingItemId`, `queueRef` (useRef for queue items) |
+| **generateCaptions()** | No longer opens modal — runs silently, stores result in `results` map, shows toast on success |
+| **Queue** | Clicking "AI Captions" on another item while one is running queues it. Auto-starts next when current finishes. `queueRef` used to avoid stale closure issues |
+| **Button behavior** | No result → "AI Captions" (generates). Generating → spinner + "Generating..." (disabled). Has result → green check + "View Captions" (opens modal with stored results) |
+| **openResults()** | New function — opens modal with stored captions for review/apply |
+| **applyCaptions()** | Uses `viewingItemId` instead of removed `previewItemId` |
+| **Modal onClose** | Clears viewing state but keeps results in map — data persists across opens |
+
+**Memory safety:** One ~1.3 GB blob at a time (same as before). Stored results are tiny (KB each). No page refresh needed.
+
+**Commit:** `254ce53`
