@@ -401,6 +401,8 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
       emit(onProgress, "analyzing-visuals", 100);
     }
 
+    videoBlob=null!;
+
     let captions: Record<string, string>;
     try {
       captions = await groqGenerateCaptions(transcript, visualDescription, item.file_name, prompt, apiKey, platforms, onProgress);
