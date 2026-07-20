@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
 import { CaptionPreviewModal } from "@/components/CaptionPreviewModal";
-import { generateAICaptions, type StepProgress } from "@/lib/captions";
+import { generateAICaptions, regenerateCaptions, type StepProgress } from "@/lib/captions";
 
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -74,7 +74,13 @@ export default function WorkflowItemsPage() {
   const [postStatusMap, setPostStatusMap] = useState<Record<string, Record<string, string>>>({});
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const queueRef = useRef<WorkflowItem[]>([]);
-  const [results, setResults] = useState<Record<string, { captions: Record<string, string>; fileName: string }>>({});
+  interface CaptionResult {
+    captions: Record<string, string>;
+    transcript: string;
+    visualDescription: string;
+    fileName: string;
+  }
+  const [results, setResults] = useState<Record<string, CaptionResult>>({});
   const [viewingItemId, setViewingItemId] = useState<string | null>(null);
   const [previewCaptions, setPreviewCaptions] = useState<Record<string, string> | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string>("");
@@ -385,19 +391,58 @@ export default function WorkflowItemsPage() {
     setSyncing(false);
   };
 
+  const saveCaptions = async (itemId: string, captions: Record<string, string>) => {
+    const CAPTION_KEY_MAP: Record<string, string> = {
+      caption: "fb_ig_caption",
+      yt_video_title: "yt_video_title",
+      yt_video_description: "yt_video_description",
+      fb_ig_caption: "fb_ig_caption",
+      tiktok_caption: "tiktok_caption",
+      linkedin_caption: "linkedin_caption",
+    };
+    const updates: Record<string, string | null> = {};
+    for (const [key, value] of Object.entries(captions)) {
+      const dbField = CAPTION_KEY_MAP[key] || key;
+      if (value) updates[dbField] = value;
+    }
+
+    const { error } = await supabase
+      .from("workflow_items")
+      .update(updates)
+      .eq("id", itemId);
+
+    if (error) {
+      toast.error("Failed to save captions: " + error.message);
+      return;
+    }
+
+    setItems((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, ...updates } as WorkflowItem : i)),
+    );
+  };
+
   const generateCaptions = async (item: WorkflowItem) => {
     setGeneratingId(item.id);
     setPreviewProgress({ step: "fetching-key", label: "Preparing...", progress: 0 });
 
     try {
-      const captions = await generateAICaptions({
+      const result = await generateAICaptions({
         item: { id: item.id, file_name: item.file_name, mime_type: item.mime_type },
         masterPrompt: workflow?.caption_master_prompt ?? undefined,
         platforms: workflow?.platforms ?? [],
         onProgress: (progress) => setPreviewProgress(progress),
       });
-      setResults((prev) => ({ ...prev, [item.id]: { captions, fileName: item.file_name } }));
-      toast.success("Captions generated!");
+      setResults((prev) => ({
+        ...prev,
+        [item.id]: {
+          captions: result.captions,
+          transcript: result.transcript,
+          visualDescription: result.visualDescription,
+          fileName: item.file_name,
+        },
+      }));
+      await saveCaptions(item.id, result.captions);
+      toast.success("AI captions applied!");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to generate captions";
       console.error("[WorkflowItemsPage] generateCaptions error", err);
@@ -427,6 +472,31 @@ export default function WorkflowItemsPage() {
     setPreviewFileName(r.fileName);
     setPreviewCaptions(r.captions);
     setPreviewOpen(true);
+  };
+
+  const handleRegenerate = async (itemId: string) => {
+    const r = results[itemId];
+    if (!r) return;
+
+    setPreviewOpen(false);
+
+    const captions = await regenerateCaptions(
+      r.transcript,
+      r.visualDescription,
+      r.fileName,
+      workflow?.caption_master_prompt ?? undefined,
+      workflow?.platforms ?? [],
+    );
+
+    setResults((prev) => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], captions },
+    }));
+    await saveCaptions(itemId, captions);
+    toast.success("Captions regenerated!");
+
+    const item = items.find((i) => i.id === itemId);
+    if (item) openResults(item);
   };
 
   const applyCaptions = async (captions: Record<string, string>) => {
@@ -816,6 +886,7 @@ export default function WorkflowItemsPage() {
         loading={previewLoading}
         fileName={previewFileName}
         onSave={applyCaptions}
+        onRegenerate={() => viewingItemId && handleRegenerate(viewingItemId)}
         progressStep={previewProgress?.step ?? null}
         progressPercent={previewProgress?.progress ?? 0}
         progressLabel={previewProgress?.label ?? null}

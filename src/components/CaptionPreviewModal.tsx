@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Sparkles } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 const CAPTION_LABELS: Record<string, string> = {
   yt_video_title: "YouTube Title",
@@ -38,6 +38,7 @@ interface CaptionPreviewModalProps {
   loading: boolean;
   fileName: string;
   onSave: (captions: Record<string, string>) => void;
+  onRegenerate: () => void;
   progressStep: StepId | null;
   progressPercent: number;
   progressLabel: string | null;
@@ -50,6 +51,7 @@ export function CaptionPreviewModal({
   loading,
   fileName,
   onSave,
+  onRegenerate,
   progressStep,
   progressPercent,
   progressLabel,
@@ -65,7 +67,7 @@ export function CaptionPreviewModal({
           <DialogDescription>
             {loading
               ? `Generating captions for "${fileName}"...`
-              : `Preview and edit captions for "${fileName}" before saving.`}
+              : `Generated captions for "${fileName}". Tap Regenerate to get a new version.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -124,11 +126,12 @@ export function CaptionPreviewModal({
               </Button>
               <Button
                 size="sm"
-                className="gradient-primary text-primary-foreground gap-2"
-                onClick={() => onSave(captions)}
+                variant="outline"
+                className="gap-2"
+                onClick={onRegenerate}
               >
-                <Sparkles className="h-3.5 w-3.5" />
-                Apply to Item
+                <RefreshCw className="h-3.5 w-3.5" />
+                Regenerate
               </Button>
             </DialogFooter>
           </>

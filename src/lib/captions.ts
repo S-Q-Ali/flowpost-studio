@@ -253,7 +253,7 @@ async function groqDescribeFrames(
   return description;
 }
 
-async function groqGenerateCaptions(
+export async function groqGenerateCaptions(
   transcript: string,
   visualDescription: string,
   fileName: string,
@@ -343,7 +343,13 @@ const PLATFORM_ALLOWED_KEYS: Record<string, string[]> = {
   linkedin: ["linkedin_caption"],
 };
 
-export async function generateAICaptions(options: GenerateCaptionsOptions): Promise<Record<string, string>> {
+export interface AICaptionResult {
+  captions: Record<string, string>;
+  transcript: string;
+  visualDescription: string;
+}
+
+export async function generateAICaptions(options: GenerateCaptionsOptions): Promise<AICaptionResult> {
   const { item, masterPrompt, platforms, onProgress } = options;
   const prompt = masterPrompt || getDefaultMasterPrompt();
 
@@ -421,9 +427,31 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     }
 
     emit(onProgress, "done", 100);
-    return captions;
+    return { captions, transcript, visualDescription };
   } catch (err) {
     emit(onProgress, "error", 0);
     throw err;
   }
+}
+
+export async function regenerateCaptions(
+  transcript: string,
+  visualDescription: string,
+  fileName: string,
+  masterPrompt?: MasterPrompt | null,
+  platforms?: string[],
+  onProgress?: OnProgress,
+): Promise<Record<string, string>> {
+  const apiKey = groqApiKey || await getGroqKey();
+  const prompt = masterPrompt || getDefaultMasterPrompt();
+  const captions = await groqGenerateCaptions(transcript, visualDescription, fileName, prompt, apiKey, platforms, onProgress);
+
+  if (platforms?.length) {
+    const allowed = new Set(platforms.flatMap((p) => PLATFORM_ALLOWED_KEYS[p] || []));
+    for (const key of Object.keys(captions)) {
+      if (!allowed.has(key)) delete captions[key];
+    }
+  }
+
+  return captions;
 }
