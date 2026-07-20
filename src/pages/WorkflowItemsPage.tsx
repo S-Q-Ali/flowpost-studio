@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
@@ -73,8 +73,10 @@ export default function WorkflowItemsPage() {
   const [bulkPlatformsValue, setBulkPlatformsValue] = useState<string[]>([]);
   const [postStatusMap, setPostStatusMap] = useState<Record<string, Record<string, string>>>({});
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const queueRef = useRef<WorkflowItem[]>([]);
+  const [results, setResults] = useState<Record<string, { captions: Record<string, string>; fileName: string }>>({});
+  const [viewingItemId, setViewingItemId] = useState<string | null>(null);
   const [previewCaptions, setPreviewCaptions] = useState<Record<string, string> | null>(null);
-  const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string>("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -387,11 +389,6 @@ export default function WorkflowItemsPage() {
 
   const generateCaptions = async (item: WorkflowItem) => {
     setGeneratingId(item.id);
-    setPreviewLoading(true);
-    setPreviewOpen(true);
-    setPreviewItemId(item.id);
-    setPreviewFileName(item.file_name);
-    setPreviewCaptions(null);
     setPreviewProgress({ step: "fetching-key", label: "Starting...", progress: 0 });
 
     try {
@@ -401,21 +398,41 @@ export default function WorkflowItemsPage() {
         platforms: workflow?.platforms ?? [],
         onProgress: (progress) => setPreviewProgress(progress),
       });
-      setPreviewCaptions(captions);
+      setResults((prev) => ({ ...prev, [item.id]: { captions, fileName: item.file_name } }));
+      toast.success("Captions generated!");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to generate captions";
       console.error("[WorkflowItemsPage] generateCaptions error", err);
       toast.error(msg);
-      setPreviewOpen(false);
     } finally {
-      setPreviewLoading(false);
       setGeneratingId(null);
       setPreviewProgress(null);
+      const next = queueRef.current.shift();
+      if (next) generateCaptions(next);
     }
   };
 
+  const queueGeneration = (item: WorkflowItem) => {
+    if (generatingId) {
+      if (queueRef.current.some((q) => q.id === item.id)) return;
+      queueRef.current = [...queueRef.current, item];
+      toast.info(`Queued "${item.file_name}" — will generate after current item finishes`);
+    } else {
+      generateCaptions(item);
+    }
+  };
+
+  const openResults = (item: WorkflowItem) => {
+    const r = results[item.id];
+    if (!r) return;
+    setViewingItemId(item.id);
+    setPreviewFileName(r.fileName);
+    setPreviewCaptions(r.captions);
+    setPreviewOpen(true);
+  };
+
   const applyCaptions = async (captions: Record<string, string>) => {
-    if (!previewItemId) return;
+    if (!viewingItemId) return;
     const CAPTION_KEY_MAP: Record<string, string> = {
       caption: "fb_ig_caption",
       yt_video_title: "yt_video_title",
@@ -433,7 +450,7 @@ export default function WorkflowItemsPage() {
     const { error } = await supabase
       .from("workflow_items")
       .update(updates)
-      .eq("id", previewItemId);
+      .eq("id", viewingItemId);
 
     if (error) {
       toast.error("Failed to save captions: " + error.message);
@@ -441,13 +458,13 @@ export default function WorkflowItemsPage() {
     }
 
     setItems((prev) =>
-      prev.map((i) => (i.id === previewItemId ? { ...i, ...updates } as WorkflowItem : i)),
+      prev.map((i) => (i.id === viewingItemId ? { ...i, ...updates } as WorkflowItem : i)),
     );
 
     toast.success("AI captions applied!");
     setPreviewOpen(false);
     setPreviewCaptions(null);
-    setPreviewItemId(null);
+    setViewingItemId(null);
   };
 
   if (loading) {
@@ -713,15 +730,34 @@ export default function WorkflowItemsPage() {
                         variant="ghost"
                         size="sm"
                         className="h-7 text-xs gap-1 text-primary hover:text-primary"
-                        onClick={() => generateCaptions(item)}
-                        disabled={generatingId === item.id}
+                        onClick={() => {
+                          const hasResult = results[item.id];
+                          if (hasResult) {
+                            openResults(item);
+                          } else if (generatingId) {
+                            queueGeneration(item);
+                          } else {
+                            generateCaptions(item);
+                          }
+                        }}
+                        disabled={generatingId === item.id && !results[item.id]}
                       >
                         {generatingId === item.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Generating...
+                          </>
+                        ) : results[item.id] ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-green-500" />
+                            View Captions
+                          </>
                         ) : (
-                          <Sparkles className="h-3.5 w-3.5" />
+                          <>
+                            <Sparkles className="h-3.5 w-3.5" />
+                            AI Captions
+                          </>
                         )}
-                        {generatingId === item.id ? "Generating..." : "AI Captions"}
                       </Button>
                       {(item.status === "pending" || item.status === "failed") && (
                         <Button
@@ -771,7 +807,7 @@ export default function WorkflowItemsPage() {
       {/* AI Caption Preview Modal */}
       <CaptionPreviewModal
         open={previewOpen}
-        onOpenChange={(open) => { setPreviewOpen(open); if (!open) { setPreviewCaptions(null); setPreviewProgress(null); } }}
+        onOpenChange={(open) => { setPreviewOpen(open); if (!open) { setPreviewCaptions(null); setViewingItemId(null); setPreviewProgress(null); } }}
         captions={previewCaptions}
         loading={previewLoading}
         fileName={previewFileName}
