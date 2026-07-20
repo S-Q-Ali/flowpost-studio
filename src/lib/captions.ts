@@ -383,6 +383,8 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     } catch (err) {
       console.error("[captions] FAIL groqWhisper", err);
       throw new Error(`whisper: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      audioBlob = null!;
     }
 
     let visualDescription: string;
