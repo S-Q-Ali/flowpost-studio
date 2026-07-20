@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `2718247` — chore: remove dead code — 17 unused packages, 1 unused file, 16 unused variables/imports, fix fetchPriority typo
+## CURRENT HEAD: `7c83fc2` — feat: AI captions live progress — modal shows circular ring + step labels during generation; tech-agnostic labels
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2407,3 +2407,16 @@ StoragePage already handled pagination correctly (load-more button).
 - `supabase/functions/generate-ai-captions/index.ts`: Added `promptValue(v)` helper that handles strings, arrays, and objects; changed `masterPrompt` type from `Record<string, string>` to `Record<string, unknown>`; wrapped all field accesses with `promptValue()`
 
 **Action**: Plan file archived (deleted).
+
+---
+
+### 89. AI Captions: Live progress modal + tech-agnostic labels (2026-07-20)
+
+**Problem**: The `CaptionPreviewModal` had a full animated SVG circular progress ring + step labels + percentage, but `previewLoading` was hardcoded to `false` — the progress UI was never shown. Users only saw `"Generating..."` text in a button with a tiny `Loader2` spinner, with no visibility into what step was happening.
+
+**Fixes**:
+- `src/pages/WorkflowItemsPage.tsx`: Replaced `const [previewLoading] = useState(false)` with `const previewLoading = previewProgress !== null`. In `generateCaptions()`, added `setPreviewOpen(true)` to open the modal with the progress ring immediately, and set `previewCaptions`/`previewFileName`/`viewingItemId` after results arrive so the modal transitions smoothly from loading → results display. On error, modal closes.
+- `src/lib/captions.ts`: Changed `STEP_LABELS` to remove all tech names — `"Authenticating..."` → `"Preparing..."`, `"Downloading video from Drive..."` → `"Downloading file..."`, `"Extracting audio & transcribing..."` → `"Transcribing audio..."`, `"Analyzing video frames..."` → `"Analyzing content..."`, `"Generating platform captions..."` → `"Creating captions..."`.
+- `src/components/CaptionPreviewModal.tsx`: Sync'd display-side `STEP_LABELS` to match.
+
+**Result**: Clicking "AI Captions" now opens a modal showing the circular progress ring (animated percentage), step label ("Preparing" → "Downloading file" → "Transcribing audio" → "Analyzing content" → "Creating captions"), and description. When done, the same modal transitions to the results view. No tech names visible to the user.
