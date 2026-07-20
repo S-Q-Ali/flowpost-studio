@@ -78,9 +78,9 @@ export default function WorkflowItemsPage() {
   const [viewingItemId, setViewingItemId] = useState<string | null>(null);
   const [previewCaptions, setPreviewCaptions] = useState<Record<string, string> | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string>("");
-  const previewLoading = previewProgress !== null;
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewProgress, setPreviewProgress] = useState<StepProgress | null>(null);
+  const previewLoading = previewProgress !== null;
 
   const visiblePlatforms = (() => {
     const platforms = workflow?.platforms ?? [];
