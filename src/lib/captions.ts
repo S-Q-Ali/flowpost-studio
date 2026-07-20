@@ -1,8 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getDefaultMasterPrompt, type MasterPrompt } from "@/lib/prompt-templates";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-
 const GROQ_API_BASE = "https://api.groq.com/openai/v1";
 
 let groqApiKey: string | null = null;
@@ -59,7 +57,7 @@ async function getGroqKey(): Promise<string> {
   return groqApiKey;
 }
 
-async function getFileToken(itemId: string): Promise<string> {
+async function getFileToken(itemId: string): Promise<{ driveToken: string; driveUrl: string }> {
   const token = localStorage.getItem("flowpost_token");
   const { data, error } = await supabase.functions.invoke("generate-ai-captions", {
     method: "POST",
@@ -74,12 +72,13 @@ async function getFileToken(itemId: string): Promise<string> {
     throw new Error(data?.error || error?.message || "Failed to get file token");
   }
 
-  return data.token;
+  return { driveToken: data.driveToken, driveUrl: data.driveUrl };
 }
 
-async function downloadVideo(encryptedToken: string, onProgress?: OnProgress): Promise<Blob> {
-  const funcUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(encryptedToken)}`;
-  const res = await fetch(funcUrl);
+async function downloadVideo(driveToken: string, driveUrl: string, onProgress?: OnProgress): Promise<Blob> {
+  const res = await fetch(driveUrl, {
+    headers: { Authorization: `Bearer ${driveToken}` },
+  });
   if (!res.ok) {
     throw new Error(`Failed to download video: ${res.status}`);
   }
@@ -362,8 +361,8 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     emit(onProgress, "downloading", 0);
     let videoBlob: Blob;
     try {
-      const fileToken = await getFileToken(item.id);
-      videoBlob = await downloadVideo(fileToken, onProgress);
+      const { driveToken, driveUrl } = await getFileToken(item.id);
+      videoBlob = await downloadVideo(driveToken, driveUrl, onProgress);
     } catch (err) {
       console.error("[captions] FAIL download", err);
       throw new Error(`download: ${err instanceof Error ? err.message : String(err)}`);

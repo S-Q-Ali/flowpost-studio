@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { decrypt, encrypt } from "../_shared/crypto.ts";
+import { decrypt } from "../_shared/crypto.ts";
 import { PROMPT_TEMPLATES, getDefaultMasterPrompt } from "./prompt-templates.ts";
 
 const corsHeaders = {
@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
     return json({ key: GROQ_API_KEY });
   }
 
-  // --- GET-FILE-TOKEN mode: return encrypted token for get-file edge function ---
+  // --- GET-FILE-TOKEN mode: return raw Drive token + URL for direct browser fetch ---
   if (body.mode === "get-file-token") {
     const itemId = body.workflow_item_id;
     if (!itemId) {
@@ -262,16 +262,8 @@ Deno.serve(async (req) => {
       }
 
       const driveUrl = `https://www.googleapis.com/drive/v3/files/${item.drive_file_id}?alt=media`;
-      const tokenPayload = JSON.stringify({
-        driveUrl,
-        driveToken,
-        driveAccountId: workflow.drive_account_id,
-        userId: workflow.user_id,
-        exp: Date.now() + 30 * 60 * 1000, // 30 min expiry
-      });
-      const encrypted = await encrypt(tokenPayload);
 
-      return json({ token: encrypted });
+      return json({ driveToken, driveUrl });
     } catch (err) {
       console.error("get-file-token error", err);
       return json(
