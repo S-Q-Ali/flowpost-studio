@@ -20,7 +20,7 @@ function setStoredToken(token: string | null) {
 }
 
 export function SecurityQuestionsGate() {
-  const { login, logout, isAuthenticated, pendingSecurityVerification } = useAuth();
+  const { logout, isAuthenticated, pendingSecurityVerification } = useAuth();
   const navigate = useNavigate();
   const [favTeacher, setFavTeacher] = useState("");
   const [bestNightDate, setBestNightDate] = useState("");

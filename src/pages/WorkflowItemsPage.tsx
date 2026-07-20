@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, X } from "lucide-react";
+import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
@@ -78,7 +78,7 @@ export default function WorkflowItemsPage() {
   const [viewingItemId, setViewingItemId] = useState<string | null>(null);
   const [previewCaptions, setPreviewCaptions] = useState<Record<string, string> | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string>("");
-  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewLoading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewProgress, setPreviewProgress] = useState<StepProgress | null>(null);
 
@@ -326,7 +326,6 @@ export default function WorkflowItemsPage() {
   const syncFromDrive = async () => {
     if (!workflow?.drive_account_id || !workflow?.drive_folder_id || !workflowId) return;
     setSyncing(true);
-    let newCount = 0;
     let allFiles: any[] = [];
     let pageToken: string | null = null;
     let hasError = false;
@@ -380,7 +379,6 @@ export default function WorkflowItemsPage() {
         } else if (inserted) {
           setItems((prev) => [...prev, ...(inserted as WorkflowItem[])]);
           toast.success(`${inserted.length} new files synced`);
-          newCount = inserted.length;
         }
       }
     }

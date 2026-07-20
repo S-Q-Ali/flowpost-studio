@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Loader2, Youtube, Instagram, Facebook, Film, Folder, FileIcon } from "lucide-react";
@@ -43,8 +42,8 @@ export default function UploadPage() {
   const [facebookCaption, setFacebookCaption] = useState("");
   const [tiktokCaption, setTiktokCaption] = useState("");
   const [linkedinCaption, setLinkedinCaption] = useState("");
-  const [hashtags, setHashtags] = useState("");
-  const [captionsEnabled, setCaptionsEnabled] = useState(true);
+  const [hashtags] = useState("");
+  const [captionsEnabled] = useState(true);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
   const [selectedYouTubeAccountIds, setSelectedYouTubeAccountIds] = useState<string[]>([]);
   const [selectedFacebookPageIds, setSelectedFacebookPageIds] = useState<string[]>([]);
@@ -66,7 +65,7 @@ export default function UploadPage() {
   const [scheduleDate, setScheduleDate] = useState<Date>(getDefaultScheduleDate());
   const [scheduleTime, setScheduleTime] = useState("17:00");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [containsAlteredContent, setContainsAlteredContent] = useState(true);
+  const [containsAlteredContent] = useState(true);
   const [driveTab, setDriveTab] = useState<"videos" | "drive" | "local">("videos");
   const [driveAccounts, setDriveAccounts] = useState<ConnectedAccount[]>([]);
   const [selectedDriveId, setSelectedDriveId] = useState<string | null>(null);
@@ -254,13 +253,6 @@ export default function UploadPage() {
   const navigateDriveFolder = (folderId: string, folderName: string) => {
     setDriveBreadcrumbs((prev) => [...prev, { id: driveParentId, name: folderName }]);
     setDriveParentId(folderId);
-  };
-
-  const goDriveBack = () => {
-    if (driveBreadcrumbs.length === 0) return;
-    const prev = driveBreadcrumbs[driveBreadcrumbs.length - 1];
-    setDriveBreadcrumbs((crumbs) => crumbs.slice(0, -1));
-    setDriveParentId(prev.id);
   };
 
   const importFileToR2 = async (file: { id: string; name: string; mimeType: string; size: number }) => {
@@ -656,7 +648,7 @@ export default function UploadPage() {
           }
         }
 
-        const firePost = async (post: any, fn: string, label: string) => {
+        const firePost = async (post: any, fn: string) => {
           const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}`, apikey: anonKey },
@@ -667,22 +659,22 @@ export default function UploadPage() {
 
         if (facebookFeedPosts.length > 0) {
           toast.info("Uploading to Facebook...");
-          const results = await Promise.all(facebookFeedPosts.map((p: any) => firePost(p, "facebook-upload", "Facebook")));
+          const results = await Promise.all(facebookFeedPosts.map((p: any) => firePost(p, "facebook-upload")));
           if (results.some((r) => !r)) toast.error("Some Facebook uploads failed, check Queue");
         }
         if (facebookStoryPosts.length > 0) {
           toast.info("Posting to Facebook Story...");
-          const results = await Promise.all(facebookStoryPosts.map((p: any) => firePost(p, "post-story", "Facebook Story")));
+          const results = await Promise.all(facebookStoryPosts.map((p: any) => firePost(p, "post-story")));
           if (results.some((r) => !r)) toast.error("Some Facebook Story posts failed, check Queue");
         }
         if (instagramFeedPosts.length > 0) {
           toast.info("Uploading to Instagram...");
-          const results = await Promise.all(instagramFeedPosts.map((p: any) => firePost(p, "instagram-upload", "Instagram")));
+          const results = await Promise.all(instagramFeedPosts.map((p: any) => firePost(p, "instagram-upload")));
           if (results.some((r) => !r)) toast.error("Some Instagram uploads failed, check Queue");
         }
         if (instagramStoryPosts.length > 0) {
           toast.info("Posting to Instagram Story...");
-          const results = await Promise.all(instagramStoryPosts.map((p: any) => firePost(p, "post-story", "Instagram Story")));
+          const results = await Promise.all(instagramStoryPosts.map((p: any) => firePost(p, "post-story")));
           if (results.some((r) => !r)) toast.error("Some Instagram Story posts failed, check Queue");
         }
 
@@ -754,9 +746,6 @@ export default function UploadPage() {
       if (isPublishNow) {
         navigate("/queue");
       } else {
-        const scheduledLabel = scheduleDate
-          ? format(new Date(scheduledAt), "PPp")
-          : format(new Date(scheduledAt), "PPp");
         navigate("/queue");
       }
     } catch (e: any) {

@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `e2c0ef4` — Normalize array/object fields when switching Raw JSON → Template tab
+## CURRENT HEAD: `575cc68` — fix: free audioBlob after Whisper transcription to eliminate ~50 MB memory leak
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2262,3 +2262,40 @@ StoragePage already handled pagination correctly (load-more button).
 **Memory safety:** One ~1.3 GB blob at a time (same as before). Stored results are tiny (KB each). No page refresh needed.
 
 **Commit:** `254ce53`
+
+---
+
+### 85. Circular SVG ring progress bar (2026-07-19)
+
+**What:** Replaced the step-list progress UI in `CaptionPreviewModal` with a centered circular SVG ring progress bar showing percentage. Outer track (muted), inner fill (primary) with smooth transition. Below the ring: current step label + progress description.
+
+**Design:**
+```
+┌──────────────────────┐
+│                      │
+│      ╭──────╮        │
+│      │ 72%  │        │  ← SVG ring with stroke-dasharray
+│      ╰──────╯        │
+│                      │
+│   Downloading video  │  ← current step label
+│   from Drive...      │  ← progressLabel
+│                      │
+└──────────────────────┘
+```
+
+**Changes:**
+- Replaced `<div>` step list (icons, text, bar) with SVG circle ring + percentage overlay
+- Removed unused imports (`Loader2`, `Check`, `CircleDot`) and `STEP_ORDER` constant
+- Used Tailwind only — no new dependencies
+
+**Commit:** `a098744`
+
+---
+
+### 86. `audioBlob` memory leak fix (2026-07-19)
+
+**What:** Freed ~50 MB Opus audio blob after Whisper transcription by setting `audioBlob = null!` in a `finally` block. Previously only `videoBlob` was released — `audioBlob` held ~50 MB until page refresh.
+
+**File:** `src/lib/captions.ts:385` — `finally { audioBlob = null!; }` after `groqWhisper()` call.
+
+**Commit:** `575cc68`

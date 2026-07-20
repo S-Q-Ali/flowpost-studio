@@ -40,7 +40,6 @@ interface ConfirmDelete {
   isFolder: boolean;
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const CALL_HEADERS = {
   Authorization: `Bearer ${ANON_KEY}`,

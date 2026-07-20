@@ -217,8 +217,6 @@ export default function InsightsPage() {
     setError(null);
   };
 
-  const Icon = config.icon;
-
   if (!userId) return null;
 
   if (loading) {

@@ -45,7 +45,7 @@ function RequireVerified() {
 }
 
 function AppRoutes() {
-  const { isAuthenticated, isVerifying, pendingSecurityVerification } = useAuth();
+  const { isAuthenticated, isVerifying } = useAuth();
   const location = useLocation();
   const isPublicRoute = PUBLIC_PATHS.has(location.pathname);
 
