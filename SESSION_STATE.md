@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `575cc68` — fix: free audioBlob after Whisper transcription to eliminate ~50 MB memory leak
+## CURRENT HEAD: `2718247` — chore: remove dead code — 17 unused packages, 1 unused file, 16 unused variables/imports, fix fetchPriority typo
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2299,3 +2299,53 @@ StoragePage already handled pagination correctly (load-more button).
 **File:** `src/lib/captions.ts:385` — `finally { audioBlob = null!; }` after `groqWhisper()` call.
 
 **Commit:** `575cc68`
+
+---
+
+### 87. Dead code cleanup — packages, files, variables (2026-07-19)
+
+**Scope:** Systematically identified and removed unused code across the project using TypeScript compiler flags (`noUnusedLocals`, `noUnusedParameters`) and `knip` v6.27.0.
+
+**Removed 17 packages:**
+| Package | Type | Reason |
+|---------|------|--------|
+| `@ffmpeg/ffmpeg`, `@ffmpeg/util` | dep | Never imported — audio uses native `AudioContext`+`MediaRecorder` |
+| `@radix-ui/react-accordion` | dep | No component file imports it |
+| `@radix-ui/react-aspect-ratio` | dep | Same |
+| `@radix-ui/react-collapsible` | dep | Same |
+| `@radix-ui/react-context-menu` | dep | Same |
+| `@radix-ui/react-hover-card` | dep | Same |
+| `@radix-ui/react-menubar` | dep | Same |
+| `@radix-ui/react-navigation-menu` | dep | Same |
+| `@radix-ui/react-progress` | dep | Only `progress.tsx` imports it (deleted) |
+| `@radix-ui/react-scroll-area` | dep | No component file imports it |
+| `@radix-ui/react-slider` | dep | Same |
+| `@radix-ui/react-toggle` | dep | Same |
+| `@radix-ui/react-toggle-group` | dep | Same |
+| `@testing-library/jest-dom` | devDep | No tests exist |
+| `@testing-library/react` | devDep | Same |
+| `sharp` | devDep | Never imported |
+| | | **41 sub-packages cleaned** |
+
+**Removed 1 file:** `src/components/ui/progress.tsx` (unused, replaced by SVG ring)
+
+**Cleaned 16 unused variables/imports** across 8 files:
+| File | Symbol |
+|------|--------|
+| `App.tsx` | `pendingSecurityVerification` in `AppRoutes` |
+| `SecurityQuestionsGate.tsx` | `login` |
+| `InsightsPage.tsx` | `Icon` |
+| `StoragePage.tsx` | `SUPABASE_URL` |
+| `UploadPage.tsx` | `RadioGroup, RadioGroupItem` import, `setHashtags`, `setCaptionsEnabled`, `setContainsAlteredContent`, `goDriveBack` function, `label` param in `firePost`, `scheduledLabel` |
+| `WorkflowItemsPage.tsx` | `X` icon, `setPreviewLoading`, `newCount` |
+| `WorkflowsPage.tsx` | `Textarea` import, `FileIcon` import |
+
+**Fixed 1 typo:** `Logo.tsx` — `fetchpriority` → `fetchPriority` (React camelCase attribute)
+
+**Enabled permanently:** `noUnusedLocals`, `noUnusedParameters` in `tsconfig.app.json`
+**Enabled permanently:** removed 11 stale entries from `vite.config.ts` `manualChunks.ui`
+
+**Build verification:** ✅ Passes (3166 modules, 12.42s)
+**TypeScript:** 107 → 90 errors (remaining 90 are pre-existing supabase type issues — separate task)
+
+**Commit:** `2718247`
