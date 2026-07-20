@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Sparkles, Check, CircleDot } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 const CAPTION_LABELS: Record<string, string> = {
   yt_video_title: "YouTube Title",
@@ -20,15 +20,6 @@ type StepId =
   | "generating-captions"
   | "done"
   | "error";
-
-const STEP_ORDER: StepId[] = [
-  "fetching-key",
-  "downloading",
-  "transcribing",
-  "analyzing-visuals",
-  "generating-captions",
-  "done",
-];
 
 const STEP_LABELS: Record<StepId, string> = {
   "fetching-key": "Authenticating",
@@ -63,8 +54,6 @@ export function CaptionPreviewModal({
   progressPercent,
   progressLabel,
 }: CaptionPreviewModalProps) {
-  const activeIdx = progressStep ? STEP_ORDER.indexOf(progressStep) : -1;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
@@ -81,43 +70,38 @@ export function CaptionPreviewModal({
         </DialogHeader>
 
         {loading ? (
-          <div className="py-4 space-y-3">
-            {STEP_ORDER.map((step, idx) => {
-              const isDone = idx < activeIdx;
-              const isActive = idx === activeIdx;
-              return (
-                <div
-                  key={step}
-                  className={`flex items-center gap-3 text-sm ${
-                    isActive ? "text-foreground" : isDone ? "text-primary" : "text-muted-foreground/40"
-                  }`}
-                >
-                  <div className="flex items-center justify-center w-5 h-5 shrink-0">
-                    {isDone ? (
-                      <Check className="h-4 w-4" />
-                    ) : isActive ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CircleDot className="h-4 w-4" />
-                    )}
-                  </div>
-                  <span className={isActive ? "font-medium" : ""}>{STEP_LABELS[step]}</span>
-                  {isActive && progressLabel && (
-                    <span className="text-xs text-muted-foreground ml-auto">{progressLabel}</span>
-                  )}
-                  {isActive && (
-                    <div className="flex-1 max-w-[100px] ml-auto">
-                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all duration-300"
-                          style={{ width: `${progressPercent}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="flex flex-col items-center py-8 gap-4">
+            <div className="relative w-28 h-28">
+              <svg className="w-28 h-28 -rotate-90" viewBox="0 0 120 120">
+                <circle
+                  cx="60" cy="60" r="48"
+                  fill="none"
+                  stroke="hsl(var(--muted))"
+                  strokeWidth="8"
+                />
+                <circle
+                  cx="60" cy="60" r="48"
+                  fill="none"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 48}
+                  strokeDashoffset={2 * Math.PI * 48 * (1 - progressPercent / 100)}
+                  className="transition-all duration-500 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-2xl font-bold text-foreground">{progressPercent}%</span>
+              </div>
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-sm font-medium text-foreground">
+                {progressStep ? STEP_LABELS[progressStep] : "Starting..."}
+              </p>
+              {progressLabel && (
+                <p className="text-xs text-muted-foreground">{progressLabel}</p>
+              )}
+            </div>
           </div>
         ) : captions ? (
           <>
