@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `7c83fc2` — feat: AI captions live progress — modal shows circular ring + step labels during generation; tech-agnostic labels
+## CURRENT HEAD: `f2336a6` — feat: bulk delete workflow items with confirmation dialog
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2410,13 +2410,43 @@ StoragePage already handled pagination correctly (load-more button).
 
 ---
 
-### 89. AI Captions: Live progress modal + tech-agnostic labels (2026-07-20)
+### 89. AI Captions: Inline progress ring + auto-save + regenerate with cached transcript (2026-07-20)
 
-**Problem**: The `CaptionPreviewModal` had a full animated SVG circular progress ring + step labels + percentage, but `previewLoading` was hardcoded to `false` — the progress UI was never shown. Users only saw `"Generating..."` text in a button with a tiny `Loader2` spinner, with no visibility into what step was happening.
+**Problem**: The `CaptionPreviewModal` had a full animated SVG circular progress ring but it was never shown (`previewLoading` hardcoded to `false`). Users only saw `"Generating..."` text with a tiny `Loader2` spinner with no step visibility. After generation, they had to click "View Captions" → "Apply to Item" to save.
 
-**Fixes**:
-- `src/pages/WorkflowItemsPage.tsx`: Replaced `const [previewLoading] = useState(false)` with `const previewLoading = previewProgress !== null`. In `generateCaptions()`, added `setPreviewOpen(true)` to open the modal with the progress ring immediately, and set `previewCaptions`/`previewFileName`/`viewingItemId` after results arrive so the modal transitions smoothly from loading → results display. On error, modal closes.
-- `src/lib/captions.ts`: Changed `STEP_LABELS` to remove all tech names — `"Authenticating..."` → `"Preparing..."`, `"Downloading video from Drive..."` → `"Downloading file..."`, `"Extracting audio & transcribing..."` → `"Transcribing audio..."`, `"Analyzing video frames..."` → `"Analyzing content..."`, `"Generating platform captions..."` → `"Creating captions..."`.
-- `src/components/CaptionPreviewModal.tsx`: Sync'd display-side `STEP_LABELS` to match.
+**Fixes** (iterative — 5 commits):
+- `src/lib/captions.ts`: Changed `STEP_LABELS` to remove all tech names — `"Authenticating..."` → `"Preparing..."`, `"Downloading video from Drive..."` → `"Downloading file..."`, `"Extracting audio & transcribing..."` → `"Transcribing audio..."`, `"Analyzing video frames..."` → `"Analyzing content..."`, `"Generating platform captions..."` → `"Creating captions..."`. Exported `groqGenerateCaptions`. Added `AICaptionResult` interface and `regenerateCaptions()` function that re-runs only the LLM step using cached transcript + visual description.
+- `src/pages/WorkflowItemsPage.tsx`: Button during generation now shows a compact inline SVG ring with percentage + step label text (no modal during generation). `generateCaptions()` auto-saves captions to DB immediately after generation via `saveCaptions()` helper. `handleRegenerate()` closes modal, re-runs LLM with cached intermediate data (~1-2s), auto-saves, reopens modal.
+- `src/components/CaptionPreviewModal.tsx`: Replaced "Apply to Item" button with "Regenerate" button. Updated description text. Added `onRegenerate` prop.
+- `src/pages/WorkflowItemsPage.tsx` (TDZ fix): Moved `previewLoading` below `previewProgress` to avoid `Cannot access 'b' before initialization` ReferenceError.
 
-**Result**: Clicking "AI Captions" now opens a modal showing the circular progress ring (animated percentage), step label ("Preparing" → "Downloading file" → "Transcribing audio" → "Analyzing content" → "Creating captions"), and description. When done, the same modal transitions to the results view. No tech names visible to the user.
+**Result**: Clicking "AI Captions" shows an inline SVG ring with percentage + step label. When complete, captions auto-save to the item's fields. "View Captions" opens a read-only modal. "Regenerate" runs only the LLM call (no re-download/re-transcribe/re-analyze) using cached transcript + visual description from the first run.
+
+---
+
+### 90. Clone Workflow — settings + items with (Copy) suffix (2026-07-20)
+
+**Need**: No way to duplicate a workflow as a template. Creating a similar workflow required filling out the 5-step Sheet form from scratch.
+
+**Implementation** (`src/pages/WorkflowsPage.tsx`):
+- Added `Copy` import from `lucide-react`.
+- Added `cloneWorkflow(wf)` function: destructures auto-managed fields (`id`, `created_at`, `updated_at`, `last_triggered_at`, `last_manual_triggered_at`, `total_posted`, `is_active`), inserts new workflow with `" (Copy)"` suffix and `is_active: false`, then clones all `workflow_items` with `status: "pending"` and `posted_at: null`. Inserts clone directly after original in the list.
+- Added Copy icon button in card footer between run/play and edit/pencil buttons.
+
+**Safety**: All RLS paths verified (workflows + workflow_items both check parent user_id). FK constraint satisfied by inserting workflow first, then items. Type mismatch on `custom_schedule` (Json vs Record) handled via `as any`. No post cloning (cloned items need fresh processing).
+
+**Result**: One-click clone of any workflow including all items. Clone starts inactive and must be manually activated.
+
+---
+
+### 91. Bulk Delete Workflow Items with Confirmation (2026-07-20)
+
+**Need**: No way to delete multiple workflow items at once. Users had to click each item's trash icon individually.
+
+**Implementation** (`src/pages/WorkflowItemsPage.tsx`):
+- Added `bulkDeleteOpen` state + `bulkDeleteItems()` function: deletes all selected items via `supabase.from("workflow_items").delete().in("id", ids)`, removes from local state, clears selection.
+- Added "Delete Selected ({count})" button (destructive-styled, `text-destructive`) in the existing bulk actions toolbar, shown when items are selected.
+- Added `AlertDialog` confirmation: shows count + file names (up to 5, with "and N more..." overflow). "Delete N items" confirm button with `bg-destructive` styling. Cancel button closes dialog.
+- Imported `AlertDialog` components from `@/components/ui/alert-dialog`.
+
+**Result**: Check items → click "Delete Selected" → confirm dialog → items removed. Single-file change, ~40 lines added.
