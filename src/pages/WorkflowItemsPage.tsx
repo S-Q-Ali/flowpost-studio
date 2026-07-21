@@ -589,7 +589,7 @@ export default function WorkflowItemsPage() {
   const totalPosted = items.filter((i) => i.status === "posted").length;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-20">
       {/* Top bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -642,57 +642,6 @@ export default function WorkflowItemsPage() {
           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={deselectAll}>
             <Circle className="h-3 w-3" /> Deselect All
           </Button>
-          {selectedIds.size > 0 && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs gap-1"
-                onClick={markSelectedReady}
-              >
-                <CheckCircle2 className="h-3 w-3" />
-                Mark Selected as Ready ({selectedIds.size})
-              </Button>
-              <Popover open={bulkPlatformsOpen} onOpenChange={setBulkPlatformsOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Set Platforms ({selectedIds.size})
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-48 p-3" align="start">
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium">Set platforms for selected</p>
-                    {(workflow.platforms || []).map((p) => (
-                      <label key={p} className="flex items-center gap-2 text-xs cursor-pointer">
-                        <Checkbox
-                          checked={bulkPlatformsValue.includes(p)}
-                          onCheckedChange={(checked) => {
-                            setBulkPlatformsValue((prev) =>
-                              checked ? [...prev, p] : prev.filter((x) => x !== p),
-                            );
-                          }}
-                        />
-                        {PLATFORM_LABEL[p] || p}
-                      </label>
-                    ))}
-                    <Button size="sm" className="w-full text-xs h-7" onClick={applyBulkPlatforms}>
-                      Apply
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
-                onClick={() => setBulkDeleteOpen(true)}
-              >
-                <Trash2 className="h-3 w-3" />
-                Delete Selected ({selectedIds.size})
-              </Button>
-            </>
-          )}
         </div>
       )}
 
@@ -931,6 +880,62 @@ export default function WorkflowItemsPage() {
         progressPercent={previewProgress?.progress ?? 0}
         progressLabel={previewProgress?.label ?? null}
       />
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm shadow-lg p-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-foreground">
+              {selectedIds.size} item{selectedIds.size !== 1 ? "s" : ""} selected
+            </span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={deselectAll}>
+                <Circle className="h-3 w-3" /> Deselect All
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={markSelectedReady}>
+                <CheckCircle2 className="h-3 w-3" />
+                Mark Ready
+              </Button>
+              <Popover open={bulkPlatformsOpen} onOpenChange={setBulkPlatformsOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Set Platforms
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-3" align="start">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium">Set platforms for selected</p>
+                    {(workflow.platforms || []).map((p) => (
+                      <label key={p} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={bulkPlatformsValue.includes(p)}
+                          onCheckedChange={(checked) => {
+                            setBulkPlatformsValue((prev) =>
+                              checked ? [...prev, p] : prev.filter((x) => x !== p),
+                            );
+                          }}
+                        />
+                        {PLATFORM_LABEL[p] || p}
+                      </label>
+                    ))}
+                    <Button size="sm" className="w-full text-xs h-7" onClick={applyBulkPlatforms}>
+                      Apply
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1 text-destructive hover:text-destructive"
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                <Trash2 className="h-3 w-3" />
+                Delete Selected
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
