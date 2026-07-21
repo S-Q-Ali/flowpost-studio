@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `f2336a6` — feat: bulk delete workflow items with confirmation dialog
+## CURRENT HEAD: `33995e3` — feat: sticky bottom bar for bulk actions — fixed at viewport, always visible while items selected
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2439,14 +2439,16 @@ StoragePage already handled pagination correctly (load-more button).
 
 ---
 
-### 91. Bulk Delete Workflow Items with Confirmation (2026-07-20)
+### 91. Sticky Bottom Bar for Bulk Actions + Bulk Delete with Confirmation (2026-07-20)
 
-**Need**: No way to delete multiple workflow items at once. Users had to click each item's trash icon individually.
+**Need**: No way to delete multiple workflow items at once. Bulk action buttons were inline above the items list and scrolled off screen — invisible when scrolled down a long list.
 
 **Implementation** (`src/pages/WorkflowItemsPage.tsx`):
 - Added `bulkDeleteOpen` state + `bulkDeleteItems()` function: deletes all selected items via `supabase.from("workflow_items").delete().in("id", ids)`, removes from local state, clears selection.
-- Added "Delete Selected ({count})" button (destructive-styled, `text-destructive`) in the existing bulk actions toolbar, shown when items are selected.
-- Added `AlertDialog` confirmation: shows count + file names (up to 5, with "and N more..." overflow). "Delete N items" confirm button with `bg-destructive` styling. Cancel button closes dialog.
+- Moved all bulk action buttons (Mark Ready, Set Platforms, Delete Selected) from the inline toolbar to a **fixed bottom bar**: `fixed bottom-0 left-0 right-0 z-50` with `bg-background/95 backdrop-blur-sm border-t shadow-lg`. Shows selected count on the left and action buttons on the right. Mounts when `selectedIds.size > 0`.
+- Added `pb-20` to the page container so the last item isn't hidden behind the fixed bar.
+- Added `AlertDialog` confirmation for Delete Selected: shows count + file names (up to 5, with "and N more..." overflow). "Delete N items" confirm button with `bg-destructive` styling. Cancel button closes dialog.
+- Select All / Deselect All remain inline at top.
 - Imported `AlertDialog` components from `@/components/ui/alert-dialog`.
 
-**Result**: Check items → click "Delete Selected" → confirm dialog → items removed. Single-file change, ~40 lines added.
+**Result**: Sticky bottom bar always visible while items are selected. Bulk actions no longer scroll off screen. ~60 lines changed.
