@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -100,7 +101,7 @@ export default function WorkflowItemsPage() {
   const [previewFileName, setPreviewFileName] = useState<string>("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewProgress, setPreviewProgress] = useState<StepProgress | null>(null);
-  const [sortBy, setSortBy] = useState("sort_order");
+  const [sortBy, setSortBy] = useLocalStorage("workflow_items_sort", "sort_order");
   const previewLoading = previewProgress !== null;
 
   const visiblePlatforms = (() => {

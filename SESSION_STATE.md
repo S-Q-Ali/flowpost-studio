@@ -1,6 +1,14 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `a4f948a` — feat: sort dropdown for workflow items
+## CURRENT HEAD: `2a8d18e` — feat: per-item publish times for custom ranges
+
+### 56. Sort Preference Persisted in localStorage (2026-07-22)
+
+**Problem**: The sort dropdown in the workflow items page reset to "Default order" every time the user navigated away or refreshed the page. A user sorting by "Ready first" would lose their selection on any navigation.
+
+**Solution**: Replaced `useState` with the existing `useLocalStorage` hook to persist the sort preference under key `workflow_items_sort`. No DB calls, zero latency, survives tab closure.
+
+**File changed**: `src/pages/WorkflowItemsPage.tsx` — added import of `useLocalStorage`, changed `const [sortBy, setSortBy] = useState("sort_order")` to `useLocalStorage("workflow_items_sort", "sort_order")`.
 
 ### 55. Per-Item Publish Times for Custom Ranges (2026-07-22)
 
