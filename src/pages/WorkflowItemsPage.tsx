@@ -687,7 +687,11 @@ export default function WorkflowItemsPage() {
             const sb = statusBadge[item.status] ?? statusBadge.pending;
             const isVideo = !item.mime_type || item.mime_type.startsWith("video/");
             const itemPostStatuses = postStatusMap[item.id] ?? {};
-            const nextPubTime = item.status === "ready" ? getNextPublishTime(workflow) : null;
+            const readyItems = items.filter(i => i.status === "ready");
+            const readyIndex = readyItems.indexOf(item);
+            const nextPubTime = item.status === "ready"
+              ? getNextPublishTime(workflow, undefined, readyIndex, workflow.videos_per_run ?? 1)
+              : null;
             return (
               <Card key={item.id} className="bg-card border-border">
                 <CardContent className="p-4 space-y-4">

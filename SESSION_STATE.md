@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `c82dfdc` — feat: show local time alongside UTC in next-publish badge
+## CURRENT HEAD: `94fc926` — fix: show Next at for failed platforms + clear stale failed posts on re-ready
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2478,3 +2478,7 @@ StoragePage already handled pagination correctly (load-more button).
 **Commit**: `d308e96`
 
 **Enhanced (2026-07-21, commit `c82dfdc`)**: `formatTime()` now appends local time in 12h format alongside UTC — `21:17 UTC (2:17 AM)`. Uses `toLocaleTimeString("en-US")` for proper DST-aware conversion. The Date parameter is passed from the correct day (today vs future day) so the local time is always accurate. Interval/once_daily modes unaffected (they don't call `formatTime`).
+
+**Fixed (2026-07-21, commit `94fc926`)**: Two issues:
+1. "Next at" badge was hidden when a platform had `failed` status — guard changed from `!itemPostStatuses[platId]` to `itemPostStatuses[platId] !== "published"`. Now shows both `FB failed` and `Next at 21:17 UTC (2:17 AM)`.
+2. Stale failed posts persisted when re-marking an item as ready — `clearFailedPosts()` helper deletes `posts` rows with `status = "failed"` for the given `workflow_item_id`, then removes them from `postStatusMap` so the "failed" badge disappears instantly. Called from both `saveAll()` and `markReady()`.
