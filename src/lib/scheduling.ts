@@ -23,10 +23,14 @@ function computeTargetsForDay(
   });
 }
 
-function formatTime(minutes: number): string {
+function formatTime(minutes: number, date: Date): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return `${h}:${m.toString().padStart(2, "0")} UTC`;
+  const utcStr = `${h}:${m.toString().padStart(2, "0")} UTC`;
+  const local = new Date(date);
+  local.setUTCHours(h, m, 0, 0);
+  const localStr = local.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return `${utcStr} (${localStr})`;
 }
 
 export function getNextPublishTime(workflow: Workflow, now: Date = new Date()): string | null {
@@ -45,7 +49,7 @@ export function getNextPublishTime(workflow: Workflow, now: Date = new Date()): 
     if (todayRanges.length > 0) {
       const targets = computeTargetsForDay(workflow.id, utcDate, todayRanges);
       for (const t of targets) {
-        if (t > currentMin) return formatTime(t);
+        if (t > currentMin) return formatTime(t, now);
       }
     }
 
@@ -59,7 +63,7 @@ export function getNextPublishTime(workflow: Workflow, now: Date = new Date()): 
       const targets = computeTargetsForDay(workflow.id, dateStr, ranges);
       if (targets.length > 0) {
         const label = offset === 1 ? "Tomorrow" : `+${offset}d`;
-        return `${label} ${formatTime(targets[0])}`;
+        return `${label} ${formatTime(targets[0], d)}`;
       }
     }
     return null;

@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `33995e3` — feat: sticky bottom bar for bulk actions — fixed at viewport, always visible while items selected
+## CURRENT HEAD: `d308e96` — feat: show next publish time per item on WorkflowItemsPage
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2452,3 +2452,27 @@ StoragePage already handled pagination correctly (load-more button).
 - Imported `AlertDialog` components from `@/components/ui/alert-dialog`.
 
 **Result**: Sticky bottom bar always visible while items are selected. Bulk actions no longer scroll off screen. ~60 lines changed.
+
+---
+
+### 92. Next Publish Time Display per Workflow Item (2026-07-21)
+
+**Need**: Supabase edge function logs show target publish times per scheduling slot (e.g., `custom range #0 target 9:18 UTC`) but this info was not visible anywhere in the FlowPost UI. Users had to check Supabase logs to know when their videos would post.
+
+**Implementation**:
+| File | Change |
+|------|--------|
+| `src/lib/scheduling.ts` | New — `getNextPublishTime(workflow, now?)` replicates the edge function's deterministic scheduling algorithm (FNV-1a-like hash per range) for all 3 modes |
+| `src/lib/types.ts` | Added `last_triggered_at` and `last_manual_triggered_at` to `Workflow` interface (were missing despite existing in DB) |
+| `src/pages/WorkflowItemsPage.tsx` | For each item with `status === "ready"`, computes next publish time and displays orange `Next at 21:17 UTC` badge in each platform container header |
+
+**Algorithm (matches edge function)**:
+- **custom_ranges**: Same string hash as `process-workflow` — `seed = wf.id + date + rangeIdx`, computes deterministic random minute per range, finds next future slot (up to 7 days ahead)
+- **interval**: `last_triggered_at + run_interval_hours` → shows `~4h 30m` or `Now`
+- **once_daily**: "Today" if not yet triggered, rolls to next allowed day otherwise
+
+**Display**: Only shown when `item.status === "ready"` and the platform has no `published`/`failed` status. Colored orange (`text-orange-500 font-medium`) to visually distinguish from green "posted" and red "failed" badges.
+
+**Verification**: `tsc --noEmit` passes, `build` succeeds.
+
+**Commit**: `d308e96`
