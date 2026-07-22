@@ -33,6 +33,53 @@ function formatTime(minutes: number, date: Date): string {
   return `${utcStr} (${localStr})`;
 }
 
+function getDayLabel(d: Date, offset: number): string {
+  if (offset === 0) return "Today";
+  if (offset === 1) return "Tomorrow";
+  return `+${offset}d`;
+}
+
+export function getItemPublishTime(
+  workflow: Workflow,
+  itemIndex: number,
+  now: Date = new Date()
+): { label: string; isPast: boolean } | null {
+  const mode = workflow.scheduling_mode;
+  if (mode !== "custom_ranges") return null;
+
+  const cs = workflow.custom_schedule;
+  if (!cs) return null;
+
+  const currentMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+
+  let remaining = itemIndex;
+  for (let offset = 0; offset <= 30; offset++) {
+    const d = new Date(now);
+    d.setUTCDate(d.getUTCDate() + offset);
+    const day = d.getUTCDay();
+    const ranges = cs[day.toString()];
+    if (!ranges || ranges.length === 0) continue;
+
+    const dateStr = d.toISOString().slice(0, 10);
+    const targets = computeTargetsForDay(workflow.id, dateStr, ranges);
+
+    if (remaining < targets.length) {
+      const targetMin = targets[remaining];
+      const isPast = offset === 0 && targetMin <= currentMin;
+      const prefix = offset === 0
+        ? (isPast ? "was at" : "next at")
+        : `${getDayLabel(d, offset)}`;
+      const timeStr = formatTime(targetMin, offset === 0 ? now : d);
+      const label = `${prefix} ${timeStr}`;
+      return { label, isPast };
+    }
+
+    remaining -= targets.length;
+  }
+
+  return null;
+}
+
 export function getNextPublishTime(
   workflow: Workflow,
   now: Date = new Date(),

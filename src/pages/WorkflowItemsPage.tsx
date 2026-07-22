@@ -25,7 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
 import { CaptionPreviewModal } from "@/components/CaptionPreviewModal";
 import { generateAICaptions, regenerateCaptions, type StepProgress } from "@/lib/captions";
-import { getNextPublishTime } from "@/lib/scheduling";
+import { getItemPublishTime } from "@/lib/scheduling";
 
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -724,8 +724,8 @@ export default function WorkflowItemsPage() {
             const itemPostStatuses = postStatusMap[item.id] ?? {};
             const readyItems = sortedItems.filter(i => i.status === "ready");
             const readyIndex = readyItems.indexOf(item);
-            const nextPubTime = item.status === "ready"
-              ? getNextPublishTime(workflow, undefined, readyIndex, workflow.videos_per_run ?? 1)
+            const pubTime = item.status === "ready"
+              ? getItemPublishTime(workflow, readyIndex)
               : null;
             return (
               <Card key={item.id} className="bg-card border-border">
@@ -763,8 +763,8 @@ export default function WorkflowItemsPage() {
                             {platLabel}
                           </span>
                           <span className="flex items-center gap-2">
-                            {nextPubTime && itemPostStatuses[platId] !== "published" && (
-                              <span className="text-[10px] text-orange-500 font-medium">Next at {nextPubTime}</span>
+                            {pubTime && itemPostStatuses[platId] !== "published" && (
+                              <span className={`text-[10px] font-medium ${pubTime.isPast ? "text-muted-foreground" : "text-orange-500"}`}>{pubTime.label}</span>
                             )}
                             {itemPostStatuses[platId] === "published" && (
                               <span className="text-xs text-green-600 font-medium">{platLabel} posted</span>

@@ -1,6 +1,35 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `2439db8` — feat: stagger Next at times per item based on videos_per_run queue position
+## CURRENT HEAD: `a4f948a` — feat: sort dropdown for workflow items
+
+### 55. Per-Item Publish Times for Custom Ranges (2026-07-22)
+
+**Problem**: In workflows with multiple custom ranges (e.g., #0 at 8:47 UTC, #1 at 20:46 UTC), `getNextPublishTime()` returned only the next future target. Both the first and second ready items showed the **same** time (e.g., "Next at 20:46 UTC"), making it impossible to tell which item belonged to which range slot.
+
+**Solution**: Replaced `getNextPublishTime` with `getItemPublishTime` that maps each ready item's position directly to a range slot:
+- Item at ready position 0 → range #0, position 1 → range #1, etc.
+- Past-range targets show `"was at 8:47 UTC (1:47 PM)"` in muted gray
+- Future-range targets show `"next at 20:46 UTC (2:46 PM)"` in orange
+- Items overflow to future days (tomorrow, +2d, etc.) when ready count exceeds today's range count
+- Uses the same `computeTargetsForDay` hash/seed as the backend edge function
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `src/lib/scheduling.ts` | Added `getItemPublishTime(workflow, itemIndex, now)` — iterates days, maps itemIndex to range index per day, returns `{ label, isPast }` |
+| `src/pages/WorkflowItemsPage.tsx` | Replaced `getNextPublishTime` import/usage with `getItemPublishTime`; past times styled with `text-muted-foreground`, future with `text-orange-500` |
+
+**Before**:
+```
+FB/IG  Next at 20:46 UTC (2:46 PM)    ← both items show same time
+FB/IG  Next at 20:46 UTC (2:46 PM)
+```
+
+**After**:
+```
+FB/IG  was at 8:47 UTC (1:47 PM)      ← range #0, muted
+FB/IG  next at 20:46 UTC (2:46 PM)     ← range #1, orange
+```
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2488,3 +2517,5 @@ StoragePage already handled pagination correctly (load-more button).
 - **interval**: adds `overflowCount × run_interval_hours` to the next fire time
 - **once_daily**: counts allowed days from `run_days` and shows the correct Nth day
 - Regular callers (no stagger) use defaults `itemIndex=0, videosPerRun=1` — zero regression
+
+**Sort dropdown (2026-07-21, commit `a4f948a`)**: Added `<Select>` dropdown in toolbar with 9 sort options (default, name A→Z/Z→A, size small→large/large→small, ready first/pending first, oldest first/newest first). Items list sorted client-side via `useMemo`. Stagger display follows the visual sort order.
