@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `d308e96` — feat: show next publish time per item on WorkflowItemsPage
+## CURRENT HEAD: `c82dfdc` — feat: show local time alongside UTC in next-publish badge
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2476,3 +2476,5 @@ StoragePage already handled pagination correctly (load-more button).
 **Verification**: `tsc --noEmit` passes, `build` succeeds.
 
 **Commit**: `d308e96`
+
+**Enhanced (2026-07-21, commit `c82dfdc`)**: `formatTime()` now appends local time in 12h format alongside UTC — `21:17 UTC (2:17 AM)`. Uses `toLocaleTimeString("en-US")` for proper DST-aware conversion. The Date parameter is passed from the correct day (today vs future day) so the local time is always accurate. Interval/once_daily modes unaffected (they don't call `formatTime`).

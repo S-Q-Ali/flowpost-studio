@@ -231,6 +231,26 @@ export default function WorkflowItemsPage() {
   const isDirty = (itemId: string) => dirtyIds.has(itemId);
   const hasChanges = dirtyIds.size > 0;
 
+  const clearFailedPosts = async (itemId: string) => {
+    const { data: deleted } = await supabase
+      .from("posts")
+      .delete()
+      .eq("workflow_item_id", itemId)
+      .eq("status", "failed")
+      .select("platform");
+    if (deleted && deleted.length > 0) {
+      setPostStatusMap((prev) => {
+        const next = { ...prev };
+        const copy = { ...next[itemId] };
+        for (const p of deleted) {
+          delete copy[p.platform as string];
+        }
+        next[itemId] = copy;
+        return next;
+      });
+    }
+  };
+
   const saveAll = async () => {
     if (!hasChanges) return;
     setSaving(true);
@@ -245,6 +265,8 @@ export default function WorkflowItemsPage() {
       if (error) {
         console.error("Failed to save item", itemId, error);
         errorCount++;
+      } else {
+        await clearFailedPosts(itemId);
       }
     }
     if (errorCount === 0) {
@@ -268,6 +290,7 @@ export default function WorkflowItemsPage() {
       toast.error("Failed to mark as ready");
       return;
     }
+    await clearFailedPosts(itemId);
     setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, ...updates, status: "ready" as const } : i)));
     setDirtyIds((prev) => { const n = new Set(prev); n.delete(itemId); return n; });
     setLocalItems((prev) => { const n = { ...prev }; delete n[itemId]; return n; });
@@ -701,7 +724,7 @@ export default function WorkflowItemsPage() {
                             {platLabel}
                           </span>
                           <span className="flex items-center gap-2">
-                            {nextPubTime && !itemPostStatuses[platId] && (
+                            {nextPubTime && itemPostStatuses[platId] !== "published" && (
                               <span className="text-[10px] text-orange-500 font-medium">Next at {nextPubTime}</span>
                             )}
                             {itemPostStatuses[platId] === "published" && (
