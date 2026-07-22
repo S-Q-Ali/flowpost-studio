@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
 import { CaptionPreviewModal } from "@/components/CaptionPreviewModal";
 import { generateAICaptions, regenerateCaptions, type StepProgress } from "@/lib/captions";
+import { getNextPublishTime } from "@/lib/scheduling";
 
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -663,6 +664,7 @@ export default function WorkflowItemsPage() {
             const sb = statusBadge[item.status] ?? statusBadge.pending;
             const isVideo = !item.mime_type || item.mime_type.startsWith("video/");
             const itemPostStatuses = postStatusMap[item.id] ?? {};
+            const nextPubTime = item.status === "ready" ? getNextPublishTime(workflow) : null;
             return (
               <Card key={item.id} className="bg-card border-border">
                 <CardContent className="p-4 space-y-4">
@@ -698,12 +700,17 @@ export default function WorkflowItemsPage() {
                           <span className={`text-xs font-semibold ${PLATFORM_COLOR[platId]?.split(" ")[1] || "text-foreground"}`}>
                             {platLabel}
                           </span>
-                          {itemPostStatuses[platId] === "published" && (
-                            <span className="text-xs text-green-600 font-medium">{platLabel} posted</span>
-                          )}
-                          {itemPostStatuses[platId] === "failed" && (
-                            <span className="text-xs text-red-600 font-medium">{platLabel} failed</span>
-                          )}
+                          <span className="flex items-center gap-2">
+                            {nextPubTime && !itemPostStatuses[platId] && (
+                              <span className="text-[10px] text-orange-500 font-medium">Next at {nextPubTime}</span>
+                            )}
+                            {itemPostStatuses[platId] === "published" && (
+                              <span className="text-xs text-green-600 font-medium">{platLabel} posted</span>
+                            )}
+                            {itemPostStatuses[platId] === "failed" && (
+                              <span className="text-xs text-red-600 font-medium">{platLabel} failed</span>
+                            )}
+                          </span>
                         </div>
                         {fields.map((f) =>
                           f.inputType === "input" ? (

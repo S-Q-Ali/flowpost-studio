@@ -65,6 +65,8 @@ export interface Workflow {
   drive_folder_id: string | null;
   data_source: "g_sheet" | "flowpost";
   caption_master_prompt: MasterPrompt | null;
+  last_triggered_at: string | null;
+  last_manual_triggered_at: string | null;
   created_at: string;
   updated_at: string;
 }
