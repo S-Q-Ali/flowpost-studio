@@ -333,6 +333,7 @@ export interface GenerateCaptionsOptions {
   masterPrompt?: MasterPrompt | null;
   platforms?: string[];
   onProgress?: OnProgress;
+  skipAudio?: boolean;
 }
 
 const PLATFORM_ALLOWED_KEYS: Record<string, string[]> = {
@@ -375,22 +376,27 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     }
     emit(onProgress, "downloading", 100);
 
-    let audioBlob: Blob;
-    try {
-      audioBlob = await extractAudio(videoBlob, onProgress);
-    } catch (err) {
-      console.error("[captions] FAIL extractAudio", err);
-      throw new Error(`audio: ${err instanceof Error ? err.message : String(err)}`);
-    }
-
     let transcript: string;
-    try {
-      transcript = await groqWhisper(audioBlob, apiKey, onProgress);
-    } catch (err) {
-      console.error("[captions] FAIL groqWhisper", err);
-      throw new Error(`whisper: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      audioBlob = null!;
+    if (options.skipAudio) {
+      transcript = "";
+      emit(onProgress, "transcribing", 100);
+    } else {
+      let audioBlob: Blob;
+      try {
+        audioBlob = await extractAudio(videoBlob, onProgress);
+      } catch (err) {
+        console.error("[captions] FAIL extractAudio", err);
+        throw new Error(`audio: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      try {
+        transcript = await groqWhisper(audioBlob, apiKey, onProgress);
+      } catch (err) {
+        console.error("[captions] FAIL groqWhisper", err);
+        throw new Error(`whisper: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        audioBlob = null!;
+      }
     }
 
     let visualDescription: string;

@@ -85,6 +85,7 @@ export default function WorkflowItemsPage() {
   const [postStatusMap, setPostStatusMap] = useState<Record<string, Record<string, string>>>({});
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const queueRef = useRef<WorkflowItem[]>([]);
+  const [skipAudioMap, setSkipAudioMap] = useState<Record<string, boolean>>({});
   interface CaptionResult {
     captions: Record<string, string>;
     transcript: string;
@@ -462,6 +463,7 @@ export default function WorkflowItemsPage() {
         masterPrompt: workflow?.caption_master_prompt ?? undefined,
         platforms: workflow?.platforms ?? [],
         onProgress: (progress) => setPreviewProgress(progress),
+        skipAudio: skipAudioMap[item.id] ?? false,
       });
       setResults((prev) => ({
         ...prev,
@@ -782,6 +784,14 @@ export default function WorkflowItemsPage() {
                       </Popover>
                     </div>
                     <div className="flex items-center gap-1">
+                      <label className="flex items-center gap-1 text-[11px] text-muted-foreground cursor-pointer shrink-0">
+                        <Checkbox
+                          checked={skipAudioMap[item.id] ?? false}
+                          onCheckedChange={() => setSkipAudioMap((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
+                          className="h-3 w-3"
+                        />
+                        No audio
+                      </label>
                       <Button
                         type="button"
                         variant="ghost"
