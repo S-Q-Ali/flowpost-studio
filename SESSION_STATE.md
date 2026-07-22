@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `94fc926` — fix: show Next at for failed platforms + clear stale failed posts on re-ready
+## CURRENT HEAD: `2439db8` — feat: stagger Next at times per item based on videos_per_run queue position
 
 ## Current Issues
 - Drive scope changed to `drive.file` + `drive.readonly`; users must reconnect accounts to get the new combined token.
@@ -2482,3 +2482,9 @@ StoragePage already handled pagination correctly (load-more button).
 **Fixed (2026-07-21, commit `94fc926`)**: Two issues:
 1. "Next at" badge was hidden when a platform had `failed` status — guard changed from `!itemPostStatuses[platId]` to `itemPostStatuses[platId] !== "published"`. Now shows both `FB failed` and `Next at 21:17 UTC (2:17 AM)`.
 2. Stale failed posts persisted when re-marking an item as ready — `clearFailedPosts()` helper deletes `posts` rows with `status = "failed"` for the given `workflow_item_id`, then removes them from `postStatusMap` so the "failed" badge disappears instantly. Called from both `saveAll()` and `markReady()`.
+
+**Staggered (2026-07-21, commit `2439db8`)**: `getNextPublishTime()` now accepts `itemIndex` and `videosPerRun` params. Items beyond `videos_per_run` in the ready queue display their correct Nth schedule window.
+- **custom_ranges**: walks forward counting schedule days (days with non-empty ranges + future targets), shows the correct day's target for each overflow batch
+- **interval**: adds `overflowCount × run_interval_hours` to the next fire time
+- **once_daily**: counts allowed days from `run_days` and shows the correct Nth day
+- Regular callers (no stagger) use defaults `itemIndex=0, videosPerRun=1` — zero regression

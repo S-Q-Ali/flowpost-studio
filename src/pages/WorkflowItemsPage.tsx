@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,6 +100,7 @@ export default function WorkflowItemsPage() {
   const [previewFileName, setPreviewFileName] = useState<string>("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewProgress, setPreviewProgress] = useState<StepProgress | null>(null);
+  const [sortBy, setSortBy] = useState("sort_order");
   const previewLoading = previewProgress !== null;
 
   const visiblePlatforms = (() => {
@@ -117,6 +119,21 @@ export default function WorkflowItemsPage() {
     }
     return result;
   })();
+
+  const sortedItems = useMemo(() => {
+    const sorted = [...items];
+    switch (sortBy) {
+      case "file_name_asc": sorted.sort((a, b) => a.file_name.localeCompare(b.file_name)); break;
+      case "file_name_desc": sorted.sort((a, b) => b.file_name.localeCompare(a.file_name)); break;
+      case "file_size_asc": sorted.sort((a, b) => (a.file_size ?? 0) - (b.file_size ?? 0)); break;
+      case "file_size_desc": sorted.sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0)); break;
+      case "status_ready": sorted.sort((a, b) => a.status === "ready" ? -1 : a.status === "posted" ? 1 : 0); break;
+      case "status_pending": sorted.sort((a, b) => a.status === "pending" ? -1 : 1); break;
+      case "created_asc": sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); break;
+      case "created_desc": sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
+    }
+    return sorted;
+  }, [items, sortBy]);
 
   useEffect(() => {
     if (!workflowId || !userId) return;
@@ -668,11 +685,29 @@ export default function WorkflowItemsPage() {
           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={deselectAll}>
             <Circle className="h-3 w-3" /> Deselect All
           </Button>
+          <div className="ml-auto">
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="h-7 text-xs w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sort_order" className="text-xs">Default order</SelectItem>
+                <SelectItem value="file_name_asc" className="text-xs">File Name A→Z</SelectItem>
+                <SelectItem value="file_name_desc" className="text-xs">File Name Z→A</SelectItem>
+                <SelectItem value="file_size_asc" className="text-xs">Size (small first)</SelectItem>
+                <SelectItem value="file_size_desc" className="text-xs">Size (large first)</SelectItem>
+                <SelectItem value="status_ready" className="text-xs">Ready first</SelectItem>
+                <SelectItem value="status_pending" className="text-xs">Pending first</SelectItem>
+                <SelectItem value="created_asc" className="text-xs">Oldest first</SelectItem>
+                <SelectItem value="created_desc" className="text-xs">Newest first</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
       {/* Items table */}
-      {items.length === 0 ? (
+      {sortedItems.length === 0 ? (
         <Card className="bg-card border-border">
           <CardContent className="flex flex-col items-center py-12 space-y-3">
             <Folder size={40} className="text-muted-foreground" />
@@ -683,11 +718,11 @@ export default function WorkflowItemsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {items.map((item) => {
+          {sortedItems.map((item) => {
             const sb = statusBadge[item.status] ?? statusBadge.pending;
             const isVideo = !item.mime_type || item.mime_type.startsWith("video/");
             const itemPostStatuses = postStatusMap[item.id] ?? {};
-            const readyItems = items.filter(i => i.status === "ready");
+            const readyItems = sortedItems.filter(i => i.status === "ready");
             const readyIndex = readyItems.indexOf(item);
             const nextPubTime = item.status === "ready"
               ? getNextPublishTime(workflow, undefined, readyIndex, workflow.videos_per_run ?? 1)
