@@ -6,6 +6,11 @@
   "background": {
     "service_worker": "bg.js"
   },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "FlowPost Bridge",
+    "default_icon": "icon.png"
+  },
   "icons": {
     "16": "icon.png",
     "48": "icon.png",
@@ -26,7 +31,8 @@
   "permissions": [
     "declarativeNetRequest",
     "cookies",
-    "tabs"
+    "tabs",
+    "storage"
   ],
   "host_permissions": [
     "*://*.facebook.com/*",

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowPost Bridge</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 420px;
+      min-height: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: #e5e5e5;
+      font-size: 13px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid #1f1f1f;
+    }
+    .header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header .badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-weight: 500;
+    }
+    .badge.connected { background: #05966920; color: #34d399; }
+    .badge.disconnected { background: #dc262620; color: #f87171; }
+    .badge.checking { background: #6366f120; color: #818cf8; }
+    .content { padding: 12px 16px; }
+    .section { margin-bottom: 12px; }
+    .section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7280;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+    }
+    .row .label { color: #9ca3af; }
+    .row .value { color: #e5e5e5; }
+    .page-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .page-item:hover { background: #1a1a1a; }
+    .page-item.selected { background: #1f2937; }
+    .page-item .checkbox {
+      width: 16px; height: 16px;
+      border: 1.5px solid #4b5563;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .page-item.selected .checkbox { background: #6366f1; border-color: #6366f1; }
+    .page-item.selected .checkbox::after {
+      content: '✓';
+      color: white;
+      font-size: 10px;
+      font-weight: bold;
+    }
+    .page-item .page-name { color: #e5e5e5; font-size: 13px; }
+    .page-item .page-id { color: #6b7280; font-size: 11px; margin-left: auto; }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      padding: 9px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn:not(:disabled):hover { opacity: 0.9; }
+    .btn-primary { background: #6366f1; color: white; }
+    .btn-secondary { background: #1f2937; color: #e5e5e5; }
+    .btn-secondary:not(:disabled):hover { background: #374151; }
+    .btn-success { background: #059669; color: white; }
+    .btn-error { background: #dc2626; color: white; }
+    .input {
+      width: 100%;
+      padding: 8px 10px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      color: #e5e5e5;
+      font-size: 13px;
+      outline: none;
+    }
+    .input:focus { border-color: #6366f1; }
+    .input::placeholder { color: #4b5563; }
+    .tool-result { margin-bottom: 8px; }
+    .tool-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: 12px;
+    }
+    .tool-row .status-icon { font-size: 14px; }
+    .tool-row .tool-name { color: #d1d5db; }
+    .tool-row .tool-status { margin-left: auto; font-size: 11px; }
+    .tool-row .tool-status.eligible { color: #34d399; }
+    .tool-row .tool-status.ineligible { color: #6b7280; }
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #1f2937;
+      border-radius: 99px;
+      overflow: hidden;
+      margin: 2px 0;
+    }
+    .progress-bar .fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.3s;
+    }
+    .progress-bar .fill.pass { background: #34d399; }
+    .progress-bar .fill.fail { background: #4b5563; }
+    .criterion-row { margin-bottom: 6px; }
+    .criterion-row .c-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 2px;
+    }
+    .page-results { margin-top: 8px; }
+    .page-results .page-title {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #f3f4f6;
+    }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+    .tab {
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      background: #1a1a1a;
+      color: #6b7280;
+      border: none;
+    }
+    .tab.active { background: #1f2937; color: #e5e5e5; font-weight: 500; }
+    .tab:hover:not(.active) { background: #222; }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #2a2a2a;
+      border-top: 2px solid #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .center { text-align: center; }
+    .mt-2 { margin-top: 8px; }
+    .mt-3 { margin-top: 12px; }
+    .mb-1 { margin-bottom: 4px; }
+    .mb-2 { margin-bottom: 8px; }
+    .flex { display: flex; align-items: center; gap: 6px; }
+    .gap-1 { gap: 4px; }
+    .text-muted { color: #6b7280; }
+    .text-sm { font-size: 12px; }
+    .text-xs { font-size: 11px; }
+    .link {
+      color: #818cf8;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    .link:hover { text-decoration: underline; }
+    .divider { border: none; border-top: 1px solid #1f1f1f; margin: 8px 0; }
+    .error-box {
+      padding: 10px 12px;
+      background: #450a0a;
+      border: 1px solid #7f1d1d;
+      border-radius: 6px;
+      color: #fca5a5;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .empty-state { color: #4b5563; font-size: 12px; text-align: center; padding: 16px 0; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>
+      <span>🔌 FlowPost Bridge</span>
+      <span id="versionBadge" class="badge checking">v1.0</span>
+    </h1>
+    <span id="statusBadge" class="badge checking">checking</span>
+  </div>
+
+  <div class="content">
+    <div id="connectionSection" class="section">
+      <div class="section-title">Connection</div>
+      <div id="connectionInfo" class="row">
+        <span class="label">Facebook</span>
+        <span class="value" id="connectionStatus">Checking...</span>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div id="pagesSection" class="section">
+      <div class="section-title">Your Pages</div>
+      <div id="pagesList"><div class="empty-state">Open Facebook to load your pages</div></div>
+    </div>
+
+    <div id="tokenSection" class="section" style="display:none">
+      <div class="section-title">Tokens</div>
+      <div class="flex gap-1 text-sm">
+        <span id="tokenDtsg" class="text-muted">DTSG: —</span>
+        <span id="tokenLsd" class="text-muted">LSD: —</span>
+      </div>
+    </div>
+
+    <div id="actionSection" class="section">
+      <button id="runBtn" class="btn btn-primary mt-2" disabled>
+        <span>▶</span> Run Tool Check
+      </button>
+    </div>
+
+    <hr class="divider" id="resultsDivider" style="display:none">
+
+    <div id="resultsSection" class="section" style="display:none">
+      <div class="section-title">Results</div>
+      <div id="resultsContent"></div>
+    </div>
+
+    <div id="errorSection" class="section" style="display:none"></div>
+
+    <hr class="divider">
+
+    <div class="section" style="display:flex; justify-content:space-between;">
+      <a href="https://flowpost-studio.vercel.app/tools" target="_blank" class="link">Open in FlowPost →</a>
+      <button id="refreshBtn" class="link" style="background:none;border:none;cursor:pointer;">↻ Refresh</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

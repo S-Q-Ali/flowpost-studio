@@ -122,6 +122,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'GET_TOKENS':
         return cachedTokens;
 
+      case 'GET_COOKIES_INFO': {
+        const cookies = await getFacebookCookies();
+        return {
+          c_user: cookies.c_user || null,
+          xs: cookies.xs ? '✓ present' : null,
+          fr: cookies.fr ? '✓ present' : null,
+          has_session: !!(cookies.c_user && cookies.xs),
+          all_cookie_names: Object.keys(cookies),
+        };
+      }
+
       default:
         return { error: 'unknown_type' };
     }
