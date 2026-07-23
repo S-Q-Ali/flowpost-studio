@@ -1,3 +1,5 @@
+console.log('[FlowPost] content script loaded on', window.location.hostname);
+
 const DASH_SOURCE = 'FLOWPOST_DASH';
 const EXT_SOURCE = 'FLOWPOST_EXT';
 
@@ -9,7 +11,6 @@ function extractFacebookTokens() {
   if (!host.includes('facebook.com')) return null;
 
   const html = document.documentElement.innerHTML;
-
   const fb_dtsg = html.match(/name="fb_dtsg"[^>]*value="([^"]+)"/)?.[1];
   const lsd = html.match(/name="lsd"[^>]*value="([^"]+)"/)?.[1];
   const jazoest = html.match(/name="jazoest"[^>]*value="([^"]+)"/)?.[1];
@@ -18,7 +19,8 @@ function extractFacebookTokens() {
 
   if (fb_dtsg !== cachedTokens.fb_dtsg || lsd !== cachedTokens.lsd) {
     cachedTokens = newTokens;
-    chrome.runtime.sendMessage({ type: 'STORE_TOKENS', payload: newTokens });
+    console.log('[FlowPost] tokens extracted:', { fb_dtsg: !!fb_dtsg, lsd: !!lsd });
+    chrome.runtime.sendMessage({ type: 'STORE_TOKENS', payload: newTokens }).catch(() => {});
   }
 
   return newTokens;
@@ -37,8 +39,8 @@ function extractCometParams() {
     }
   }
 
-  if (Object.keys(cachedTokens).length > 0) {
-    chrome.runtime.sendMessage({ type: 'STORE_TOKENS', payload: cachedTokens });
+  if (Object.keys(cachedTokens).length > 3) {
+    chrome.runtime.sendMessage({ type: 'STORE_TOKENS', payload: cachedTokens }).catch(() => {});
   }
 }
 
@@ -51,16 +53,28 @@ function extractPage() {
 
 window.addEventListener('message', (event) => {
   if (event.data?.source !== DASH_SOURCE) return;
-  const msg = event.data;
+  console.log('[FlowPost] msg from page:', event.data.type, event.data.id);
 
-  chrome.runtime.sendMessage(msg, (response) => {
-    window.postMessage({
-      source: EXT_SOURCE,
-      id: msg.id,
-      type: msg.type + '_RESULT',
-      payload: response
-    }, event.origin);
-  });
+  const msg = event.data;
+  try {
+    chrome.runtime.sendMessage(msg, (response) => {
+      const hasError = chrome.runtime.lastError;
+      if (hasError) {
+        console.warn('[FlowPost] bg error:', hasError.message);
+        window.postMessage({ source: EXT_SOURCE, id: msg.id, type: msg.type + '_RESULT', payload: null }, event.origin);
+        return;
+      }
+      window.postMessage({
+        source: EXT_SOURCE,
+        id: msg.id,
+        type: msg.type + '_RESULT',
+        payload: response
+      }, event.origin);
+    });
+  } catch (err) {
+    console.warn('[FlowPost] sendMessage threw:', err);
+    window.postMessage({ source: EXT_SOURCE, id: msg.id, type: msg.type + '_RESULT', payload: null }, event.origin);
+  }
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -75,10 +89,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 async function handleToolCheckFromTab(msg, sendResponse) {
   const { page_ids } = msg.payload || {};
-  if (!page_ids || !page_ids.length) {
-    sendResponse({ error: 'no_page_ids' });
-    return;
-  }
+  if (!page_ids || !page_ids.length) { sendResponse({ error: 'no_page_ids' }); return; }
 
   const params = new URLSearchParams();
   params.set('surface', 'bizkit_monetization_home');

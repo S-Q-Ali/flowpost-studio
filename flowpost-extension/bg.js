@@ -1,4 +1,5 @@
-const EXT_SOURCE = 'FLOWPOST_EXT';
+console.log('[FlowPost BG] service worker started');
+
 const COOKIE_RULE_ID = 5001;
 const ELIGIBILITY_URL = 'https://business.facebook.com/creator_monetization/eligibility_widget/';
 
@@ -52,6 +53,8 @@ async function fbFetch(path, bodyParams) {
   bodyParams.set('__a', '1');
   bodyParams.set('__req', generateReqId());
 
+  console.log('[FlowPost BG] fbFetch cookies:', Object.keys(cookies).join(','));
+
   await setCookieRule(cookieStr);
   try {
     const res = await fetch(url, {
@@ -68,7 +71,11 @@ async function fbFetch(path, bodyParams) {
 
     let text = await res.text();
     if (text.startsWith('for (;;);')) text = text.slice(9);
+    console.log('[FlowPost BG] fbFetch response status:', res.status);
     return { ok: res.ok, status: res.status, data: safeParse(text) };
+  } catch (err) {
+    console.error('[FlowPost BG] fbFetch error:', err);
+    return { error: err.message };
   } finally {
     await clearCookieRule();
   }
@@ -85,23 +92,9 @@ function generateReqId() {
   return id;
 }
 
-async function findFacebookTab() {
-  const tabs = await chrome.tabs.query({
-    url: ['*://*.facebook.com/*', '*://*.business.facebook.com/*'],
-    status: 'complete'
-  });
-  return tabs.length > 0 ? tabs[0] : null;
-}
-
-async function forwardToTab(message) {
-  const tab = await findFacebookTab();
-  if (!tab) return { error: 'no_facebook_tab' };
-  return new Promise((resolve) => {
-    chrome.tabs.sendMessage(tab.id, message, resolve);
-  });
-}
-
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  console.log('[FlowPost BG] msg received:', msg.type, msg);
+
   const handle = async () => {
     switch (msg.type) {
       case 'TOOL_CHECK': {
@@ -115,25 +108,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (tokens?.jazoest) params.set('jazoest', tokens.jazoest);
         page_ids.forEach((id, i) => params.set(`page_ids[${i}]`, id));
 
-        const result = await fbFetch(ELIGIBILITY_URL, params);
-        return result;
+        return await fbFetch(ELIGIBILITY_URL, params);
       }
-
-      case 'GET_TOKENS':
-        return cachedTokens;
 
       case 'STORE_TOKENS':
         cachedTokens = { ...cachedTokens, ...msg.payload };
         return { ok: true };
 
       case 'PING':
+        console.log('[FlowPost BG] PING received, responding');
         return { ok: true, version: '1.0' };
+
+      case 'GET_TOKENS':
+        return cachedTokens;
 
       default:
         return { error: 'unknown_type' };
     }
   };
 
-  handle().then(sendResponse);
+  handle().then((result) => {
+    console.log('[FlowPost BG] sending response for', msg.type, result);
+    sendResponse(result);
+  }).catch((err) => {
+    console.error('[FlowPost BG] handler error:', err);
+    sendResponse({ error: err.message });
+  });
   return true;
 });

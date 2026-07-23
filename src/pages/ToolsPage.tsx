@@ -176,10 +176,11 @@ export default function ToolsPage() {
                 <span className="font-medium text-muted-foreground">Not detected</span>
               </div>
               <div className="text-sm text-muted-foreground space-y-1">
-                <p>1. Open <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">chrome://extensions</span></p>
-                <p>2. Enable <strong>Developer mode</strong></p>
-                <p>3. Click <strong>Load unpacked</strong> and select the <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">flowpost-extension</span> folder</p>
-                <p>4. Make sure you're logged into Facebook in at least one tab</p>
+              <p>1. Open <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">chrome://extensions</span></p>
+              <p>2. Enable <strong>Developer mode</strong></p>
+              <p>3. Click <strong>Load unpacked</strong> and select the <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">flowpost-extension</span> folder</p>
+              <p>4. Make sure you're logged into Facebook in at least one tab</p>
+              <p className="text-amber-500 dark:text-amber-400">5. <strong>Refresh this page</strong> after installing/reloading the extension</p>
                 <Button variant="outline" size="sm" onClick={checkExtension} className="mt-2">
                   <RefreshCw size={14} className="mr-1" />
                   Check again
