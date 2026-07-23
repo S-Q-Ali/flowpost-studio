@@ -170,7 +170,8 @@ export default function InsightsPage() {
           const storedAccount = list.find((a) => a.account_id === localStorage.getItem(`insights_account_${platform}`));
           setSelectedAccountId(storedAccount ? storedAccount.account_id : list[0].account_id);
         }
-      });
+      })
+      .catch(() => { setLoading(false); setError("Network error loading accounts"); });
   }, [userId, platform, config.label]);
 
   const fetchInsights = useCallback(() => {
@@ -221,9 +222,48 @@ export default function InsightsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">
-        <Loader2 size={24} className="animate-spin mr-2" />
-        Loading accounts...
+      <div className="space-y-6 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-6 w-6 bg-muted rounded" />
+            <div className="h-8 w-28 bg-muted rounded" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-40 bg-muted rounded-md" />
+            <div className="h-10 w-64 bg-muted rounded-md" />
+            <div className="h-10 w-28 bg-muted rounded-md" />
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardContent className="pt-6 space-y-2">
+                <div className="h-3 w-20 bg-muted rounded" />
+                <div className="h-8 w-24 bg-muted rounded" />
+                <div className="h-3 w-32 bg-muted rounded" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="col-span-2">
+            <Card>
+              <CardHeader><div className="h-4 w-48 bg-muted rounded" /></CardHeader>
+              <CardContent><div className="h-[280px] bg-muted rounded" /></CardContent>
+            </Card>
+          </div>
+          <Card>
+            <CardHeader><div className="h-4 w-24 bg-muted rounded" /></CardHeader>
+            <CardContent className="space-y-4">
+              {[1, 2, 3, 4].map((j) => (
+                <div key={j} className="space-y-1.5">
+                  <div className="h-3 w-24 bg-muted rounded" />
+                  <div className="h-4 w-32 bg-muted rounded" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

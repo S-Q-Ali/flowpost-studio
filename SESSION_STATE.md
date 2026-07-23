@@ -1,6 +1,19 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `812c68a` — feat: persist sort preference in localStorage
+## CURRENT HEAD: `b39036c` — fix: infinite loading on workflow items page
+
+### 58. Skeleton Loading — InsightsPage (2026-07-22)
+
+**Problem**: InsightsPage showed a full-page `<Loader2>` spinner ("Loading accounts...") while fetching connected accounts. The spinner was static text + icon — no visual indication of the actual layout. If the fetch errored without `.catch()`, loading stayed true forever.
+
+**Solution**:
+1. Replaced the spinner with `animate-pulse` skeleton cards matching the real layout:
+   - Header row with skeleton title + 3 skeleton select inputs
+   - 4 stat cards in a grid, each with label line + number line + trend line
+   - Chart area (col-span-2) + performance card sidebar with 4 skeleton rows
+2. Added `.catch()` to the accounts query so network errors don't hang the page
+
+**File changed**: `src/pages/InsightsPage.tsx` — loading state (lines 222-229) replaced; accounts query (line 173) got `.catch()`.
 
 ### 57. Infinite Loading Fix — WorkflowItemsPage (2026-07-22)
 
