@@ -1,6 +1,19 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `b39036c` — fix: infinite loading on workflow items page
+## CURRENT HEAD: `bbaae63` — feat: skeleton loading for insights page
+
+### 59. Skeleton Loading — ProfilePage (2026-07-22)
+
+**Problem**: ProfilePage showed a centered `<Loader2>` spinner while fetching the user profile. No visual layout indication. No error handling on the fetch — a rejected promise would keep `loading=true` forever.
+
+**Solution**:
+1. Replaced the spinner with `animate-pulse` skeleton matching the real layout:
+   - Header with skeleton title + subtitle lines
+   - 3 skeleton tab pills
+   - Card with skeleton avatar circle + name/email + 3 skeleton input fields + skeleton button
+2. Added `.catch()` + unmount guard (`cancelled` flag) to the user profile fetch
+
+**File changed**: `src/pages/ProfilePage.tsx` — loading state (lines 134-140) replaced; user fetch (lines 41-56) got `.catch()` + unmount guard.
 
 ### 58. Skeleton Loading — InsightsPage (2026-07-22)
 

@@ -40,19 +40,23 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!userId) return;
+    let cancelled = false;
     supabase
       .from("users")
       .select("id, name, email, avatar_url, is_admin, created_at")
       .eq("id", userId)
       .single()
       .then(({ data, error }) => {
+        if (cancelled) return;
         if (!error && data) {
           setProfile(data);
           setName(data.name || "");
           setAvatarUrl(data.avatar_url || "");
         }
         setLoading(false);
-      });
+      })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [userId]);
 
   useEffect(() => {
@@ -133,8 +137,44 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 size={24} className="animate-spin text-muted-foreground" />
+      <div className="space-y-8 animate-pulse max-w-2xl">
+        <div className="space-y-1.5">
+          <div className="h-8 w-56 bg-muted rounded" />
+          <div className="h-4 w-72 bg-muted rounded" />
+        </div>
+        <div className="flex gap-1">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-8 w-32 bg-muted rounded-md" />
+          ))}
+        </div>
+        <Card>
+          <CardHeader className="space-y-1.5">
+            <div className="h-5 w-44 bg-muted rounded" />
+            <div className="h-3.5 w-52 bg-muted rounded" />
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 rounded-full bg-muted" />
+              <div className="space-y-1.5">
+                <div className="h-4 w-32 bg-muted rounded" />
+                <div className="h-3.5 w-48 bg-muted rounded" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="h-3.5 w-24 bg-muted rounded" />
+              <div className="h-10 w-full bg-muted rounded-md" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-3.5 w-20 bg-muted rounded" />
+              <div className="h-10 w-full bg-muted rounded-md" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-3.5 w-12 bg-muted rounded" />
+              <div className="h-10 w-full bg-muted rounded-md" />
+            </div>
+            <div className="h-10 w-36 bg-muted rounded-md" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
