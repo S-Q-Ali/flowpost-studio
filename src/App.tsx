@@ -20,7 +20,6 @@ const WorkflowItemsPage = lazy(() => import("./pages/WorkflowItemsPage"));
 const AccountsPage = lazy(() => import("./pages/AccountsPage"));
 const StoragePage = lazy(() => import("./pages/StoragePage"));
 const InsightsPage = lazy(() => import("./pages/InsightsPage"));
-const MonetisationPage = lazy(() => import("./pages/MonetisationPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
@@ -87,7 +86,6 @@ function AppRoutes() {
           <Route path="/accounts" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><AccountsPage /></Suspense>} />
           <Route path="/storage" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><StoragePage /></Suspense>} />
           <Route path="/insights" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><InsightsPage /></Suspense>} />
-          <Route path="/monetisation" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><MonetisationPage /></Suspense>} />
           <Route path="/profile" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><ProfilePage /></Suspense>} />
         </Route>
       </Route>
