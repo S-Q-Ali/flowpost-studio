@@ -7,6 +7,7 @@ import {
   Link2,
   BarChart3,
   HardDrive,
+  Wrench,
   Lock,
   FileText,
   Shield,
@@ -43,6 +44,7 @@ const navItems = [
   { title: "Queue", url: "/queue", icon: ListTodo },
   { title: "Accounts", url: "/accounts", icon: Link2 },
   { title: "Storage", url: "/storage", icon: HardDrive },
+  { title: "Tools", url: "/tools", icon: Wrench },
   { title: "Insights", url: "/insights", icon: BarChart3 },
 ];
 
