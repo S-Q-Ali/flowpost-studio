@@ -7,6 +7,7 @@ import {
   Link2,
   BarChart3,
   HardDrive,
+  BadgeDollarSign,
   Lock,
   FileText,
   Shield,
@@ -44,6 +45,7 @@ const navItems = [
   { title: "Accounts", url: "/accounts", icon: Link2 },
   { title: "Storage", url: "/storage", icon: HardDrive },
   { title: "Insights", url: "/insights", icon: BarChart3 },
+  { title: "Monetisation", url: "/monetisation", icon: BadgeDollarSign },
 ];
 
 function ThemeToggle({ collapsed }: { collapsed: boolean }) {
