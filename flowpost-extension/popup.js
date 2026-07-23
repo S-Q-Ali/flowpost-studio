@@ -68,7 +68,7 @@ function render() {
   renderTokens();
   renderPages();
   renderButton();
-  renderResults();
+  showResults();
   renderError();
 }
 
@@ -92,16 +92,26 @@ function renderConnection() {
 
 function renderTokens() {
   const sec = document.getElementById('tokenSection');
-  const hasTokens = state.tokens?.fb_dtsg || state.tokens?.lsd;
-
-  if (!hasTokens) {
-    sec.style.display = 'none';
-    return;
-  }
+  const dtsg = state.tokens?.fb_dtsg;
+  const lsd = state.tokens?.lsd;
 
   sec.style.display = 'block';
-  document.getElementById('tokenDtsg').textContent = 'DTSG: ' + (state.tokens.fb_dtsg ? '✓' : '—');
-  document.getElementById('tokenLsd').textContent = 'LSD: ' + (state.tokens.lsd ? '✓' : '—');
+  document.getElementById('tokenDtsg').textContent = 'DTSG: ' + (dtsg ? '✓ ready' : '✗ need FB tab');
+  document.getElementById('tokenLsd').textContent = 'LSD: ' + (lsd ? '✓ ready' : '✗ need FB tab');
+
+  const msg = document.getElementById('tokenMissingMsg');
+  if (!dtsg || !lsd) {
+    if (!msg) {
+      const msgEl = document.createElement('div');
+      msgEl.id = 'tokenMissingMsg';
+      msgEl.className = 'text-xs';
+      msgEl.style.cssText = 'color:#fbbf24;margin-top:4px;';
+      msgEl.textContent = 'Open facebook.com in a tab then refresh this popup (↻)';
+      sec.appendChild(msgEl);
+    }
+  } else if (msg) {
+    msg.remove();
+  }
 }
 
 function renderPages() {
@@ -150,7 +160,8 @@ function renderPages() {
 
 function renderButton() {
   const btn = document.getElementById('runBtn');
-  const canRun = state.connected && state.pageIds.length > 0 && !state.checking;
+  const hasTokens = state.tokens?.fb_dtsg && state.tokens?.lsd;
+  const canRun = state.connected && state.pageIds.length > 0 && !state.checking && hasTokens;
 
   btn.disabled = !canRun;
 
@@ -184,7 +195,8 @@ async function runToolCheck() {
     state.results = res.data.payload;
     showResults();
   } else {
-    showError('Unexpected response. Status: ' + (res.status || 'unknown') + '. ' + JSON.stringify(res.data));
+    const raw = typeof res.data === 'object' ? JSON.stringify(res.data).slice(0, 1200) : String(res.data || 'empty');
+    showError('Status: ' + (res.status || 'unknown') + ' — payload is empty. Raw response (first 1200 chars):<br><span style="font-size:10px;font-family:monospace;word-break:break-all;">' + raw + '</span>');
   }
 
   state.checking = false;
