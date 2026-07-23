@@ -138,50 +138,63 @@ export default function WorkflowItemsPage() {
 
   useEffect(() => {
     if (!workflowId || !userId) return;
+    let cancelled = false;
+    const forceResolve = setTimeout(() => { cancelled = true; setLoading(false); }, 15000);
+
     (async () => {
-      setLoading(true);
-      const { data: wf } = await supabase
-        .from("workflows")
-        .select("*")
-        .eq("id", workflowId)
-        .single();
-      if (wf) setWorkflow(wf as unknown as Workflow);
+      try {
+        const [wfResult, itemsResult] = await Promise.all([
+          supabase.from("workflows").select("*").eq("id", workflowId).single(),
+          supabase.from("workflow_items").select("*").eq("workflow_id", workflowId).order("sort_order"),
+        ]);
 
-      const { data: wfItems } = await supabase
-        .from("workflow_items")
-        .select("*")
-        .eq("workflow_id", workflowId)
-        .order("sort_order");
-      if (wfItems) setItems(wfItems as WorkflowItem[]);
+        if (cancelled) return;
+        if (wfResult.data) setWorkflow(wfResult.data as unknown as Workflow);
+        const wfItems = itemsResult.data as WorkflowItem[] | null;
+        if (wfItems) setItems(wfItems);
 
-      // Fetch per-platform post statuses
-      if (wfItems && wfItems.length > 0) {
-        const itemIds = wfItems.map((i) => i.id);
-        const { data: postData } = await supabase
-          .from("posts")
-          .select("workflow_item_id, platform, status")
-          .in("workflow_item_id", itemIds);
-        if (postData) {
+        if (wfItems && wfItems.length > 0) {
+          const itemIds = wfItems.map((i) => i.id);
+          const BATCH = 50;
+          const batches: string[][] = [];
+          for (let i = 0; i < itemIds.length; i += BATCH) batches.push(itemIds.slice(i, i + BATCH));
+
+          const postResults = await Promise.all(
+            batches.map((batch) =>
+              supabase
+                .from("posts")
+                .select("workflow_item_id, platform, status")
+                .in("workflow_item_id", batch)
+            )
+          );
+
+          if (cancelled) return;
           const map: Record<string, Record<string, string>> = {};
-          for (const p of postData) {
-            const iid = p.workflow_item_id as string;
-            const plat = p.platform as string;
-            const st = p.status as string;
-            if (!iid || !plat || !st) continue;
-            if (!map[iid]) map[iid] = {};
-            const current = map[iid][plat];
-            // Derive worst status per platform
-            const rank: Record<string, number> = { failed: 0, publishing: 1, processing: 2, scheduled: 3, published: 4 };
-            if (current === undefined || (rank[st] ?? 99) < (rank[current] ?? 99)) {
-              map[iid][plat] = st;
+          const rank: Record<string, number> = { failed: 0, publishing: 1, processing: 2, scheduled: 3, published: 4 };
+          for (const { data: postData } of postResults) {
+            if (!postData) continue;
+            for (const p of postData) {
+              const iid = p.workflow_item_id as string;
+              const plat = p.platform as string;
+              const st = p.status as string;
+              if (!iid || !plat || !st) continue;
+              if (!map[iid]) map[iid] = {};
+              const current = map[iid][plat];
+              if (current === undefined || (rank[st] ?? 99) < (rank[current] ?? 99)) {
+                map[iid][plat] = st;
+              }
             }
           }
           setPostStatusMap(map);
         }
+      } catch (err) {
+        console.error("Failed to load workflow items", err);
+      } finally {
+        if (!cancelled) { clearTimeout(forceResolve); setLoading(false); }
       }
-
-      setLoading(false);
     })();
+
+    return () => { cancelled = true; clearTimeout(forceResolve); };
   }, [workflowId, userId]);
 
   // Realtime subscription for post status updates
@@ -612,8 +625,39 @@ export default function WorkflowItemsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <div className="space-y-6 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-24 bg-muted rounded-md" />
+            <div className="h-7 w-48 bg-muted rounded-md" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-32 bg-muted rounded-md" />
+            <div className="h-8 w-24 bg-muted rounded-md" />
+          </div>
+        </div>
+        <div className="h-4 w-48 bg-muted rounded" />
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="border border-border rounded-lg p-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-4 w-4 bg-muted rounded" />
+              <div className="h-5 w-5 bg-muted rounded" />
+              <div className="space-y-1.5">
+                <div className="h-4 w-56 bg-muted rounded" />
+                <div className="h-3 w-20 bg-muted rounded" />
+              </div>
+              <div className="ml-auto h-5 w-14 bg-muted rounded-full" />
+            </div>
+            <div className="border border-border rounded-md p-3 space-y-2">
+              <div className="h-3 w-16 bg-muted rounded" />
+              <div className="h-8 w-full bg-muted rounded" />
+            </div>
+            <div className="border border-border rounded-md p-3 space-y-2">
+              <div className="h-3 w-20 bg-muted rounded" />
+              <div className="h-8 w-full bg-muted rounded" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }

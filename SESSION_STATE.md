@@ -1,6 +1,26 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `2a8d18e` — feat: per-item publish times for custom ranges
+## CURRENT HEAD: `812c68a` — feat: persist sort preference in localStorage
+
+### 57. Infinite Loading Fix — WorkflowItemsPage (2026-07-22)
+
+**Problem**: Navigating to a workflow's items page showed a spinner indefinitely (or for 3-5s) because:
+1. 3 queries ran **sequentially** (workflow → items → posts), each blocking the next
+2. **No try/catch** — any query error skipped `setLoading(false)`, causing a permanent spinner
+3. **No timeout** — network blips froze the page forever
+4. **No unmount guard** — stale async continued after navigation
+
+**Solution**: Restructured the loading effect in `WorkflowItemsPage.tsx`:
+- `Promise.all` to run `workflows` and `workflow_items` queries **in parallel**
+- Batched the `posts` query into chunks of 50, run concurrently via `Promise.all`
+- `try/catch/finally` guarantees `setLoading(false)` always fires
+- 15s safety timeout force-resolves loading as last resort
+- Unmount guard (`cancelled` flag) prevents stale state updates after navigation
+- Replaced the `<Loader2>` spinner with an **animated skeleton UI** matching the Card layout (3 shimmer cards with title bar, platform inputs, footer)
+
+**File changed**: `src/pages/WorkflowItemsPage.tsx` — loading effect (lines 139-185) rewritten; spinner (lines 612-618) replaced with skeleton cards.
+
+**Not changed**: No DB migrations needed — indexes `idx_workflow_items_workflow_id` and `idx_posts_workflow_item_id` already exist.
 
 ### 56. Sort Preference Persisted in localStorage (2026-07-22)
 
