@@ -1,6 +1,74 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `bbaae63` — feat: skeleton loading for insights page
+## CURRENT HEAD: `1921d4b` — Fix popup: rename showError/hideError to renderError
+
+### 62. Phase 1 Persistence — Eligibility Results Saved to Supabase (2026-07-23)
+
+**Problem**: Tool Check results were ephemeral — displayed in the UI but lost on page refresh. No historical tracking, no freshness indicator, no ability to compare or use eligibility data in workflows.
+
+**Solution**: Created `page_eligibility` table + persistence layer:
+1. **Migration** (`20260723000001_page_eligibility.sql`): New table with `UNIQUE(user_id, page_id)`, RLS matching existing connected_accounts pattern
+2. **Types** (`types.ts`): Added `page_eligibility` Row/Insert/Update definitions
+3. **ToolsPage.tsx**: On successful TOOL_CHECK, upserts each page's eligibility to Supabase. On mount, loads latest saved results from DB
+4. **Freshness indicator**: Shows "Checked Xm ago" below pages card with stale detection (>24h = red, prompt to refresh)
+5. **Saved results display**: When no fresh results exist, cached results shown with "Showing results from X ago" banner + Refresh button
+
+**Files changed**:
+- `supabase/migrations/20260723000001_page_eligibility.sql` — New migration
+- `src/integrations/supabase/types.ts` — Added page_eligibility type
+- `src/pages/ToolsPage.tsx` — Save results, load saved, freshness indicator
+
+**4 pre-existing migrations fixed** (non-idempotent SQL blocked push): `linkedin_support`, `workflow_item_id`, `caption_master_prompt`, `workflow_items_rls` — added IF NOT EXISTS / DO blocks to make them safely re-runnable.
+
+**Status**: Migration applied (`npx supabase db push`). Persistence works end-to-end.
+
+### 61. Extension Improvements — Token Fallback, Fetch Pages Bridge, DOM Extraction (2026-07-23)
+
+**Problem**: Tool Check failed from FlowPost Studio `/tools` because the web app didn't send tokens. "Fetch from Facebook" failed when business.facebook.com wasn't accessible (redirect loop). DOM extraction couldn't find pages on modern facebook.com Comet pages.
+
+**Solutions**:
+
+| # | Fix | Detail |
+|---|-----|--------|
+| 1 | **TOOL_CHECK token fallback** (`bg.js`) | When `TOOL_CHECK` payload has no `tokens`, falls back to `cachedTokens` in bg.js (already populated by content script from facebook.com) |
+| 2 | **PostMessage bridge for pages** (`bg.js` + `content.js` + `ToolsPage.tsx`) | When all other page-fetching strategies fail, queries FlowPost Studio tab via postMessage → reads `connected_accounts` from Supabase → returns pages to extension |
+| 3 | **www.facebook.com API endpoints** (`bg.js`) | Added `www.facebook.com/pages/list/` and `/ajax/pages/list/` to fbFetch fallback endpoints |
+| 4 | **Loosened API guard** (`content.js`) | Changed `if (data?.payload)` → `if (data?.payload \|\| data?.pages)` to catch API responses without `.payload` wrapper |
+| 5 | **Improved DOM selectors** (`content.js`) | Added modern Comet selectors: `[data-pagelet="PageCard"] a`, `[role="list"] a[href*="facebook.com"]`, `a[href*="?page_id="]`, `[data-page-id]` |
+| 6 | **URL-based page extraction** (`content.js`) | On any `facebook.com` page, extracts the current page ID from `?id=` or `/pages/` in the URL as a last-resort fallback |
+
+**Files changed**:
+- `flowpost-extension/bg.js` — Token fallback, www endpoints, postMessage bridge, updated hints
+- `flowpost-extension/content.js` — FETCH_PAGES_FROM_APP handler, API guard, DOM selectors, URL extraction
+- `src/pages/ToolsPage.tsx` — QUERY_PAGES listener for postMessage bridge
+
+**Status**: All working. Tool Check now succeeds from both popup and `/tools`. Fetch Pages works from facebook.com, business.facebook.com, or FlowPost Studio tab.
+
+### 60. FlowPost Bridge Extension — Monetization Eligibility Checker (2026-07-23)
+
+**Problem**: No way to check Facebook Page monetization eligibility status without manually navigating business.facebook.com's monetization dashboard. The FlowPost Studio app needed a tool to programmatically check eligibility across multiple pages at once.
+
+**Solution**: Built a Chrome extension (`flowpost-extension/`) that:
+1. Injects Facebook session cookies via DNR (Declarative NetRequest) to bypass CORS/CSRF on `business.facebook.com/creator_monetization/eligibility_widget/`
+2. Extracts `fb_dtsg` and `lsd` auth tokens from Facebook's page bundles using MetaMax v1.6's exact regex patterns (`DTSGInitialData` JSON + `["LSD",[],{"token":"..."}]` script pattern)
+3. Hooks `XMLHttpRequest.send()` to capture live tokens from Facebook's own API calls
+4. Falls back to content script relay on `business.facebook.com` when DNR returns error 1357004 ("Sorry, something went wrong")
+5. Popup shows session state (c_user, cookies, DTSG, LSD), page management with "Fetch from Facebook" (DOM + API), and Run Tool Check button
+6. OCR tool installed (tesseract.js) for reading screenshots
+
+**Key findings from reverse-engineering MetaMax v1.6**:
+- `fb_dtsg` is extracted from `DTSGInitialData` JSON patterns embedded in Facebook's JS bundles — **not** from `window.__fb_dtsg` or DOM inputs
+- `lsd` comes from `["LSD",[],{"token":"..."}]` embedded in script bundles
+- `localStorage.Session` value is a random session identifier, NOT the real `fb_dtsg`
+
+**Files changed**:
+- `flowpost-extension/manifest.json` — Extension manifest v3, permissions, DNR rules, content scripts
+- `flowpost-extension/content.js` — Token extraction (MetaMax DTSGInitialData/LSD patterns), XHR hook, Tool Check relay, Fetch Pages (API + DOM extraction on business.facebook.com and facebook.com)
+- `flowpost-extension/bg.js` — DNR cookie injection, GET_PAGES handler (tabs → API fallback), TOOL_CHECK handler (DNR → content script fallback), cookie/token caching
+- `flowpost-extension/popup.html` — Popup UI (Session, Pages, Tokens, Run button, Results)
+- `flowpost-extension/popup.js` — State management, page CRUD, toolbar check, session display
+
+**Status**: Working. DTSG/LSD extraction verified; tool check returns eligibility data. "Fetch from Facebook" works on both `business.facebook.com` (via sidebar asset_id links) and `facebook.com` (via DOM page links).
 
 ### 59. Skeleton Loading — ProfilePage (2026-07-22)
 

@@ -35,7 +35,7 @@ let state = {
   connected: false,
   userId: null,
   tokens: {},
-  pageIds: [],
+  pages: [],
   results: null,
   checking: false,
 };
@@ -56,9 +56,10 @@ async function loadState() {
   state.connected = ping?.ok === true;
   state.userId = cookiesInfo?.c_user || null;
   state.tokens = tokens || {};
+  state._cookiesInfo = cookiesInfo || {};
 
-  const stored = await getStoredPageIds();
-  state.pageIds = stored.length ? stored : [];
+  const stored = await getStoredPages();
+  state.pages = stored.length ? stored : [];
 
   render();
 }
@@ -75,19 +76,49 @@ function render() {
 function renderConnection() {
   const badge = document.getElementById('statusBadge');
   const status = document.getElementById('connectionStatus');
+  const userRow = document.getElementById('sessionUserRow');
+  const cookieRow = document.getElementById('sessionCookieRow');
+  const dtsgRow = document.getElementById('sessionTokenRow');
+  const lsdRow = document.getElementById('sessionLsdRow');
 
   if (!state.connected) {
     badge.textContent = 'disconnected';
     badge.className = 'badge disconnected';
     status.innerHTML = '<span class="text-muted">Not detected — open Facebook in a tab</span>';
     document.getElementById('versionBadge').textContent = 'v1.0';
+    userRow.style.display = 'none';
+    cookieRow.style.display = 'none';
+    dtsgRow.style.display = 'none';
+    lsdRow.style.display = 'none';
     return;
   }
 
   badge.textContent = 'connected';
   badge.className = 'badge connected';
-  status.innerHTML = `<span style="color:#34d399">${state.userId ? 'User: ' + state.userId : 'Connected'}</span>`;
+  status.innerHTML = '<span style="color:#34d399">✓ Session active</span>';
   document.getElementById('versionBadge').textContent = 'v1.0';
+
+  document.getElementById('sessionUser').textContent = state.userId || 'unknown';
+  userRow.style.display = 'flex';
+
+  const ci = state._cookiesInfo || {};
+  const cookieParts = [];
+  if (ci.c_user) cookieParts.push('c_user ✓');
+  if (ci.xs) cookieParts.push('xs ✓');
+  if (ci.fr) cookieParts.push('fr ✓');
+  const allNames = ci.all_cookie_names || [];
+  const otherCount = Math.max(0, allNames.length - (ci.c_user ? 1 : 0) - (ci.xs ? 1 : 0) - (ci.fr ? 1 : 0));
+  if (otherCount > 0) cookieParts.push('+' + otherCount + ' more');
+  document.getElementById('sessionCookies').textContent = cookieParts.length ? cookieParts.join(', ') : 'none';
+  cookieRow.style.display = 'flex';
+
+  const dtsg = state.tokens?.fb_dtsg;
+  document.getElementById('sessionDtsg').textContent = dtsg ? '✓ ' + dtsg.slice(0, 12) + '...' : '✗ missing';
+  dtsgRow.style.display = 'flex';
+
+  const lsd = state.tokens?.lsd;
+  document.getElementById('sessionLsd').textContent = lsd ? '✓ ' + lsd.slice(0, 8) + '...' : '✗ missing';
+  lsdRow.style.display = 'flex';
 }
 
 function renderTokens() {
@@ -117,51 +148,69 @@ function renderTokens() {
 function renderPages() {
   const list = document.getElementById('pagesList');
 
-  if (state.pageIds.length === 0) {
+  if (state.pages.length === 0) {
     list.innerHTML = `
-      <div class="text-xs text-muted mb-1">No pages loaded. Paste page IDs below or open Facebook.</div>
+      <div class="text-xs text-muted mb-1">No pages loaded.</div>
       <input id="pageIdInput" class="input" placeholder="Paste page IDs (comma separated)" />
-      <button id="savePageIds" class="btn btn-secondary mt-2" style="width:auto;padding:5px 12px;font-size:11px;">Save</button>
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <button id="savePageIds" class="btn btn-secondary" style="width:auto;padding:5px 12px;font-size:11px;">Save</button>
+        <button id="fetchPagesBtn" class="btn btn-primary" style="width:auto;padding:5px 12px;font-size:11px;">Fetch from Facebook</button>
+      </div>
     `;
     setTimeout(() => {
       const input = document.getElementById('pageIdInput');
       const save = document.getElementById('savePageIds');
+      const fetchBtn = document.getElementById('fetchPagesBtn');
       if (input && save) {
-        input.value = state.pageIds.join(', ');
         save.onclick = async () => {
           const ids = input.value.split(',').map(s => s.trim()).filter(Boolean);
-          state.pageIds = ids;
-          await chrome.storage.local.set({ fp_page_ids: ids });
+          state.pages = ids.map(id => ({ id, name: '' }));
+          await storePages(state.pages);
           renderPages();
         };
+      }
+      if (fetchBtn) {
+        fetchBtn.onclick = fetchPages;
       }
     }, 0);
     return;
   }
 
-  list.innerHTML = state.pageIds.map((id, i) =>
-    `<div class="page-item selected">
+  list.innerHTML = state.pages.map((p, i) => {
+    const name = p.name || `Page ${i + 1}`;
+    return `<div class="page-item selected">
       <div class="checkbox"></div>
-      <span class="page-name">Page ${i + 1}</span>
-      <span class="page-id">${id}</span>
-    </div>`
-  ).join('') +
-  `<button id="clearPageIds" style="background:none;border:none;color:#6b7280;font-size:11px;cursor:pointer;padding:4px 0;">× Clear</button>`;
+      <span class="page-name">${escHtml(name)}</span>
+      <span class="page-id">${p.id}</span>
+    </div>`;
+  }).join('') +
+  `<div style="display:flex;gap:6px;margin-top:6px;">
+    <button id="clearPageIds" style="background:none;border:none;color:#6b7280;font-size:11px;cursor:pointer;padding:4px 0;">× Clear</button>
+    <button id="fetchPagesBtn" class="btn btn-primary" style="width:auto;padding:3px 10px;font-size:10px;margin-left:auto;">Fetch from Facebook</button>
+  </div>`;
 
   setTimeout(() => {
     const clear = document.getElementById('clearPageIds');
     if (clear) clear.onclick = async () => {
-      state.pageIds = [];
-      await chrome.storage.local.set({ fp_page_ids: [] });
+      state.pages = [];
+      await storePages([]);
       renderPages();
     };
+    const fetchBtn = document.getElementById('fetchPagesBtn');
+    if (fetchBtn) fetchBtn.onclick = fetchPages;
   }, 0);
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
 }
 
 function renderButton() {
   const btn = document.getElementById('runBtn');
   const hasTokens = state.tokens?.fb_dtsg && state.tokens?.lsd;
-  const canRun = state.connected && state.pageIds.length > 0 && !state.checking && hasTokens;
+  const canRun = state.connected && state.pages.length > 0 && !state.checking && hasTokens;
 
   btn.disabled = !canRun;
 
@@ -183,7 +232,7 @@ async function runToolCheck() {
   renderButton();
 
   const res = await bg('TOOL_CHECK', {
-    page_ids: state.pageIds,
+    page_ids: state.pages.map(p => p.id),
     tokens: state.tokens
   });
 
@@ -270,13 +319,52 @@ function renderError(msg) {
   }
 }
 
-async function getStoredPageIds() {
+async function fetchPages() {
+  const btn = document.getElementById('fetchPagesBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Fetching...'; }
+
+  const res = await bg('GET_PAGES', {});
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Fetch from Facebook'; }
+
+  if (!res) {
+    renderError('No response from background.');
+    return;
+  }
+  if (res.error) {
+    renderError(res.hint || res.error);
+    return;
+  }
+  if (!res.pages || !res.pages.length) {
+    renderError('No pages found. Open business.facebook.com/pages/ and try again.');
+    return;
+  }
+
+  state.pages = res.pages;
+  await storePages(state.pages);
+  renderError();
+  renderPages();
+}
+
+async function getStoredPages() {
   try {
-    const result = await chrome.storage.local.get('fp_page_ids');
-    return result.fp_page_ids || [];
+    const result = await chrome.storage.local.get(['fp_pages', 'fp_page_ids']);
+    if (result.fp_pages) return result.fp_pages;
+    if (result.fp_page_ids) {
+      const migrated = result.fp_page_ids.map(id => ({ id, name: '' }));
+      await chrome.storage.local.set({ fp_pages: migrated, fp_page_ids: undefined });
+      return migrated;
+    }
+    return [];
   } catch {
     return [];
   }
+}
+
+async function storePages(pages) {
+  try {
+    await chrome.storage.local.set({ fp_pages: pages });
+  } catch {}
 }
 
 document.getElementById('refreshBtn').onclick = loadState;

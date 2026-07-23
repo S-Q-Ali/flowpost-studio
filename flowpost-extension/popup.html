@@ -226,10 +226,28 @@
 
   <div class="content">
     <div id="connectionSection" class="section">
-      <div class="section-title">Connection</div>
-      <div id="connectionInfo" class="row">
-        <span class="label">Facebook</span>
-        <span class="value" id="connectionStatus">Checking...</span>
+      <div class="section-title">Session</div>
+      <div id="connectionInfo">
+        <div class="row">
+          <span class="label">Status</span>
+          <span class="value" id="connectionStatus">Checking...</span>
+        </div>
+        <div class="row" id="sessionUserRow" style="display:none;">
+          <span class="label">User</span>
+          <span class="value" id="sessionUser"></span>
+        </div>
+        <div class="row" id="sessionCookieRow" style="display:none;">
+          <span class="label">Cookies</span>
+          <span class="value" id="sessionCookies"></span>
+        </div>
+        <div class="row" id="sessionTokenRow" style="display:none;">
+          <span class="label">DTSG</span>
+          <span class="value" id="sessionDtsg"></span>
+        </div>
+        <div class="row" id="sessionLsdRow" style="display:none;">
+          <span class="label">LSD</span>
+          <span class="value" id="sessionLsd"></span>
+        </div>
       </div>
     </div>
 

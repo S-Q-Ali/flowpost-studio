@@ -81,6 +81,39 @@ export type Database = {
         }
         Relationships: []
       }
+      page_eligibility: {
+        Row: {
+          id: string
+          user_id: string
+          page_id: string
+          page_name: string | null
+          eligibility_bucket: string | null
+          monetization_tools: Json | null
+          criteria_progress: Json | null
+          checked_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          page_id: string
+          page_name?: string | null
+          eligibility_bucket?: string | null
+          monetization_tools?: Json | null
+          criteria_progress?: Json | null
+          checked_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          page_id?: string
+          page_name?: string | null
+          eligibility_bucket?: string | null
+          monetization_tools?: Json | null
+          criteria_progress?: Json | null
+          checked_at?: string
+        }
+        Relationships: []
+      }
       posts: {
         Row: {
           account_id: string | null

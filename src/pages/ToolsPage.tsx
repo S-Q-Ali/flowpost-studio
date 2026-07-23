@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Wrench, Chrome, CheckCircle2, XCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, Wrench, Chrome, CheckCircle2, XCircle, AlertCircle, RefreshCw, Clock } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
 const EXT_SOURCE = 'FLOWPOST_EXT';
 const DASH_SOURCE = 'FLOWPOST_DASH';
@@ -66,6 +67,8 @@ export default function ToolsPage() {
   const [checking, setChecking] = useState(false);
   const [results, setResults] = useState<PageResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savedResults, setSavedResults] = useState<PageResult[] | null>(null);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -78,12 +81,56 @@ export default function ToolsPage() {
       .then(({ data }) => setPages((data || []) as PageAccount[]));
   }, [userId]);
 
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from("page_eligibility")
+      .select("*")
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn("[ToolsPage] Failed to load saved eligibility:", error.message);
+          return;
+        }
+        console.log("[ToolsPage] Saved eligibility rows:", data?.length || 0, data);
+        if (data?.length) {
+          const mapped: PageResult[] = data.map(r => ({
+            basicInfo: { id: r.page_id, name: r.page_name || r.page_id },
+            eligibilityBucket: r.eligibility_bucket || '',
+            monetizationToolsEligibilityStatus: (r.monetization_tools || {}) as ToolStatus,
+            eligibilityCriteriaProgress: (r.criteria_progress || {}) as EligibilityProgress,
+          }));
+          setSavedResults(mapped);
+          const sorted = [...data].sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime());
+          setLastChecked(sorted[0].checked_at);
+        }
+      });
+  }, [userId]);
+
   const checkExtension = useCallback(async () => {
     const res = await sendExt('PING', {});
     setExtInstalled(res !== null && (res as { ok?: boolean })?.ok === true);
   }, []);
 
   useEffect(() => { checkExtension(); }, [checkExtension]);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.source !== EXT_SOURCE || event.data?.type !== 'QUERY_PAGES') return;
+      if (!userId) return;
+      supabase
+        .from("connected_accounts")
+        .select("account_id, account_name")
+        .eq("user_id", userId)
+        .eq("platform", "facebook")
+        .eq("is_connected", true)
+        .then(({ data }) => {
+          const pages = (data || []).map(p => ({ id: p.account_id, name: p.account_name || '' }));
+          window.postMessage({ source: DASH_SOURCE, type: 'QUERY_PAGES_RESULT', id: event.data.id, payload: { pages } }, event.origin);
+        });
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [userId]);
 
   const runToolCheck = async () => {
     if (!pages.length) return;
@@ -99,6 +146,20 @@ export default function ToolsPage() {
       setError(res.error);
     } else if (res.ok && res.data?.payload) {
       setResults(res.data.payload);
+      setLastChecked(new Date().toISOString());
+      const sessionRes = await supabase.auth.getSession();
+      const saveUserId = sessionRes.data.session?.user?.id || userId;
+      const rows = res.data.payload.map((page: PageResult) => ({
+        user_id: saveUserId,
+        page_id: page.basicInfo.id,
+        page_name: page.basicInfo.name,
+        eligibility_bucket: page.eligibilityBucket,
+        monetization_tools: page.monetizationToolsEligibilityStatus,
+        criteria_progress: page.eligibilityCriteriaProgress,
+      }));
+      supabase.from("page_eligibility").upsert(rows, { onConflict: "user_id,page_id" }).then(({ error }) => {
+        if (error) console.warn("[ToolsPage] Failed to save eligibility:", error.message);
+      });
     } else {
       setError('Unexpected response from extension.');
     }
@@ -213,6 +274,28 @@ export default function ToolsPage() {
         </Card>
       )}
 
+      {lastChecked && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Clock size={12} />
+          <span>Last checked {formatDistanceToNow(new Date(lastChecked), { addSuffix: true })}</span>
+          {!results && savedResults && (
+            <Button variant="outline" size="sm" onClick={runToolCheck} className="ml-auto h-6 text-xs px-2">
+              <RefreshCw size={10} className="mr-1" /> Refresh
+            </Button>
+          )}
+        </div>
+      )}
+
+      {!results && savedResults && (
+        <div className="bg-muted/50 border border-border rounded-md p-3 text-xs text-muted-foreground flex items-center gap-2">
+          <Clock size={14} />
+          Showing results from {formatDistanceToNow(new Date(lastChecked!), { addSuffix: true })}
+          <Button variant="outline" size="sm" onClick={runToolCheck} className="ml-auto h-6 text-xs px-2">
+            <RefreshCw size={10} className="mr-1" /> Refresh
+          </Button>
+        </div>
+      )}
+
       {error && (
         <Card className="border-destructive/50">
           <CardContent className="flex items-center gap-3 py-4">
@@ -222,7 +305,7 @@ export default function ToolsPage() {
         </Card>
       )}
 
-      {results && results.map((page) => (
+      {(results || savedResults) && (results || savedResults).map((page) => (
         <Card key={page.basicInfo.id}>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">

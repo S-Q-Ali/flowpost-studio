@@ -2,6 +2,7 @@ console.log('[FlowPost BG] service worker started');
 
 const COOKIE_RULE_ID = 5001;
 const ELIGIBILITY_URL = 'https://business.facebook.com/creator_monetization/eligibility_widget/';
+const PAGES_LIST_URL = 'https://business.facebook.com/pages/list/';
 
 let cachedCookies = {};
 let cachedTokens = {};
@@ -19,26 +20,51 @@ function fmtCookie(cookies) {
   return Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
 }
 
+const COOKIE_RULE_IDS = [5001, 5002];
+
+const COOKIE_RULES = [
+  {
+    id: 5001,
+    priority: 100,
+    action: {
+      type: 'modifyHeaders',
+      requestHeaders: [{ header: 'Cookie', operation: 'set', value: '' }]
+    },
+    condition: {
+      urlFilter: '||business.facebook.com/creator_monetization/eligibility_widget',
+      resourceTypes: ['xmlhttprequest']
+    }
+  },
+  {
+    id: 5002,
+    priority: 100,
+    action: {
+      type: 'modifyHeaders',
+      requestHeaders: [{ header: 'Cookie', operation: 'set', value: '' }]
+    },
+    condition: {
+      urlFilter: '||business.facebook.com/pages/list/',
+      resourceTypes: ['xmlhttprequest']
+    }
+  }
+];
+
 async function setCookieRule(cookieStr) {
+  const rules = COOKIE_RULES.map(r => ({
+    ...r,
+    action: {
+      type: 'modifyHeaders',
+      requestHeaders: [{ header: 'Cookie', operation: 'set', value: cookieStr }]
+    }
+  }));
   await chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: [COOKIE_RULE_ID],
-    addRules: [{
-      id: COOKIE_RULE_ID,
-      priority: 100,
-      action: {
-        type: 'modifyHeaders',
-        requestHeaders: [{ header: 'Cookie', operation: 'set', value: cookieStr }]
-      },
-      condition: {
-        urlFilter: '||business.facebook.com/creator_monetization/eligibility_widget',
-        resourceTypes: ['xmlhttprequest']
-      }
-    }]
+    removeRuleIds: COOKIE_RULE_IDS,
+    addRules: rules
   });
 }
 
 async function clearCookieRule() {
-  await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [COOKIE_RULE_ID] });
+  await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: COOKIE_RULE_IDS });
 }
 
 async function fbFetch(path, bodyParams) {
@@ -101,14 +127,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const { page_ids, tokens } = msg.payload || {};
         if (!page_ids || !page_ids.length) return { error: 'no_page_ids' };
 
+        const t = tokens || cachedTokens;
         const params = new URLSearchParams();
         params.set('surface', 'bizkit_monetization_home');
-        if (tokens?.fb_dtsg) params.set('fb_dtsg', tokens.fb_dtsg);
-        if (tokens?.lsd) params.set('lsd', tokens.lsd);
-        if (tokens?.jazoest) params.set('jazoest', tokens.jazoest);
+        if (t?.fb_dtsg) params.set('fb_dtsg', t.fb_dtsg);
+        if (t?.lsd) params.set('lsd', t.lsd);
+        if (t?.jazoest) params.set('jazoest', t.jazoest);
         page_ids.forEach((id, i) => params.set(`page_ids[${i}]`, id));
 
-        return await fbFetch(ELIGIBILITY_URL, params);
+        const result = await fbFetch(ELIGIBILITY_URL, params);
+        if (result.ok && result.status === 200 && result.data?.payload) return result;
+        if (result.ok && result.data?.error === 1357004) {
+          const tabs = await chrome.tabs.query({ url: ['*://*.business.facebook.com/*'] });
+          const tab = tabs.find(t => t.status === 'complete' && !t.url?.includes('login'));
+          if (tab) {
+            try {
+              const relayed = await chrome.tabs.sendMessage(tab.id, {
+                type: 'TOOL_CHECK',
+                payload: { page_ids }
+              });
+              if (relayed && relayed.ok) return relayed;
+            } catch {}
+          }
+        }
+        return result;
       }
 
       case 'STORE_TOKENS':
@@ -130,7 +172,60 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           fr: cookies.fr ? '✓ present' : null,
           has_session: !!(cookies.c_user && cookies.xs),
           all_cookie_names: Object.keys(cookies),
+          has_tokens: !!(cachedTokens.fb_dtsg && cachedTokens.lsd),
         };
+      }
+
+      case 'GET_PAGES': {
+        const tabs = await chrome.tabs.query({ url: ['*://*.facebook.com/*', '*://*.business.facebook.com/*'] });
+        const sorted = tabs
+          .filter(t => t.status === 'complete' && !t.url?.includes('login'))
+          .sort((a, b) => (b.url?.includes('business') ? 1 : 0) - (a.url?.includes('business') ? 1 : 0));
+
+        for (const tab of sorted) {
+          try {
+            const res = await chrome.tabs.sendMessage(tab.id, { type: 'FETCH_PAGES' });
+            if (res && res.pages?.length) return res;
+          } catch {}
+        }
+
+        const fbRes = await fbFetch(PAGES_LIST_URL, new URLSearchParams({ dpr: '1' }));
+        if (fbRes.ok && fbRes.data) {
+          const list = fbRes.data?.payload?.pages || fbRes.data?.pages || [];
+          const pages = list.map(p => ({ id: String(p.id || p.page_id), name: p.name || p.page_name || '' }));
+          if (pages.length) return { pages };
+        }
+
+        const altEndpoints = [
+          'https://business.facebook.com/latest/pages/list/',
+          'https://business.facebook.com/ajax/pages/list/',
+          'https://www.facebook.com/pages/list/?dpr=1',
+          'https://www.facebook.com/ajax/pages/list/',
+        ];
+        for (const url of altEndpoints) {
+          try {
+            const r = await fbFetch(url, new URLSearchParams({ dpr: '1' }));
+            if (r.ok && r.data) {
+              const list = r.data?.payload?.pages || r.data?.pages || [];
+              const pages = list.map(p => ({ id: String(p.id || p.page_id), name: p.name || p.page_name || '' }));
+              if (pages.length) return { pages };
+            }
+          } catch {}
+        }
+
+        try {
+          const allTabs = await chrome.tabs.query({});
+          const fpTab = allTabs.find(t =>
+            t.status === 'complete' && t.url &&
+            (t.url.includes('flowpost-studio.vercel.app') || t.url.includes('localhost:') || t.url.includes('127.0.0.1'))
+          );
+          if (fpTab) {
+            const res = await chrome.tabs.sendMessage(fpTab.id, { type: 'FETCH_PAGES_FROM_APP' });
+            if (res && res.pages?.length) return res;
+          }
+        } catch {}
+
+        return { error: 'no_pages_found', hint: 'Open FlowPost Studio or facebook.com/pages/ and try again' };
       }
 
       default:
