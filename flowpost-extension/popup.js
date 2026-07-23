@@ -178,7 +178,7 @@ async function runToolCheck() {
   if (state.checking) return;
   state.checking = true;
   state.results = null;
-  hideError();
+  renderError();
   hideResults();
   renderButton();
 
@@ -188,15 +188,15 @@ async function runToolCheck() {
   });
 
   if (!res) {
-    showError('No response from background. Make sure cookies and tokens are available.');
+    renderError('No response from background. Make sure cookies and tokens are available.');
   } else if (res.error) {
-    showError(res.error);
+    renderError(res.error);
   } else if (res.ok && res.data?.payload) {
     state.results = res.data.payload;
     showResults();
   } else {
     const raw = typeof res.data === 'object' ? JSON.stringify(res.data).slice(0, 1200) : String(res.data || 'empty');
-    showError('Status: ' + (res.status || 'unknown') + ' — payload is empty. Raw response (first 1200 chars):<br><span style="font-size:10px;font-family:monospace;word-break:break-all;">' + raw + '</span>');
+    renderError('Status: ' + (res.status || 'unknown') + ' — payload is empty. Raw response (first 1200 chars):<br><span style="font-size:10px;font-family:monospace;word-break:break-all;">' + raw + '</span>');
   }
 
   state.checking = false;
@@ -260,14 +260,14 @@ function hideResults() {
   document.getElementById('resultsDivider').style.display = 'none';
 }
 
-function showError(msg) {
+function renderError(msg) {
   const sec = document.getElementById('errorSection');
-  sec.style.display = 'block';
-  sec.innerHTML = `<div class="error-box">${msg}</div>`;
-}
-
-function hideError() {
-  document.getElementById('errorSection').style.display = 'none';
+  if (msg) {
+    sec.style.display = 'block';
+    sec.innerHTML = `<div class="error-box">${msg}</div>`;
+  } else {
+    sec.style.display = 'none';
+  }
 }
 
 async function getStoredPageIds() {
