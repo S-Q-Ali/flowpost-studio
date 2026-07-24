@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check } from "lucide-react";
+import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
@@ -85,6 +85,7 @@ export default function WorkflowItemsPage() {
   const [bulkPlatformsOpen, setBulkPlatformsOpen] = useState(false);
   const [bulkPlatformsValue, setBulkPlatformsValue] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [unmarkAllOpen, setUnmarkAllOpen] = useState(false);
   const [postStatusMap, setPostStatusMap] = useState<Record<string, Record<string, string>>>({});
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const queueRef = useRef<WorkflowItem[]>([]);
@@ -337,6 +338,22 @@ export default function WorkflowItemsPage() {
       return;
     }
     setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, status: "pending" as const } : i)));
+  };
+
+  const markAllPending = async () => {
+    const ids = items.map((i) => i.id);
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from("workflow_items")
+      .update({ status: "pending" })
+      .in("id", ids);
+    if (error) {
+      toast.error("Failed to mark all as pending");
+      return;
+    }
+    setItems((prev) => prev.map((i) => ({ ...i, status: "pending" as const })));
+    setUnmarkAllOpen(false);
+    toast.success(`All ${ids.length} items marked as pending`);
   };
 
   const removeItem = async (itemId: string) => {
@@ -730,6 +747,9 @@ export default function WorkflowItemsPage() {
           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={deselectAll}>
             <Circle className="h-3 w-3" /> Deselect All
           </Button>
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground hover:text-destructive" onClick={() => setUnmarkAllOpen(true)}>
+            <XCircle className="h-3 w-3" /> Mark All Pending
+          </Button>
           <div className="ml-auto">
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="h-7 text-xs w-[140px]">
@@ -1060,6 +1080,22 @@ export default function WorkflowItemsPage() {
           </div>
         </div>
       )}
+      <AlertDialog open={unmarkAllOpen} onOpenChange={setUnmarkAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark all items as pending?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will unmark all {items.length} items. None will be posted until you mark them as ready again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={markAllPending}>
+              Mark All Pending
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
