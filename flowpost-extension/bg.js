@@ -154,7 +154,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       case 'STORE_TOKENS':
-        cachedTokens = { ...cachedTokens, ...msg.payload };
+        cachedTokens = { ...cachedTokens, ...msg.payload, _stored_at: Date.now() };
         return { ok: true };
 
       case 'PING':
@@ -166,6 +166,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       case 'GET_COOKIES_INFO': {
         const cookies = await getFacebookCookies();
+        const tokenAgeMinutes = cachedTokens._stored_at ? Math.round((Date.now() - cachedTokens._stored_at) / 60000) : null;
         return {
           c_user: cookies.c_user || null,
           xs: cookies.xs ? '✓ present' : null,
@@ -173,6 +174,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           has_session: !!(cookies.c_user && cookies.xs),
           all_cookie_names: Object.keys(cookies),
           has_tokens: !!(cachedTokens.fb_dtsg && cachedTokens.lsd),
+          token_age_minutes: tokenAgeMinutes,
         };
       }
 

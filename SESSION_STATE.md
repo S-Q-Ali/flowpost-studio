@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `16307cc` — Fix TDZ error: move loadPages useCallback before useEffect reference
+## CURRENT HEAD: pending — Phase 1.5, 4.1, 4.2 completed
 
 ## Monetization Eligibility Feature — 4-Phase Plan
 
@@ -11,7 +11,7 @@
 | 1.2 Types | ✅ Done | `types.ts` — page_eligibility Row/Insert defined |
 | 1.3 Save after TOOL_CHECK | ✅ Done | `ToolsPage.tsx:150-162` — upsert with `supabase.auth.getSession()` fallback |
 | 1.4 Load on mount | ✅ Done | `ToolsPage.tsx:84-107` — loads latest rows, maps to PageResult |
-| 1.5 Freshness indicator | ⚠️ Partial | Shows "Last checked X ago" + "Showing results from X ago" banner. Missing: color-coded badges (green <1h, yellow <24h, red >24h), auto-prompt to re-check when stale. |
+| 1.5 Freshness indicator | ✅ Done | Color-coded badges (green <1h, amber <24h, red >24h) + auto-prompt when stale |
 
 ### Phase 2 — Page List Sync (100% ✅)
 | Step | Status | Detail |
@@ -27,11 +27,11 @@
 | 3.2 Type changes | ℹ️ None needed | N/A |
 | 3.3 Eligibility status in WorkflowForm page selector | ❌ Not started | Show inline tool status when picking pages |
 
-### Phase 4 — Automation & Polish (0% ❌)
+### Phase 4 — Automation & Polish (50% 🟡)
 | Step | Status | Detail |
 |------|--------|--------|
-| 4.1 Auto-refresh toggle on ToolsPage | ❌ Not started | `setInterval` TOOL_CHECK every N min while page is active |
-| 4.2 Token age warning in bg.js | ❌ Not started | GET_COOKIES_INFO reports token age for stale-session warnings |
+| 4.1 Auto-refresh toggle on ToolsPage | ✅ Done | `Switch` toggle + `setInterval` 5m, disabled manual button while active, ref-based to avoid TDZ |
+| 4.2 Token age warning in bg.js | ✅ Done | `GET_COOKIES_INFO` reports `token_age_minutes`, ToolsPage shows amber banner if >60m old |
 
 ---
 
@@ -2754,3 +2754,50 @@ StoragePage already handled pagination correctly (load-more button).
 - Regular callers (no stagger) use defaults `itemIndex=0, videosPerRun=1` — zero regression
 
 **Sort dropdown (2026-07-21, commit `a4f948a`)**: Added `<Select>` dropdown in toolbar with 9 sort options (default, name A→Z/Z→A, size small→large/large→small, ready first/pending first, oldest first/newest first). Items list sorted client-side via `useMemo`. Stagger display follows the visual sort order.
+
+---
+
+### 93. Phase 1.5 — Freshness color-coded badges on ToolsPage (2026-07-24)
+
+**Problem**: The "Last checked X ago" text and "Showing results from X ago" banner had no visual indication of how stale the data was — both used the same muted foreground color regardless of age.
+
+**Solution**: Added `differenceInHours` computation and conditional color classes:
+
+| Freshness | Icon/text color | Banner style |
+|-----------|----------------|--------------|
+| < 1 hour | `text-status-published` (green) | `bg-status-published/10` |
+| 1–24 hours | `text-amber-500` | `bg-amber-500/10` |
+| \> 24 hours | `text-destructive` (red) | `bg-destructive/10` with "Results may be stale." text |
+
+The banner title text and `<Clock>` icon both use the same freshness color. The stale prompt encourages re-checking.
+
+**Files**: `src/pages/ToolsPage.tsx` — freshness computation + conditional classes in two display blocks.
+
+**Commit**: pending
+
+### 94. Phase 4.2 — Token age warning in bg.js (2026-07-24)
+
+**Problem**: Users had no way to know if their Facebook session tokens were stale, causing TOOL_CHECK to silently fail or return outdated results.
+
+**Solution**:
+1. **`bg.js`** — `STORE_TOKENS` now stores `_stored_at: Date.now()` alongside tokens. `GET_COOKIES_INFO` response includes `token_age_minutes` computed from the stored timestamp.
+2. **`ToolsPage.tsx`** — `checkExtension()` now fires parallel `PING` + `GET_COOKIES_INFO`. When `token_age_minutes > 60`, a prominent amber warning appears below the extension status: `"Facebook session tokens are Xh old. Re-login to Facebook to refresh."`
+
+**Files**: `flowpost-extension/bg.js:157` — store timestamp; `bg.js:172` — return token age; `ToolsPage.tsx:121-127` — parallel fetch; `ToolsPage.tsx:339-345` — warning banner.
+
+**Commit**: pending
+
+### 95. Phase 4.1 — Auto-refresh toggle on ToolsPage (2026-07-24)
+
+**Problem**: Users had to manually click "Run Tool Check" each time they wanted updated eligibility data. No automated refresh option existed.
+
+**Solution**:
+1. Added `autoRefresh` state + `runToolCheckRef` (useRef) to avoid TDZ issues with the async function reference
+2. Added `useEffect` with `setInterval` (5 min) that fires `runToolCheckRef.current()` when `autoRefresh` is true
+3. Added `<Switch>` toggle labeled "Auto every 5m" next to the Run Tool Check button
+4. Manual button is disabled while auto-refresh is active (no double-triggering)
+5. Interval auto-clears on unmount or when toggle is turned off
+
+**Files**: `src/pages/ToolsPage.tsx` — state, ref sync effect, interval effect, Switch UI.
+
+**Commit**: pending

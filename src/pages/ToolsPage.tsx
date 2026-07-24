@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePageLoading } from "@/hooks/usePageLoading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Wrench, Chrome, CheckCircle2, XCircle, AlertCircle, RefreshCw, Clock, CloudDownload } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, differenceInHours } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 const EXT_SOURCE = 'FLOWPOST_EXT';
@@ -75,6 +76,9 @@ export default function ToolsPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedResults, setSavedResults] = useState<PageResult[] | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [tokenAge, setTokenAge] = useState<number | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const runToolCheckRef = useRef<() => Promise<void>>(async () => {});
 
   const loadPages = useCallback(() => {
     if (!userId) return;
@@ -119,8 +123,14 @@ export default function ToolsPage() {
   }, [userId]);
 
   const checkExtension = useCallback(async () => {
-    const res = await sendExt('PING', {});
-    setExtInstalled(res !== null && (res as { ok?: boolean })?.ok === true);
+    const [ping, cookies] = await Promise.all([
+      sendExt('PING', {}) as Promise<{ ok?: boolean } | null>,
+      sendExt('GET_COOKIES_INFO', {}) as Promise<{ token_age_minutes?: number | null } | null>,
+    ]);
+    setExtInstalled(ping !== null && ping?.ok === true);
+    if (cookies?.token_age_minutes != null) {
+      setTokenAge(cookies.token_age_minutes);
+    }
   }, []);
 
   useEffect(() => { checkExtension(); }, [checkExtension]);
@@ -207,6 +217,16 @@ export default function ToolsPage() {
 
     setChecking(false);
   };
+
+  useEffect(() => {
+    runToolCheckRef.current = runToolCheck;
+  });
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const id = setInterval(() => { runToolCheckRef.current(); }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [autoRefresh]);
 
   const toolLabels: Record<string, string> = {
     branded_content_fb_simple: 'Branded Content',
@@ -313,12 +333,20 @@ export default function ToolsPage() {
               Detecting extension...
             </div>
           ) : extInstalled ? (
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 size={16} className="text-status-published" />
-              <span className="font-medium text-status-published">Connected</span>
-              <span className="text-muted-foreground ml-2">
-                FlowPost Bridge v1.0
-              </span>
+            <div>
+              <div className="flex items-center gap-2 text-sm">
+                <CheckCircle2 size={16} className="text-status-published" />
+                <span className="font-medium text-status-published">Connected</span>
+                <span className="text-muted-foreground ml-2">
+                  FlowPost Bridge v1.0
+                </span>
+              </div>
+              {tokenAge !== null && tokenAge > 60 && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                  <AlertCircle size={12} />
+                  Facebook session tokens are {Math.round(tokenAge / 60)}h old. Re-login to Facebook to refresh.
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -361,36 +389,46 @@ export default function ToolsPage() {
                 {syncing ? <Loader2 size={14} className="animate-spin mr-1" /> : <CloudDownload size={14} className="mr-1" />}
                 {syncing ? 'Syncing...' : 'Sync Pages'}
               </Button>
-              <Button onClick={runToolCheck} disabled={checking || !extInstalled} size="sm">
+              <Button onClick={runToolCheck} disabled={checking || !extInstalled || autoRefresh} size="sm">
                 {checking ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
                 {checking ? 'Checking...' : 'Run Tool Check'}
               </Button>
+              <div className="flex items-center gap-2 ml-2 text-xs text-muted-foreground">
+                <Switch id="auto-refresh" checked={autoRefresh} onCheckedChange={setAutoRefresh} disabled={!extInstalled} />
+                <label htmlFor="auto-refresh">Auto every 5m</label>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {lastChecked && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Clock size={12} />
-          <span>Last checked {formatDistanceToNow(new Date(lastChecked), { addSuffix: true })}</span>
-          {!results && savedResults && (
-            <Button variant="outline" size="sm" onClick={runToolCheck} className="ml-auto h-6 text-xs px-2">
-              <RefreshCw size={10} className="mr-1" /> Refresh
-            </Button>
-          )}
-        </div>
-      )}
-
-      {!results && savedResults && (
-        <div className="bg-muted/50 border border-border rounded-md p-3 text-xs text-muted-foreground flex items-center gap-2">
-          <Clock size={14} />
-          Showing results from {formatDistanceToNow(new Date(lastChecked!), { addSuffix: true })}
-          <Button variant="outline" size="sm" onClick={runToolCheck} className="ml-auto h-6 text-xs px-2">
-            <RefreshCw size={10} className="mr-1" /> Refresh
-          </Button>
-        </div>
-      )}
+      {lastChecked && (() => {
+        const hoursSinceCheck = differenceInHours(new Date(), new Date(lastChecked));
+        const freshnessColor = hoursSinceCheck < 1 ? "text-status-published" : hoursSinceCheck < 24 ? "text-amber-500" : "text-destructive";
+        return (
+          <>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Clock size={12} className={freshnessColor} />
+              <span>Last checked {formatDistanceToNow(new Date(lastChecked), { addSuffix: true })}</span>
+              {!results && savedResults && (
+                <Button variant="outline" size="sm" onClick={runToolCheck} className="ml-auto h-6 text-xs px-2">
+                  <RefreshCw size={10} className="mr-1" /> Refresh
+                </Button>
+              )}
+            </div>
+            {!results && savedResults && (
+              <div className={`border rounded-md p-3 text-xs flex items-center gap-2 ${hoursSinceCheck < 1 ? "bg-status-published/10 border-status-published/30 text-status-published" : hoursSinceCheck < 24 ? "bg-amber-500/10 border-amber-500/30 text-amber-600" : "bg-destructive/10 border-destructive/30 text-destructive"}`}>
+                <Clock size={14} />
+                Showing results from {formatDistanceToNow(new Date(lastChecked!), { addSuffix: true })}
+                {hoursSinceCheck >= 24 && <span className="font-medium">Results may be stale.</span>}
+                <Button variant="outline" size="sm" onClick={runToolCheck} className="ml-auto h-6 text-xs px-2">
+                  <RefreshCw size={10} className="mr-1" /> Re-check
+                </Button>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {error && (
         <Card className="border-destructive/50">
