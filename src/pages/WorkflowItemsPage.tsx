@@ -837,7 +837,7 @@ export default function WorkflowItemsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {sortedItems.map((item) => {
             const sb = statusBadge[item.status] ?? statusBadge.pending;
             const isVideo = !item.mime_type || item.mime_type.startsWith("video/");
@@ -848,7 +848,16 @@ export default function WorkflowItemsPage() {
               ? getItemPublishTime(workflow, readyIndex)
               : null;
             return (
-              <Card key={item.id} className="bg-card border-border">
+              <Card
+                key={item.id}
+                className={`bg-card border-border cursor-pointer select-none transition-shadow ${
+                  selectedIds.has(item.id) ? "ring-2 ring-primary/60 shadow-md" : ""
+                }`}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest("input, textarea, button, [role=button], label")) return;
+                  toggleSelect(item.id);
+                }}
+              >
                 <CardContent className="p-4 space-y-4">
                   {/* Header row */}
                   <div className="flex items-start justify-between gap-3">
