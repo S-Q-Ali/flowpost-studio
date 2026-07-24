@@ -1,6 +1,39 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `1921d4b` — Fix popup: rename showError/hideError to renderError
+## CURRENT HEAD: `0e569d6` — Phase 1 persistence + extension fixes
+
+## Monetization Eligibility Feature — 4-Phase Plan
+
+### Phase 1 — Persistence Layer (95% ✅)
+| Step | Status | Detail |
+|------|--------|--------|
+| 1.1 Migration | ✅ Done | `20260723000001_page_eligibility.sql` — table + RLS + UNIQUE(user_id, page_id) |
+| 1.2 Types | ✅ Done | `types.ts` — page_eligibility Row/Insert defined |
+| 1.3 Save after TOOL_CHECK | ✅ Done | `ToolsPage.tsx:150-162` — upsert with `supabase.auth.getSession()` fallback |
+| 1.4 Load on mount | ✅ Done | `ToolsPage.tsx:84-107` — loads latest rows, maps to PageResult |
+| 1.5 Freshness indicator | ⚠️ Partial | Shows "Last checked X ago" + "Showing results from X ago" banner. Missing: color-coded badges (green <1h, yellow <24h, red >24h), auto-prompt to re-check when stale. |
+
+### Phase 2 — Page List Sync (0% ❌) ← NEXT
+| Step | Status | Detail |
+|------|--------|--------|
+| 2.1 `facebook-auth` sync-pages action | ❌ Not started | New action re-fetches `GET /me/accounts`, upserts into connected_accounts, removes stale pages |
+| 2.2 "Sync Pages" button (ToolsPage) | ❌ Not started | Calls sync-pages action, refreshes page list |
+| 2.3 `bg.js` SYNC_PAGES handler | ❌ Not started | Saves pages to `chrome.storage.local` for popup fallback |
+
+### Phase 3 — Workflow Integration (0% ❌)
+| Step | Status | Detail |
+|------|--------|--------|
+| 3.1 Eligibility badges on workflow cards | ❌ Not started | 🟢/🔴 per-tool badges on WorkflowsPage card |
+| 3.2 Type changes | ℹ️ None needed | N/A |
+| 3.3 Eligibility status in WorkflowForm page selector | ❌ Not started | Show inline tool status when picking pages |
+
+### Phase 4 — Automation & Polish (0% ❌)
+| Step | Status | Detail |
+|------|--------|--------|
+| 4.1 Auto-refresh toggle on ToolsPage | ❌ Not started | `setInterval` TOOL_CHECK every N min while page is active |
+| 4.2 Token age warning in bg.js | ❌ Not started | GET_COOKIES_INFO reports token age for stale-session warnings |
+
+---
 
 ### 62. Phase 1 Persistence — Eligibility Results Saved to Supabase (2026-07-23)
 
