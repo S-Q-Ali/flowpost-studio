@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { usePageLoading } from "@/hooks/usePageLoading";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +45,7 @@ type PostWithDetails = Post & { channelName?: string | null };
 
 export default function QueuePage() {
   const { userId } = useAuth();
+  const { loading, done } = usePageLoading();
   const [posts, setPosts] = useState<PostWithDetails[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -90,7 +93,7 @@ export default function QueuePage() {
   };
 
   useEffect(() => {
-    fetchPosts();
+    fetchPosts().finally(done);
   }, [filter]);
 
   const openEdit = (post: PostWithDetails) => {
@@ -198,6 +201,39 @@ export default function QueuePage() {
     if (!uploadedAt) return true;
     return Date.now() - new Date(uploadedAt).getTime() > 24 * 60 * 60 * 1000;
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <Skeleton className="h-8 w-36" />
+            <Skeleton className="h-4 w-56" />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-8 w-20" />
+          ))}
+        </div>
+        <Card>
+          <CardContent className="space-y-3 p-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center gap-4 py-3 border-b border-border last:border-0">
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-8 w-8 rounded-full" />
+                <div className="flex-1 space-y-1">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

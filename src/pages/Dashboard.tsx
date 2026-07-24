@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { usePageLoading } from "@/hooks/usePageLoading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Video, Upload, Calendar, Link2, Plus } from "lucide-react";
@@ -11,35 +13,79 @@ import type { Post, Platform, PostStatus } from "@/lib/types";
 
 export default function Dashboard() {
   const { userId } = useAuth();
+  const { loading, done } = usePageLoading();
   const [stats, setStats] = useState({ videos: 0, scheduled: 0, published: 0, accounts: 0 });
   const [recentPosts, setRecentPosts] = useState<Post[]>([]);
 
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    const fetchData = async () => {
-      const [{ count: videos }, { count: scheduled }, { count: published }, { count: accounts }, { data: posts }] =
-        await Promise.all([
-          supabase.from("videos").select("*", { count: "exact", head: true }).eq("user_id", userId),
-          supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("status", "scheduled"),
-          supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("status", "published"),
-          supabase.from("connected_accounts").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("is_connected", true),
-          supabase.from("posts").select("*, videos(*)").eq("user_id", userId).order("created_at", { ascending: false }).limit(5),
-        ]);
-      if (cancelled) return;
-      setStats({
-        videos: videos ?? 0,
-        scheduled: scheduled ?? 0,
-        published: published ?? 0,
-        accounts: accounts ?? 0,
-      });
-      if (!cancelled) {
-        setRecentPosts((posts ?? []) as Post[]);
+    (async () => {
+      try {
+        const [{ count: videos }, { count: scheduled }, { count: published }, { count: accounts }, { data: posts }] =
+          await Promise.all([
+            supabase.from("videos").select("*", { count: "exact", head: true }).eq("user_id", userId),
+            supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("status", "scheduled"),
+            supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("status", "published"),
+            supabase.from("connected_accounts").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("is_connected", true),
+            supabase.from("posts").select("*, videos(*)").eq("user_id", userId).order("created_at", { ascending: false }).limit(5),
+          ]);
+        if (!cancelled) {
+          setStats({
+            videos: videos ?? 0,
+            scheduled: scheduled ?? 0,
+            published: published ?? 0,
+            accounts: accounts ?? 0,
+          });
+          setRecentPosts((posts ?? []) as Post[]);
+        }
+      } finally {
+        if (!cancelled) done();
       }
-    };
-    fetchData();
+    })();
     return () => { cancelled = true; };
   }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1.5">
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Skeleton className="h-10 w-48" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="bg-card border-border shadow-card">
+              <CardContent className="pt-6 space-y-3">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-8 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card className="bg-card border-border shadow-card">
+          <CardHeader><Skeleton className="h-5 w-36" /></CardHeader>
+          <CardContent className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-5 rounded-full" />
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const statCards = [
     { label: "Videos Uploaded", value: stats.videos, icon: Video, color: "text-primary" },

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePageLoading } from "@/hooks/usePageLoading";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -13,6 +15,7 @@ import { toast } from "sonner";
 
 export default function CalendarPage() {
   const { userId } = useAuth();
+  const { loading, done } = usePageLoading();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -34,7 +37,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchPosts().then(() => { if (cancelled) setPosts([]); });
+    fetchPosts().finally(() => { if (!cancelled) done(); });
     return () => { cancelled = true; };
   }, [currentMonth]);
 
@@ -54,6 +57,40 @@ export default function CalendarPage() {
     if (status === "processing") return "bg-status-processing";
     return "bg-status-scheduled";
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <Skeleton className="h-8 w-52" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-9" />
+            <Skeleton className="h-9 w-9" />
+            <Skeleton className="h-9 w-9" />
+          </div>
+        </div>
+        <Card className="bg-card border-border shadow-card overflow-hidden">
+          <CardContent className="p-0">
+            <div className="grid grid-cols-7">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 mx-1 my-2" />
+              ))}
+              {Array.from({ length: 35 }).map((_, i) => (
+                <div key={i} className="min-h-[100px] border-b border-r border-border p-1.5">
+                  <Skeleton className="h-4 w-6 mb-1" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-1/2 mt-1" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
