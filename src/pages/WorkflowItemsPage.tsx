@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { usePageLoading } from "@/hooks/usePageLoading";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,7 +78,7 @@ export default function WorkflowItemsPage() {
 
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [items, setItems] = useState<WorkflowItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { loading, done } = usePageLoading();
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -140,7 +142,6 @@ export default function WorkflowItemsPage() {
   useEffect(() => {
     if (!workflowId || !userId) return;
     let cancelled = false;
-    const forceResolve = setTimeout(() => { cancelled = true; setLoading(false); }, 15000);
 
     (async () => {
       try {
@@ -191,11 +192,11 @@ export default function WorkflowItemsPage() {
       } catch (err) {
         console.error("Failed to load workflow items", err);
       } finally {
-        if (!cancelled) { clearTimeout(forceResolve); setLoading(false); }
+        if (!cancelled) done();
       }
     })();
 
-    return () => { cancelled = true; clearTimeout(forceResolve); };
+    return () => { cancelled = true; };
   }, [workflowId, userId]);
 
   // Realtime subscription for post status updates
@@ -697,36 +698,36 @@ export default function WorkflowItemsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6 animate-pulse">
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-24 bg-muted rounded-md" />
-            <div className="h-7 w-48 bg-muted rounded-md" />
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-7 w-48" />
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-8 w-32 bg-muted rounded-md" />
-            <div className="h-8 w-24 bg-muted rounded-md" />
+            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-8 w-24" />
           </div>
         </div>
-        <div className="h-4 w-48 bg-muted rounded" />
+        <Skeleton className="h-4 w-48" />
         {[1, 2, 3].map((i) => (
           <div key={i} className="border border-border rounded-lg p-4 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="h-4 w-4 bg-muted rounded" />
-              <div className="h-5 w-5 bg-muted rounded" />
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-5 w-5" />
               <div className="space-y-1.5">
-                <div className="h-4 w-56 bg-muted rounded" />
-                <div className="h-3 w-20 bg-muted rounded" />
+                <Skeleton className="h-4 w-56" />
+                <Skeleton className="h-3 w-20" />
               </div>
-              <div className="ml-auto h-5 w-14 bg-muted rounded-full" />
+              <Skeleton className="ml-auto h-5 w-14 rounded-full" />
             </div>
             <div className="border border-border rounded-md p-3 space-y-2">
-              <div className="h-3 w-16 bg-muted rounded" />
-              <div className="h-8 w-full bg-muted rounded" />
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-8 w-full" />
             </div>
             <div className="border border-border rounded-md p-3 space-y-2">
-              <div className="h-3 w-20 bg-muted rounded" />
-              <div className="h-8 w-full bg-muted rounded" />
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-8 w-full" />
             </div>
           </div>
         ))}

@@ -25,6 +25,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, BarChart3, Instagram, Facebook, AlertCircle, RefreshCw } from "lucide-react";
 
 const VITE_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -222,25 +223,25 @@ export default function InsightsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6 animate-pulse">
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-6 w-6 bg-muted rounded" />
-            <div className="h-8 w-28 bg-muted rounded" />
+            <Skeleton className="h-6 w-6" />
+            <Skeleton className="h-8 w-28" />
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-10 w-40 bg-muted rounded-md" />
-            <div className="h-10 w-64 bg-muted rounded-md" />
-            <div className="h-10 w-28 bg-muted rounded-md" />
+            <Skeleton className="h-10 w-40" />
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-10 w-28" />
           </div>
         </div>
         <div className="grid grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardContent className="pt-6 space-y-2">
-                <div className="h-3 w-20 bg-muted rounded" />
-                <div className="h-8 w-24 bg-muted rounded" />
-                <div className="h-3 w-32 bg-muted rounded" />
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-3 w-32" />
               </CardContent>
             </Card>
           ))}
@@ -248,17 +249,17 @@ export default function InsightsPage() {
         <div className="grid grid-cols-3 gap-4">
           <div className="col-span-2">
             <Card>
-              <CardHeader><div className="h-4 w-48 bg-muted rounded" /></CardHeader>
-              <CardContent><div className="h-[280px] bg-muted rounded" /></CardContent>
+              <CardHeader><Skeleton className="h-4 w-48" /></CardHeader>
+              <CardContent><Skeleton className="h-[280px]" /></CardContent>
             </Card>
           </div>
           <Card>
-            <CardHeader><div className="h-4 w-24 bg-muted rounded" /></CardHeader>
+            <CardHeader><Skeleton className="h-4 w-24" /></CardHeader>
             <CardContent className="space-y-4">
               {[1, 2, 3, 4].map((j) => (
                 <div key={j} className="space-y-1.5">
-                  <div className="h-3 w-24 bg-muted rounded" />
-                  <div className="h-4 w-32 bg-muted rounded" />
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-4 w-32" />
                 </div>
               ))}
             </CardContent>

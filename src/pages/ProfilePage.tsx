@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePageLoading } from "@/hooks/usePageLoading";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BadgeCheck, Loader2, Save, KeyRound, ShieldQuestion } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,7 +24,7 @@ interface UserProfile {
 export default function ProfilePage() {
   const { userId, isAdmin } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { loading, done } = usePageLoading();
 
   const [name, setName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -53,9 +55,9 @@ export default function ProfilePage() {
           setName(data.name || "");
           setAvatarUrl(data.avatar_url || "");
         }
-        setLoading(false);
+        if (!cancelled) done();
       })
-      .catch(() => { if (!cancelled) setLoading(false); });
+      .catch(() => { if (!cancelled) done(); });
     return () => { cancelled = true; };
   }, [userId]);
 
@@ -137,42 +139,42 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="space-y-8 animate-pulse max-w-2xl">
+      <div className="space-y-8 max-w-2xl">
         <div className="space-y-1.5">
-          <div className="h-8 w-56 bg-muted rounded" />
-          <div className="h-4 w-72 bg-muted rounded" />
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-4 w-72" />
         </div>
         <div className="flex gap-1">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-8 w-32 bg-muted rounded-md" />
+            <Skeleton key={i} className="h-8 w-32" />
           ))}
         </div>
         <Card>
           <CardHeader className="space-y-1.5">
-            <div className="h-5 w-44 bg-muted rounded" />
-            <div className="h-3.5 w-52 bg-muted rounded" />
+            <Skeleton className="h-5 w-44" />
+            <Skeleton className="h-3.5 w-52" />
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-muted" />
+              <Skeleton className="h-16 w-16 rounded-full" />
               <div className="space-y-1.5">
-                <div className="h-4 w-32 bg-muted rounded" />
-                <div className="h-3.5 w-48 bg-muted rounded" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3.5 w-48" />
               </div>
             </div>
             <div className="space-y-2">
-              <div className="h-3.5 w-24 bg-muted rounded" />
-              <div className="h-10 w-full bg-muted rounded-md" />
+              <Skeleton className="h-3.5 w-24" />
+              <Skeleton className="h-10 w-full" />
             </div>
             <div className="space-y-2">
-              <div className="h-3.5 w-20 bg-muted rounded" />
-              <div className="h-10 w-full bg-muted rounded-md" />
+              <Skeleton className="h-3.5 w-20" />
+              <Skeleton className="h-10 w-full" />
             </div>
             <div className="space-y-2">
-              <div className="h-3.5 w-12 bg-muted rounded" />
-              <div className="h-10 w-full bg-muted rounded-md" />
+              <Skeleton className="h-3.5 w-12" />
+              <Skeleton className="h-10 w-full" />
             </div>
-            <div className="h-10 w-36 bg-muted rounded-md" />
+            <Skeleton className="h-10 w-36" />
           </CardContent>
         </Card>
       </div>

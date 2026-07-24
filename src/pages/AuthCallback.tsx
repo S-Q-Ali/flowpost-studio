@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -17,11 +18,14 @@ export default function AuthCallback() {
 
   if (isVerifying) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 size={32} className="animate-spin text-primary" />
-          <p className="text-muted-foreground">Completing sign in...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="w-80">
+          <CardContent className="flex flex-col items-center gap-4 py-12">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-10 w-40 rounded-md" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
