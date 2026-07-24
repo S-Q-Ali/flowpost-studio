@@ -402,6 +402,61 @@ export default function WorkflowItemsPage() {
     toast.success(`${ids.length} items marked as ready`);
   };
 
+  const markCaptionedReady = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    const requiredFields = new Set<string>();
+    for (const p of workflow?.platforms ?? []) {
+      for (const f of platformCaptionConfig[p] ?? []) {
+        requiredFields.add(f.field);
+      }
+    }
+
+    if (requiredFields.size === 0) {
+      toast.error("No platforms configured on this workflow");
+      return;
+    }
+
+    const eligible: string[] = [];
+    let skipped = 0;
+
+    for (const id of ids) {
+      const item = items.find((i) => i.id === id);
+      if (!item) continue;
+      if (item.status === "ready" || item.status === "posted") continue;
+
+      const allFilled = Array.from(requiredFields).every((field) => {
+        const val = getField(item, field as keyof WorkflowItem);
+        return val && val.trim().length > 0;
+      });
+
+      if (allFilled) eligible.push(id);
+      else skipped++;
+    }
+
+    if (eligible.length === 0) {
+      toast.error(skipped > 0 ? `${skipped} items skipped — missing captions` : "Nothing to mark");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("workflow_items")
+      .update({ status: "ready" })
+      .in("id", eligible);
+
+    if (error) {
+      toast.error("Failed to mark items as ready");
+      return;
+    }
+
+    setItems((prev) =>
+      prev.map((i) => (eligible.includes(i.id) ? { ...i, status: "ready" as const } : i))
+    );
+
+    toast.success(`${eligible.length} items marked as ready${skipped > 0 ? ` (${skipped} skipped — missing captions)` : ""}`);
+  };
+
   const bulkDeleteItems = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
@@ -1037,6 +1092,10 @@ export default function WorkflowItemsPage() {
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={markSelectedReady}>
                 <CheckCircle2 className="h-3 w-3" />
                 Mark Ready
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={markCaptionedReady}>
+                <CheckCircle2 className="h-3 w-3" />
+                Mark as Ready with Captions
               </Button>
               <Popover open={bulkPlatformsOpen} onOpenChange={setBulkPlatformsOpen}>
                 <PopoverTrigger asChild>
