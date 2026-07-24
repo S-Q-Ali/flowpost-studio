@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { usePageLoading } from "@/hooks/usePageLoading";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, RefreshCw } from "lucide-react";
@@ -15,6 +17,7 @@ import type { ConnectedAccount, Platform } from "@/lib/types";
 
 export default function AccountsPage() {
   const { userId } = useAuth();
+  const { loading, done } = usePageLoading();
   const [isYouTubeConnecting, setIsYouTubeConnecting] = useState(false);
   const [isFacebookConnecting, setIsFacebookConnecting] = useState(false);
   const [reconnectingFacebookId, setReconnectingFacebookId] = useState<string | null>(null);
@@ -171,7 +174,9 @@ export default function AccountsPage() {
   };
 
   useEffect(() => {
-    refreshAll();
+    let cancelled = false;
+    refreshAll().finally(() => { if (!cancelled) done(); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -755,6 +760,31 @@ export default function AccountsPage() {
     toast.success("LinkedIn disconnected");
     fetchLinkedIn();
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <Skeleton className="h-8 w-52" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        {["Facebook & Instagram", "YouTube", "TikTok", "LinkedIn", "Google Drive", "Mega"].map((section) => (
+          <Card key={section}>
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-5" />
+                  <Skeleton className="h-5 w-36" />
+                </div>
+                <Skeleton className="h-8 w-28" />
+              </div>
+              <Skeleton className="h-12 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

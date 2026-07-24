@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePageLoading } from "@/hooks/usePageLoading";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, HardDrive, FolderOpen, File, ChevronRight, Upload, Plus, Check, Target, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -72,6 +74,7 @@ function QuotaBar({ used, total }: { used: number; total: number | null }) {
 
 export default function StoragePage() {
   const { userId } = useAuth();
+  const { loading, done } = usePageLoading();
 
   const [driveAccounts, setDriveAccounts] = useState<ConnectedAccount[]>([]);
   const [selectedDriveId, setSelectedDriveId] = useState<string | null>(null);
@@ -110,19 +113,26 @@ export default function StoragePage() {
 
   useEffect(() => {
     if (!userId) return;
+    let cancelled = false;
     (async () => {
-      const [{ data: da }, { data: ma }] = await Promise.all([
-        supabase.from("connected_accounts").select("*").eq("user_id", userId).eq("platform", "google_drive").eq("is_connected", true),
-        supabase.from("connected_accounts").select("*").eq("user_id", userId).eq("platform", "mega").eq("is_connected", true),
-      ]);
-      const drives = (da ?? []) as ConnectedAccount[];
-      const megas = (ma ?? []) as ConnectedAccount[];
-      setDriveAccounts(drives);
-      setMegaAccounts(megas);
-      if (drives.length > 0 && !selectedDriveId) {
-        setSelectedDriveId(drives[0].id!);
+      try {
+        const [{ data: da }, { data: ma }] = await Promise.all([
+          supabase.from("connected_accounts").select("*").eq("user_id", userId).eq("platform", "google_drive").eq("is_connected", true),
+          supabase.from("connected_accounts").select("*").eq("user_id", userId).eq("platform", "mega").eq("is_connected", true),
+        ]);
+        if (cancelled) return;
+        const drives = (da ?? []) as ConnectedAccount[];
+        const megas = (ma ?? []) as ConnectedAccount[];
+        setDriveAccounts(drives);
+        setMegaAccounts(megas);
+        if (drives.length > 0 && !selectedDriveId) {
+          setSelectedDriveId(drives[0].id!);
+        }
+      } finally {
+        if (!cancelled) done();
       }
     })();
+    return () => { cancelled = true; };
   }, [userId]);
 
   useEffect(() => {
@@ -521,6 +531,38 @@ export default function StoragePage() {
 
   const parentId = driveBreadcrumbs.length > 0 ? driveBreadcrumbs[driveBreadcrumbs.length - 1].id : "root";
   const selectedFiles = driveFiles.filter((f) => selectedFileIds.has(f.id));
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-32" />
+        </div>
+        <div className="flex gap-4 mb-4">
+          <Skeleton className="h-10 w-32" />
+          <Skeleton className="h-10 w-24" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[1, 2].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-5" />
+                  <Skeleton className="h-5 w-36" />
+                </div>
+                <Skeleton className="h-12 w-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
