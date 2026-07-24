@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `0e569d6` — Phase 1 persistence + extension fixes
+## CURRENT HEAD: `e438eb8` — Mark as Ready with Captions bulk action
 
 ## Monetization Eligibility Feature — 4-Phase Plan
 
@@ -13,12 +13,12 @@
 | 1.4 Load on mount | ✅ Done | `ToolsPage.tsx:84-107` — loads latest rows, maps to PageResult |
 | 1.5 Freshness indicator | ⚠️ Partial | Shows "Last checked X ago" + "Showing results from X ago" banner. Missing: color-coded badges (green <1h, yellow <24h, red >24h), auto-prompt to re-check when stale. |
 
-### Phase 2 — Page List Sync (0% ❌) ← NEXT
+### Phase 2 — Page List Sync (100% ✅)
 | Step | Status | Detail |
 |------|--------|--------|
-| 2.1 `facebook-auth` sync-pages action | ❌ Not started | New action re-fetches `GET /me/accounts`, upserts into connected_accounts, removes stale pages |
-| 2.2 "Sync Pages" button (ToolsPage) | ❌ Not started | Calls sync-pages action, refreshes page list |
-| 2.3 `bg.js` SYNC_PAGES handler | ❌ Not started | Saves pages to `chrome.storage.local` for popup fallback |
+| 2.1 `facebook-auth` sync-pages action | ✅ Done | `facebook-auth/index.ts` — `action=sync-pages` handler: upserts pages, syncs IG, removes stale |
+| 2.2 "Sync Pages" button (ToolsPage) | ✅ Done | `ToolsPage.tsx` — sync button + `syncPages()` function + `useToast` |
+| 2.3 `bg.js` SYNC_PAGES handler | ✅ Done | `bg.js` — saves pages to `fp_synced_pages` in `chrome.storage.local`; `popup.js` fallback |
 
 ### Phase 3 — Workflow Integration (0% ❌)
 | Step | Status | Detail |
@@ -34,6 +34,23 @@
 | 4.2 Token age warning in bg.js | ❌ Not started | GET_COOKIES_INFO reports token age for stale-session warnings |
 
 ---
+
+### 64. Mark All Pending + Mark as Ready with Captions — Bulk Actions (2026-07-24)
+
+**Problem**: User had 18 workflow items and needed to reset all to "pending" at once — only individual "Unmark" button existed. Also no way to bulk-mark only items that already have captions filled in.
+
+**Added**:
+1. **"Mark All Pending"** button in top action bar — batch-updates ALL items to `status: "pending"` with confirmation dialog (`X items marked as pending`)
+2. **"Mark as Ready with Captions"** button in bottom bulk bar — checks each selected item's required caption fields (deduplicated across `workflow.platforms`), only marks those with all fields non-empty. Respects unsaved edits via `getField()`. Shows `"X items marked as ready (Y skipped — missing captions)"`
+
+**Edge cases handled**:
+- FB+IG → checks `fb_ig_caption` once
+- YouTube → checks both `yt_video_title` + `yt_video_description`
+- Zero platforms → `"No platforms configured"`
+- Already ready/posted items → skipped silently
+- Nothing eligible → `"Nothing to mark"`
+
+**Files changed**: `src/pages/WorkflowItemsPage.tsx` — `markAllPending()`, `markCaptionedReady()`, buttons, confirmation dialog
 
 ### 62. Phase 1 Persistence — Eligibility Results Saved to Supabase (2026-07-23)
 
