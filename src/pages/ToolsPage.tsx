@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Wrench, Chrome, CheckCircle2, XCircle, AlertCircle, RefreshCw, Clock } from "lucide-react";
+import { Loader2, Wrench, Chrome, CheckCircle2, XCircle, AlertCircle, RefreshCw, Clock, CloudDownload } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 const EXT_SOURCE = 'FLOWPOST_EXT';
 const DASH_SOURCE = 'FLOWPOST_DASH';
@@ -62,24 +63,17 @@ function sendExt(type: string, payload: unknown): Promise<unknown> {
 
 export default function ToolsPage() {
   const { userId } = useAuth();
+  const { toast } = useToast();
   const [extInstalled, setExtInstalled] = useState<boolean | null>(null);
   const [pages, setPages] = useState<PageAccount[]>([]);
   const [checking, setChecking] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [results, setResults] = useState<PageResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedResults, setSavedResults] = useState<PageResult[] | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!userId) return;
-    supabase
-      .from("connected_accounts")
-      .select("account_id, account_name")
-      .eq("user_id", userId)
-      .eq("platform", "facebook")
-      .eq("is_connected", true)
-      .then(({ data }) => setPages((data || []) as PageAccount[]));
-  }, [userId]);
+  useEffect(() => { loadPages(); }, [loadPages]);
 
   useEffect(() => {
     if (!userId) return;
@@ -131,6 +125,46 @@ export default function ToolsPage() {
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, [userId]);
+
+  const loadPages = useCallback(() => {
+    if (!userId) return;
+    supabase
+      .from("connected_accounts")
+      .select("account_id, account_name")
+      .eq("user_id", userId)
+      .eq("platform", "facebook")
+      .eq("is_connected", true)
+      .then(({ data }) => setPages((data || []) as PageAccount[]));
+  }, [userId]);
+
+  const syncPages = async () => {
+    if (!userId) return;
+    setSyncing(true);
+    try {
+      // Get current pages from the extension
+      const extPages = await sendExt('GET_PAGES', {}) as { pages?: { id: string; name: string }[]; error?: string } | null;
+      if (!extPages || extPages.error || !extPages.pages?.length) {
+        toast({ title: "Sync failed", description: "Could not fetch pages from the extension. Make sure you have a Facebook tab open.", variant: "destructive" });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke<{ success: boolean; pages: PageAccount[] }>(
+        "facebook-auth?action=sync-pages",
+        { body: { userId, pages: extPages.pages.map(p => ({ account_id: p.id, account_name: p.name })) } }
+      );
+
+      if (error || !data?.success) {
+        throw new Error(error?.message || "Sync failed");
+      }
+
+      toast({ title: "Pages synced", description: `${data.pages.length} Facebook pages synced from Facebook.` });
+      loadPages();
+    } catch (err) {
+      toast({ title: "Sync failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const runToolCheck = async () => {
     if (!pages.length) return;
@@ -266,10 +300,16 @@ export default function ToolsPage() {
                 </div>
               ))}
             </div>
-            <Button onClick={runToolCheck} disabled={checking || !extInstalled} className="mt-4">
-              {checking ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
-              {checking ? 'Checking...' : 'Run Tool Check'}
-            </Button>
+            <div className="flex items-center gap-2 mt-4">
+              <Button onClick={syncPages} disabled={syncing || !extInstalled} variant="outline" size="sm">
+                {syncing ? <Loader2 size={14} className="animate-spin mr-1" /> : <CloudDownload size={14} className="mr-1" />}
+                {syncing ? 'Syncing...' : 'Sync Pages'}
+              </Button>
+              <Button onClick={runToolCheck} disabled={checking || !extInstalled} size="sm">
+                {checking ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
+                {checking ? 'Checking...' : 'Run Tool Check'}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}

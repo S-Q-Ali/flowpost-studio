@@ -227,8 +227,113 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (action === "refresh") {
-      return json({ success: true });
+    if (action === "sync-pages") {
+      const body = await req.json();
+      const { userId, pages, accessToken } = body;
+      if (!userId) return json({ error: "Missing userId" }, 400);
+
+      // Try Graph API if a user-level access token was provided
+      let fetchedPages: Array<{ id: string; name?: string; access_token?: string; category?: string; picture?: { data?: { url?: string } } }> | null = null;
+      if (accessToken) {
+        try {
+          fetchedPages = await fetchFacebookPages(accessToken);
+        } catch (err) {
+          console.warn("[sync-pages] Graph API fetch failed, falling back to provided pages:", err);
+        }
+      }
+
+      // Fall back to pages provided by the frontend (from extension)
+      const resolvedPages = fetchedPages ?? (pages ?? []);
+      if (!resolvedPages.length) return json({ error: "No pages to sync" }, 400);
+
+      // Get existing Facebook page IDs for this user
+      const { data: existing } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("account_id")
+        .eq("user_id", userId)
+        .eq("platform", "facebook")
+        .eq("is_connected", true);
+
+      const existingIds = new Set((existing ?? []).map(r => r.account_id));
+      const incomingIds = new Set<string>();
+
+      for (const page of resolvedPages) {
+        const pageId = String(page.id || page.account_id);
+        incomingIds.add(pageId);
+        const pictureUrl = page.picture?.data?.url ?? null;
+        const pageAccessToken = page.access_token || null;
+
+        const { error: upsertErr } = await supabaseAdmin
+          .from("connected_accounts")
+          .upsert({
+            user_id: userId,
+            platform: "facebook",
+            account_name: page.name ?? page.account_name ?? "Facebook Page",
+            account_id: pageId,
+            ...(pageAccessToken ? { access_token: await encrypt(pageAccessToken) } : {}),
+            is_connected: true,
+            connected_at: new Date().toISOString(),
+            metadata: page.category ? { category: page.category, picture_url: pictureUrl } : { picture_url: pictureUrl },
+          }, { onConflict: "user_id,platform,account_id" });
+
+        if (upsertErr) {
+          console.error(`[sync-pages] Failed to upsert page ${pageId}:`, upsertErr);
+          return json({ error: `Failed to sync page ${pageId}: ${upsertErr.message}` }, 500);
+        }
+
+        // Sync linked Instagram account if we have a fresh page access token
+        if (pageAccessToken) {
+          try {
+            const igResp = await fetch(
+              `https://graph.facebook.com/v23.0/${pageId}?fields=instagram_business_account&access_token=${pageAccessToken}`
+            );
+            const igData = await igResp.json();
+            if (igData.instagram_business_account) {
+              const igAcct = await fetch(
+                `https://graph.facebook.com/v23.0/${igData.instagram_business_account.id}?fields=id,name,username,profile_picture_url&access_token=${pageAccessToken}`
+              ).then(r => r.json());
+              if (igAcct.id) {
+                await supabaseAdmin
+                  .from("connected_accounts")
+                  .upsert({
+                    user_id: userId,
+                    platform: "instagram",
+                    account_name: igAcct.username || igAcct.name || "Instagram",
+                    account_id: igAcct.id,
+                    access_token: await encrypt(pageAccessToken),
+                    is_connected: true,
+                    connected_at: new Date().toISOString(),
+                    metadata: { page_id: pageId, page_name: page.name, profile_picture: igAcct.profile_picture_url },
+                  }, { onConflict: "user_id,platform,account_id" });
+              }
+            }
+          } catch (igErr) {
+            console.warn(`[sync-pages] Failed to sync Instagram for page ${pageId}:`, igErr);
+          }
+        }
+      }
+
+      // Disconnect pages no longer managed
+      for (const existingId of existingIds) {
+        if (!incomingIds.has(existingId)) {
+          await supabaseAdmin
+            .from("connected_accounts")
+            .update({ is_connected: false })
+            .eq("user_id", userId)
+            .eq("platform", "facebook")
+            .eq("account_id", existingId);
+        }
+      }
+
+      // Return updated list
+      const { data: updated } = await supabaseAdmin
+        .from("connected_accounts")
+        .select("account_id, account_name, metadata, is_connected")
+        .eq("user_id", userId)
+        .eq("platform", "facebook")
+        .order("account_name");
+
+      return json({ success: true, pages: updated ?? [] });
     }
 
     return json({ error: "Invalid action" }, 400);

@@ -176,6 +176,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         };
       }
 
+      case 'SYNC_PAGES': {
+        const { pages } = msg.payload || {};
+        if (!pages || !pages.length) return { error: 'no_pages' };
+        await chrome.storage.local.set({ fp_synced_pages: pages });
+        return { ok: true, count: pages.length };
+      }
+
       case 'GET_PAGES': {
         const tabs = await chrome.tabs.query({ url: ['*://*.facebook.com/*', '*://*.business.facebook.com/*'] });
         const sorted = tabs

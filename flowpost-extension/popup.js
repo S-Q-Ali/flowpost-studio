@@ -348,8 +348,13 @@ async function fetchPages() {
 
 async function getStoredPages() {
   try {
-    const result = await chrome.storage.local.get(['fp_pages', 'fp_page_ids']);
-    if (result.fp_pages) return result.fp_pages;
+    const result = await chrome.storage.local.get(['fp_pages', 'fp_page_ids', 'fp_synced_pages']);
+    if (result.fp_pages && result.fp_pages.length) return result.fp_pages;
+    if (result.fp_synced_pages && result.fp_synced_pages.length) {
+      const mapped = result.fp_synced_pages.map(p => ({ id: p.id, name: p.name || '' }));
+      await chrome.storage.local.set({ fp_pages: mapped, fp_synced_pages: undefined });
+      return mapped;
+    }
     if (result.fp_page_ids) {
       const migrated = result.fp_page_ids.map(id => ({ id, name: '' }));
       await chrome.storage.local.set({ fp_pages: migrated, fp_page_ids: undefined });
