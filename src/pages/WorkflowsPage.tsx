@@ -108,6 +108,7 @@ export default function WorkflowsPage() {
   const [instagramAccounts, setInstagramAccounts] = useState<ConnectedAccount[]>([]);
   const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
   const [linkedinAccounts, setLinkedinAccounts] = useState<ConnectedAccount[]>([]);
+  const [pageEligibility, setPageEligibility] = useState<Record<string, string>>({});
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("create");
@@ -159,6 +160,13 @@ export default function WorkflowsPage() {
       return;
     }
     setWorkflows((data as WorkflowRow[]) ?? []);
+    const { data: eligData } = await supabase
+      .from("page_eligibility")
+      .select("page_id, eligibility_bucket")
+      .eq("user_id", userId);
+    const map: Record<string, string> = {};
+    (eligData ?? []).forEach((r) => { if (r.page_id) map[r.page_id] = r.eligibility_bucket ?? "unknown"; });
+    setPageEligibility(map);
   };
 
   const loadAccounts = async () => {
@@ -819,6 +827,18 @@ export default function WorkflowsPage() {
                             <span className="text-foreground">
                               {acc.account_name ?? "Facebook Page"} ({acc.account_id})
                             </span>
+                            {acc.account_id && pageEligibility[acc.account_id] && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto ${
+                                pageEligibility[acc.account_id] === "eligible"
+                                  ? "bg-status-published/10 text-status-published"
+                                  : "bg-destructive/10 text-destructive"
+                              }`}>
+                                {pageEligibility[acc.account_id] === "eligible" ? "Eligible" : "Ineligible"}
+                              </span>
+                            )}
+                            {acc.account_id && !pageEligibility[acc.account_id] && (
+                              <span className="text-[10px] text-muted-foreground ml-auto">Not checked</span>
+                            )}
                           </label>
                         ))
                       )}
@@ -1421,6 +1441,48 @@ export default function WorkflowsPage() {
     );
   };
 
+  const renderEligibilityBadge = (wf: WorkflowRow) => {
+    const fbPageIds = wf.facebook_page_ids ?? [];
+    if (!fbPageIds.length) return null;
+    let eligible = 0, notEligible = 0, unchecked = 0;
+    fbPageIds.forEach((pid) => {
+      const bucket = pageEligibility[pid];
+      if (!bucket) unchecked++;
+      else if (bucket === "eligible") eligible++;
+      else notEligible++;
+    });
+    if (unchecked === fbPageIds.length) return null;
+    if (notEligible === 0 && unchecked === 0) {
+      return (
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-status-published/10 text-status-published border border-status-published/30">
+          {eligible > 1 ? `${eligible} eligible` : "Monetized"}
+        </span>
+      );
+    }
+    if (eligible > 0 && notEligible > 0) {
+      return (
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30">
+          {notEligible} ineligible
+        </span>
+      );
+    }
+    if (notEligible > 0) {
+      return (
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30">
+          {notEligible > 1 ? `${notEligible} ineligible` : "Not eligible"}
+        </span>
+      );
+    }
+    if (unchecked > 0) {
+      return (
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/30">
+          {unchecked} unchecked
+        </span>
+      );
+    }
+    return null;
+  };
+
   const renderWorkflowTriggerText = (wf: WorkflowRow) => {
     const mode = wf.scheduling_mode ?? "once_daily";
     
@@ -1605,6 +1667,7 @@ export default function WorkflowsPage() {
                         Paused
                       </span>
                     )}
+                    {renderEligibilityBadge(wf)}
                   </CardTitle>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Clock3 className="h-3 w-3" />

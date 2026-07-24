@@ -1,8 +1,8 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: pending — Phase 1.5, 4.1, 4.2 completed
+## CURRENT HEAD: pending — Phase 3 completed (all 4 phases 100%)
 
-## Monetization Eligibility Feature — 4-Phase Plan
+## Monetization Eligibility Feature — 4-Phase Plan (100% ✅)
 
 ### Phase 1 — Persistence Layer (95% ✅)
 | Step | Status | Detail |
@@ -20,14 +20,14 @@
 | 2.2 "Sync Pages" button (ToolsPage) | ✅ Done | `ToolsPage.tsx` — sync button + `syncPages()` function + `useToast` |
 | 2.3 `bg.js` SYNC_PAGES handler | ✅ Done | `bg.js` — saves pages to `fp_synced_pages` in `chrome.storage.local`; `popup.js` fallback |
 
-### Phase 3 — Workflow Integration (0% ❌)
+### Phase 3 — Workflow Integration (100% ✅)
 | Step | Status | Detail |
 |------|--------|--------|
-| 3.1 Eligibility badges on workflow cards | ❌ Not started | 🟢/🔴 per-tool badges on WorkflowsPage card |
+| 3.1 Eligibility badges on workflow cards | ✅ Done | `renderEligibilityBadge()` — green "Monetized" / red "X ineligible" / amber "X unchecked" badges in CardTitle next to Active/Paused |
 | 3.2 Type changes | ℹ️ None needed | N/A |
-| 3.3 Eligibility status in WorkflowForm page selector | ❌ Not started | Show inline tool status when picking pages |
+| 3.3 Eligibility status in WorkflowForm page selector | ✅ Done | Colored "Eligible"/"Ineligible"/"Not checked" indicator next to each Facebook account in Platforms & Accounts step |
 
-### Phase 4 — Automation & Polish (50% 🟡)
+### Phase 4 — Automation & Polish (100% ✅)
 | Step | Status | Detail |
 |------|--------|--------|
 | 4.1 Auto-refresh toggle on ToolsPage | ✅ Done | `Switch` toggle + `setInterval` 5m, disabled manual button while active, ref-based to avoid TDZ |
@@ -2799,5 +2799,37 @@ The banner title text and `<Clock>` icon both use the same freshness color. The 
 5. Interval auto-clears on unmount or when toggle is turned off
 
 **Files**: `src/pages/ToolsPage.tsx` — state, ref sync effect, interval effect, Switch UI.
+
+**Commit**: pending
+
+---
+
+### 96. Phase 3 — Eligibility badges on workflow cards + form indicators (2026-07-24)
+
+**Problem**: Users had no way to see Facebook monetization eligibility status while working with workflows — they had to switch to ToolsPage to check. The workflow creation form also showed no eligibility information when selecting Facebook pages.
+
+**Solution**:
+
+**3.1 — Card badges** (`renderEligibilityBadge`):
+- Loads `page_eligibility` map alongside workflows via a second Supabase query in `loadWorkflows()`
+- For each workflow with Facebook pages, counts eligible / not_eligible / unchecked pages
+- Renders a small text badge in `<CardTitle>` next to the Active/Paused badge:
+
+| Scenario | Badge |
+|----------|-------|
+| All pages eligible | `Monetized` (green) |
+| Some eligible, some not | `X ineligible` (red) |
+| All not eligible | `Not eligible` (red) |
+| Some unchecked | `X unchecked` (amber, only if some are checked) |
+| All unchecked | No badge shown |
+
+**3.3 — Form indicators**: In the Platforms & Accounts step, next to each Facebook account checkbox, a right-aligned label shows:
+- `Eligible` (green) if `page_eligibility[account_id] === "eligible"`
+- `Ineligible` (red) if it has a value but not eligible
+- `Not checked` (muted) if no eligibility record exists
+
+**Files**: `src/pages/WorkflowsPage.tsx` — `pageEligibility` state, load query in `loadWorkflows()`, `renderEligibilityBadge()` helper, card badge in JSX, form label in facebook account list.
+
+**Note**: 1.5 freshness line numbers corrected to match `differenceInHours` import.
 
 **Commit**: pending
