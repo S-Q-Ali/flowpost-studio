@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `8d8e2e2` — Click card to select + 2-column grid layout
+## CURRENT HEAD: `7499ca6` — Skeleton loading for all pages
 
 ## Monetization Eligibility Feature — 4-Phase Plan
 
@@ -32,6 +32,44 @@
 |------|--------|--------|
 | 4.1 Auto-refresh toggle on ToolsPage | ❌ Not started | `setInterval` TOOL_CHECK every N min while page is active |
 | 4.2 Token age warning in bg.js | ❌ Not started | GET_COOKIES_INFO reports token age for stale-session warnings |
+
+---
+
+### 66. Skeleton loading — all 9 dynamic pages (2026-07-24)
+
+**Problem**: Only 3 of 12 dynamic pages had loading skeletons (WorkflowItemsPage, ProfilePage, InsightsPage). The rest showed empty/default states or inline `Loader2` spinners while data loaded, causing layout jumps and a jarring UX.
+
+**Solution**: Added skeleton loading to all 9 remaining dynamic pages + refactored existing 3 to use the shared `<Skeleton>` component.
+
+**New infrastructure**:
+1. **`src/hooks/usePageLoading.ts`** — Reusable hook encapsulating the loading pattern: `loading` state, safety timeout (15s default), unmount cancellation via ref. Usage: `const { loading, done } = usePageLoading();`
+2. **Existing `<Skeleton>` component** (`src/components/ui/skeleton.tsx`) — Used in all pages instead of inline `animate-pulse` divs. Already existed but was only used by sidebar.
+
+**Pages changed** (9 new + 4 refactored):
+
+| Page | Before | After |
+|------|--------|-------|
+| **AuthCallback** | `Loader2` spinner | `<Card>` with 3 skeleton lines |
+| **Dashboard** | No loading state | 4 stat card skeletons + recent activity skeleton |
+| **CalendarPage** | No loading state (shows empty grid) | Header + 35-day cell skeleton grid (initial mount only) |
+| **QueuePage** | No loading state (shows empty list) | Filter pills + 5 row skeletons (initial mount only) |
+| **ToolsPage** | Mixed effects with inline spinners | Extension card + 3 tool card skeletons |
+| **UploadPage** | No loading state | Tab selector + 5 form field skeletons |
+| **WorkflowsPage** | No loading state (empty card list) | 4 workflow card skeletons in 2-column grid |
+| **AccountsPage** | No loading state (empty sections) | 6 platform section card skeletons |
+| **StoragePage** | No loading state (empty panels) | 2 storage card skeletons (Drive + Mega) |
+| **WorkflowItemsPage** (refactor) | Inline `animate-pulse` divs | `<Skeleton>` components + `usePageLoading` hook |
+| **ProfilePage** (refactor) | Inline `animate-pulse` divs | `<Skeleton>` components + `usePageLoading` hook |
+| **InsightsPage** (refactor) | Inline `animate-pulse` divs | `<Skeleton>` components (kept existing `loading` state — platform switch re-triggers it) |
+
+**Safety guarantees per page**:
+- Unmount guard (`cancelled` flag) prevents `setLoading(false)` after navigation
+- 15s force-resolve timeout prevents stuck skeletons
+- Skeleton dimensions match real layout to prevent layout shift
+- Existing sub-loading states (button spinners, upload progress) untouched
+- Re-fetches (filter changes, month navigation) keep existing data visible — skeleton only on initial mount
+
+**Verification**: `npm run build` passed after each commit.
 
 ---
 
