@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `7499ca6` — Skeleton loading for all pages (+ TDZ fix pending)
+## CURRENT HEAD: `16307cc` — Fix TDZ error: move loadPages useCallback before useEffect reference
 
 ## Monetization Eligibility Feature — 4-Phase Plan
 
