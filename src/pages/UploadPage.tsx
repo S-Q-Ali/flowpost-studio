@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { usePageLoading } from "@/hooks/usePageLoading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Loader2, Youtube, Instagram, Facebook, Film, Folder, FileIcon } from "lucide-react";
@@ -33,6 +35,7 @@ const platforms: { id: Platform; label: string }[] = [
 
 export default function UploadPage() {
   const { userId } = useAuth();
+  const { loading, done } = usePageLoading();
   const navigate = useNavigate();
   const [videos, setVideos] = useState<{ id: string; title: string; file_url: string; uploaded_at: string }[]>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string>("");
@@ -82,67 +85,78 @@ export default function UploadPage() {
   const isSubmittingRef = useRef(false);
 
   useEffect(() => {
-    const load = async () => {
-      const { data: yt } = await supabase
-        .from("connected_accounts")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("platform", "youtube")
-        .eq("is_connected", true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: yt } = await supabase
+          .from("connected_accounts")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("platform", "youtube")
+          .eq("is_connected", true);
 
-      const { data: fb } = await supabase
-        .from("connected_accounts")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("platform", "facebook")
-        .eq("is_connected", true);
+        const { data: fb } = await supabase
+          .from("connected_accounts")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("platform", "facebook")
+          .eq("is_connected", true);
 
-      const { data: ig } = await supabase
-        .from("connected_accounts")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("platform", "instagram")
-        .eq("is_connected", true);
+        const { data: ig } = await supabase
+          .from("connected_accounts")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("platform", "instagram")
+          .eq("is_connected", true);
 
-      const { data: tt } = await supabase
-        .from("connected_accounts")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("platform", "tiktok")
-        .eq("is_connected", true);
+        const { data: tt } = await supabase
+          .from("connected_accounts")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("platform", "tiktok")
+          .eq("is_connected", true);
 
-      const { data: li } = await supabase
-        .from("connected_accounts")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("platform", "linkedin")
-        .eq("is_connected", true);
+        const { data: li } = await supabase
+          .from("connected_accounts")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("platform", "linkedin")
+          .eq("is_connected", true);
 
-      setYoutubeAccounts((yt as ConnectedAccount[]) ?? []);
-      setFacebookAccounts((fb as ConnectedAccount[]) ?? []);
-      setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
-      setTiktokAccounts((tt as ConnectedAccount[]) ?? []);
-      setLinkedinAccounts((li as ConnectedAccount[]) ?? []);
+        if (!cancelled) {
+          setYoutubeAccounts((yt as ConnectedAccount[]) ?? []);
+          setFacebookAccounts((fb as ConnectedAccount[]) ?? []);
+          setInstagramAccounts((ig as ConnectedAccount[]) ?? []);
+          setTiktokAccounts((tt as ConnectedAccount[]) ?? []);
+          setLinkedinAccounts((li as ConnectedAccount[]) ?? []);
+        }
 
-      const { data: drives } = await supabase
-        .from("connected_accounts")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("platform", "google_drive")
-        .eq("is_connected", true);
-      setDriveAccounts((drives as ConnectedAccount[]) ?? []);
-      if (drives && drives.length > 0 && !selectedDriveId) {
-        setSelectedDriveId(drives[0].id!);
+        if (!cancelled) {
+          const { data: drives } = await supabase
+            .from("connected_accounts")
+            .select("*")
+            .eq("user_id", userId)
+            .eq("platform", "google_drive")
+            .eq("is_connected", true);
+          setDriveAccounts((drives as ConnectedAccount[]) ?? []);
+          if (drives && drives.length > 0 && !selectedDriveId) {
+            setSelectedDriveId(drives[0].id!);
+          }
+        }
+
+        if (!cancelled) {
+          const { data: vids } = await supabase
+            .from("videos")
+            .select("id, title, file_url, uploaded_at")
+            .eq("user_id", userId)
+            .order("uploaded_at", { ascending: false });
+          setVideos((vids ?? []) as any[]);
+        }
+      } finally {
+        if (!cancelled) done();
       }
-
-      const { data: vids } = await supabase
-        .from("videos")
-        .select("id, title, file_url, uploaded_at")
-        .eq("user_id", userId)
-        .order("uploaded_at", { ascending: false });
-      setVideos((vids ?? []) as any[]);
-    };
-    load();
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -755,6 +769,41 @@ export default function UploadPage() {
       isSubmittingRef.current = false;
     }
   };
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="space-y-1">
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <Card className="bg-card border-border shadow-card">
+          <CardContent className="p-4 space-y-4">
+            <div className="flex gap-2">
+              <Skeleton className="h-10 w-24" />
+              <Skeleton className="h-10 w-28" />
+              <Skeleton className="h-10 w-24" />
+            </div>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-3.5 w-20" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ))}
+            <div className="flex gap-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-4" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+              ))}
+            </div>
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">

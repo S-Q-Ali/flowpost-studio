@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePageLoading } from "@/hooks/usePageLoading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Wrench, Chrome, CheckCircle2, XCircle, AlertCircle, RefreshCw, Clock, CloudDownload } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +65,7 @@ function sendExt(type: string, payload: unknown): Promise<unknown> {
 
 export default function ToolsPage() {
   const { userId } = useAuth();
+  const { loading, done } = usePageLoading();
   const { toast } = useToast();
   const [extInstalled, setExtInstalled] = useState<boolean | null>(null);
   const [pages, setPages] = useState<PageAccount[]>([]);
@@ -77,10 +80,12 @@ export default function ToolsPage() {
 
   useEffect(() => {
     if (!userId) return;
+    let cancelled = false;
     supabase
       .from("page_eligibility")
       .select("*")
       .then(({ data, error }) => {
+        if (cancelled) return;
         if (error) {
           console.warn("[ToolsPage] Failed to load saved eligibility:", error.message);
           return;
@@ -97,7 +102,9 @@ export default function ToolsPage() {
           const sorted = [...data].sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime());
           setLastChecked(sorted[0].checked_at);
         }
-      });
+      })
+      .finally(() => { if (!cancelled) done(); });
+    return () => { cancelled = true; };
   }, [userId]);
 
   const checkExtension = useCallback(async () => {
@@ -233,6 +240,55 @@ export default function ToolsPage() {
   };
 
   if (!userId) return null;
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-6 w-6" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+        </div>
+        <Card>
+          <CardHeader><Skeleton className="h-4 w-36" /></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-48 mt-1" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="border border-border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[1, 2, 3, 4].map((j) => (
+                    <div key={j} className="flex items-center gap-2">
+                      <Skeleton className="h-4 w-4" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

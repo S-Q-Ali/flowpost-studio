@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { usePageLoading } from "@/hooks/usePageLoading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -98,6 +100,7 @@ const platformOptions: { id: Platform; label: string; icon: React.ComponentType<
 
 export default function WorkflowsPage() {
   const { userId } = useAuth();
+  const { loading, done } = usePageLoading();
   const navigate = useNavigate();
   const [workflows, setWorkflows] = useState<WorkflowRow[]>([]);
   const [youtubeAccounts, setYoutubeAccounts] = useState<ConnectedAccount[]>([]);
@@ -207,8 +210,12 @@ export default function WorkflowsPage() {
   };
 
   useEffect(() => {
-    loadWorkflows();
-    loadAccounts();
+    let cancelled = false;
+    (async () => {
+      await Promise.all([loadWorkflows(), loadAccounts()]);
+      if (!cancelled) done();
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -1452,6 +1459,52 @@ export default function WorkflowsPage() {
 
     return `${scheduledText} • ${manualText}`;
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <Skeleton className="h-8 w-36" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Skeleton className="h-10 w-40" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="bg-card border-border shadow-card">
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-32" />
+                  <div className="flex gap-1">
+                    <Skeleton className="h-5 w-10" />
+                    <Skeleton className="h-5 w-10" />
+                    <Skeleton className="h-5 w-10" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <Skeleton className="h-8 w-16" />
+                    <Skeleton className="h-8 w-16" />
+                    <Skeleton className="h-8 w-16" />
+                  </div>
+                  <div className="flex gap-1">
+                    <Skeleton className="h-5 w-5" />
+                    <Skeleton className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
