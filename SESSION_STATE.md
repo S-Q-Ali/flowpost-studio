@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `7499ca6` — Skeleton loading for all pages
+## CURRENT HEAD: `7499ca6` — Skeleton loading for all pages (+ TDZ fix pending)
 
 ## Monetization Eligibility Feature — 4-Phase Plan
 
@@ -73,7 +73,19 @@
 
 ---
 
-### 65. Natural sort, click-to-select, 2-column grid (2026-07-24)
+### 67. Fix TDZ error in ToolsPage — `const loadPages` before `useEffect` reference (2026-07-24)
+
+**Problem**: `src/pages/ToolsPage.tsx` had `const loadPages = useCallback(...)` at line 136 but a `useEffect(() => { loadPages(); }, [loadPages])` at line 79. `const` variables are in the Temporal Dead Zone (TDZ) until their declaration executes, so evaluating the dependency array `[loadPages]` at line 79 threw `ReferenceError: Cannot access 'L' before initialization` in the production-minified bundle.
+
+**Why dev worked**: Vite's esbuild transform in dev mode may not strictly enforce TDZ in the same way as Rollup's production bundler.
+
+**Fix**: Moved `const loadPages = useCallback(...)` (8 lines) above the `useEffect` that references it. The hook ordering becomes: `useState` declarations → `loadPages` useCallback → effects. `checkExtension` was already correctly ordered. `syncPages` and `runToolCheck` (async functions, not `const`) are unaffected — closures capture the already-initialized `loadPages` at call time.
+
+**Verification**: `npm run build` passes (10.46s). The page no longer crashes on initial load.
+
+---
+
+### 66. Skeleton loading — all 9 dynamic pages (2026-07-24)
 
 **Problem**: File names sorted as `file1, file10, file100, file2, file20` (alphabetical). Selecting items required clicking a tiny checkbox. Single-column layout wasted horizontal space on desktop.
 

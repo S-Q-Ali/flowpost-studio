@@ -76,6 +76,17 @@ export default function ToolsPage() {
   const [savedResults, setSavedResults] = useState<PageResult[] | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
 
+  const loadPages = useCallback(() => {
+    if (!userId) return;
+    supabase
+      .from("connected_accounts")
+      .select("account_id, account_name")
+      .eq("user_id", userId)
+      .eq("platform", "facebook")
+      .eq("is_connected", true)
+      .then(({ data }) => setPages((data || []) as PageAccount[]));
+  }, [userId]);
+
   useEffect(() => { loadPages(); }, [loadPages]);
 
   useEffect(() => {
@@ -131,17 +142,6 @@ export default function ToolsPage() {
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [userId]);
-
-  const loadPages = useCallback(() => {
-    if (!userId) return;
-    supabase
-      .from("connected_accounts")
-      .select("account_id, account_name")
-      .eq("user_id", userId)
-      .eq("platform", "facebook")
-      .eq("is_connected", true)
-      .then(({ data }) => setPages((data || []) as PageAccount[]));
   }, [userId]);
 
   const syncPages = async () => {
