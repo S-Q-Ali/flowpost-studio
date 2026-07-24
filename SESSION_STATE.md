@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `e438eb8` — Mark as Ready with Captions bulk action
+## CURRENT HEAD: `8d8e2e2` — Click card to select + 2-column grid layout
 
 ## Monetization Eligibility Feature — 4-Phase Plan
 
@@ -32,6 +32,19 @@
 |------|--------|--------|
 | 4.1 Auto-refresh toggle on ToolsPage | ❌ Not started | `setInterval` TOOL_CHECK every N min while page is active |
 | 4.2 Token age warning in bg.js | ❌ Not started | GET_COOKIES_INFO reports token age for stale-session warnings |
+
+---
+
+### 65. Natural sort, click-to-select, 2-column grid (2026-07-24)
+
+**Problem**: File names sorted as `file1, file10, file100, file2, file20` (alphabetical). Selecting items required clicking a tiny checkbox. Single-column layout wasted horizontal space on desktop.
+
+**Changes**:
+1. **Numeric sort** (`WorkflowItemsPage.tsx:128-129`) — Added `{ numeric: true }` to `localeCompare` for file name sorting: `file1, file2, file3, file10, file100`
+2. **Click-to-select** (`WorkflowItemsPage.tsx:851-860`) — Clicking any card body toggles selection; guarded via `closest("input, textarea, button, [role=button], label")` to skip interactive elements. Checkbox kept as alternative. Visual highlight via `ring-2 ring-primary/60 shadow-md` when selected.
+3. **2-column grid** (`WorkflowItemsPage.tsx:840`) — Changed `<div className="space-y-4">` to `<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">` for responsive 2-column desktop layout.
+
+**Files changed**: `src/pages/WorkflowItemsPage.tsx`
 
 ---
 
