@@ -125,8 +125,8 @@ export default function WorkflowItemsPage() {
   const sortedItems = useMemo(() => {
     const sorted = [...items];
     switch (sortBy) {
-      case "file_name_asc": sorted.sort((a, b) => a.file_name.localeCompare(b.file_name)); break;
-      case "file_name_desc": sorted.sort((a, b) => b.file_name.localeCompare(a.file_name)); break;
+      case "file_name_asc": sorted.sort((a, b) => a.file_name.localeCompare(b.file_name, undefined, { numeric: true })); break;
+      case "file_name_desc": sorted.sort((a, b) => b.file_name.localeCompare(a.file_name, undefined, { numeric: true })); break;
       case "file_size_asc": sorted.sort((a, b) => (a.file_size ?? 0) - (b.file_size ?? 0)); break;
       case "file_size_desc": sorted.sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0)); break;
       case "status_ready": sorted.sort((a, b) => a.status === "ready" ? -1 : a.status === "posted" ? 1 : 0); break;
