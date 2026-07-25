@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `01bd263` — Fix Instagram upload timeout: 140s function timeout + 10x12s polling
+## CURRENT HEAD: `99f5cca` — Add Instagram carousel support
 
 ## Monetization Eligibility Feature — 4-Phase Plan (100% ✅)
 
@@ -116,6 +116,26 @@ The display fallback chain `display_name ?? account_name ?? metadata.email ?? ac
 **Files changed**: `supabase/config.toml`, `supabase/functions/instagram-upload/index.ts`
 **Deployed**: `npx supabase functions deploy instagram-upload` — success.
 **Commit**: `01bd263`
+
+---
+
+### 70. Instagram carousel support (2026-07-25)
+
+**Feature**: Add full support for Instagram carousel posts via Google Sheets workflow.
+
+**Changes**:
+1. **Migration** (`20260725000000_add_carousel_support.sql`) — Creates `carousel_items` table (FK to posts+videos, sort_order, RLS), widens `workflows.media_type` CHECK to accept `'carousel'`
+2. **Types** (`types.ts`) — `Workflow.media_type` now `"video"|"image"|"carousel"`, added `CarouselItem` interface, `Post.carousel_items?` + `metadata?`
+3. **WorkflowsPage** — Carousel radio button forces platform to Instagram, column hint shows `image_url_1...image_url_10`
+4. **process-workflow** — Detects `image_url_N` columns in sheet headers, processes each URL independently (Drive/Mega/Direct), creates per-image video rows with `media_type="image"`, creates ONE Instagram post per account with `metadata.carousel=true`, inserts `carousel_items` rows (ordered by sort_order), fires `instagram-upload` with `carousel: true`
+5. **instagram-upload** — When `carousel=true`: fetches post with `carousel_items(id, video_id, sort_order, videos(*))` join, iterates children sorted by sort_order, creates child containers (IMAGE for image items, VIDEO for video items) via `POST /v25.0/{igUserId}/media`, creates CAROUSEL container with `children=["id1","id2"]`, polls for FINISHED, publishes. Single-media path refactored to share `resolveMediaUrl()` helper
+6. **config.toml** — Removed invalid `timeout_seconds = 140` key (not supported by Supabase CLI)
+
+**RLS lesson**: `posts.user_id` is `text`, `auth.uid()` returns `uuid`. All comparisons must use `(auth.uid())::text` or the order `user_id = (auth.uid())::text` (existing posts policies cast `auth.uid()` to text).
+
+**Migration**: `npx supabase db push` — applied successfully.
+**Deployed**: `process-workflow` (v142), `instagram-upload` (v87) — both deployed successfully.
+**Note**: `instagram-upload` timeout must be set via Supabase Dashboard (CLI has no `--timeout-ms` flag). Go to Dashboard > Edge Functions > instagram-upload > Configuration and set timeout to 140s.
 
 ---
 
@@ -465,7 +485,7 @@ FB/IG  next at 20:46 UTC (2:46 PM)     ← range #1, orange
 - Light + dark theme (Aurora Rose Studio / Aurora Rose Dark) via `next-themes`; no theme toggle UI. Theme preference is client-side only — the `sessions` table, admin `flowpost_token`, and auth logic are unchanged (see entry #36).
 
 ### Known Issues
-1. **Instagram upload timeout** — ~~8×30s=240s polling > 60s default timeout~~ ✅ **Fixed** in `01bd263` — `timeout_seconds=140` in config.toml + 10×12s=120s polling (fits within Free plan's 150s max)
+1. **Instagram upload timeout** — ~~8×30s=240s polling > 60s default timeout~~ ⚠️ **Partially Fixed**: 10×12s=120s polling ✅, but `timeout_seconds` not valid in `config.toml` and CLI has no `--timeout-ms` flag. **Must set timeout to 140s manually** via [Supabase Dashboard](https://supabase.com/dashboard/project/ximorwzknbizpceaoflw/functions/instagram-upload) > Configuration
 2. **Fire-and-forget swallows errors** — `void fetch(...)` in process-workflow ignores upload failures
 3. **No stale processing cleanup** — posts stuck in "processing" never retried
 
