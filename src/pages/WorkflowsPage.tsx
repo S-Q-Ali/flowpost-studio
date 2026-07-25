@@ -727,7 +727,7 @@ export default function WorkflowsPage() {
                 <SelectContent>
                   {driveAccounts.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
-                      {a.account_name ?? (a.metadata as any)?.email ?? a.account_id}
+                      {a.display_name ?? a.account_name ?? (a.metadata as any)?.email ?? a.account_id}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1725,7 +1725,7 @@ export default function WorkflowsPage() {
                       ? (() => {
                           const da = driveAccounts.find((a: any) => a.id === wf.drive_account_id);
                           return da
-                            ? `Drive: ${da.account_name ?? (da.metadata as any)?.email ?? da.account_id}`
+                            ? `Drive: ${da.display_name ?? da.account_name ?? (da.metadata as any)?.email ?? da.account_id}`
                             : "Drive connected";
                         })()
                       : "Drive not set"}

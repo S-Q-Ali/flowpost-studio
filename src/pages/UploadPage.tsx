@@ -879,7 +879,7 @@ export default function UploadPage() {
                       onChange={(e) => setSelectedDriveId(e.target.value || null)}
                     >
                       {driveAccounts.map((a) => (
-                        <option key={a.id} value={a.id!}>{a.account_name}</option>
+                        <option key={a.id} value={a.id!}>{(a as any).display_name ?? a.account_name}</option>
                       ))}
                     </select>
                   )}

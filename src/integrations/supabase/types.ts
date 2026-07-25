@@ -45,6 +45,7 @@ export type Database = {
           account_id: string | null
           account_name: string | null
           connected_at: string | null
+          display_name: string | null
           id: string
           is_connected: boolean | null
           metadata: Json | null
@@ -58,6 +59,7 @@ export type Database = {
           account_id?: string | null
           account_name?: string | null
           connected_at?: string | null
+          display_name?: string | null
           id?: string
           is_connected?: boolean | null
           metadata?: Json | null
@@ -71,6 +73,7 @@ export type Database = {
           account_id?: string | null
           account_name?: string | null
           connected_at?: string | null
+          display_name?: string | null
           id?: string
           is_connected?: boolean | null
           metadata?: Json | null

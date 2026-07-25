@@ -96,6 +96,7 @@ export interface ConnectedAccount {
   platform: Platform;
   account_name: string | null;
   account_id?: string | null;
+  display_name?: string | null;
   is_connected: boolean;
   connected_at: string | null;
   token_expiry?: string | null;

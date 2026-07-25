@@ -596,7 +596,7 @@ export default function StoragePage() {
                   }}
                 >
                   {driveAccounts.map((a) => (
-                    <option key={a.id} value={a.id!}>{a.account_name}</option>
+                    <option key={a.id} value={a.id!}>{a.display_name ?? a.account_name}</option>
                   ))}
                 </select>
               )}

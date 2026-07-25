@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
 import { BetaBadge } from "@/components/BetaBadge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,6 +40,8 @@ export default function AccountsPage() {
   const [megaFiles, setMegaFiles] = useState<Record<string, { name: string; size: number }[]>>({});
   const [megaFilesLoading, setMegaFilesLoading] = useState<Record<string, boolean>>({});
   const [youtubeQuota, setYoutubeQuota] = useState<{ percentage: number; uploadCount: number; estimatedUploadsRemaining: number } | null>(null);
+  const [renamingDriveId, setRenamingDriveId] = useState<string | null>(null);
+  const [renameDriveValue, setRenameDriveValue] = useState("");
 
   const fetchFacebook = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
@@ -1160,6 +1162,8 @@ export default function AccountsPage() {
             <div className="grid gap-3">
               {driveAccounts.map((a) => {
                 const email = (a as any)?.metadata?.email as string | undefined;
+                const displayName = a.display_name ?? a.account_name;
+                const isRenaming = renamingDriveId === a.id;
                 return (
                   <Card key={a.id} className="bg-card border-border shadow-card">
                     <CardContent className="flex items-center justify-between py-4">
@@ -1173,7 +1177,51 @@ export default function AccountsPage() {
                           </svg>
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-foreground">{a.account_name ?? "Google Drive"}</div>
+                          {isRenaming ? (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={renameDriveValue}
+                                onChange={(e) => setRenameDriveValue(e.target.value)}
+                                className="h-7 text-sm w-48"
+                                autoFocus
+                                onKeyDown={async (e) => {
+                                  if (e.key === "Enter") {
+                                    await supabase.from("connected_accounts").update({ display_name: renameDriveValue || null }).eq("id", a.id);
+                                    setDriveAccounts((prev) => prev.map((ac) => ac.id === a.id ? { ...ac, display_name: renameDriveValue || null } : ac));
+                                    setRenamingDriveId(null);
+                                    toast.success("Display name updated");
+                                  }
+                                  if (e.key === "Escape") setRenamingDriveId(null);
+                                }}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={async () => {
+                                  await supabase.from("connected_accounts").update({ display_name: renameDriveValue || null }).eq("id", a.id);
+                                  setDriveAccounts((prev) => prev.map((ac) => ac.id === a.id ? { ...ac, display_name: renameDriveValue || null } : ac));
+                                  setRenamingDriveId(null);
+                                  toast.success("Display name updated");
+                                }}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-medium text-foreground">{displayName ?? "Google Drive"}</div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                onClick={() => { setRenameDriveValue(a.display_name ?? a.account_name ?? ""); setRenamingDriveId(a.id); }}
+                                title="Rename"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
                           <div className="text-xs text-muted-foreground">{email ?? a.account_id}</div>
                         </div>
                       </div>
