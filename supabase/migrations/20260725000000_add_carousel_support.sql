@@ -19,31 +19,39 @@ ALTER TABLE public.carousel_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own carousel items"
   ON public.carousel_items FOR SELECT
   USING (
-    post_id IN (
-      SELECT id FROM public.posts WHERE user_id = auth.uid()
+    EXISTS (
+      SELECT 1 FROM public.posts
+      WHERE posts.id = carousel_items.post_id
+      AND posts.user_id = auth.uid()
     )
   );
 
 CREATE POLICY "Users can insert own carousel items"
   ON public.carousel_items FOR INSERT
   WITH CHECK (
-    post_id IN (
-      SELECT id FROM public.posts WHERE user_id = auth.uid()
+    EXISTS (
+      SELECT 1 FROM public.posts
+      WHERE posts.id = carousel_items.post_id
+      AND posts.user_id = auth.uid()
     )
   );
 
 CREATE POLICY "Users can update own carousel items"
   ON public.carousel_items FOR UPDATE
   USING (
-    post_id IN (
-      SELECT id FROM public.posts WHERE user_id = auth.uid()
+    EXISTS (
+      SELECT 1 FROM public.posts
+      WHERE posts.id = carousel_items.post_id
+      AND posts.user_id = auth.uid()
     )
   );
 
 CREATE POLICY "Users can delete own carousel items"
   ON public.carousel_items FOR DELETE
   USING (
-    post_id IN (
-      SELECT id FROM public.posts WHERE user_id = auth.uid()
+    EXISTS (
+      SELECT 1 FROM public.posts
+      WHERE posts.id = carousel_items.post_id
+      AND posts.user_id = auth.uid()
     )
   );
