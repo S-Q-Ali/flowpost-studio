@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: pending — Phase 3 completed (all 4 phases 100%)
+## CURRENT HEAD: `74aa0d1` — Custom Drive display names + Mark as Posted range
 
 ## Monetization Eligibility Feature — 4-Phase Plan (100% ✅)
 
@@ -2773,7 +2773,7 @@ The banner title text and `<Clock>` icon both use the same freshness color. The 
 
 **Files**: `src/pages/ToolsPage.tsx` — freshness computation + conditional classes in two display blocks.
 
-**Commit**: pending
+**Commit**: `3a22fc4` (part of Phase 1.5/4.1/4.2 batch)
 
 ### 94. Phase 4.2 — Token age warning in bg.js (2026-07-24)
 
@@ -2785,7 +2785,7 @@ The banner title text and `<Clock>` icon both use the same freshness color. The 
 
 **Files**: `flowpost-extension/bg.js:157` — store timestamp; `bg.js:172` — return token age; `ToolsPage.tsx:121-127` — parallel fetch; `ToolsPage.tsx:339-345` — warning banner.
 
-**Commit**: pending
+**Commit**: `3a22fc4` (part of Phase 1.5/4.1/4.2 batch)
 
 ### 95. Phase 4.1 — Auto-refresh toggle on ToolsPage (2026-07-24)
 
@@ -2800,7 +2800,7 @@ The banner title text and `<Clock>` icon both use the same freshness color. The 
 
 **Files**: `src/pages/ToolsPage.tsx` — state, ref sync effect, interval effect, Switch UI.
 
-**Commit**: pending
+**Commit**: `3a22fc4` (part of Phase 1.5/4.1/4.2 batch)
 
 ---
 
@@ -2832,4 +2832,37 @@ The banner title text and `<Clock>` icon both use the same freshness color. The 
 
 **Note**: 1.5 freshness line numbers corrected to match `differenceInHours` import.
 
-**Commit**: pending
+**Commit**: `0873524`
+
+---
+
+### 97. Mark as Posted range bulk action + hide posted filter + alphabetical sync order (2026-07-24)
+
+**Problem**: Users manually deleted posted `workflow_items` rows to keep the list clean, which caused Drive re-syncs to re-import them. The sync order was unpredictable because Drive API returns files by `modifiedTime desc`, causing `sort_order` to differ from visual order.
+
+**Solution**:
+1. **"Show posted" checkbox** — Defaults to off. Posted items are filtered from the displayed list (`sortedItems.filter(i => i.status !== "posted")`) but kept in the database, preventing re-import on re-sync.
+2. **"Mark as Posted" range dialog** — Opens an AlertDialog with start/end number inputs. Maps positions in the current sort order to item IDs, then bulk-updates `status = "posted"` in one DB call. Lets you batch-hide 90+ items in seconds.
+3. **Alphabetical sync order** — `newFiles.sort((a, b) => a.name.localeCompare(b.name))` before assigning `sort_order`, so items are always A→Z regardless of Drive API order.
+
+**Files**: `src/pages/WorkflowItemsPage.tsx` — `showPosted` state + filter, `markAsPostedRange` handler + dialog, `newFiles.sort()` before sync.
+
+**Commit**: `71fbbb3`
+
+### 98. Custom display names for Google Drive accounts (2026-07-24)
+
+**Problem**: Google Drive accounts showed the user's Google profile name (`account_name`) everywhere, making it hard to distinguish multiple Drive accounts (e.g., "John Doe" for both work and personal drives).
+
+**Solution**:
+1. **New migration** (`20260724000001_add_display_name.sql`) — Adds nullable `display_name TEXT` column to `connected_accounts`. Idempotent with `IF NOT EXISTS`. Separate from `account_name` so OAuth reconnects don't overwrite it.
+2. **Types** — Added `display_name?: string | null` to both `ConnectedAccount` in `src/lib/types.ts` and Supabase generated types.
+3. **Rename UI on AccountsPage** — Pencil icon next to the Drive account name. Click to enter inline edit mode (text input). Enter/checkmark saves; Escape cancels. Updates DB + local state.
+4. **Display priority everywhere** — `display_name → account_name → metadata.email → account_id`:
+   - AccountsPage card
+   - StoragePage dropdown
+   - UploadPage dropdown
+   - WorkflowsPage account selector + card label
+
+**Files**: `supabase/migrations/20260724000001_add_display_name.sql`, `src/lib/types.ts`, `src/integrations/supabase/types.ts`, `src/pages/AccountsPage.tsx`, `src/pages/StoragePage.tsx`, `src/pages/UploadPage.tsx`, `src/pages/WorkflowsPage.tsx`
+
+**Commit**: `74aa0d1`
