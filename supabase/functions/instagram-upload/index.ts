@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
 
       // Poll carousel container status
       const MAX_POLL_ATTEMPTS = 10;
-      const POLL_INTERVAL = 12000;
+      const POLL_INTERVAL = 4000;
       let publishResult: Record<string, unknown> | null = null;
 
       for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
     console.log("Container created:", container.id);
 
     const MAX_POLL_ATTEMPTS = 10;
-    const POLL_INTERVAL = 12000;
+    const POLL_INTERVAL = 4000;
     let publishResult: Record<string, unknown> | null = null;
 
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
@@ -362,9 +362,9 @@ Deno.serve(async (req) => {
     }
 
     if (!publishResult?.id) {
-      console.error("Publish failed after 8 attempts");
+      console.error("Publish failed after 10 attempts");
       await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
-      return json({ error: `Publish failed after 8 attempts: ${JSON.stringify(publishResult)}` }, 502);
+      return json({ error: `Publish failed after 10 attempts: ${JSON.stringify(publishResult)}` }, 502);
     }
 
     await supabase
