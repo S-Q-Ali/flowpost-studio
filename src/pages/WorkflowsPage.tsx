@@ -265,7 +265,7 @@ export default function WorkflowsPage() {
   const fetchDriveAccounts = async () => {
     const { data } = await supabase
       .from("connected_accounts")
-      .select("id, account_name, account_id, metadata")
+      .select("id, account_name, account_id, metadata, display_name")
       .eq("user_id", userId)
       .eq("platform", "google_drive")
       .eq("is_connected", true);
