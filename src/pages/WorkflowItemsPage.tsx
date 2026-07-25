@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, XCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, XCircle, Archive, ListOrdered } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
@@ -88,6 +88,9 @@ export default function WorkflowItemsPage() {
   const [bulkPlatformsValue, setBulkPlatformsValue] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [unmarkAllOpen, setUnmarkAllOpen] = useState(false);
+  const [showPosted, setShowPosted] = useLocalStorage("workflow_items_show_posted", false);
+  const [markPostedRangeOpen, setMarkPostedRangeOpen] = useState(false);
+  const [markPostedRange, setMarkPostedRange] = useState({ start: 1, end: 100 });
   const [postStatusMap, setPostStatusMap] = useState<Record<string, Record<string, string>>>({});
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const queueRef = useRef<WorkflowItem[]>([]);
@@ -357,6 +360,27 @@ export default function WorkflowItemsPage() {
     toast.success(`All ${ids.length} items marked as pending`);
   };
 
+  const markAsPostedRange = async () => {
+    const { start, end } = markPostedRange;
+    if (start < 1 || end > sortedItems.length || start > end) {
+      toast.error("Invalid range");
+      return;
+    }
+    const ids = sortedItems.slice(start - 1, end).map(i => i.id);
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from("workflow_items")
+      .update({ status: "posted" })
+      .in("id", ids);
+    if (error) {
+      toast.error("Failed to mark items as posted");
+      return;
+    }
+    setItems((prev) => prev.map((i) => (ids.includes(i.id) ? { ...i, status: "posted" as const } : i)));
+    setMarkPostedRangeOpen(false);
+    toast.success(`${ids.length} items marked as posted`);
+  };
+
   const removeItem = async (itemId: string) => {
     const { error } = await supabase
       .from("workflow_items")
@@ -523,6 +547,7 @@ export default function WorkflowItemsPage() {
       const newFiles = allFiles.filter(
         (f: any) => f.mimeType?.startsWith(mediaMimePrefix) && !existingIds.has(f.id),
       );
+      newFiles.sort((a: any, b: any) => a.name.localeCompare(b.name));
 
       if (newFiles.length === 0) {
         toast.success("No new files found");
@@ -806,7 +831,17 @@ export default function WorkflowItemsPage() {
           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground hover:text-destructive" onClick={() => setUnmarkAllOpen(true)}>
             <XCircle className="h-3 w-3" /> Mark All Pending
           </Button>
-          <div className="ml-auto">
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setMarkPostedRangeOpen(true)}>
+            <Archive className="h-3 w-3" /> Mark as Posted
+          </Button>
+          <div className="flex items-center gap-3 ml-auto">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <Checkbox
+                checked={showPosted}
+                onCheckedChange={(c) => setShowPosted(c === true)}
+              />
+              <span>Show posted</span>
+            </label>
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="h-7 text-xs w-[140px]">
                 <SelectValue />
@@ -828,18 +863,20 @@ export default function WorkflowItemsPage() {
       )}
 
       {/* Items table */}
-      {sortedItems.length === 0 ? (
-        <Card className="bg-card border-border">
-          <CardContent className="flex flex-col items-center py-12 space-y-3">
-            <Folder size={40} className="text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              No items yet. Click "Sync from Drive" to import files from your folder.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {sortedItems.map((item) => {
+      {(() => {
+        const displayItems = showPosted ? sortedItems : sortedItems.filter(i => i.status !== "posted");
+        return displayItems.length === 0 ? (
+          <Card className="bg-card border-border">
+            <CardContent className="flex flex-col items-center py-12 space-y-3">
+              <Folder size={40} className="text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                {showPosted ? "No items yet." : "All items have been posted. Toggle \"Show posted\" to view them."}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {displayItems.map((item) => {
             const sb = statusBadge[item.status] ?? statusBadge.pending;
             const isVideo = !item.mime_type || item.mime_type.startsWith("video/");
             const itemPostStatuses = postStatusMap[item.id] ?? {};
@@ -1075,7 +1112,8 @@ export default function WorkflowItemsPage() {
             );
           })}
         </div>
-      )}
+      );
+      })()}
       {/* AI Caption Preview Modal */}
       <CaptionPreviewModal
         open={previewOpen}
@@ -1185,6 +1223,45 @@ export default function WorkflowItemsPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete {selectedIds.size} items
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={markPostedRangeOpen} onOpenChange={setMarkPostedRangeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark as Posted</AlertDialogTitle>
+            <AlertDialogDescription>
+              Set a range of items to "posted" status. They will be hidden from the list.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center gap-3 py-4">
+            <div className="flex items-center gap-2 text-sm">
+              <span>Range:</span>
+              <Input
+                type="number"
+                min={1}
+                max={sortedItems.length}
+                className="w-20 h-8 text-xs"
+                value={markPostedRange.start}
+                onChange={(e) => setMarkPostedRange((r) => ({ ...r, start: Math.max(1, parseInt(e.target.value) || 1) }))}
+              />
+              <span>to</span>
+              <Input
+                type="number"
+                min={markPostedRange.start}
+                max={sortedItems.length}
+                className="w-20 h-8 text-xs"
+                value={markPostedRange.end}
+                onChange={(e) => setMarkPostedRange((r) => ({ ...r, end: Math.min(sortedItems.length, parseInt(e.target.value) || sortedItems.length) }))}
+              />
+              <span className="text-muted-foreground">of {sortedItems.length} items</span>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={markAsPostedRange}>
+              Mark {Math.max(0, markPostedRange.end - markPostedRange.start + 1)} as Posted
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
