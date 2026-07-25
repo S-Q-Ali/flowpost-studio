@@ -22,7 +22,7 @@ CREATE POLICY "Users can view own carousel items"
     EXISTS (
       SELECT 1 FROM public.posts
       WHERE posts.id = carousel_items.post_id
-      AND posts.user_id = auth.uid()
+      AND auth.uid() = posts.user_id
     )
   );
 
@@ -32,7 +32,7 @@ CREATE POLICY "Users can insert own carousel items"
     EXISTS (
       SELECT 1 FROM public.posts
       WHERE posts.id = carousel_items.post_id
-      AND posts.user_id = auth.uid()
+      AND auth.uid() = posts.user_id
     )
   );
 
@@ -42,7 +42,7 @@ CREATE POLICY "Users can update own carousel items"
     EXISTS (
       SELECT 1 FROM public.posts
       WHERE posts.id = carousel_items.post_id
-      AND posts.user_id = auth.uid()
+      AND auth.uid() = posts.user_id
     )
   );
 
@@ -52,6 +52,6 @@ CREATE POLICY "Users can delete own carousel items"
     EXISTS (
       SELECT 1 FROM public.posts
       WHERE posts.id = carousel_items.post_id
-      AND posts.user_id = auth.uid()
+      AND auth.uid() = posts.user_id
     )
   );
