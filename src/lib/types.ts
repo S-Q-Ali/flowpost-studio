@@ -13,6 +13,14 @@ export interface Video {
   uploaded_at: string;
 }
 
+export interface CarouselItem {
+  id: string;
+  post_id: string;
+  video_id: string;
+  sort_order: number;
+  videos?: Video;
+}
+
 export interface Post {
   id: string;
   user_id: string;
@@ -29,6 +37,8 @@ export interface Post {
   workflow_item_id?: string | null;
   created_at: string;
   videos?: Video;
+  carousel_items?: CarouselItem[];
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface MasterPrompt {
@@ -58,7 +68,7 @@ export interface Workflow {
   total_posted: number | null;
   scheduling_mode: string | null;
   custom_schedule: Record<string, { start: number; end: number }[]> | null;
-  media_type: "video" | "image";
+  media_type: "video" | "image" | "carousel";
   post_as_story: boolean;
   youtube_altered_content: boolean;
   drive_account_id: string | null;

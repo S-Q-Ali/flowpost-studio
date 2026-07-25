@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `74aa0d1` — Custom Drive display names + Mark as Posted range
+## CURRENT HEAD: `01bd263` — Fix Instagram upload timeout: 140s function timeout + 10x12s polling
 
 ## Monetization Eligibility Feature — 4-Phase Plan (100% ✅)
 
@@ -82,6 +82,40 @@
 **Fix**: Moved `const loadPages = useCallback(...)` (8 lines) above the `useEffect` that references it. The hook ordering becomes: `useState` declarations → `loadPages` useCallback → effects. `checkExtension` was already correctly ordered. `syncPages` and `runToolCheck` (async functions, not `const`) are unaffected — closures capture the already-initialized `loadPages` at call time.
 
 **Verification**: `npm run build` passes (10.46s). The page no longer crashes on initial load.
+
+---
+
+### 68. Fix WorkflowsPage display_name not showing in drive accounts (2026-07-24)
+
+**Problem**: After adding `display_name` column and rename UI on AccountsPage, edited names appeared on AccountsPage and StoragePage but NOT on WorkflowsPage (drive account selector dropdown and workflow cards still showed raw `account_name`).
+
+**Root cause**: `WorkflowsPage.tsx:206` fetched drive accounts with a limited projection:
+```ts
+.select("id, account_name, account_id, metadata")
+```
+This excluded the `display_name` column, so even though the DB had the value, the frontend never received it. `UploadPage.tsx:137` used `.select("*")` (included display_name), explaining why it worked there.
+
+**Fix**: Added `display_name` to the select query and the local state type:
+- `.select("id, account_name, account_id, metadata, display_name")`
+- `useState<{ ..., display_name?: string | null }[]>([])`
+
+The display fallback chain `display_name ?? account_name ?? metadata.email ?? account_id` was already in place in render code — it just wasn't receiving the field.
+
+---
+
+### 69. Fix Instagram upload timeout — 140s function timeout + 10×12s polling (2026-07-24)
+
+**Problem**: `instagram-upload` polled container status at 8 × 30s = 240s, but the function's default `timeout_seconds` was 60s (unset in config.toml). Deno killed the function mid-poll, the catch block never executed, and the post stayed stuck in `"processing"` forever. Same class of bug as `post-story` (already fixed with 20×2s=40s) but `instagram-upload` was never updated.
+
+**Platform limits**: Free plan max duration = 150s. Budget = ~140s after overhead.
+
+**Fix**:
+1. `supabase/config.toml:19` — Added `timeout_seconds = 140` to `[functions.instagram-upload]`
+2. `instagram-upload/index.ts:193-194` — Changed `MAX_POLL_ATTEMPTS = 8 → 10`, `POLL_INTERVAL = 30000 → 12000` (total 10 × 12s = 120s, fits within 140s with 20s buffer)
+
+**Files changed**: `supabase/config.toml`, `supabase/functions/instagram-upload/index.ts`
+**Deployed**: `npx supabase functions deploy instagram-upload` — success.
+**Commit**: `01bd263`
 
 ---
 
@@ -431,10 +465,9 @@ FB/IG  next at 20:46 UTC (2:46 PM)     ← range #1, orange
 - Light + dark theme (Aurora Rose Studio / Aurora Rose Dark) via `next-themes`; no theme toggle UI. Theme preference is client-side only — the `sessions` table, admin `flowpost_token`, and auth logic are unchanged (see entry #36).
 
 ### Known Issues
-1. **Instagram upload timeout** (8×30s polling > 60s runtime) — same class of bug as post-story was fixed for, but not yet applied to instagram-upload
+1. **Instagram upload timeout** — ~~8×30s=240s polling > 60s default timeout~~ ✅ **Fixed** in `01bd263` — `timeout_seconds=140` in config.toml + 10×12s=120s polling (fits within Free plan's 150s max)
 2. **Fire-and-forget swallows errors** — `void fetch(...)` in process-workflow ignores upload failures
 3. **No stale processing cleanup** — posts stuck in "processing" never retried
-4. **Stagger removed** — if stagger is needed in future, must also fix the Google token passthrough issue
 
 ### Not Yet Implemented
 1. **Meta AI translation toggle** — Graph API doesn't expose this feature; plan documented in entry #50, awaiting API support

@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
   let megaUrl: string | undefined;
   let megaFileName: string | undefined;
   let megaAccountId: string | undefined;
+  let isCarousel = false;
 
   try {
     const body = await req.json();
@@ -70,16 +71,17 @@ Deno.serve(async (req) => {
     megaAccountId = typeof body?.megaAccountId === "string"
       ? body.megaAccountId
       : undefined;
+    isCarousel = body?.carousel === true;
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
   try {
-    const { data: post, error: postError } = await supabase
-      .from("posts")
-      .select("id, video_id, account_id, caption, status, platform, user_id, videos(*)")
-      .eq("id", postId)
-      .single();
+    const postQuery = isCarousel
+      ? supabase.from("posts").select("id, video_id, account_id, caption, status, platform, user_id, metadata, videos(*), carousel_items(id, video_id, sort_order, videos(*))").eq("id", postId).single()
+      : supabase.from("posts").select("id, video_id, account_id, caption, status, platform, user_id, metadata, videos(*)").eq("id", postId).single();
+
+    const { data: post, error: postError } = await postQuery;
 
     if (postError || !post) {
       return json({ error: "Post not found" }, 404);
@@ -92,14 +94,6 @@ Deno.serve(async (req) => {
     if (!post.account_id) {
       return json({ error: "Post has no account_id" }, 400);
     }
-
-    const video = post.videos;
-    if (!video || !video.file_url) {
-      return json({ error: "Video not found or missing file_url" }, 404);
-    }
-
-    const mediaType = video.media_type ?? "video";
-    const isImage = mediaType === "image";
 
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
@@ -115,44 +109,175 @@ Deno.serve(async (req) => {
 
     const accessToken = await decrypt(account.access_token as string);
     const igUserId = account.account_id as string;
+    const caption = (post.caption || "").substring(0, 2200);
 
-    // Use Drive/Mega source via get-file proxy, or fall back to the stored file_url
-    let mediaUrl = video.file_url as string;
-
-    if (megaFileName && megaAccountId) {
-      const fileToken = await encrypt(JSON.stringify({
-        megaFileName,
-        megaAccountId,
-        exp: Date.now() + 15 * 60 * 1000,
-      }));
-      mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
-      console.log("Using Mega account get-file proxy URL for Instagram:", mediaUrl);
-    } else if (megaUrl) {
-      const fileToken = await encrypt(JSON.stringify({
-        megaUrl,
-        exp: Date.now() + 15 * 60 * 1000,
-      }));
-      mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
-      console.log("Using Mega get-file proxy URL for Instagram:", mediaUrl);
-    } else if (driveDownloadUrl && googleAccessToken) {
-      // If video is already cached on R2, use it directly — skip get-file proxy
-      if (R2_PUBLIC_URL && video.file_url?.includes(R2_PUBLIC_URL)) {
-        mediaUrl = video.file_url;
-        console.log("Using R2 URL for Instagram:", mediaUrl);
-      } else {
+    // Helper: resolve a video's file_url to a usable media URL
+    async function resolveMediaUrl(videoFileUrl: string): Promise<string> {
+      if (megaFileName && megaAccountId) {
         const fileToken = await encrypt(JSON.stringify({
-          driveUrl: driveDownloadUrl,
+          megaFileName,
+          megaAccountId,
+          exp: Date.now() + 15 * 60 * 1000,
+        }));
+        return `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+      }
+      if (megaUrl) {
+        const fileToken = await encrypt(JSON.stringify({
+          megaUrl,
+          exp: Date.now() + 15 * 60 * 1000,
+        }));
+        return `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+      }
+      if (driveDownloadUrl && googleAccessToken) {
+        if (R2_PUBLIC_URL && videoFileUrl?.includes(R2_PUBLIC_URL)) {
+          return videoFileUrl;
+        }
+        // Extract file ID from stored file_url to construct download URL
+        const fileIdMatch = videoFileUrl.match(/\/d\/([^/]+)/) || driveDownloadUrl.match(/\/d\/([^/]+)/);
+        const fileId = fileIdMatch?.[1];
+        if (fileId) {
+          const resolvedDriveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+          const fileToken = await encrypt(JSON.stringify({
+            driveUrl: resolvedDriveUrl,
+            driveToken: googleAccessToken,
+            exp: Date.now() + 15 * 60 * 1000,
+          }));
+          return `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+        }
+        // Fallback: use file_url as-is
+        const fileToken = await encrypt(JSON.stringify({
+          driveUrl: videoFileUrl,
           driveToken: googleAccessToken,
           exp: Date.now() + 15 * 60 * 1000,
         }));
-        mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
-        console.log("Using get-file proxy URL for Instagram:", mediaUrl);
+        return `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
       }
+      return videoFileUrl;
     }
+
+    // === CAROUSEL PATH ===
+    if (isCarousel) {
+      const carouselItems = (post as any).carousel_items as { id: string; video_id: string; sort_order: number; videos: { file_url: string; media_type: string } | null }[] | undefined;
+      if (!carouselItems || carouselItems.length < 2) {
+        return json({ error: `Carousel needs at least 2 items, got ${carouselItems?.length || 0}` }, 400);
+      }
+
+      const childContainerIds: string[] = [];
+      for (const item of carouselItems.sort((a, b) => a.sort_order - b.sort_order)) {
+        const childVideo = item.videos;
+        if (!childVideo?.file_url) {
+          await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+          return json({ error: `Carousel child ${item.sort_order} has no file_url` }, 404);
+        }
+
+        const childMediaUrl = await resolveMediaUrl(childVideo.file_url);
+        const childType = childVideo.media_type === "image" ? "IMAGE" : "VIDEO";
+
+        console.log(`Creating carousel child container ${item.sort_order + 1} (${childType}) for user:`, igUserId);
+
+        const childForm = new URLSearchParams();
+        childForm.append("media_type", childType);
+        if (childType === "IMAGE") {
+          childForm.append("image_url", childMediaUrl);
+        } else {
+          childForm.append("video_url", childMediaUrl);
+        }
+        childForm.append("access_token", accessToken);
+
+        const childRes = await fetch(
+          `https://graph.facebook.com/v25.0/${igUserId}/media`,
+          { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: childForm.toString() },
+        );
+        const childData = await childRes.json();
+        if (!childData.id) {
+          await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+          return json({ error: `Carousel child ${item.sort_order} container failed: ${JSON.stringify(childData)}` }, 502);
+        }
+        childContainerIds.push(childData.id);
+        console.log(`Carousel child container ${item.sort_order + 1} created:`, childData.id);
+      }
+
+      console.log(`Creating CAROUSEL container with ${childContainerIds.length} children`);
+      const carouselForm = new URLSearchParams();
+      carouselForm.append("media_type", "CAROUSEL");
+      carouselForm.append("children", `["${childContainerIds.join('","')}"]`);
+      carouselForm.append("caption", caption);
+      carouselForm.append("access_token", accessToken);
+
+      const carouselRes = await fetch(
+        `https://graph.facebook.com/v25.0/${igUserId}/media`,
+        { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: carouselForm.toString() },
+      );
+      const carouselText = await carouselRes.text();
+      const carouselData = JSON.parse(carouselText);
+
+      if (!carouselData.id) {
+        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+        return json({ error: `Carousel container creation failed: ${carouselText}` }, 502);
+      }
+
+      const containerId = carouselData.id;
+      console.log("Carousel container created:", containerId);
+
+      // Poll carousel container status
+      const MAX_POLL_ATTEMPTS = 10;
+      const POLL_INTERVAL = 12000;
+      let publishResult: Record<string, unknown> | null = null;
+
+      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+        if (attempt > 0) {
+          console.log(`Carousel status poll attempt ${attempt + 1}...`);
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+        }
+
+        const statusRes = await fetch(
+          `https://graph.facebook.com/v25.0/${containerId}?fields=status_code&access_token=${accessToken}`,
+        );
+        const statusData = await statusRes.json() as Record<string, unknown>;
+
+        if (statusData.status_code === "FINISHED") {
+          const publishForm = new URLSearchParams();
+          publishForm.append("creation_id", containerId);
+          publishForm.append("access_token", accessToken);
+          const publishRes = await fetch(
+            `https://graph.facebook.com/v25.0/${igUserId}/media_publish`,
+            { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: publishForm.toString() },
+          );
+          publishResult = await publishRes.json() as Record<string, unknown>;
+          if (publishResult?.id) { console.log("Carousel publish succeeded:", JSON.stringify(publishResult)); break; }
+          console.log(`Carousel publish attempt ${attempt + 1} failed:`, JSON.stringify(publishResult));
+          if (publishResult.error) break;
+        } else if (statusData.status_code === "EXPIRED") {
+          console.error("Carousel container expired");
+          break;
+        } else {
+          console.log(`Carousel status: ${statusData.status_code || JSON.stringify(statusData)} (attempt ${attempt + 1})`);
+        }
+      }
+
+      if (!publishResult?.id) {
+        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+        return json({ error: `Carousel publish failed: ${JSON.stringify(publishResult)}` }, 502);
+      }
+
+      await supabase.from("posts").update({ status: "published", published_at: new Date().toISOString() }).eq("id", postId);
+      await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted", googleAccessToken);
+      return json({ success: true, instagram_post_id: publishResult.id as string, container_id: containerId });
+    }
+
+    // === SINGLE MEDIA PATH ===
+    const video = post.videos;
+    if (!video || !video.file_url) {
+      return json({ error: "Video not found or missing file_url" }, 404);
+    }
+
+    const mediaType = video.media_type ?? "video";
+    const isImage = mediaType === "image";
+
+    const mediaUrl = await resolveMediaUrl(video.file_url as string);
 
     console.log(`Creating Instagram ${isImage ? "image" : "reel"} container for user:`, igUserId);
     console.log("Using media URL:", mediaUrl);
-    console.log("Caption:", post.caption);
 
     const containerForm = new URLSearchParams();
     containerForm.append("media_type", isImage ? "IMAGE" : "REELS");
@@ -161,7 +286,6 @@ Deno.serve(async (req) => {
     } else {
       containerForm.append("video_url", mediaUrl);
     }
-    const caption = (post.caption || "").substring(0, 2200);
     containerForm.append("caption", caption);
     containerForm.append("access_token", accessToken);
 

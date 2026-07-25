@@ -407,12 +407,13 @@ Deno.serve(async (req) => {
 
       const mediaType = (wf as any).media_type ?? "video";
       const isImageWorkflow = mediaType === "image";
+      const isCarouselWorkflow = mediaType === "carousel";
       const urlColumn = isImageWorkflow ? "image_url" : "video_url";
       const urlIdx = headerIndex[urlColumn];
       const titleIdx = headerIndex["title"];
       const ytTitleIdx = headerIndex["yt_video_title"];
       const ytDescIdx = headerIndex["yt_video_description"];
-      const fbIgCaptionIdx = isImageWorkflow
+      const fbIgCaptionIdx = isImageWorkflow || isCarouselWorkflow
         ? headerIndex["image_fb_ig_caption"]
         : headerIndex["fb_ig_caption"];
       const platformsIdx = headerIndex["platforms"];
@@ -423,8 +424,27 @@ Deno.serve(async (req) => {
       const tiktokCaptionIdx = headerIndex["tiktok_caption"];
       const linkedinCaptionIdx = headerIndex["linkedin_caption"];
 
-      if (urlIdx === undefined || statusIdx === undefined) {
-        errors.push(`Sheet for workflow ${wf.id} is missing required columns (${urlColumn}/status)`);
+      // Detect carousel image_url_N columns
+      const carouselUrlColumns: { index: number; colIdx: number }[] = [];
+      if (isCarouselWorkflow) {
+        for (const [header, colIdx] of Object.entries(headerIndex)) {
+          const match = header.match(/^image_url_(\d+)$/);
+          if (match) carouselUrlColumns.push({ index: parseInt(match[1]), colIdx });
+        }
+        carouselUrlColumns.sort((a, b) => a.index - b.index);
+        console.log(`Carousel columns for ${wf.name}:`, JSON.stringify(carouselUrlColumns.map(c => `image_url_${c.index}`)));
+      }
+
+      if (statusIdx === undefined) {
+        errors.push(`Sheet for workflow ${wf.id} is missing required status column`);
+        continue;
+      }
+      if (!isCarouselWorkflow && urlIdx === undefined) {
+        errors.push(`Sheet for workflow ${wf.id} is missing required column (${urlColumn})`);
+        continue;
+      }
+      if (isCarouselWorkflow && carouselUrlColumns.length < 2) {
+        errors.push(`Sheet for workflow ${wf.id} needs at least 2 image_url_N columns for carousel`);
         continue;
       }
 
@@ -453,6 +473,195 @@ Deno.serve(async (req) => {
 
       for (const { row, rowIndex } of toProcess) {
         try {
+          // === CAROUSEL PATH: process multiple image_url_N columns ===
+          if (isCarouselWorkflow) {
+            const carouselRawUrls: string[] = [];
+            for (const cc of carouselUrlColumns) {
+              const val = row[cc.colIdx]?.trim();
+              if (val) carouselRawUrls.push(val);
+            }
+            if (carouselRawUrls.length < 2) {
+              errors.push(`Row ${rowIndex}: carousel needs at least 2 images, got ${carouselRawUrls.length}`);
+              continue;
+            }
+
+            const carouselVideoIds: string[] = [];
+            let carouselError: string | null = null;
+
+            for (let ci = 0; ci < carouselRawUrls.length; ci++) {
+              const url = carouselRawUrls[ci];
+              const isMegaPublic = url.includes("mega.nz/");
+              const isMegaAccount = url.startsWith("mega:");
+              let driveDownloadUrl: string | undefined;
+              let megaUrl: string | undefined;
+              let megaFileName: string | undefined;
+              let megaAccountId: string | undefined;
+              let storedFileUrl: string;
+              let videoDisplayName: string;
+
+              if (isMegaAccount) {
+                megaFileName = url.slice(5).trim();
+                if (!megaFileName) { carouselError = `Row ${rowIndex} carousel image ${ci + 1}: empty filename after mega:`; break; }
+                const { data: megaAccount } = await supabase
+                  .from("connected_accounts")
+                  .select("id")
+                  .eq("user_id", wf.user_id)
+                  .eq("platform", "mega")
+                  .eq("is_connected", true)
+                  .maybeSingle();
+                if (!megaAccount) { carouselError = `Row ${rowIndex}: no Mega account connected`; break; }
+                megaAccountId = megaAccount.id;
+                storedFileUrl = `mega:${megaFileName}`;
+                videoDisplayName = megaFileName.replace(/\.[^/.]+$/, "");
+              } else if (isMegaPublic) {
+                megaUrl = url;
+                storedFileUrl = url;
+                videoDisplayName = `carousel-${rowIndex}-${ci + 1}`;
+              } else {
+                const match = url.match(/\/d\/([^/]+)/);
+                const fileId = match?.[1];
+                if (!fileId) { carouselError = `Row ${rowIndex} carousel image ${ci + 1}: could not extract Drive file ID`; break; }
+                driveDownloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+                storedFileUrl = driveDownloadUrl;
+                videoDisplayName = `carousel-${rowIndex}-${ci + 1}`;
+              }
+
+              const { data: videoRecord, error: videoError } = await supabase
+                .from("videos")
+                .insert({
+                  user_id: wf.user_id,
+                  title: videoDisplayName,
+                  file_url: storedFileUrl,
+                  media_type: "image",
+                })
+                .select("id")
+                .single();
+
+              if (videoError || !videoRecord) {
+                carouselError = `Row ${rowIndex} carousel image ${ci + 1}: failed to insert video: ${videoError?.message || "no record"}`;
+                break;
+              }
+              carouselVideoIds.push(videoRecord.id);
+
+              // R2 upload for Drive-sourced carousel children
+              if (!isMegaAccount && !isMegaPublic && driveDownloadUrl && googleToken && s3Client) {
+                try {
+                  const driveRes = await fetch(driveDownloadUrl, {
+                    headers: { Authorization: `Bearer ${googleToken}` },
+                  });
+                  if (driveRes.ok) {
+                    const key = `${wf.user_id}/${videoRecord.id}.jpg`;
+                    const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand({
+                      Bucket: R2_BUCKET,
+                      Key: key,
+                      ContentType: "image/jpeg",
+                    }), { expiresIn: 600 });
+                    const putRes = await fetch(uploadUrl, {
+                      method: "PUT",
+                      headers: { "Content-Type": "image/jpeg" },
+                      body: driveRes.body,
+                      duplex: "half",
+                    });
+                    if (putRes.ok) {
+                      const r2Url = `https://${R2_PUBLIC_URL}/${key}`;
+                      await supabase.from("videos").update({ file_url: r2Url }).eq("id", videoRecord.id);
+                    }
+                  }
+                } catch (r2Err) {
+                  console.error(`R2 upload failed for carousel child ${videoRecord.id}:`, r2Err);
+                }
+              }
+            }
+
+            if (carouselError) {
+              errors.push(carouselError);
+              continue;
+            }
+
+            // Create Instagram post for the carousel
+            const igCaption = fbIgCaptionIdx !== undefined && row[fbIgCaptionIdx] ? row[fbIgCaptionIdx] : "";
+            const igAccounts = wf.instagram_account_ids ?? [];
+            if (!igAccounts.length) {
+              errors.push(`Row ${rowIndex}: no Instagram accounts configured for carousel`);
+              continue;
+            }
+
+            const nowIso = new Date().toISOString();
+            const postsPayload: any[] = igAccounts.map((accountId: string) => ({
+              user_id: wf.user_id,
+              video_id: carouselVideoIds[0],
+              platform: "instagram",
+              account_id: accountId,
+              caption: igCaption,
+              hashtags: null,
+              scheduled_at: nowIso,
+              status: "processing",
+              captions_enabled: true,
+              workflow_item_id: workflowItemIdByRowIndex[rowIndex],
+              metadata: { carousel: true },
+            }));
+
+            const { data: insertedPosts, error: postsError } = await supabase
+              .from("posts")
+              .insert(postsPayload)
+              .select("id, platform, account_id, status");
+
+            if (postsError || !insertedPosts) {
+              errors.push(`Row ${rowIndex}: failed to insert carousel posts: ${postsError?.message || "no records"}`);
+              continue;
+            }
+
+            // Insert carousel_items
+            for (const post of insertedPosts as { id: string }[]) {
+              const carouselItemPayload = carouselVideoIds.map((videoId, i) => ({
+                post_id: post.id,
+                video_id: videoId,
+                sort_order: i,
+              }));
+              const { error: ciError } = await supabase
+                .from("carousel_items")
+                .insert(carouselItemPayload);
+              if (ciError) {
+                console.error(`Failed to insert carousel_items for post ${post.id}:`, ciError);
+              }
+            }
+
+            // Store sheet metadata
+            const { error: metadataUpdateError } = await supabase
+              .from("posts")
+              .update({
+                metadata: { carousel: true, sheet_id: sheetId, sheet_row_index: rowIndex, sheet_col_index: statusIdx },
+              })
+              .in("id", (insertedPosts as { id: string }[]).map((p) => p.id));
+            if (metadataUpdateError) {
+              console.error("Failed to update carousel post metadata:", metadataUpdateError);
+            }
+
+            // Mark workflow_item as posted
+            const postedItemId = workflowItemIdByRowIndex[rowIndex];
+            if (postedItemId) {
+              await supabase.from("workflow_items").update({ status: "posted", posted_at: new Date().toISOString() }).eq("id", postedItemId);
+            }
+
+            // Fire-and-forget upload with carousel flag
+            for (const post of insertedPosts as { id: string; platform: string; status: string }[]) {
+              if (post.status !== "processing") continue;
+              void fetch(`${SUPABASE_URL}/functions/v1/instagram-upload`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                  apikey: SUPABASE_SERVICE_ROLE_KEY!,
+                },
+                body: JSON.stringify({ postId: post.id, carousel: true }),
+              });
+            }
+
+            workflowVideoCount += carouselVideoIds.length;
+            continue;
+          }
+
+          // === SINGLE MEDIA PATH (video / image) ===
           const rawUrl = row[urlIdx];
           if (!rawUrl) {
             errors.push(`Row ${rowIndex}: empty ${urlColumn}`);

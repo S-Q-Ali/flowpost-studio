@@ -182,6 +182,45 @@ export type Database = {
           },
         ]
       }
+      carousel_items: {
+        Row: {
+          id: string
+          post_id: string
+          video_id: string
+          sort_order: number
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          video_id: string
+          sort_order: number
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          video_id?: string
+          sort_order?: number
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carousel_items_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carousel_items_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rate_limits: {
         Row: {
           attempts: number | null

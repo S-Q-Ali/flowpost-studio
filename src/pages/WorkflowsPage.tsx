@@ -118,7 +118,7 @@ export default function WorkflowsPage() {
   // Form state
   const [workflowName, setWorkflowName] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [mediaType, setMediaType] = useState<"video" | "image">("video");
+  const [mediaType, setMediaType] = useState<"video" | "image" | "carousel">("video");
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
   const [selectedYoutubeIds, setSelectedYoutubeIds] = useState<string[]>([]);
   const [selectedFacebookIds, setSelectedFacebookIds] = useState<string[]>([]);
@@ -658,7 +658,7 @@ export default function WorkflowsPage() {
             {mode === "edit" ? (
               <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-border">
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
-                  {mediaType === "video" ? "Video" : "Image"}
+                  {mediaType === "video" ? "Video" : mediaType === "carousel" ? "Carousel" : "Image"}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Media type cannot be changed after creation.
@@ -671,9 +671,7 @@ export default function WorkflowsPage() {
                     type="radio"
                     name="mediaType"
                     checked={mediaType === "video"}
-                    onChange={() => {
-                      setMediaType("video");
-                    }}
+                    onChange={() => setMediaType("video")}
                     className="accent-primary"
                   />
                   <span className="text-sm text-foreground">Video</span>
@@ -693,11 +691,33 @@ export default function WorkflowsPage() {
                   />
                   <span className="text-sm text-foreground">Image</span>
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="mediaType"
+                    checked={mediaType === "carousel"}
+                    onChange={() => {
+                      setMediaType("carousel");
+                      setSelectedPlatforms(["instagram"]);
+                      setSelectedYoutubeIds([]);
+                      setSelectedTiktokIds([]);
+                      setSelectedFacebookIds([]);
+                      setSelectedLinkedinIds([]);
+                    }}
+                    className="accent-primary"
+                  />
+                  <span className="text-sm text-foreground">Carousel (Instagram)</span>
+                </label>
               </div>
             )}
             {mediaType === "image" && mode === "create" && (
               <p className="text-xs text-muted-foreground">
                 Image workflows support Facebook and Instagram only. YouTube and TikTok do not support image posts.
+              </p>
+            )}
+            {mediaType === "carousel" && mode === "create" && (
+              <p className="text-xs text-muted-foreground">
+                Carousel workflows support Instagram only. Requires 2-10 images per row using <code className="text-xs bg-muted px-1 rounded">image_url_1</code>, <code className="text-xs bg-muted px-1 rounded">image_url_2</code>, ... columns in your sheet.
               </p>
             )}
           </div>

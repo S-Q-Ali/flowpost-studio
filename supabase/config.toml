@@ -17,7 +17,6 @@ verify_jwt = false
 
 [functions.instagram-upload]
 verify_jwt = false
-timeout_seconds = 140
 
 [functions.facebook-upload]
 verify_jwt = false
