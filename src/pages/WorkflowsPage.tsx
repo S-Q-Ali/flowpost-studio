@@ -134,7 +134,7 @@ export default function WorkflowsPage() {
   const [sheetUrl, setSheetUrl] = useState("");
   const [youtubeAlteredContent, setYoutubeAlteredContent] = useState<boolean>(true);
   const [selectedDriveId, setSelectedDriveId] = useState<string>("");
-  const [driveAccounts, setDriveAccounts] = useState<{ id: string; account_name: string | null; account_id: string | null; metadata: unknown }[]>([]);
+  const [driveAccounts, setDriveAccounts] = useState<{ id: string; account_name: string | null; account_id: string | null; metadata: unknown; display_name?: string | null }[]>([]);
   const [dataSource, setDataSource] = useState<"g_sheet" | "flowpost">("g_sheet");
   const [driveParentId, setDriveParentId] = useState<string>("root");
   const [driveBreadcrumbs, setDriveBreadcrumbs] = useState<{ id: string; name: string }[]>([]);
@@ -203,7 +203,7 @@ export default function WorkflowsPage() {
         .eq("is_connected", true),
       supabase
         .from("connected_accounts")
-        .select("id, account_name, account_id, metadata")
+        .select("id, account_name, account_id, metadata, display_name")
         .eq("user_id", userId)
         .eq("platform", "google_drive")
         .eq("is_connected", true),
