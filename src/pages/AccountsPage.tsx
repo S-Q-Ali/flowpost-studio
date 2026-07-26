@@ -24,6 +24,7 @@ export default function AccountsPage() {
   const [isTikTokConnecting, setIsTikTokConnecting] = useState(false);
   const [isLinkedInConnecting, setIsLinkedInConnecting] = useState(false);
   const [isDriveConnecting, setIsDriveConnecting] = useState(false);
+  const [isInstagramConnecting, setIsInstagramConnecting] = useState(false);
   const [reconnectingDriveId, setReconnectingDriveId] = useState<string | null>(null);
   const [isMegaConnecting, setIsMegaConnecting] = useState(false);
   const [showMegaForm, setShowMegaForm] = useState(false);
@@ -186,6 +187,7 @@ export default function AccountsPage() {
     if (!platform) return;
     const label: Record<string, string> = {
       facebook: "Facebook & Instagram",
+      instagram: "Instagram",
       drive: "Google Drive",
       tiktok: "TikTok",
       youtube: "YouTube",
@@ -203,6 +205,7 @@ export default function AccountsPage() {
       if (event.data?.type === "oauth-connected") {
         const p = event.data.platform;
         if (p === "facebook") setIsFacebookConnecting(false);
+        else if (p === "instagram") setIsInstagramConnecting(false);
         else if (p === "youtube") setIsYouTubeConnecting(false);
         else if (p === "drive") setIsDriveConnecting(false);
         else if (p === "tiktok") setIsTikTokConnecting(false);
@@ -383,6 +386,50 @@ export default function AccountsPage() {
     } catch (e: any) {
       toast.error(e.message || "Facebook connection failed");
       setIsFacebookConnecting(false);
+    }
+  };
+
+  const connectInstagram = async () => {
+    setIsInstagramConnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(`facebook-auth?action=url&userId=${userId}&mode=instagram`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      });
+
+      if (error) throw new Error(error.message || "Failed to start Instagram OAuth");
+      if (!data?.url) throw new Error("Missing OAuth URL");
+
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const channel = supabase
+        .channel("instagram-connected")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "connected_accounts",
+            filter: "platform=eq.instagram",
+          },
+          () => {
+            clearTimeout(timeoutId);
+            channel.unsubscribe();
+            refreshAll();
+            toast.success("Instagram connected!");
+            setIsInstagramConnecting(false);
+          },
+        )
+        .subscribe();
+
+      timeoutId = setTimeout(() => {
+        channel.unsubscribe();
+        setIsInstagramConnecting(false);
+      }, 5 * 60 * 1000);
+
+      window.open(data.url, "instagram-auth", "width=600,height=700,scrollbars=yes");
+    } catch (e: any) {
+      toast.error(e.message || "Instagram connection failed");
+      setIsInstagramConnecting(false);
     }
   };
 
@@ -850,7 +897,7 @@ export default function AccountsPage() {
               <div>
                 <h3 className="font-medium text-foreground">Instagram</h3>
                 <p className="text-xs text-muted-foreground">
-                  Instagram accounts are connected via Facebook
+                  Connect a Creator or Business account directly
                 </p>
               </div>
             </div>
@@ -863,11 +910,34 @@ export default function AccountsPage() {
               >
                 {instagramAccounts.length > 0 ? "Connected" : "Not Connected"}
               </Badge>
-              <Button className="gradient-primary text-primary-foreground" size="sm" disabled>
-                Connect via Facebook
+              <Button
+                className="gradient-primary text-primary-foreground"
+                size="sm"
+                onClick={connectInstagram}
+                disabled={isInstagramConnecting}
+              >
+                {isInstagramConnecting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  "Connect Instagram"
+                )}
               </Button>
             </div>
           </CardContent>
+          <div className="border-t border-border px-4 sm:px-6 py-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs text-muted-foreground">
+                Or connect via Facebook Page (Instagram Business)
+              </p>
+              <Button variant="outline" size="sm" onClick={connectFacebook} disabled={isFacebookConnecting}>
+                {isFacebookConnecting ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
+                Connect via Facebook
+              </Button>
+            </div>
+          </div>
         </Card>
 
         {/* YouTube */}

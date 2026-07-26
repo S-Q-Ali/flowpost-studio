@@ -124,19 +124,28 @@ Deno.serve(async (req) => {
       const authUrl = new URL("https://www.facebook.com/v23.0/dialog/oauth");
       authUrl.searchParams.set("client_id", FB_APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
-      authUrl.searchParams.set("state", reqUserId);
-      const scope = [
-        'public_profile',
-        'pages_show_list',
-        'pages_read_engagement',
-        'pages_manage_posts',
-        'business_management',
-        'read_insights',
-        'instagram_basic',
-        'instagram_content_publish',
-        'instagram_manage_comments',
-        'instagram_manage_insights'
-      ].join(',');
+      const mode = url.searchParams.get("mode") || "facebook";
+      authUrl.searchParams.set("state", `${reqUserId}:${mode}`);
+      const scope = mode === "instagram"
+        ? [
+            'public_profile',
+            'instagram_business_basic',
+            'instagram_business_content_publish',
+            'instagram_business_manage_insights',
+            'instagram_manage_comments',
+          ].join(',')
+        : [
+            'public_profile',
+            'pages_show_list',
+            'pages_read_engagement',
+            'pages_manage_posts',
+            'business_management',
+            'read_insights',
+            'instagram_basic',
+            'instagram_content_publish',
+            'instagram_manage_comments',
+            'instagram_manage_insights'
+          ].join(',');
       authUrl.searchParams.set("scope", scope);
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("auth_type", "rerequest");
@@ -153,13 +162,61 @@ Deno.serve(async (req) => {
       }
 
       const code = url.searchParams.get("code");
-      const userId = url.searchParams.get("state");
+      const rawState = url.searchParams.get("state") || "";
+      const [userId, mode] = rawState.includes(":") ? rawState.split(":") : [rawState, "facebook"];
       if (!code) return html("<html><body>Missing code</body></html>", 400);
       if (!userId) return html("<html><body>Missing user ID in state</body></html>", 400);
 
       const shortLived = await exchangeCodeForUserToken(code, redirectUri);
       const longLived = await getLongLivedUserToken(shortLived.access_token);
 
+      if (mode === "instagram") {
+        // Standalone Instagram flow (Creator/Business account, no Facebook Page needed)
+        const meResp = await fetch(
+          `https://graph.facebook.com/v23.0/me?fields=instagram_business_account&access_token=${longLived.access_token}`,
+        );
+        const meData = await meResp.json();
+
+        if (!meData?.instagram_business_account?.id) {
+          return html(
+            `<!DOCTYPE html><html><head><title>No Instagram Account</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f0f0f;color:white;"><h2>Instagram account not found</h2><p>This Facebook account isn't connected to an Instagram Creator or Business account. Please switch your Instagram account to a Creator or Business account in Instagram Settings &gt; Account &gt; Switch to Professional Account, then try again.</p></body></html>`,
+          );
+        }
+
+        const igId = meData.instagram_business_account.id;
+        const igAccountRes = await fetch(
+          `https://graph.facebook.com/v23.0/${igId}?fields=id,name,username,profile_picture_url&access_token=${longLived.access_token}`,
+        );
+        const igAccount = await igAccountRes.json();
+
+        const { error: igUpsertError } = await supabaseAdmin
+          .from("connected_accounts")
+          .upsert(
+            {
+              user_id: userId,
+              platform: "instagram",
+              account_name: igAccount.username || igAccount.name || "Instagram",
+              account_id: igAccount.id,
+              access_token: await encrypt(longLived.access_token),
+              is_connected: true,
+              connected_at: new Date().toISOString(),
+              metadata: {
+                standalone: true,
+                profile_picture: igAccount.profile_picture_url,
+              },
+            },
+            { onConflict: "user_id,platform,account_id" },
+          );
+
+        if (igUpsertError) throw igUpsertError;
+
+        return new Response(null, {
+          status: 302,
+          headers: { Location: "https://flowpost-studio.vercel.app/accounts?connected=instagram" },
+        });
+      }
+
+      // Existing Facebook + Instagram flow
       const pages = await fetchFacebookPages(longLived.access_token);
 
       for (const page of pages) {
@@ -185,7 +242,6 @@ Deno.serve(async (req) => {
 
         if (fbUpsertError) throw fbUpsertError;
 
-        // Fetch connected Instagram account for this page
         const igResponse = await fetch(
           `https://graph.facebook.com/v23.0/${page.id}?fields=instagram_business_account&access_token=${pageAccessToken}`,
         );

@@ -2919,3 +2919,31 @@ The banner title text and `<Clock>` icon both use the same freshness color. The 
 **Files**: `supabase/migrations/20260724000001_add_display_name.sql`, `src/lib/types.ts`, `src/integrations/supabase/types.ts`, `src/pages/AccountsPage.tsx`, `src/pages/StoragePage.tsx`, `src/pages/UploadPage.tsx`, `src/pages/WorkflowsPage.tsx`
 
 **Commit**: `74aa0d1`
+
+### 99. Standalone Instagram connection (Creator/Business, no Facebook Page) + responsive polish (2026-07-26)
+
+**Problem**: Instagram could only be connected through Facebook Pages (via `pages_show_list` + `pages_read_engagement`). Users with Instagram Creator/Business accounts but no Facebook Page couldn't post. Additionally, most pages had no mobile-responsive layout at 320px.
+
+**Solution**:
+
+**Standalone Instagram**:
+1. **New OAuth flow** in `facebook-auth/index.ts` — Existing `action=url` now accepts `&mode=instagram` to request only `instagram_business_*` scopes (no `pages_*`). Encode mode in `state` param to reuse the same `redirect_uri`. Existing `action=callback` dispatches to a new branch when `state={userId}:instagram`: calls `GET /me?fields=instagram_business_account` with the long-lived user token, fetches the IG Business/Creator account, upserts into `connected_accounts` with `metadata.standalone: true`. Graceful error HTML if no Instagram Business/Creator account found.
+2. **Two-path UI on AccountsPage** — Instagram card now has a primary "Connect Instagram" button (standalone, always active) and a secondary sub-row "Or connect via Facebook Page (Instagram Business)" for the existing Page-linked path.
+3. **New `connectInstagram()` function** — Mirrors `connectFacebook()`, calls `facebook-auth?action=url&mode=instagram`, opens popup, listens for Realtime INSERT on `platform=eq.instagram`.
+4. **Token reuse** — Standalone accounts use the long-lived User Access Token. Downstream functions (`instagram-upload`, `fetch-instagram-insights`, `post-story`) already query `connected_accounts` by `platform=eq.instagram` + `account_id` — no changes needed. `metadata.page_id` is never read anywhere.
+5. **No schema changes, no env vars** — Reuses existing `FB_APP_ID`/`FB_APP_SECRET`. Instagram auth goes through Facebook Login.
+
+**Responsive polish**:
+- Calendar grid `overflow-x-auto` + `min-w-[560px]` for horizontal scroll at 320px
+- QueuePage filter pills + action buttons `flex-wrap`
+- ProfilePage TabsList `flex-wrap`
+- InsightsPage stat/chart grids responsive breakpoints, selects `flex-wrap`
+- UploadPage source tabs + publish mode buttons `flex-wrap`
+- ToolsPage results grid `grid-cols-1 sm:grid-cols-2`
+- AccountsPage all card rows `flex-col sm:flex-row sm:items-center`
+- StoragePage + WorkflowItemsPage bottom bars `flex-col sm:flex-row w-[90vw] sm:w-auto`
+- WorkflowsPage media type radios `flex-wrap`, Sheet `w-full sm:max-w-xl`
+
+**Files**: `supabase/functions/facebook-auth/index.ts`, `src/pages/AccountsPage.tsx`, `src/pages/AppLayout.tsx`, `src/pages/AuthCallback.tsx`, `src/pages/CalendarPage.tsx`, `src/pages/Dashboard.tsx`, `src/pages/InsightsPage.tsx`, `src/pages/LoginPage.tsx`, `src/pages/PrivacyPage.tsx`, `src/pages/ProfilePage.tsx`, `src/pages/QueuePage.tsx`, `src/pages/StoragePage.tsx`, `src/pages/TermsPage.tsx`, `src/pages/ToolsPage.tsx`, `src/pages/UploadPage.tsx`, `src/pages/WorkflowItemsPage.tsx`, `src/pages/WorkflowsPage.tsx`, `SESSION_STATE.md`
+
+**Commit**: `5435443`
