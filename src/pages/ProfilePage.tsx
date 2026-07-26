@@ -197,7 +197,7 @@ export default function ProfilePage() {
       </div>
 
       <Tabs defaultValue="personal" className="w-full">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="personal" className="gap-2">
             <BadgeCheck size={16} />
             Personal Info

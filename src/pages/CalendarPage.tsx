@@ -109,8 +109,8 @@ export default function CalendarPage() {
       </div>
 
       {view === "month" ? (
-        <Card className="bg-card border-border shadow-card overflow-hidden">
-          <CardContent className="p-0">
+        <Card className="bg-card border-border shadow-card overflow-x-auto">
+          <CardContent className="p-0 min-w-[560px]">
             <div className="grid grid-cols-7">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
                 <div key={d} className="text-center text-xs text-muted-foreground py-3 border-b border-border font-medium">{d}</div>

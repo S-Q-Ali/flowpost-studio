@@ -19,11 +19,11 @@ export default function AuthCallback() {
   if (isVerifying) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="w-80">
+        <Card className="w-full max-w-xs sm:w-80">
           <CardContent className="flex flex-col items-center gap-4 py-12">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-10 w-40 rounded-md" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-10 w-full rounded-md" />
           </CardContent>
         </Card>
       </div>

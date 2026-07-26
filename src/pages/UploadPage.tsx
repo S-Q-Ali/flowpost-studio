@@ -779,7 +779,7 @@ export default function UploadPage() {
         </div>
         <Card className="bg-card border-border shadow-card">
           <CardContent className="p-4 space-y-4">
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Skeleton className="h-10 w-24" />
               <Skeleton className="h-10 w-28" />
               <Skeleton className="h-10 w-24" />
@@ -790,7 +790,7 @@ export default function UploadPage() {
                 <Skeleton className="h-10 w-full" />
               </div>
             ))}
-            <div className="flex gap-4">
+            <div className="flex gap-4 flex-wrap">
               {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="flex items-center gap-2">
                   <Skeleton className="h-4 w-4" />
@@ -814,11 +814,11 @@ export default function UploadPage() {
 
       <Card className="bg-card border-border shadow-card">
         <CardContent className="py-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary shrink-0">
               <Film size={20} className="text-muted-foreground" />
             </div>
-            <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5 flex-wrap">
               <button
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${driveTab === "videos" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                 onClick={() => setDriveTab("videos")}
@@ -1318,7 +1318,7 @@ export default function UploadPage() {
       <Card className="bg-card border-border shadow-card">
         <CardHeader><CardTitle className="text-foreground">Publish Options</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <Button
               variant={publishMode === "now" ? "default" : "outline"}
               className={publishMode === "now" ? "gradient-primary text-primary-foreground" : ""}
@@ -1335,7 +1335,7 @@ export default function UploadPage() {
             </Button>
           </div>
           {publishMode === "schedule" && (
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("justify-start text-left font-normal", !scheduleDate && "text-muted-foreground")}>

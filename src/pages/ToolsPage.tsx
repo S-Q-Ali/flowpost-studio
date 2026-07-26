@@ -453,7 +453,7 @@ export default function ToolsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
                 <p className="text-xs text-muted-foreground mb-2 font-medium uppercase tracking-wider">Monetization Tools</p>
                 <div className="space-y-1.5">

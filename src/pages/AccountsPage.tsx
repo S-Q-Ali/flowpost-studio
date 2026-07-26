@@ -798,9 +798,9 @@ export default function AccountsPage() {
       <div className="grid gap-4">
         {/* Facebook */}
         <Card className="bg-card border-border shadow-card">
-          <CardContent className="flex items-center justify-between py-5">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-5">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary shrink-0">
                 <PlatformIcon platform="facebook" size={24} />
               </div>
               <div>
@@ -810,7 +810,7 @@ export default function AccountsPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Badge
                 variant="outline"
                 className={facebookPages.length > 0
@@ -842,9 +842,9 @@ export default function AccountsPage() {
 
         {/* Instagram */}
         <Card className="bg-card border-border shadow-card">
-          <CardContent className="flex items-center justify-between py-5">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-5">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary shrink-0">
                 <PlatformIcon platform="instagram" size={24} />
               </div>
               <div>
@@ -854,7 +854,7 @@ export default function AccountsPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Badge
                 variant="outline"
                 className={instagramAccounts.length > 0
@@ -872,9 +872,9 @@ export default function AccountsPage() {
 
         {/* YouTube */}
         <Card className="bg-card border-border shadow-card">
-          <CardContent className="flex items-center justify-between py-5">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-5">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary shrink-0">
                 <PlatformIcon platform="youtube" size={24} />
               </div>
               <div>
@@ -884,7 +884,7 @@ export default function AccountsPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Badge
                 variant="outline"
                 className={youtubeAccounts.length > 0
@@ -916,9 +916,9 @@ export default function AccountsPage() {
 
         {/* TikTok */}
         <Card className="bg-card border-border shadow-card">
-          <CardContent className="flex items-center justify-between py-5">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-5">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary shrink-0">
                 <PlatformIcon platform="tiktok" size={24} />
               </div>
               <div>
@@ -928,7 +928,7 @@ export default function AccountsPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Badge
                 variant="outline"
                 className={tiktokAccounts.length > 0
@@ -968,9 +968,9 @@ export default function AccountsPage() {
 
         {/* LinkedIn */}
         <Card className="bg-card border-border shadow-card">
-          <CardContent className="flex items-center justify-between py-5">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-5">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary shrink-0">
                 <PlatformIcon platform="linkedin" size={24} />
               </div>
               <div>
@@ -980,7 +980,7 @@ export default function AccountsPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Badge
                 variant="outline"
                 className={linkedinAccounts.length > 0
@@ -1023,9 +1023,9 @@ export default function AccountsPage() {
           <div className="grid gap-3">
             {youtubeAccounts.map((a) => (
               <Card key={a.id} className="bg-card border-border shadow-card">
-                <CardContent className="flex items-center justify-between py-4">
+                <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary shrink-0">
                       <PlatformIcon platform="youtube" size={20} />
                     </div>
                     <div>
@@ -1037,7 +1037,7 @@ export default function AccountsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
                       Connected
                     </Badge>
@@ -1072,9 +1072,9 @@ export default function AccountsPage() {
               const category = (a as any)?.metadata?.category as string | undefined;
               return (
                 <Card key={a.id} className="bg-card border-border shadow-card">
-                  <CardContent className="flex items-center justify-between py-4">
+                  <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary shrink-0">
                         <PlatformIcon platform="facebook" size={20} />
                       </div>
                       <div>
@@ -1082,7 +1082,7 @@ export default function AccountsPage() {
                         <div className="text-xs text-muted-foreground">{category ?? a.account_id}</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
                         Connected
                       </Badge>
@@ -1118,9 +1118,9 @@ export default function AccountsPage() {
                 const followers = (a as any)?.metadata?.followers_count as number | undefined;
                 return (
                   <Card key={a.id} className="bg-card border-border shadow-card">
-                    <CardContent className="flex items-center justify-between py-4">
+                    <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary shrink-0">
                           <PlatformIcon platform="instagram" size={20} />
                         </div>
                         <div>
@@ -1130,7 +1130,7 @@ export default function AccountsPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
                           Connected
                         </Badge>
@@ -1166,9 +1166,9 @@ export default function AccountsPage() {
                 const isRenaming = renamingDriveId === a.id;
                 return (
                   <Card key={a.id} className="bg-card border-border shadow-card">
-                    <CardContent className="flex items-center justify-between py-4">
+                    <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary shrink-0">
                           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-green-500">
                             <path d="M12.24 10.28 7.81 2.57H4.28l4.2 7.71h3.76Z" />
                             <path d="M16.06 2.57h-4.1l4.2 7.71h4.1l-4.2-7.71Z" />
@@ -1225,7 +1225,7 @@ export default function AccountsPage() {
                           <div className="text-xs text-muted-foreground">{email ?? a.account_id}</div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
                           Connected
                         </Badge>
@@ -1277,9 +1277,9 @@ export default function AccountsPage() {
             <div className="grid gap-3">
               {megaAccounts.map((a) => (
                 <Card key={a.id} className="bg-card border-border shadow-card">
-                  <CardContent className="flex items-center justify-between py-4">
+                  <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary shrink-0">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-red-500">
                           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/>
                         </svg>
@@ -1289,7 +1289,7 @@ export default function AccountsPage() {
                         <div className="text-xs text-muted-foreground">{a.account_name}</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <Badge variant="outline" className="bg-status-published/20 text-status-published border-status-published/30">
                         Connected
                       </Badge>

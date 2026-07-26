@@ -821,7 +821,7 @@ export default function WorkflowItemsPage() {
 
       {/* Bulk bar */}
       {items.length > 0 && (
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 text-xs flex-wrap">
           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={selectAll}>
             <CheckCheck className="h-3 w-3" /> Select All
           </Button>
@@ -834,7 +834,7 @@ export default function WorkflowItemsPage() {
           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setMarkPostedRangeOpen(true)}>
             <Archive className="h-3 w-3" /> Mark as Posted
           </Button>
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-3 sm:ml-auto">
             <label className="flex items-center gap-1.5 cursor-pointer">
               <Checkbox
                 checked={showPosted}
@@ -1129,11 +1129,11 @@ export default function WorkflowItemsPage() {
       />
       {selectedIds.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm shadow-lg p-3">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <span className="text-sm font-medium text-foreground">
               {selectedIds.size} item{selectedIds.size !== 1 ? "s" : ""} selected
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={deselectAll}>
                 <Circle className="h-3 w-3" /> Deselect All
               </Button>

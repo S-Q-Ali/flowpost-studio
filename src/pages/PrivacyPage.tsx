@@ -4,7 +4,7 @@ import { Logo } from "@/components/Logo";
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-3xl mx-auto px-6 py-12 space-y-8 text-muted-foreground">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12 space-y-8 text-muted-foreground">
         <header className="flex items-center gap-3">
           <Link to="/dashboard" aria-label="FlowPost Studio">
             <Logo size="md" />

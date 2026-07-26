@@ -235,7 +235,7 @@ export default function InsightsPage() {
             <Skeleton className="h-10 w-28" />
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardContent className="pt-6 space-y-2">
@@ -246,8 +246,8 @@ export default function InsightsPage() {
             </Card>
           ))}
         </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="sm:col-span-2">
             <Card>
               <CardHeader><Skeleton className="h-4 w-48" /></CardHeader>
               <CardContent><Skeleton className="h-[280px]" /></CardContent>
@@ -351,7 +351,7 @@ export default function InsightsPage() {
           <BarChart3 size={24} className="text-primary" />
           <h1 className="text-2xl font-bold">Insights</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={platform} onValueChange={(v) => handlePlatformChange(v as Platform)}>
             <SelectTrigger className="w-40">
               <SelectValue />
@@ -418,7 +418,7 @@ export default function InsightsPage() {
 
       {data && (
         <>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground mb-1">{stats.primaryLabel}</p>
@@ -456,8 +456,8 @@ export default function InsightsPage() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Card className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="sm:col-span-2">
               <CardHeader>
                 <CardTitle className="text-sm">{chartMetrics.primary.title.replace("30 days", `${dateRange} days`)}</CardTitle>
               </CardHeader>
@@ -511,7 +511,7 @@ export default function InsightsPage() {
           </div>
 
           {chartMetrics.tertiary ? (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm">{chartMetrics.secondary.title.replace("30 days", `${dateRange} days`)}</CardTitle>
@@ -560,7 +560,7 @@ export default function InsightsPage() {
               </Card>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm">{chartMetrics.secondary.title.replace("30 days", `${dateRange} days`)}</CardTitle>

@@ -101,7 +101,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground">Overview of your content distribution</p>
         </div>
-        <Button asChild className="gradient-primary text-primary-foreground gap-2">
+        <Button asChild className="gradient-primary text-primary-foreground gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap">
           <Link to="/upload"><Plus size={16} /> Upload & Distribute</Link>
         </Button>
       </div>

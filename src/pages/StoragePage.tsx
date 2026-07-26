@@ -790,9 +790,9 @@ export default function StoragePage() {
 
       {/* Upload & Delete buttons */}
       {selectedFiles.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col sm:flex-row items-center gap-3 w-[90vw] sm:w-auto">
           {uploading && (
-            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-4 py-2 shadow-lg">
+            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-4 py-2 shadow-lg w-full sm:w-auto">
               <svg width="32" height="32" viewBox="0 0 32 32" className="shrink-0">
                 <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="3" className="text-muted-foreground/30" />
                 <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="3"
@@ -808,7 +808,7 @@ export default function StoragePage() {
             </div>
           )}
           <Button
-            className="shadow-lg"
+            className="shadow-lg w-full sm:w-auto"
             size="lg"
             onClick={startUpload}
             disabled={uploading}
@@ -824,7 +824,7 @@ export default function StoragePage() {
           <Button
             variant="destructive"
             size="lg"
-            className="shadow-lg"
+            className="shadow-lg w-full sm:w-auto"
             onClick={deleteSelectedItems}
             disabled={uploading || deletingSelected}
           >

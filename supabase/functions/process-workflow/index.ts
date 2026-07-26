@@ -671,6 +671,7 @@ Deno.serve(async (req) => {
           const isMegaPublic = rawUrl.includes("mega.nz/");
           const isMegaAccount = rawUrl.startsWith("mega:");
           let driveDownloadUrl: string | undefined;
+          let ytVideoTitle: string | undefined;
           let megaUrl: string | undefined;
           let megaFileName: string | undefined;
           let megaAccountId: string | undefined;
@@ -711,7 +712,7 @@ Deno.serve(async (req) => {
             driveDownloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
             storedFileUrl = driveDownloadUrl;
             const title = titleIdx !== undefined ? row[titleIdx] || "" : "";
-            const ytVideoTitle = ytTitleIdx !== undefined && row[ytTitleIdx] ? row[ytTitleIdx] : "";
+            ytVideoTitle = ytTitleIdx !== undefined && row[ytTitleIdx] ? row[ytTitleIdx] : "";
             videoDisplayName = ytVideoTitle || title || `workflow-video-${fileId}`;
           }
 

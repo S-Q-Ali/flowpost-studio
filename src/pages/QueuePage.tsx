@@ -211,7 +211,7 @@ export default function QueuePage() {
             <Skeleton className="h-4 w-56" />
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {[1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} className="h-8 w-20" />
           ))}
@@ -243,7 +243,7 @@ export default function QueuePage() {
           <p className="text-sm text-muted-foreground">{posts.length} posts</p>
         </div>
         {posts.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={selectAll}>
               Select All
             </Button>
@@ -264,7 +264,7 @@ export default function QueuePage() {
         )}
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {filters.map((f) => (
           <Button
             key={f}
