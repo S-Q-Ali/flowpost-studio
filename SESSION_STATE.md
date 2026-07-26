@@ -2946,4 +2946,4 @@ The banner title text and `<Clock>` icon both use the same freshness color. The 
 
 **Files**: `supabase/functions/facebook-auth/index.ts`, `src/pages/AccountsPage.tsx`, `src/pages/AppLayout.tsx`, `src/pages/AuthCallback.tsx`, `src/pages/CalendarPage.tsx`, `src/pages/Dashboard.tsx`, `src/pages/InsightsPage.tsx`, `src/pages/LoginPage.tsx`, `src/pages/PrivacyPage.tsx`, `src/pages/ProfilePage.tsx`, `src/pages/QueuePage.tsx`, `src/pages/StoragePage.tsx`, `src/pages/TermsPage.tsx`, `src/pages/ToolsPage.tsx`, `src/pages/UploadPage.tsx`, `src/pages/WorkflowItemsPage.tsx`, `src/pages/WorkflowsPage.tsx`, `SESSION_STATE.md`
 
-**Commit**: `973f711`
+**Commit**: `9dc065a`
