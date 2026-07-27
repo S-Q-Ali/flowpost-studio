@@ -110,6 +110,9 @@ Deno.serve(async (req) => {
     const accessToken = await decrypt(account.access_token as string);
     const igUserId = account.account_id as string;
     const caption = (post.caption || "").substring(0, 2200);
+    const igBaseUrl = (account as any)?.metadata?.instagram_login
+      ? "https://graph.instagram.com/v21.0"
+      : "https://graph.facebook.com/v25.0";
 
     // Helper: resolve a video's file_url to a usable media URL
     async function resolveMediaUrl(videoFileUrl: string): Promise<string> {
@@ -185,7 +188,7 @@ Deno.serve(async (req) => {
         childForm.append("access_token", accessToken);
 
         const childRes = await fetch(
-          `https://graph.facebook.com/v25.0/${igUserId}/media`,
+          `${igBaseUrl}/${igUserId}/media`,
           { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: childForm.toString() },
         );
         const childData = await childRes.json();
@@ -205,7 +208,7 @@ Deno.serve(async (req) => {
       carouselForm.append("access_token", accessToken);
 
       const carouselRes = await fetch(
-        `https://graph.facebook.com/v25.0/${igUserId}/media`,
+        `${igBaseUrl}/${igUserId}/media`,
         { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: carouselForm.toString() },
       );
       const carouselText = await carouselRes.text();
@@ -231,7 +234,7 @@ Deno.serve(async (req) => {
         }
 
         const statusRes = await fetch(
-          `https://graph.facebook.com/v25.0/${containerId}?fields=status_code&access_token=${accessToken}`,
+          `${igBaseUrl}/${containerId}?fields=status_code&access_token=${accessToken}`,
         );
         const statusData = await statusRes.json() as Record<string, unknown>;
 
@@ -240,7 +243,7 @@ Deno.serve(async (req) => {
           publishForm.append("creation_id", containerId);
           publishForm.append("access_token", accessToken);
           const publishRes = await fetch(
-            `https://graph.facebook.com/v25.0/${igUserId}/media_publish`,
+            `${igBaseUrl}/${igUserId}/media_publish`,
             { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: publishForm.toString() },
           );
           publishResult = await publishRes.json() as Record<string, unknown>;
@@ -290,7 +293,7 @@ Deno.serve(async (req) => {
     containerForm.append("access_token", accessToken);
 
     const containerRes = await fetch(
-      `https://graph.facebook.com/v25.0/${igUserId}/media`,
+      `${igBaseUrl}/${igUserId}/media`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -325,7 +328,7 @@ Deno.serve(async (req) => {
       }
 
       const statusRes = await fetch(
-        `https://graph.facebook.com/v25.0/${container.id}?fields=status_code&access_token=${accessToken}`,
+        `${igBaseUrl}/${container.id}?fields=status_code&access_token=${accessToken}`,
       );
       const statusData = await statusRes.json() as Record<string, unknown>;
 
@@ -335,7 +338,7 @@ Deno.serve(async (req) => {
         publishForm.append("access_token", accessToken);
 
         const publishRes = await fetch(
-          `https://graph.facebook.com/v25.0/${igUserId}/media_publish`,
+          `${igBaseUrl}/${igUserId}/media_publish`,
           {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },

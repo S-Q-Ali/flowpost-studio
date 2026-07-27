@@ -2920,30 +2920,29 @@ The banner title text and `<Clock>` icon both use the same freshness color. The 
 
 **Commit**: `74aa0d1`
 
-### 99. Standalone Instagram connection (Creator/Business, no Facebook Page) + responsive polish (2026-07-26)
+### 99. Instagram API with Instagram Login + YouTube Shorts template + downstream API base URL detection (2026-07-26)
 
-**Problem**: Instagram could only be connected through Facebook Pages (via `pages_show_list` + `pages_read_engagement`). Users with Instagram Creator/Business accounts but no Facebook Page couldn't post. Additionally, most pages had no mobile-responsive layout at 320px.
+**Problem**: Instagram could only be connected through Facebook Pages. Users with Instagram Creator/Business accounts but no Facebook identity couldn't post or manage content. An earlier attempt reused Facebook Login with Instagram scopes, but the OAuth flow still showed Facebook login — confusing users and requiring a Facebook identity. No YouTube Shorts-specific prompt template existed.
 
 **Solution**:
 
-**Standalone Instagram**:
-1. **New OAuth flow** in `facebook-auth/index.ts` — Existing `action=url` now accepts `&mode=instagram` to request only `instagram_business_*` scopes (no `pages_*`). Encode mode in `state` param to reuse the same `redirect_uri`. Existing `action=callback` dispatches to a new branch when `state={userId}:instagram`: calls `GET /me?fields=instagram_business_account` with the long-lived user token, fetches the IG Business/Creator account, upserts into `connected_accounts` with `metadata.standalone: true`. Graceful error HTML if no Instagram Business/Creator account found.
-2. **Two-path UI on AccountsPage** — Instagram card now has a primary "Connect Instagram" button (standalone, always active) and a secondary sub-row "Or connect via Facebook Page (Instagram Business)" for the existing Page-linked path.
-3. **New `connectInstagram()` function** — Mirrors `connectFacebook()`, calls `facebook-auth?action=url&mode=instagram`, opens popup, listens for Realtime INSERT on `platform=eq.instagram`.
-4. **Token reuse** — Standalone accounts use the long-lived User Access Token. Downstream functions (`instagram-upload`, `fetch-instagram-insights`, `post-story`) already query `connected_accounts` by `platform=eq.instagram` + `account_id` — no changes needed. `metadata.page_id` is never read anywhere.
-5. **No schema changes, no env vars** — Reuses existing `FB_APP_ID`/`FB_APP_SECRET`. Instagram auth goes through Facebook Login.
+**Instagram Login (true standalone)** — Uses a **separate Instagram App** (`FlowPost-IG`, ID: `1241484724283908`) with Meta's dedicated Instagram OAuth endpoints at `api.instagram.com`. No Facebook identity required.
 
-**Responsive polish**:
-- Calendar grid `overflow-x-auto` + `min-w-[560px]` for horizontal scroll at 320px
-- QueuePage filter pills + action buttons `flex-wrap`
-- ProfilePage TabsList `flex-wrap`
-- InsightsPage stat/chart grids responsive breakpoints, selects `flex-wrap`
-- UploadPage source tabs + publish mode buttons `flex-wrap`
-- ToolsPage results grid `grid-cols-1 sm:grid-cols-2`
-- AccountsPage all card rows `flex-col sm:flex-row sm:items-center`
-- StoragePage + WorkflowItemsPage bottom bars `flex-col sm:flex-row w-[90vw] sm:w-auto`
-- WorkflowsPage media type radios `flex-wrap`, Sheet `w-full sm:max-w-xl`
+1. **New edge function** (`instagram-auth/index.ts`):
+   - `action=url`: `GET https://api.instagram.com/oauth/authorize` with `enable_fb_login=false` (suppresses Facebook Login), scopes: `instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights,instagram_business_manage_comments`
+   - `action=callback`: Exchange code → short-lived token (`POST api.instagram.com/oauth/access_token`) → long-lived 60-day token (`GET graph.instagram.com/v21.0/access_token?grant_type=ig_exchange_token`) → fetch profile (`GET graph.instagram.com/v21.0/me?fields=user_id,username,name,account_type,profile_picture_url,followers_count`) → upsert `connected_accounts` with `metadata: { instagram_login: true, account_type, profile_picture, followers_count }`
+   - `action=refresh`: Refresh expiring long-lived tokens
+   - Env vars: `IG_APP_ID=1241484724283908`, `IG_APP_SECRET` (set in Supabase dashboard)
 
-**Files**: `supabase/functions/facebook-auth/index.ts`, `src/pages/AccountsPage.tsx`, `src/pages/AppLayout.tsx`, `src/pages/AuthCallback.tsx`, `src/pages/CalendarPage.tsx`, `src/pages/Dashboard.tsx`, `src/pages/InsightsPage.tsx`, `src/pages/LoginPage.tsx`, `src/pages/PrivacyPage.tsx`, `src/pages/ProfilePage.tsx`, `src/pages/QueuePage.tsx`, `src/pages/StoragePage.tsx`, `src/pages/TermsPage.tsx`, `src/pages/ToolsPage.tsx`, `src/pages/UploadPage.tsx`, `src/pages/WorkflowItemsPage.tsx`, `src/pages/WorkflowsPage.tsx`, `SESSION_STATE.md`
+2. **AccountsPage.tsx** — Instagram card simplified to single "Connect Instagram" button calling the new `instagram-auth` function. Removed broken `facebook-auth?mode=instagram` path and redundant "Connect via Facebook" sub-row (Facebook card already handles that path). Shows connected accounts with follower count.
 
-**Commit**: `9dc065a`
+3. **Downstream API base URL detection** — 3 functions dynamically switch between `graph.instagram.com/v21.0` and `graph.facebook.com/vX.0`:
+   - `instagram-upload/index.ts`: Added `igBaseUrl` variable resolved from `account.metadata.instagram_login`
+   - `fetch-instagram-insights/index.ts`: `fetchMeta()` helper now checks `metadata.instagram_login` for base URL
+   - `post-story/index.ts`: Queries the account's `metadata.instagram_login` at runtime to pick correct base URL
+
+4. **YouTube Shorts prompt template** — New "YouTube Shorts" preset added to both `src/lib/prompt-templates.ts` and `supabase/functions/generate-ai-captions/prompt-templates.ts`. Optimized for short-form vertical video with hook-driven captions for all platforms.
+
+**Files**: `supabase/functions/instagram-auth/index.ts` (new), `supabase/functions/instagram-upload/index.ts`, `supabase/functions/fetch-instagram-insights/index.ts`, `supabase/functions/post-story/index.ts`, `src/pages/AccountsPage.tsx`, `src/lib/prompt-templates.ts`, `supabase/functions/generate-ai-captions/prompt-templates.ts`, `SESSION_STATE.md`
+
+**Deployment**: All 4 functions deployed to Supabase Edge Functions (`instagram-auth`, `instagram-upload`, `fetch-instagram-insights`, `post-story`). Set `IG_APP_ID=1241484724283908` and `IG_APP_SECRET` in Supabase dashboard secrets. Redirect URI already added to Meta Dashboard by user. Committed + pushed to `main`.

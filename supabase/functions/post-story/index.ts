@@ -216,6 +216,22 @@ Deno.serve(async (req) => {
       console.log("Instagram account ID:", accountId);
       console.log("Token prefix:", accessToken.substring(0, 20));
       console.log("Instagram story using URL:", videoUrl);
+
+      // Determine API base URL based on token type
+      let igBaseUrl = "https://graph.facebook.com/v25.0";
+      try {
+        const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+        const { data: igAccount } = await supabase
+          .from("connected_accounts")
+          .select("metadata")
+          .eq("account_id", accountId)
+          .eq("platform", "instagram")
+          .single();
+        if ((igAccount as any)?.metadata?.instagram_login) {
+          igBaseUrl = "https://graph.instagram.com/v21.0";
+        }
+      } catch { /* fallback to Facebook graph */ }
+
       const isImageStory = mediaTypeInput === "image";
       const storyBody: Record<string, unknown> = {
         media_type: "STORIES",
@@ -227,7 +243,7 @@ Deno.serve(async (req) => {
         storyBody.video_url = videoUrl;
       }
       const containerRes = await fetch(
-        `https://graph.facebook.com/v25.0/${accountId}/media`,
+        `${igBaseUrl}/${accountId}/media`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -253,7 +269,7 @@ Deno.serve(async (req) => {
         await new Promise((r) => setTimeout(r, 2000));
 
         const statusRes = await fetch(
-          `https://graph.facebook.com/v25.0/${container.id}?fields=status_code&access_token=${accessToken}`
+          `${igBaseUrl}/${container.id}?fields=status_code&access_token=${accessToken}`
         );
         const statusData = await statusRes.json() as { status_code?: string; error?: { message: string } };
 
@@ -275,7 +291,7 @@ Deno.serve(async (req) => {
       }
 
       const publishRes = await fetch(
-        `https://graph.facebook.com/v25.0/${accountId}/media_publish`,
+        `${igBaseUrl}/${accountId}/media_publish`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

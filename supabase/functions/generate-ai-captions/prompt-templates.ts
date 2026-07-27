@@ -96,6 +96,26 @@ export const PROMPT_TEMPLATES: PromptTemplate[] = [
         "Generate professional, educational captions that position the content as valuable and authoritative. YouTube title should be search-optimized. LinkedIn should provide substantive insight. Keep TikTok/IG digestible but informative.",
     },
   },
+  {
+    name: "YouTube Shorts",
+    description: "Vertical short-form videos optimized for YouTube Shorts, with cross-platform captions",
+    prompt: {
+      strict_rules:
+        "Titles max 60 characters. YouTube Shorts description max 2 sentences with key CTAs. Facebook/Instagram/TikTok captions max 150 characters. LinkedIn caption max 300 characters. Use 3-5 relevant hashtags. Match the fast-paced, hook-driven style of short-form content. Each caption must start with a strong hook.",
+      output_format:
+        "Return a JSON object with exactly these keys: yt_video_title (string), yt_video_description (string, 1-2 sentences), fb_ig_caption (string), tiktok_caption (string), linkedin_caption (string).",
+      example_output: `{
+  "yt_video_title": "This AI Tool Blew My Mind 🤯",
+  "yt_video_description": "Testing the latest AI video generator — the results are INSANE. Watch till the end for the best one! #AI #Shorts",
+  "fb_ig_caption": "This AI tool just changed the game forever 🤯 Which clip was your favorite? 👇",
+  "tiktok_caption": "POV: AI generates video from text 🤖 This is CRAZY #ai #technology #shorts",
+  "linkedin_caption": "AI video generation has reached a turning point. Here's what I tested and why it matters for content creators."
+}`,
+      hashtags: "#Shorts #YouTubeShorts #AI #Viral #ContentCreation",
+      generation_instruction:
+        "Generate platform-optimized captions for YouTube Shorts / short-form vertical video content. Keep energy high and captions concise. YouTube title should work as a Shorts title (under 60 chars). TikTok/IG should feel native to those platforms.",
+    },
+  },
 ];
 
 export function getDefaultMasterPrompt(): MasterPrompt {

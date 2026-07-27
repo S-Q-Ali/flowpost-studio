@@ -392,7 +392,7 @@ export default function AccountsPage() {
   const connectInstagram = async () => {
     setIsInstagramConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke(`facebook-auth?action=url&userId=${userId}&mode=instagram`, {
+      const { data, error } = await supabase.functions.invoke(`instagram-auth?action=url&userId=${userId}`, {
         method: "GET",
         headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
@@ -897,7 +897,7 @@ export default function AccountsPage() {
               <div>
                 <h3 className="font-medium text-foreground">Instagram</h3>
                 <p className="text-xs text-muted-foreground">
-                  Connect a Creator or Business account directly
+                  {instagramAccounts.length > 0 ? `${instagramAccounts.length} account(s) connected` : "Connect a Creator or Business account directly"}
                 </p>
               </div>
             </div>
@@ -927,17 +927,6 @@ export default function AccountsPage() {
               </Button>
             </div>
           </CardContent>
-          <div className="border-t border-border px-4 sm:px-6 py-3">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <p className="text-xs text-muted-foreground">
-                Or connect via Facebook Page (Instagram Business)
-              </p>
-              <Button variant="outline" size="sm" onClick={connectFacebook} disabled={isFacebookConnecting}>
-                {isFacebookConnecting ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
-                Connect via Facebook
-              </Button>
-            </div>
-          </div>
         </Card>
 
         {/* YouTube */}
@@ -1220,7 +1209,7 @@ export default function AccountsPage() {
           ) : (
             <Card className="bg-card border-border shadow-card">
               <CardContent className="py-4 text-sm text-muted-foreground">
-                No Instagram Business accounts found. Make sure your Instagram is connected to a Facebook Page.
+                No Instagram accounts found. Connect one above or via Facebook.
               </CardContent>
             </Card>
           )}
