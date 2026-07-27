@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `99f5cca` — Add Instagram carousel support
+## CURRENT HEAD: `456a131` — fix: use parsed body instead of re-reading req.json() in upload-video-to-r2 and get-r2-upload-url
 
 ## Monetization Eligibility Feature — 4-Phase Plan (100% ✅)
 
@@ -2946,3 +2946,148 @@ The banner title text and `<Clock>` icon both use the same freshness color. The 
 **Files**: `supabase/functions/instagram-auth/index.ts` (new), `supabase/functions/instagram-upload/index.ts`, `supabase/functions/fetch-instagram-insights/index.ts`, `supabase/functions/post-story/index.ts`, `src/pages/AccountsPage.tsx`, `src/lib/prompt-templates.ts`, `supabase/functions/generate-ai-captions/prompt-templates.ts`, `SESSION_STATE.md`
 
 **Deployment**: All 4 functions deployed to Supabase Edge Functions (`instagram-auth`, `instagram-upload`, `fetch-instagram-insights`, `post-story`). Set `IG_APP_ID=1241484724283908` and `IG_APP_SECRET` in Supabase dashboard secrets. Redirect URI already added to Meta Dashboard by user. Committed + pushed to `main`.
+
+---
+
+### 100. Comprehensive Security, Reliability & Quality Audit (2026-07-27)
+
+**Scope**: Full audit of 27 edge functions, 14 frontend pages, 31 migrations, dependencies, and error handling patterns. Performed using 4 parallel exploration agents covering security, TypeScript/quality, database/RLS, and reliability/error handling.
+
+**Findings by category** (detailed below):
+
+---
+
+## 🔴 Security (11 findings)
+
+### CRITICAL
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | **`.env.local` credentials leaked in git** — Supabase management token (`sbp_...`), anon key, R2 token, Facebook/Instagram OAuth tokens, all committed | ✅ **Fixed** — removed from git, secrets rotated |
+
+### HIGH
+| # | Issue | File(s) | Est. fix |
+|---|-------|---------|----------|
+| 2 | **`instagram-auth` + `google-oauth` missing from `config.toml`** — deployed with `--no-verify-jwt` flag but future bulk deploys will reset it | `supabase/config.toml` | 5m |
+| 3 | **3 functions with zero auth** — `fetch-facebook-insights`, `fetch-instagram-insights`, `get-quota-usage` | 3 edge function files | 1h |
+| 4 | **`postMessage` origin validation** — 3 listeners use `"*"` targetOrigin, 0 validate `event.origin` | `AccountsPage.tsx:198,204`, `ToolsPage.tsx:55,62,139` | 15m |
+| 5 | **`generate-ai-captions` leaks `GROQ_API_KEY`** — `get-key` mode returns raw API key to any caller | `generate-ai-captions/index.ts:223-229` | 15m |
+| 6 | **`google-oauth` open redirect** — `redirect_uri` read from query params with no allowlist | `google-oauth/index.ts:95` | 30m |
+| 7 | **`select("*")` on `connected_accounts`** — 21 queries return encrypted tokens to browser across 7 frontend files | `AccountsPage.tsx` (7×), `UploadPage.tsx` (7×), `StoragePage.tsx` (2×), `WorkflowsPage.tsx` (5×) | 1h |
+| 8 | **Backdoor UUID `00000000-0000-0000-0000-000000000000` in RLS** — single point of failure across all tables | Multiple RLS policy files | 30m |
+
+### MEDIUM
+| # | Issue | File(s) | Est. fix |
+|---|-------|---------|----------|
+| 9 | **27 functions fallback to `"https://yourdomain.com"`** for CORS if `ALLOWED_ORIGIN` unset (31 occurrences) | All `supabase/functions/*/index.ts` | 30m |
+| 10 | **Client-side DELETE/UPDATE on `posts`** — QueuePage, CalendarPage bypass edge functions | `QueuePage.tsx:158,168`, `CalendarPage.tsx:48` | 1h |
+
+### LOW
+| # | Issue | File(s) | Est. fix |
+|---|-------|---------|----------|
+| 11 | **`decrypt()` fallback** returns ciphertext on failure | `_shared/crypto.ts:41-42` | 15m |
+
+---
+
+## 🚀 Performance (5 findings)
+
+| # | Issue | Severity | Est. fix |
+|---|-------|----------|----------|
+| 1 | **Missing composite indexes** — `posts(user_id, status)`, `connected_accounts(user_id, platform)`, `workflow_items(workflow_id, sort_order)` | HIGH | 30m |
+| 2 | **No `AbortController` in frontend** — zero timeout handling on any data fetch | MEDIUM | 2h |
+| 3 | **`select("*")` overfetching** — returns all columns when 2-3 suffice (connected_accounts, workflows) | MEDIUM | 1h |
+| 4 | **`megajs` in frontend `package.json`** — unused dependency adds ~50KB bundle weight | LOW | 5m |
+| 5 | **`process-workflow` N+1 queries** — batch `connected_accounts` queries run per-row instead of pre-batch | LOW | 30m |
+
+---
+
+## 🛡️ Reliability (6 findings)
+
+| # | Issue | Severity | Est. fix |
+|---|-------|----------|----------|
+| 1 | **4 functions missing top-level try/catch** — `fetch-facebook-insights`, `fetch-instagram-insights`, `get-quota-usage`, `transfer-ticket` | HIGH | 30m |
+| 2 | **12+ functions use blanket `catch {}`** — errors silently swallowed, no logging | HIGH | 1h |
+| 3 | **`void fetch()` fire-and-forget in `process-workflow`** — 9 occurrences, no retry/logging | HIGH | 1h |
+| 4 | **14 `useEffect` hooks lack cleanup** — stale state updates on unmounted components | MEDIUM | 1h |
+| 5 | **5+ promise chains missing `.catch()`** — unhandled rejections | MEDIUM | 30m |
+| 6 | **No per-function `timeout_seconds` in `config.toml`** — all use default | MEDIUM | 30m |
+
+---
+
+## 📦 Code Quality (8 findings)
+
+| # | Issue | Severity | Est. fix |
+|---|-------|----------|----------|
+| 1 | **Massive boilerplate duplication** — `corsHeaders`, `json()`, `createClient()` copied in 27 functions | MEDIUM | 2h |
+| 2 | **7 non-idempotent migrations** — will fail or destroy data on re-run | HIGH | 1h |
+| 3 | **`prompt-templates.ts` duplicated** — `src/` and `supabase/` versions with interface drift | LOW | 15m |
+| 4 | **`supabase-js` version mismatch** — edge functions pinned to 2.49.0 vs frontend ^2.98.0 | LOW | 15m |
+| 5 | **Unused deps** — `megajs`, `@radix-ui/react-radio-group`, `lovable-tagger` | LOW | 15m |
+| 6 | **Unused export** — `reducer` in `use-toast.ts:71` | LOW | 5m |
+| 7 | **RLS policy sprawl** — up to 12 overlapping policies per table from 7 migration files | MEDIUM | 2h |
+| 8 | **Zero tests** — `vitest.config.ts` references nonexistent `src/test/setup.ts` | MEDIUM | included in infra |
+
+---
+
+## 🔗 Architecture (3 findings)
+
+| # | Issue | Severity | Est. fix |
+|---|-------|----------|----------|
+| 1 | **Hardcoded Vercel redirect URLs** — 6 auth functions hardcode `https://flowpost-studio.vercel.app` | MEDIUM | 30m |
+| 2 | **Secrets startup checks only `console.error`** — never halt execution | MEDIUM | 30m |
+| 3 | **`verify-password` clears ALL sessions on login** — single-session enforcement by design but aggressive | LOW | 15m |
+
+---
+
+## Execution Plan (5 Phases)
+
+Order: Security → Reliability → Performance → Code Quality → Architecture
+
+### Phase 0 — Test Infrastructure (before any changes)
+| Step | Action | Est. |
+|------|--------|------|
+| 0.1 | Re-add `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event` | 5m |
+| 0.2 | Create `src/test/setup.ts` — jest-dom imports, `window.matchMedia` mock, Supabase client mock | 15m |
+| 0.3 | Write 1-2 smoke tests (e.g., `cn()` utility) to verify infra works | 10m |
+| 0.4 | `npm run test` passes green → commit | — |
+
+### Phase 1 — Security (8 steps, sequential)
+| Step | Issue addressed | Precaution |
+|------|----------------|------------|
+| 1.1 | **#2** — Add `instagram-auth` + `google-oauth` to `config.toml` | Deploy each → test OAuth flow |
+| 1.2 | **#3** — Auth on `fetch-instagram-insights` + `fetch-facebook-insights` | Use `apikey` pattern from entry #79 (proven fix). Deploy → test InsightsPage |
+| 1.3 | **#3** — Auth on `get-quota-usage` | Switch callers to `supabase.functions.invoke()` (already send auth headers), then add check. Deploy → test quota on both pages |
+| 1.4 | **#4** — `postMessage` origin validation | Whitelist `https://flowpost-studio.vercel.app` + `chrome-extension://`. Test OAuth popup + extension |
+| 1.5 | **#5** — `generate-ai-captions` GROQ key leak | Replace `get-key` with scoped token. Test AI captions |
+| 1.6 | **#6** — `google-oauth` open redirect | Add allowlist. Test login flow |
+| 1.7 | **#7** — `select("*")` → explicit projections | 21 queries across 7 files. Reference good patterns (`InsightsPage.tsx`, `QueuePage.tsx`) |
+| 1.8 | **#8** — Backdoor UUID / **#9** CORS fallback / **#10** client-side deletes | Batch lower-severity security items |
+
+### Phase 2 — Reliability (4 steps)
+| Step | Issue |
+|------|-------|
+| 2.1 | Add top-level try/catch to 4 unprotected functions |
+| 2.2 | Replace blanket `catch {}` in 12+ functions (at minimum log the error) |
+| 2.3 | Replace `void fetch()` fire-and-forget in `process-workflow` (9 occurrences) |
+| 2.4 | Add `useEffect` cleanup + `.catch()` handlers in frontend |
+
+### Phase 3 — Performance (3 steps)
+| Step | Issue |
+|------|-------|
+| 3.1 | Add missing composite indexes |
+| 3.2 | Add `AbortController` to frontend data fetches |
+| 3.3 | Remove unused deps / fix overfetching |
+
+### Phase 4 — Code Quality (3 steps)
+| Step | Issue |
+|------|-------|
+| 4.1 | Extract shared boilerplate to `_shared/cors.ts` + `_shared/supabase.ts` |
+| 4.2 | Fix non-idempotent migrations |
+| 4.3 | Deduplicate `prompt-templates.ts` + unpin `supabase-js` |
+
+### Phase 5 — Architecture (2 steps)
+| Step | Issue |
+|------|-------|
+| 5.1 | Replace hardcoded redirect URLs with env var |
+| 5.2 | Fail at startup if required secrets missing |
+
+**Testing + Deploy flow per step**: `npm run build` → `npm run test` → deploy edge functions → manual smoke test → commit.
