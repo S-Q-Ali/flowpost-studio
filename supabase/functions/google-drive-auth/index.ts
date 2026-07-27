@@ -408,7 +408,7 @@ Deno.serve(async (req) => {
     if (action === "upload-video-to-r2") {
       if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-      const { account_id, file_id, file_name, user_id, media_type } = await req.json();
+      const { account_id, file_id, file_name, user_id, media_type } = body;
       if (!account_id || !file_id || !user_id) return json({ error: "Missing required fields" }, 400);
 
       const { data: account, error: fetchError } = await supabaseAdmin
@@ -490,7 +490,7 @@ Deno.serve(async (req) => {
     if (action === "get-r2-upload-url") {
       if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-      const { user_id, file_name, file_size, media_type, content_type } = await req.json();
+      const { user_id, file_name, file_size, media_type, content_type } = body;
       if (!user_id || !file_name) return json({ error: "Missing required fields" }, 400);
 
       if (!s3Client) return json({ error: "R2 not configured" }, 500);
