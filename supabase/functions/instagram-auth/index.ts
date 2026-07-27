@@ -94,6 +94,13 @@ Deno.serve(async (req) => {
 
   let action: string | null = actionFromQuery;
   let bodyUserId: string | null = null;
+
+  // Instagram strips query params from redirect URIs on callback
+  // Detect callback by the presence of "code" instead
+  if (!actionFromQuery && url.searchParams.has("code")) {
+    action = "callback";
+  }
+
   if (!action) {
     try {
       const body = await req.json() as Record<string, unknown>;
