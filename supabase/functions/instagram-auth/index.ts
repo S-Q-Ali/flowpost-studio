@@ -93,21 +93,14 @@ Deno.serve(async (req) => {
   const actionFromQuery = url.searchParams.get("action");
 
   let action: string | null = actionFromQuery;
+  let bodyUserId: string | null = null;
   if (!action) {
     try {
-      const body = await req.json();
+      const body = await req.json() as Record<string, unknown>;
       action = typeof body?.action === "string" ? body.action : null;
+      bodyUserId = typeof body?.userId === "string" ? body.userId : null;
     } catch {
       // ignore
-    }
-  }
-
-  if (action !== "callback") {
-    const authHeader = req.headers.get("Authorization");
-    const validKeys = [SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
-    const token = authHeader?.replace("Bearer ", "");
-    if (!token || !validKeys.includes(token)) {
-      return json({ error: "Unauthorized" }, 401);
     }
   }
 
@@ -117,7 +110,7 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/instagram-auth?action=callback`;
 
     if (action === "url") {
-      const reqUserId = url.searchParams.get("userId");
+      const reqUserId = url.searchParams.get("userId") || bodyUserId;
       if (!reqUserId) return json({ error: "Missing userId" }, 400);
 
       const authUrl = new URL("https://api.instagram.com/oauth/authorize");

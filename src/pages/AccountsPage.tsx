@@ -392,9 +392,10 @@ export default function AccountsPage() {
   const connectInstagram = async () => {
     setIsInstagramConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke(`instagram-auth?action=url&userId=${userId}`, {
-        method: "GET",
+      const { data, error } = await supabase.functions.invoke("instagram-auth", {
+        method: "POST",
         headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+        body: { action: "url", userId },
       });
 
       if (error) throw new Error(error.message || "Failed to start Instagram OAuth");
