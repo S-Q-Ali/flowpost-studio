@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
   try {
     if (!action) return json({ error: "Missing action" }, 400);
 
-    const redirectUri = `${SUPABASE_URL}/functions/v1/instagram-auth?action=callback`;
+    const redirectUri = `${SUPABASE_URL}/functions/v1/instagram-auth`;
 
     if (action === "url") {
       const reqUserId = url.searchParams.get("userId") || bodyUserId;
