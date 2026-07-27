@@ -71,3 +71,9 @@ verify_jwt = false
 
 [functions.generate-ai-captions]
 verify_jwt = false
+
+[functions.instagram-auth]
+verify_jwt = false
+
+[functions.google-oauth]
+verify_jwt = false
