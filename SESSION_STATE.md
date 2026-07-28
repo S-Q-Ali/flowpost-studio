@@ -492,7 +492,7 @@ FB/IG  next at 20:46 UTC (2:46 PM)     ← range #1, orange
 - Light + dark theme (Aurora Rose Studio / Aurora Rose Dark) via `next-themes`; no theme toggle UI. Theme preference is client-side only — the `sessions` table, admin `flowpost_token`, and auth logic are unchanged (see entry #36).
 
 ### Known Issues
-1. **Instagram upload timeout** — ~~8×30s=240s polling > 60s default timeout~~ ⚠️ **Partially Fixed**: 10×12s=120s polling ✅, but `timeout_seconds` not valid in `config.toml` and CLI has no `--timeout-ms` flag. **Must set timeout to 140s manually** via [Supabase Dashboard](https://supabase.com/dashboard/project/ximorwzknbizpceaoflw/functions/instagram-upload) > Configuration
+1. **Instagram upload timeout** — ~~8×30s=240s polling > 60s default timeout~~ → **10×12s=120s** ✅ `POLL_INTERVAL` restored to 12000 (fixed in code, deployed). **Must still set timeout to 140s manually** via [Supabase Dashboard](https://supabase.com/dashboard/project/ximorwzknbizpceaoflw/functions/instagram-upload) > Configuration — CLI cannot set this, and the default 60s will cut off polling at ~40s.
 2. **Fire-and-forget swallows errors** — `void fetch(...)` in process-workflow ignores upload failures
 3. **No stale processing cleanup** — posts stuck in "processing" never retried
 

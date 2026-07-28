@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
 
       // Poll carousel container status
       const MAX_POLL_ATTEMPTS = 10;
-      const POLL_INTERVAL = 4000;
+      const POLL_INTERVAL = 12000;
       let publishResult: Record<string, unknown> | null = null;
 
       for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
@@ -318,7 +318,7 @@ Deno.serve(async (req) => {
     console.log("Container created:", container.id);
 
     const MAX_POLL_ATTEMPTS = 10;
-    const POLL_INTERVAL = 4000;
+    const POLL_INTERVAL = 12000;
     let publishResult: Record<string, unknown> | null = null;
 
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
