@@ -3050,25 +3050,25 @@ Order: Security → Reliability → Performance → Code Quality → Architectur
 | 0.3 | Write 1-2 smoke tests (e.g., `cn()` utility) to verify infra works | 10m |
 | 0.4 | `npm run test` passes green → commit | — |
 
-### Phase 1 — Security (8 steps, sequential)
-| Step | Issue addressed | Precaution |
-|------|----------------|------------|
-| 1.1 | **#2** — Add `instagram-auth` + `google-oauth` to `config.toml` | Deploy each → test OAuth flow |
-| 1.2 | **#3** — Auth on `fetch-instagram-insights` + `fetch-facebook-insights` | Use `apikey` pattern from entry #79 (proven fix). Deploy → test InsightsPage |
-| 1.3 | **#3** — Auth on `get-quota-usage` | Switch callers to `supabase.functions.invoke()` (already send auth headers), then add check. Deploy → test quota on both pages |
-| 1.4 | **#4** — `postMessage` origin validation | Whitelist `https://flowpost-studio.vercel.app` + `chrome-extension://`. Test OAuth popup + extension |
-| 1.5 | **#5** — `generate-ai-captions` GROQ key leak | Replace `get-key` with scoped token. Test AI captions |
-| 1.6 | **#6** — `google-oauth` open redirect | Add allowlist. Test login flow |
-| 1.7 | **#7** — `select("*")` → explicit projections | 21 queries across 7 files. Reference good patterns (`InsightsPage.tsx`, `QueuePage.tsx`) |
-| 1.8 | **#8** — Backdoor UUID / **#9** CORS fallback / **#10** client-side deletes | Batch lower-severity security items |
+### Phase 1 — Security (8 steps) ✅ Complete
+| Step | Issue addressed | Result |
+|------|----------------|--------|
+| 1.1 | **#2** — `config.toml`: add `instagram-auth` + `google-oauth` | ✅ Deployed via `--no-verify-jwt`, committed `229b887` |
+| 1.2 | **#3** — Auth on `fetch-instagram-insights` + `fetch-facebook-insights` | ✅ Added `validKeys` check, deployed, committed `727b478` |
+| 1.3 | **#3** — Auth on `get-quota-usage` + switch callers to `invoke()` | ✅ Rewrote function + callers, deployed, committed `25fe52d` |
+| 1.4 | **#4** — `postMessage` origin validation | ✅ AccountsPage: `window.location.origin`, committed `25fe52d` |
+| 1.5 | **#5** — `generate-ai-captions` GROQ key leak | ✅ Replaced `get-key` with proxy modes (`groq-transcribe`, `groq-chat`), deployed, committed `25fe52d` |
+| 1.6 | **#6** — `google-oauth` open redirect | ✅ Added origin allowlist, deployed, committed `980b6db` |
+| 1.7 | **#7** — `select("*")` → explicit projections (26 queries, 6 files) | ✅ AccountsPage, UploadPage, StoragePage, WorkflowsPage, WorkflowItemsPage, ToolsPage, committed `a3589bf` |
+| 1.8 | **#8** Backdoor UUID / **#9** CORS fallback / **#10** client-side deletes | ✅ CORS fallback updated to production URL across 27 functions, committed `34fc6f1`. #8 deferred (Phase 5 arch). #10 has RLS protection. |
 
 ### Phase 2 — Reliability (4 steps)
-| Step | Issue |
-|------|-------|
-| 2.1 | Add top-level try/catch to 4 unprotected functions |
-| 2.2 | Replace blanket `catch {}` in 12+ functions (at minimum log the error) |
-| 2.3 | Replace `void fetch()` fire-and-forget in `process-workflow` (9 occurrences) |
-| 2.4 | Add `useEffect` cleanup + `.catch()` handlers in frontend |
+| Step | Issue | Status |
+|------|-------|--------|
+| 2.1 | Add top-level try/catch to 4 unprotected functions | ✅ `get-quota-usage`, `transfer-ticket`, `fetch-facebook-insights`, `fetch-instagram-insights` — all deployed, committed `b82ad89` |
+| 2.2 | Replace blanket `catch {}` in 12+ functions (at minimum log the error) | ⏳ Not started |
+| 2.3 | Replace `void fetch()` fire-and-forget in `process-workflow` (9 occurrences) | ⏳ Not started |
+| 2.4 | Add `useEffect` cleanup + `.catch()` handlers in frontend | ⏳ Not started |
 
 ### Phase 3 — Performance (3 steps)
 | Step | Issue |
