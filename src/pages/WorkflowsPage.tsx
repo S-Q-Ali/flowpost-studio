@@ -793,34 +793,52 @@ export default function WorkflowsPage() {
                     </div>
                   </label>
                   {selected && id === "youtube" && (
-                    <div className="pl-6 sm:pl-7 space-y-1">
-                      {youtubeAccounts.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">
-                          No YouTube channels connected. Connect them in Accounts.
-                        </p>
-                      ) : (
-                        youtubeAccounts.map((acc) => (
-                          <label
-                            key={acc.id}
-                            className="flex items-center gap-2 cursor-pointer text-xs"
-                          >
-                            <Checkbox
-                              checked={selectedYoutubeIds.includes(acc.account_id ?? "")}
-                              onCheckedChange={() =>
-                                toggleAccount(
-                                  selectedYoutubeIds,
-                                  setSelectedYoutubeIds,
-                                  acc.account_id ?? "",
-                                )
-                              }
+                    <>
+                      <div className="pl-6 sm:pl-7 space-y-1">
+                        {youtubeAccounts.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            No YouTube channels connected. Connect them in Accounts.
+                          </p>
+                        ) : (
+                          youtubeAccounts.map((acc) => (
+                            <label
+                              key={acc.id}
+                              className="flex items-center gap-2 cursor-pointer text-xs"
+                            >
+                              <Checkbox
+                                checked={selectedYoutubeIds.includes(acc.account_id ?? "")}
+                                onCheckedChange={() =>
+                                  toggleAccount(
+                                    selectedYoutubeIds,
+                                    setSelectedYoutubeIds,
+                                    acc.account_id ?? "",
+                                  )
+                                }
+                              />
+                              <span className="text-foreground">
+                                {acc.account_name ?? "YouTube"} ({acc.account_id})
+                              </span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                      {mediaType === "video" && (
+                        <div className="pl-6 sm:pl-7 mt-3 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                              <Label>YouTube Altered Content</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Mark YouTube videos as AI-generated or altered content.
+                              </p>
+                            </div>
+                            <Switch
+                              checked={youtubeAlteredContent}
+                              onCheckedChange={setYoutubeAlteredContent}
                             />
-                            <span className="text-foreground">
-                              {acc.account_name ?? "YouTube"} ({acc.account_id})
-                            </span>
-                          </label>
-                        ))
+                          </div>
+                        </div>
                       )}
-                    </div>
+                    </>
                   )}
                   {selected && id === "facebook" && (
                     <div className="pl-6 sm:pl-7 space-y-1">
@@ -958,6 +976,7 @@ export default function WorkflowsPage() {
               );
             })}
           </div>
+          {(selectedPlatforms.includes("facebook") || selectedPlatforms.includes("instagram")) && (
           <div className="mt-4 rounded-lg border border-border/80 bg-muted/5 px-3 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div className="space-y-1">
               <Label>Also Post as Story</Label>
@@ -970,6 +989,7 @@ export default function WorkflowsPage() {
               onCheckedChange={setPostAsStory}
             />
           </div>
+          )}
         </div>
       );
     }
@@ -1213,22 +1233,6 @@ export default function WorkflowsPage() {
             </Select>
           </div>
 
-          {mediaType === "video" && (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <Label>YouTube Altered Content</Label>
-                <p className="text-xs text-muted-foreground">
-                  Mark YouTube videos as AI-generated or altered content.
-                </p>
-              </div>
-              <Switch
-                checked={youtubeAlteredContent}
-                onCheckedChange={setYoutubeAlteredContent}
-              />
-            </div>
-          </div>
-          )}
         </div>
       );
     }

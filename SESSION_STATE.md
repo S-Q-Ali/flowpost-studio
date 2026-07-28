@@ -1,6 +1,13 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `456a131` — fix: use parsed body instead of re-reading req.json() in upload-video-to-r2 and get-r2-upload-url
+## CURRENT HEAD: `8802784` — fix: remove 6 phantom columns from WorkflowsPage loadWorkflows select causing 400
+
+### UI: YouTube Altered Content moved to Platforms stage, conditional toggles (2026-07-28)
+
+**Changes in `WorkflowsPage.tsx`**:
+1. **YouTube Altered Content** — Moved from Step 3 (Schedule) to Step 2 (Platforms), shown only when YouTube is selected + `mediaType === "video"`
+2. **Post as Story** — Made conditional: only visible when Facebook or Instagram is selected (was always visible)
+3. Both toggles now appear contextually with their relevant platform selections, reducing visual clutter
 
 ## Monetization Eligibility Feature — 4-Phase Plan (100% ✅)
 
