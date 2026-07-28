@@ -161,14 +161,11 @@ export default function UploadPage() {
 
   useEffect(() => {
     if (selectedPlatforms.includes("youtube")) {
-      (async () => {
-        try {
-          const res = await fetch(`${supabaseUrl}/functions/v1/get-quota-usage?platform=youtube`, {
-            headers: { Authorization: `Bearer ${anonKey}` },
-          });
-          if (res.ok) setYoutubeQuota(await res.json());
-        } catch { /* ignore */ }
-      })();
+      supabase.functions.invoke("get-quota-usage", {
+        body: { platform: "youtube" },
+      }).then(({ data }) => {
+        if (data) setYoutubeQuota(data);
+      });
     }
   }, [selectedPlatforms]);
 

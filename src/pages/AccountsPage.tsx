@@ -195,13 +195,14 @@ export default function AccountsPage() {
     toast.success(`${label[platform] || platform} connected!`);
     setSearchParams({}, { replace: true });
     if (window.opener) {
-      window.opener.postMessage({ type: "oauth-connected", platform }, "*");
+      window.opener.postMessage({ type: "oauth-connected", platform }, window.location.origin);
       setTimeout(() => window.close(), 1500);
     }
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
       if (event.data?.type === "oauth-connected") {
         const p = event.data.platform;
         if (p === "facebook") setIsFacebookConnecting(false);
@@ -218,13 +219,10 @@ export default function AccountsPage() {
 
   useEffect(() => {
     (async () => {
-      try {
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-quota-usage?platform=youtube`,
-          { headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` } },
-        );
-        if (res.ok) setYoutubeQuota(await res.json());
-      } catch { /* ignore */ }
+      const { data } = await supabase.functions.invoke("get-quota-usage", {
+        body: { platform: "youtube" },
+      });
+      if (data) setYoutubeQuota(data);
     })();
   }, []);
 

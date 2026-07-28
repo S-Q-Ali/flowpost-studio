@@ -1,9 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getDefaultMasterPrompt, type MasterPrompt } from "@/lib/prompt-templates";
 
-const GROQ_API_BASE = "https://api.groq.com/openai/v1";
-
-let groqApiKey: string | null = null;
 
 export type StepId =
   | "fetching-key"
@@ -36,9 +33,7 @@ function emit(onProgress: OnProgress | undefined, step: StepId, progress: number
   onProgress?.({ step, label: STEP_LABELS[step], progress });
 }
 
-async function getGroqKey(): Promise<string> {
-  if (groqApiKey) return groqApiKey;
-
+async function groqApiCall(mode: string, payload: Record<string, unknown>): Promise<any> {
   const token = localStorage.getItem("flowpost_token");
   const { data, error } = await supabase.functions.invoke("generate-ai-captions", {
     method: "POST",
@@ -46,15 +41,13 @@ async function getGroqKey(): Promise<string> {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ mode: "get-key" }),
+    body: JSON.stringify({ mode, ...payload }),
   });
 
   if (error || data?.error) {
-    throw new Error(data?.error || error?.message || "Failed to fetch API key");
+    throw new Error(data?.error || error?.message || "Groq proxy failed");
   }
-
-  groqApiKey = data.key;
-  return groqApiKey;
+  return data;
 }
 
 async function getFileToken(itemId: string): Promise<{ driveToken: string; driveUrl: string }> {
@@ -189,34 +182,30 @@ async function extractAudio(videoBlob: Blob, onProgress?: OnProgress): Promise<B
   return new Blob(chunks, { type: `audio/${ext}` });
 }
 
-async function groqWhisper(audioBlob: Blob, apiKey: string, onProgress?: OnProgress): Promise<string> {
+async function groqWhisper(audioBlob: Blob, _apiKey: string, onProgress?: OnProgress): Promise<string> {
   emit(onProgress, "transcribing", 95);
 
   const ext = audioBlob.type.includes("mp4") ? "m4a" : "webm";
-  const formData = new FormData();
-  formData.append("file", audioBlob, `audio.${ext}`);
-  formData.append("model", "whisper-large-v3-turbo");
-  formData.append("response_format", "text");
+  const buffer = await audioBlob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const audioBase64 = btoa(binary);
 
-  const res = await fetch(`${GROQ_API_BASE}/audio/transcriptions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: formData,
+  const data = await groqApiCall("groq-transcribe", {
+    audio_base64: audioBase64,
+    filename: `audio.${ext}`,
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Whisper error (${res.status}): ${errText}`);
-  }
-
-  const transcript = await res.text();
   emit(onProgress, "transcribing", 100);
-  return transcript;
+  return data.transcript;
 }
 
 async function groqDescribeFrames(
   frames: string[],
-  apiKey: string,
+  _apiKey: string,
   onProgress?: OnProgress,
 ): Promise<string> {
   emit(onProgress, "analyzing-visuals", 0);
@@ -228,26 +217,13 @@ async function groqDescribeFrames(
     content.push({ type: "image_url", image_url: { url: frame } });
   }
 
-  const res = await fetch(`${GROQ_API_BASE}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "qwen/qwen3.6-27b",
-      messages: [{ role: "user", content }],
-      temperature: 0.6,
-      max_tokens: 512,
-    }),
+  const data = await groqApiCall("groq-chat", {
+    model: "qwen/qwen3.6-27b",
+    messages: [{ role: "user", content }],
+    temperature: 0.6,
+    max_tokens: 512,
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Vision error (${res.status}): ${errText}`);
-  }
-
-  const data = await res.json();
   const description: string = data.choices?.[0]?.message?.content || "";
   emit(onProgress, "analyzing-visuals", 100);
   return description;
@@ -258,7 +234,7 @@ export async function groqGenerateCaptions(
   visualDescription: string,
   fileName: string,
   masterPrompt: MasterPrompt,
-  apiKey: string,
+  _apiKey: string,
   platforms?: string[],
   onProgress?: OnProgress,
 ): Promise<Record<string, string>> {
@@ -283,29 +259,16 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
 
   const userMessage = `Audio transcript:\n\n${transcript || "No transcript available."}\n\nVisual description:\n\n${visualDescription || "No visual description available."}`;
 
-  const res = await fetch(`${GROQ_API_BASE}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "openai/gpt-oss-120b",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      temperature: 0.7,
-      max_tokens: 4096
-    }),
+  const chatData = await groqApiCall("groq-chat", {
+    model: "openai/gpt-oss-120b",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
+    temperature: 0.7,
+    max_tokens: 4096,
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Llama error (${res.status}): ${errText}`);
-  }
-
-  const chatData = await res.json();
   const content: string = chatData.choices?.[0]?.message?.content || "";
 
   let cleaned = content.trim();
@@ -355,16 +318,6 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
   const prompt = masterPrompt || getDefaultMasterPrompt();
 
   try {
-    emit(onProgress, "fetching-key", 0);
-    let apiKey: string;
-    try {
-      apiKey = await getGroqKey();
-    } catch (err) {
-      console.error("[captions] FAIL getGroqKey", err);
-      throw new Error(`getKey: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    emit(onProgress, "fetching-key", 100);
-
     emit(onProgress, "downloading", 0);
     let videoBlob: Blob;
     try {
@@ -390,7 +343,7 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
       }
 
       try {
-        transcript = await groqWhisper(audioBlob, apiKey, onProgress);
+        transcript = await groqWhisper(audioBlob, "", onProgress);
       } catch (err) {
         console.error("[captions] FAIL groqWhisper", err);
         throw new Error(`whisper: ${err instanceof Error ? err.message : String(err)}`);
@@ -403,7 +356,7 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     try {
       const frames = await extractFrames(videoBlob);
       if (frames.length > 0) {
-        visualDescription = await groqDescribeFrames(frames, apiKey, onProgress);
+        visualDescription = await groqDescribeFrames(frames, "", onProgress);
       } else {
         visualDescription = "";
         emit(onProgress, "analyzing-visuals", 100);
@@ -418,7 +371,7 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
 
     let captions: Record<string, string>;
     try {
-      captions = await groqGenerateCaptions(transcript, visualDescription, item.file_name, prompt, apiKey, platforms, onProgress);
+      captions = await groqGenerateCaptions(transcript, visualDescription, item.file_name, prompt, "", platforms, onProgress);
     } catch (err) {
       console.error("[captions] FAIL groqGenerateCaptions", err);
       throw new Error(`generate: ${err instanceof Error ? err.message : String(err)}`);
@@ -448,9 +401,8 @@ export async function regenerateCaptions(
   platforms?: string[],
   onProgress?: OnProgress,
 ): Promise<Record<string, string>> {
-  const apiKey = groqApiKey || await getGroqKey();
   const prompt = masterPrompt || getDefaultMasterPrompt();
-  const captions = await groqGenerateCaptions(transcript, visualDescription, fileName, prompt, apiKey, platforms, onProgress);
+  const captions = await groqGenerateCaptions(transcript, visualDescription, fileName, prompt, "", platforms, onProgress);
 
   if (platforms?.length) {
     const allowed = new Set(platforms.flatMap((p) => PLATFORM_ALLOWED_KEYS[p] || []));

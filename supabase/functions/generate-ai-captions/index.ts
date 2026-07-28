@@ -213,19 +213,73 @@ Deno.serve(async (req) => {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  let body: { mode?: string; workflow_item_id?: string; template_name?: string };
+  let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  // --- GET-KEY mode: return Groq API key to client ---
-  if (body.mode === "get-key") {
+  // --- GROQ-TRANSCRIBE mode: proxy audio transcription ---
+  if (body.mode === "groq-transcribe") {
     if (!GROQ_API_KEY) {
       return json({ error: "Groq API key not configured" }, 500);
     }
-    return json({ key: GROQ_API_KEY });
+    const audioBase64 = body.audio_base64 as string | undefined;
+    const filename = (body.filename as string) || "audio.webm";
+    if (!audioBase64) {
+      return json({ error: "audio_base64 is required" }, 400);
+    }
+    try {
+      const binary = Uint8Array.from(atob(audioBase64), (c) => c.charCodeAt(0));
+      const formData = new FormData();
+      formData.append("file", new Blob([binary]), filename);
+      formData.append("model", "whisper-large-v3-turbo");
+      formData.append("response_format", "text");
+      const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        return json({ error: `Groq Whisper error (${res.status}): ${errText}` }, 502);
+      }
+      const transcript = await res.text();
+      return json({ transcript });
+    } catch (err) {
+      console.error("groq-transcribe error", err);
+      return json({ error: "Transcription failed" }, 502);
+    }
+  }
+
+  // --- GROQ-CHAT mode: proxy chat completions ---
+  if (body.mode === "groq-chat") {
+    if (!GROQ_API_KEY) {
+      return json({ error: "Groq API key not configured" }, 500);
+    }
+    const { model, messages, temperature, max_tokens } = body as Record<string, unknown>;
+    if (!model || !messages) {
+      return json({ error: "model and messages are required" }, 400);
+    }
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${GROQ_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model, messages, temperature, max_tokens }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return json({ error: data.error?.message || `Groq error (${res.status})` }, 502);
+      }
+      return json(data);
+    } catch (err) {
+      console.error("groq-chat error", err);
+      return json({ error: "Chat completion failed" }, 502);
+    }
   }
 
   // --- GET-FILE-TOKEN mode: return raw Drive token + URL for direct browser fetch ---
