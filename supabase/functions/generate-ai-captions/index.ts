@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 const FRONTEND_API_KEY = Deno.env.get("FRONTEND_API_KEY");
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
@@ -33,6 +34,7 @@ function json(data: unknown, status = 200) {
 const isAuthorized =
   (bearerToken: string | null, apiKeyHeader: string | null) =>
     bearerToken === SUPABASE_SERVICE_ROLE_KEY ||
+    bearerToken === SUPABASE_ANON_KEY ||
     bearerToken === FRONTEND_API_KEY ||
     apiKeyHeader === FRONTEND_API_KEY;
 
