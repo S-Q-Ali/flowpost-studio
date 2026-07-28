@@ -149,8 +149,8 @@ export default function WorkflowItemsPage() {
     (async () => {
       try {
         const [wfResult, itemsResult] = await Promise.all([
-          supabase.from("workflows").select("*").eq("id", workflowId).single(),
-          supabase.from("workflow_items").select("*").eq("workflow_id", workflowId).order("sort_order"),
+          supabase.from("workflows").select("id, user_id, name, is_active, platforms, drive_account_id, drive_folder_id, caption_master_prompt, youtube_channel_ids, facebook_page_ids, instagram_account_ids, tiktok_account_ids, linkedin_account_ids, created_at, updated_at, data_source, media_type, post_as_story, youtube_altered_content, total_posted, scheduling_mode, custom_schedule, run_interval_hours, videos_per_run, run_days, last_triggered_at, last_manual_triggered_at, sheet_url, sheet_id").eq("id", workflowId).single(),
+          supabase.from("workflow_items").select("id, workflow_id, drive_file_id, file_name, mime_type, file_size, status, yt_video_title, yt_video_description, fb_ig_caption, tiktok_caption, linkedin_caption, platforms_override, sort_order, created_at, posted_at").eq("workflow_id", workflowId).order("sort_order"),
         ]);
 
         if (cancelled) return;

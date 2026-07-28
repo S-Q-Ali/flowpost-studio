@@ -117,8 +117,8 @@ export default function StoragePage() {
     (async () => {
       try {
         const [{ data: da }, { data: ma }] = await Promise.all([
-          supabase.from("connected_accounts").select("*").eq("user_id", userId).eq("platform", "google_drive").eq("is_connected", true),
-          supabase.from("connected_accounts").select("*").eq("user_id", userId).eq("platform", "mega").eq("is_connected", true),
+          supabase.from("connected_accounts").select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata").eq("user_id", userId).eq("platform", "google_drive").eq("is_connected", true),
+          supabase.from("connected_accounts").select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata").eq("user_id", userId).eq("platform", "mega").eq("is_connected", true),
         ]);
         if (cancelled) return;
         const drives = (da ?? []) as ConnectedAccount[];

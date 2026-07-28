@@ -98,7 +98,7 @@ export default function ToolsPage() {
     let cancelled = false;
     supabase
       .from("page_eligibility")
-      .select("*")
+      .select("page_id, page_name, eligibility_bucket, monetization_tools, criteria_progress, user_id, checked_at")
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) {

@@ -89,36 +89,36 @@ export default function UploadPage() {
     (async () => {
       try {
         const { data: yt } = await supabase
-          .from("connected_accounts")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("platform", "youtube")
-          .eq("is_connected", true);
+      .from("connected_accounts")
+      .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
+      .eq("user_id", userId)
+      .eq("platform", "youtube")
+      .eq("is_connected", true);
 
         const { data: fb } = await supabase
           .from("connected_accounts")
-          .select("*")
+          .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
           .eq("user_id", userId)
           .eq("platform", "facebook")
           .eq("is_connected", true);
 
         const { data: ig } = await supabase
           .from("connected_accounts")
-          .select("*")
+          .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
           .eq("user_id", userId)
           .eq("platform", "instagram")
           .eq("is_connected", true);
 
         const { data: tt } = await supabase
           .from("connected_accounts")
-          .select("*")
+          .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
           .eq("user_id", userId)
           .eq("platform", "tiktok")
           .eq("is_connected", true);
 
         const { data: li } = await supabase
           .from("connected_accounts")
-          .select("*")
+          .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
           .eq("user_id", userId)
           .eq("platform", "linkedin")
           .eq("is_connected", true);

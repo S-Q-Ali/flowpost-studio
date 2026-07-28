@@ -47,7 +47,7 @@ export default function AccountsPage() {
   const fetchFacebook = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
       .from("connected_accounts")
-      .select("*")
+      .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
       .eq("user_id", userId)
       .eq("platform", "facebook")
       .eq("is_connected", true);
@@ -65,7 +65,7 @@ export default function AccountsPage() {
   const fetchInstagram = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
       .from("connected_accounts")
-      .select("*")
+      .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
       .eq("user_id", userId)
       .eq("platform", "instagram")
       .eq("is_connected", true);
@@ -83,7 +83,7 @@ export default function AccountsPage() {
   const fetchYouTube = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
       .from("connected_accounts")
-      .select("*")
+      .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
       .eq("user_id", userId)
       .eq("platform", "youtube")
       .eq("is_connected", true);
@@ -101,7 +101,7 @@ export default function AccountsPage() {
   const fetchMega = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
       .from("connected_accounts")
-      .select("*")
+      .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
       .eq("user_id", userId)
       .eq("platform", "mega")
       .eq("is_connected", true);
@@ -119,7 +119,7 @@ export default function AccountsPage() {
   const fetchDrive = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
       .from("connected_accounts")
-      .select("*")
+      .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
       .eq("user_id", userId)
       .eq("platform", "google_drive")
       .eq("is_connected", true);
@@ -137,7 +137,7 @@ export default function AccountsPage() {
   const fetchTikTok = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
       .from("connected_accounts")
-      .select("*")
+      .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
       .eq("user_id", userId)
       .eq("platform", "tiktok")
       .eq("is_connected", true);
@@ -155,7 +155,7 @@ export default function AccountsPage() {
   const fetchLinkedIn = async (): Promise<ConnectedAccount[]> => {
     const { data, error } = await supabase
       .from("connected_accounts")
-      .select("*")
+      .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
       .eq("user_id", userId)
       .eq("platform", "linkedin")
       .eq("is_connected", true);

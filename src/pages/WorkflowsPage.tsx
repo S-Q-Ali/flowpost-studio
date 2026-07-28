@@ -152,7 +152,7 @@ export default function WorkflowsPage() {
   const loadWorkflows = async () => {
     const { data, error } = await supabase
       .from("workflows")
-      .select("*")
+      .select("id, user_id, name, description, platforms, schedule, status, is_active, created_at, updated_at, drive_account_id, caption_master_prompt, instagram_business_account_id, is_ai_captions_enabled, selected_pages")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
     if (error) {
@@ -173,31 +173,31 @@ export default function WorkflowsPage() {
     const [{ data: yt }, { data: fb }, { data: ig }, { data: tt }, { data: li }, { data: gd }] = await Promise.all([
       supabase
         .from("connected_accounts")
-        .select("*")
+        .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
         .eq("user_id", userId)
         .eq("platform", "youtube")
         .eq("is_connected", true),
       supabase
         .from("connected_accounts")
-        .select("*")
+        .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
         .eq("user_id", userId)
         .eq("platform", "facebook")
         .eq("is_connected", true),
       supabase
         .from("connected_accounts")
-        .select("*")
+        .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
         .eq("user_id", userId)
         .eq("platform", "instagram")
         .eq("is_connected", true),
       supabase
         .from("connected_accounts")
-        .select("*")
+        .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
         .eq("user_id", userId)
         .eq("platform", "tiktok")
         .eq("is_connected", true),
       supabase
         .from("connected_accounts")
-        .select("*")
+        .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
         .eq("user_id", userId)
         .eq("platform", "linkedin")
         .eq("is_connected", true),
@@ -520,7 +520,7 @@ export default function WorkflowsPage() {
 
     const { data: items } = await supabase
       .from("workflow_items")
-      .select("*")
+      .select("id, workflow_id, drive_file_id, file_name, mime_type, file_size, status, created_at, posted_at, sort_order, post_type, platforms, error_message")
       .eq("workflow_id", id);
 
     if (items?.length) {
