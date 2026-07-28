@@ -152,7 +152,7 @@ export default function WorkflowsPage() {
   const loadWorkflows = async () => {
     const { data, error } = await supabase
       .from("workflows")
-      .select("id, user_id, name, description, platforms, schedule, status, is_active, created_at, updated_at, drive_account_id, caption_master_prompt, instagram_business_account_id, is_ai_captions_enabled, selected_pages")
+      .select("id, user_id, name, is_active, sheet_url, sheet_id, platforms, youtube_channel_ids, facebook_page_ids, instagram_account_ids, tiktok_account_ids, linkedin_account_ids, youtube_altered_content, post_as_story, max_videos_per_trigger, run_interval_hours, videos_per_run, last_triggered_at, last_manual_triggered_at, run_days, total_posted, media_type, scheduling_mode, custom_schedule, drive_account_id, drive_folder_id, data_source, caption_master_prompt, created_at, updated_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
     if (error) {
