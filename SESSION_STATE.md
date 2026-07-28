@@ -1,6 +1,17 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `8802784` — fix: remove 6 phantom columns from WorkflowsPage loadWorkflows select causing 400
+## CURRENT HEAD: `dc5d700` — Fix: restore instagram-upload POLL_INTERVAL to 12000
+
+### Fix: instagram-upload polling restored to 10×12s=120s (2026-07-28)
+
+**Problem**: `instagram-upload` polling was 10×4s=40s (reverted in commit `797f5b6` due to incorrect belief about "60s default timeout"). Containers that took >40s to process failed with "Publish failed after 10 attempts."
+
+**Root cause**: Commit `01bd263` set `POLL_INTERVAL = 12000` (12s) for 120s total polling, but commit `797f5b6` reverted it to 4000 because the developer thought the function timeout was 60s. Supabase Free plan actually allows **150s max duration** per the [official limits docs](https://supabase.com/docs/guides/functions/limits) — no per-function timeout setting exists. The revert was based on incorrect information.
+
+**Fix**: Restored `POLL_INTERVAL = 12000` in both polling blocks (carousel + single media). 10×12s=120s polling fits well within the 150s platform limit with ~30s buffer. No Dashboard configuration needed.
+
+**Deployed**: `npx supabase functions deploy instagram-upload --no-verify-jwt`
+**Commit**: `dc5d700`
 
 ### UI: YouTube Altered Content moved to Platforms stage, conditional toggles (2026-07-28)
 
@@ -492,9 +503,8 @@ FB/IG  next at 20:46 UTC (2:46 PM)     ← range #1, orange
 - Light + dark theme (Aurora Rose Studio / Aurora Rose Dark) via `next-themes`; no theme toggle UI. Theme preference is client-side only — the `sessions` table, admin `flowpost_token`, and auth logic are unchanged (see entry #36).
 
 ### Known Issues
-1. **Instagram upload timeout** — ~~8×30s=240s polling > 60s default timeout~~ → **10×12s=120s** ✅ `POLL_INTERVAL` restored to 12000 (fixed in code, deployed). **Must still set timeout to 140s manually** via [Supabase Dashboard](https://supabase.com/dashboard/project/ximorwzknbizpceaoflw/functions/instagram-upload) > Configuration — CLI cannot set this, and the default 60s will cut off polling at ~40s.
-2. **Fire-and-forget swallows errors** — `void fetch(...)` in process-workflow ignores upload failures
-3. **No stale processing cleanup** — posts stuck in "processing" never retried
+1. **Fire-and-forget swallows errors** — `void fetch(...)` in process-workflow ignores upload failures
+2. **No stale processing cleanup** — posts stuck in "processing" never retried
 
 ### Not Yet Implemented
 1. **Meta AI translation toggle** — Graph API doesn't expose this feature; plan documented in entry #50, awaiting API support
