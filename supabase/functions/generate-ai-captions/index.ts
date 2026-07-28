@@ -3,7 +3,7 @@ import { decrypt } from "../_shared/crypto.ts";
 import { PROMPT_TEMPLATES, getDefaultMasterPrompt } from "./prompt-templates.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 

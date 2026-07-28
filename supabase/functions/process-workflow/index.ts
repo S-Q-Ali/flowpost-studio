@@ -4,7 +4,7 @@ import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-token",
 };
 

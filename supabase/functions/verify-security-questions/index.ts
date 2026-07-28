@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { checkRateLimit, recordFailedAttempt } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 

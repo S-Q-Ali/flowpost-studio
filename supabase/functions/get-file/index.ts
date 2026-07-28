@@ -3,7 +3,7 @@ import { File as MegaFile, Storage as MegaStorage } from "npm:megajs";
 import { decrypt } from "../_shared/crypto.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
         headers: {
           "Content-Type": "application/octet-stream",
           "Content-Length": data.byteLength.toString(),
-          "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+          "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
         },
       });
     }
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
         headers: {
           "Content-Type": "application/octet-stream",
           "Content-Length": data.byteLength.toString(),
-          "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+          "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
         },
       });
     }
@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
 
     const responseHeaders: Record<string, string> = {
       "Content-Type": contentType,
-      "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://yourdomain.com",
+      "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
     };
     if (contentLength) responseHeaders["Content-Length"] = contentLength;
 
