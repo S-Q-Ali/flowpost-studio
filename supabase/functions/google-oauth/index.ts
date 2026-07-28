@@ -92,7 +92,21 @@ Deno.serve(async (req) => {
       console.error("Failed to create session:", sessionError);
     }
 
-    const redirectUrl = `${url.searchParams.get("redirect_uri") || "/"}?token=${token}`;
+    const rawRedirect = url.searchParams.get("redirect_uri") || "/";
+    // Allow relative paths or known origins only
+    if (rawRedirect.startsWith("http")) {
+      const allowedOrigins = [
+        "https://flowpost-studio.vercel.app",
+        Deno.env.get("ALLOWED_ORIGIN"),
+        "http://localhost:5173",
+        "http://localhost:3000",
+      ].filter((o): o is string => !!o);
+      const parsedOrigin = new URL(rawRedirect).origin;
+      if (!allowedOrigins.includes(parsedOrigin)) {
+        return json({ error: "Invalid redirect_uri origin" }, 400);
+      }
+    }
+    const redirectUrl = `${rawRedirect}?token=${token}`;
     
     return new Response(null, {
       status: 302,
