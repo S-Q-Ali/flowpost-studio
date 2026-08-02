@@ -137,6 +137,9 @@ Deno.serve(async (req) => {
     supabase.from("workflow_locks").delete().eq("lock_key", globalLockKey).then().catch(() => { });
   }
 
+  const uploadPromises: Promise<void>[] = [];
+  const functionStartMs = Date.now();
+
   try {
 
     const filters: Record<string, unknown> = { is_active: true };
@@ -643,18 +646,28 @@ Deno.serve(async (req) => {
               await supabase.from("workflow_items").update({ status: "posted", posted_at: new Date().toISOString() }).eq("id", postedItemId);
             }
 
-            // Fire-and-forget upload with carousel flag
+            // Queue carousel upload (awaited for cron runs at the end)
             for (const post of insertedPosts as { id: string; platform: string; status: string }[]) {
               if (post.status !== "processing") continue;
-              void fetch(`${SUPABASE_URL}/functions/v1/instagram-upload`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                  apikey: SUPABASE_SERVICE_ROLE_KEY!,
-                },
-                body: JSON.stringify({ postId: post.id, carousel: true }),
-              });
+              const carPostId = post.id;
+              uploadPromises.push(
+                fetch(`${SUPABASE_URL}/functions/v1/instagram-upload`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                    apikey: SUPABASE_SERVICE_ROLE_KEY!,
+                  },
+                  body: JSON.stringify({ postId: carPostId, carousel: true }),
+                })
+                  .then(async (res) => {
+                    if (!res.ok) console.error(`Carousel upload failed for post ${carPostId}: ${res.status}`);
+                  })
+                  .catch(async () => {
+                    console.error(`Carousel upload fetch failed for post ${carPostId}`);
+                    await supabase.from("posts").update({ status: "failed" }).eq("id", carPostId).catch(() => {});
+                  }),
+              );
             }
 
             workflowVideoCount += carouselVideoIds.length;
@@ -958,7 +971,7 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Kick off uploads via existing Edge Functions (fire-and-forget) — only for immediate slot
+          // Queue upload per post (awaited for cron runs at the end)
           const filePayload: Record<string, unknown> = { postId: "" };
           if (isMegaAccount) {
             filePayload.megaFileName = megaFileName;
@@ -973,8 +986,17 @@ Deno.serve(async (req) => {
           for (const post of insertedPosts as { id: string; platform: string; account_id: string | null; status: string }[]) {
             if (post.status !== "processing") continue;
             const body = { ...filePayload, postId: post.id };
-            if (post.platform === "youtube") {
-              void fetch(`${SUPABASE_URL}/functions/v1/youtube-upload`, {
+            const pId = post.id;
+            const pPlatform = post.platform;
+            let uploadUrl: string;
+            if (pPlatform === "youtube") uploadUrl = `${SUPABASE_URL}/functions/v1/youtube-upload`;
+            else if (pPlatform === "facebook") uploadUrl = `${SUPABASE_URL}/functions/v1/facebook-upload`;
+            else if (pPlatform === "instagram") uploadUrl = `${SUPABASE_URL}/functions/v1/instagram-upload`;
+            else if (pPlatform === "tiktok") uploadUrl = `${SUPABASE_URL}/functions/v1/tiktok-upload`;
+            else if (pPlatform === "linkedin") uploadUrl = `${SUPABASE_URL}/functions/v1/linkedin-upload`;
+            else continue;
+            uploadPromises.push(
+              fetch(uploadUrl, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -982,48 +1004,15 @@ Deno.serve(async (req) => {
                   apikey: SUPABASE_SERVICE_ROLE_KEY!,
                 },
                 body: JSON.stringify(body),
-              });
-            } else if (post.platform === "facebook") {
-              void fetch(`${SUPABASE_URL}/functions/v1/facebook-upload`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                  apikey: SUPABASE_SERVICE_ROLE_KEY!,
-                },
-                body: JSON.stringify(body),
-              });
-            } else if (post.platform === "instagram") {
-              void fetch(`${SUPABASE_URL}/functions/v1/instagram-upload`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                  apikey: SUPABASE_SERVICE_ROLE_KEY!,
-                },
-                body: JSON.stringify(body),
-              });
-            } else if (post.platform === "tiktok") {
-              void fetch(`${SUPABASE_URL}/functions/v1/tiktok-upload`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                  apikey: SUPABASE_SERVICE_ROLE_KEY!,
-                },
-                body: JSON.stringify(body),
-              });
-            } else if (post.platform === "linkedin") {
-              void fetch(`${SUPABASE_URL}/functions/v1/linkedin-upload`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                  apikey: SUPABASE_SERVICE_ROLE_KEY!,
-                },
-                body: JSON.stringify(body),
-              });
-            }
+              })
+                .then(async (res) => {
+                  if (!res.ok) console.error(`Upload failed for post ${pId} (${pPlatform}): ${res.status}`);
+                })
+                .catch(async () => {
+                  console.error(`Upload fetch failed for post ${pId} (${pPlatform})`);
+                  await supabase.from("posts").update({ status: "failed" }).eq("id", pId).catch(() => {});
+                }),
+            );
           }
 
           if (wf.post_as_story && !isImageWorkflow) {
@@ -1068,20 +1057,29 @@ Deno.serve(async (req) => {
                   const rawFbToken = await decrypt(fbAcc.access_token);
                   if (!usedStoryTokens.has(rawFbToken)) {
                     usedStoryTokens.add(rawFbToken);
-                    void fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                      },
-                      body: JSON.stringify({
-                        platform: "facebook",
-                        accountId: post.account_id,
-                        videoUrl: storyVideoUrl,
-                        accessToken: rawFbToken,
-                        mediaType,
-                      }),
+                    const fbStoryBody = JSON.stringify({
+                      platform: "facebook",
+                      accountId: post.account_id,
+                      videoUrl: storyVideoUrl,
+                      accessToken: rawFbToken,
+                      mediaType,
                     });
+                    uploadPromises.push(
+                      fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                        },
+                        body: fbStoryBody,
+                      })
+                        .then(async (res) => {
+                          if (!res.ok) console.error(`Facebook story upload failed: ${res.status}`);
+                        })
+                        .catch(async () => {
+                          console.error("Facebook story upload fetch failed");
+                        }),
+                    );
                   }
                 }
               }
@@ -1119,21 +1117,31 @@ Deno.serve(async (req) => {
                     .single();
 
                   if (storyPost) {
-                    void fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                      },
-                      body: JSON.stringify({
-                        platform: "instagram",
-                        accountId: post.account_id,
-                        videoUrl: storyVideoUrl,
-                        accessToken: rawIgToken,
-                        mediaType,
-                        postId: storyPost.id,
-                      }),
-                    });
+                    const igStoryPId = storyPost.id;
+                    uploadPromises.push(
+                      fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                        },
+                        body: JSON.stringify({
+                          platform: "instagram",
+                          accountId: post.account_id,
+                          videoUrl: storyVideoUrl,
+                          accessToken: rawIgToken,
+                          mediaType,
+                          postId: igStoryPId,
+                        }),
+                      })
+                        .then(async (res) => {
+                          if (!res.ok) console.error(`Instagram story upload failed for post ${igStoryPId}: ${res.status}`);
+                        })
+                        .catch(async () => {
+                          console.error(`Instagram story upload fetch failed for post ${igStoryPId}`);
+                          await supabase.from("posts").update({ status: "failed" }).eq("id", igStoryPId).catch(() => {});
+                        }),
+                    );
                   }
                 }
               }
@@ -1171,6 +1179,24 @@ Deno.serve(async (req) => {
         console.log("Global manual run lock released");
       } catch (e) {
         console.error("Failed to release manual lock:", e);
+      }
+    }
+
+    // Await all upload promises for cron runs (manual runs return immediately)
+    if (!isManualRun && uploadPromises.length > 0) {
+      const elapsed = Date.now() - functionStartMs;
+      const budget = 140_000 - elapsed;
+      if (budget > 5_000) {
+        try {
+          await Promise.race([
+            Promise.allSettled(uploadPromises),
+            new Promise<void>((_, reject) => setTimeout(() => reject(new Error("Upload wait timeout")), budget)),
+          ]);
+        } catch {
+          console.warn(`Upload wait timed out after ${budget}ms — uploads continue as independent invocations`);
+        }
+      } else {
+        console.warn(`Skipping upload await — only ${budget}ms remaining before timeout`);
       }
     }
 

@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `dc5d700` — Fix: restore instagram-upload POLL_INTERVAL to 12000
+## CURRENT HEAD: `a53ecfa` — Phase 2.3 deployed (process-workflow fire-and-forget fix)
 
 ### Fix: instagram-upload polling restored to 10×12s=120s (2026-07-28)
 
@@ -3108,3 +3108,62 @@ Order: Security → Reliability → Performance → Code Quality → Architectur
 | 5.2 | Fail at startup if required secrets missing |
 
 **Testing + Deploy flow per step**: `npm run build` → `npm run test` → deploy edge functions → manual smoke test → commit.
+
+## CURRENT HEAD: `a53ecfa` — Phase 2.3 deployed (process-workflow fire-and-forget fix)
+
+### 101. Drive token lifecycle hardening + Google OAuth verification plan (2026-08-01)
+
+**Problem**: AI-captions failed with `401` downloading from Google Drive
+(`www.googleapis.com/drive/v3/files/{id}?alt=media`). User reconnected Drive = temporary fix,
+but **will recur every ~1hr** (Google access tokens expire in 1hr).
+
+**Root cause**: Drive token refresh logic is duplicated across 5 functions, all with the same
+fragile condition — `if (tokenExpiry && tokenExpiry.getTime() - Date.now() < 5*60*1000)`:
+- If `token_expiry` is NULL → refresh NEVER fires → stale token returned → 401
+- If refresh fails → the `catch` swallows it and *returns the stale token anyway* → 401
+- `crypto.ts:decrypt()` returns the ciphertext on failure (silent corruption)
+- `get-file-token` mode exposes the raw Google token to the browser (only path that does)
+
+**Duplicated copies**: `process-workflow/index.ts:166`, `generate-ai-captions/index.ts:164`,
+`get-file/index.ts:106`, `transfer-ticket/index.ts:83`, `drive-to-mega/index.ts:88`.
+Refresh primitive lives in `google-drive-auth/index.ts:220` (`action=refresh`).
+
+**Plan — Tier 1 (reliability)**: New `supabase/functions/_shared/drive-token.ts` — single
+importable resolver: refresh when expired/expiring/missing `token_expiry`; never silently
+return stale token (typed result `{ok:false, reason}`); per-invocation cache; fix multi-account
+`maybeSingle`. Replace all 5 copies.
+
+**Plan — Tier 2 (security)**: `get-file-token` mode returns a `get-file` proxy URL
+(encrypted `{driveUrl, driveAccountId, userId, exp}`) instead of `{driveToken, driveUrl}`.
+Browser fetches proxy → server refreshes + streams → token never leaves server.
+Changes: `generate-ai-captions/index.ts` + `src/lib/captions.ts` (`getFileToken`/`downloadVideo`).
+
+**Plan — Tier 3 (resilience)**: Retry-once on 401 (force-refresh + retry the fetch).
+
+**Plan — Tier 4 (optional)**: Health signal — flag accounts whose `refresh_token` fails.
+
+**Google scopes currently requested** (from `google-drive-auth/index.ts:154`,
+`youtube-auth/index.ts:146`):
+| Scope | Class | Requirement |
+|-------|-------|-------------|
+| `drive` (full: create/upload/delete/read) | RESTRICTED | verification + paid CASA security assessment |
+| `spreadsheets` | sensitive | verification (free) |
+| `youtube.upload` | sensitive | verification (free) |
+| `userinfo.profile` | non-sensitive | none |
+
+**Key finding — Testing-mode 7-day limit**: Google invalidates refresh tokens after 7 days for
+apps in OAuth Testing status. Likely why Drive required periodic manual reconnects. Production
+status + verification is required for durable tokens.
+
+**Google Cloud verification options**:
+1. **Testing mode (free, now)**: up to 100 test users; 7-day refresh token expiry; "unverified" warning.
+2. **Production + sensitive-only scopes (free, recommended)**: downgrade `drive` → `drive.file`
+   (+ `drive.readonly` if pre-existing-file reads needed), keep `spreadsheets`/`youtube.upload`;
+   needs owned domain + privacy/ToS pages + domain verification + data-use disclosure. No CASA.
+3. **Production + restricted `drive`**: requires paid CASA security assessment — impractical on free tier.
+
+**TODO (next session)**:
+- [ ] Implement Tier 1 (`_shared/drive-token.ts` + replace 5 copies) + Tier 2 (proxy)
+- [ ] Verify Google scopes (confirm whether app can use `drive.file`+`drive.readonly` instead of `drive`)
+- [ ] Decide verification path (Testing mode vs Production sensitive-scope)
+- [ ] Note: `google-drive-auth` `action=get-token` (line 382) returns raw access token — red flag for verification review; fold into Tier 2
