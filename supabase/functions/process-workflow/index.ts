@@ -665,7 +665,7 @@ Deno.serve(async (req) => {
                   })
                   .catch(async () => {
                     console.error(`Carousel upload fetch failed for post ${carPostId}`);
-                    await supabase.from("posts").update({ status: "failed" }).eq("id", carPostId).catch(() => {});
+                    await supabase.from("posts").update({ status: "failed" }).eq("id", carPostId).catch((e) => console.error("process-workflow: failed to mark carousel post failed", e));
                   }),
               );
             }
@@ -1010,7 +1010,7 @@ Deno.serve(async (req) => {
                 })
                 .catch(async () => {
                   console.error(`Upload fetch failed for post ${pId} (${pPlatform})`);
-                  await supabase.from("posts").update({ status: "failed" }).eq("id", pId).catch(() => {});
+                  await supabase.from("posts").update({ status: "failed" }).eq("id", pId).catch((e) => console.error("process-workflow: failed to mark post failed", e));
                 }),
             );
           }
@@ -1139,7 +1139,7 @@ Deno.serve(async (req) => {
                         })
                         .catch(async () => {
                           console.error(`Instagram story upload fetch failed for post ${igStoryPId}`);
-                          await supabase.from("posts").update({ status: "failed" }).eq("id", igStoryPId).catch(() => {});
+                          await supabase.from("posts").update({ status: "failed" }).eq("id", igStoryPId).catch((e) => console.error("process-workflow: failed to mark ig story post failed", e));
                         }),
                     );
                   }
@@ -1213,7 +1213,7 @@ Deno.serve(async (req) => {
       try {
         await supabase.from("workflow_locks").delete().eq("lock_key", "manual-workflow-global-running");
       } catch (e) {
-        // ignore
+        console.error("process-workflow: failed to release manual run lock", e);
       }
     }
 

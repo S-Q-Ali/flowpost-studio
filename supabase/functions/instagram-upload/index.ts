@@ -388,8 +388,8 @@ Deno.serve(async (req) => {
           .eq("id", postId);
         await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       }
-    } catch {
-      // ignore
+    } catch (cleanupErr) {
+      console.error("instagram-upload: failed to mark post failed", cleanupErr);
     }
     return json(
       { error: err instanceof Error ? err.message : "Upload failed" },

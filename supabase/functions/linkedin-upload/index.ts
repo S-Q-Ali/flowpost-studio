@@ -219,7 +219,9 @@ Deno.serve(async (req) => {
       if (typeof postId === "string") {
         await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
       }
-    } catch { /* ignore */ }
+    } catch (cleanupErr) {
+      console.error("linkedin-upload: failed to mark post failed", cleanupErr);
+    }
     return json({ error: err instanceof Error ? err.message : "Upload failed" }, 500);
   }
 });

@@ -316,7 +316,9 @@ Deno.serve(async (req) => {
         await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
         await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       }
-    } catch (_) {}
+    } catch (cleanupErr) {
+      console.error("youtube-upload: failed to mark post failed", cleanupErr);
+    }
     return json(
       { error: err instanceof Error ? err.message : "Upload failed" },
       500,
