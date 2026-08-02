@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `b30b2bc` — Phase 2.2: silent catch logging deployed (6 functions)
+## CURRENT HEAD: `b30b2bc` — Phase 2.2: silent catch logging committed (deploy pending fresh SUPABASE_ACCESS_TOKEN)
 
 ### Fix: instagram-upload polling restored to 10×12s=120s (2026-07-28)
 
@@ -3083,7 +3083,7 @@ Order: Security → Reliability → Performance → Code Quality → Architectur
 | Step | Issue | Status |
 |------|-------|--------|
 | 2.1 | Add top-level try/catch to 4 unprotected functions | ✅ `get-quota-usage`, `transfer-ticket`, `fetch-facebook-insights`, `fetch-instagram-insights` — all deployed, committed `b82ad89` |
-| 2.2 | Replace blanket `catch {}` in 12+ functions (at minimum log the error) | ✅ Done — 9 genuine silent swallows logged across 6 functions (see #102), committed + deployed |
+| 2.2 | Replace blanket `catch {}` in 12+ functions (at minimum log the error) | ✅ Done — 9 genuine silent swallows logged across 6 functions (see #102), committed `b30b2bc`; deploy pending fresh access token |
 | 2.3 | Replace `void fetch()` fire-and-forget in `process-workflow` (9 occurrences) | ✅ Done — tracked upload promises + dynamic budget timeout, committed `56ee745`, deployed |
 | 2.4 | Add `useEffect` cleanup + `.catch()` handlers in frontend | ⏳ Not started |
 
