@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `a53ecfa` — Phase 2.3 deployed (process-workflow fire-and-forget fix)
+## CURRENT HEAD: `b30b2bc` — Phase 2.2: silent catch logging deployed (6 functions)
 
 ### Fix: instagram-upload polling restored to 10×12s=120s (2026-07-28)
 
@@ -3083,8 +3083,8 @@ Order: Security → Reliability → Performance → Code Quality → Architectur
 | Step | Issue | Status |
 |------|-------|--------|
 | 2.1 | Add top-level try/catch to 4 unprotected functions | ✅ `get-quota-usage`, `transfer-ticket`, `fetch-facebook-insights`, `fetch-instagram-insights` — all deployed, committed `b82ad89` |
-| 2.2 | Replace blanket `catch {}` in 12+ functions (at minimum log the error) | ⏳ Not started |
-| 2.3 | Replace `void fetch()` fire-and-forget in `process-workflow` (9 occurrences) | ⏳ Not started |
+| 2.2 | Replace blanket `catch {}` in 12+ functions (at minimum log the error) | ✅ Done — 9 genuine silent swallows logged across 6 functions (see #102), committed + deployed |
+| 2.3 | Replace `void fetch()` fire-and-forget in `process-workflow` (9 occurrences) | ✅ Done — tracked upload promises + dynamic budget timeout, committed `56ee745`, deployed |
 | 2.4 | Add `useEffect` cleanup + `.catch()` handlers in frontend | ⏳ Not started |
 
 ### Phase 3 — Performance (3 steps)
@@ -3108,8 +3108,6 @@ Order: Security → Reliability → Performance → Code Quality → Architectur
 | 5.2 | Fail at startup if required secrets missing |
 
 **Testing + Deploy flow per step**: `npm run build` → `npm run test` → deploy edge functions → manual smoke test → commit.
-
-## CURRENT HEAD: `a53ecfa` — Phase 2.3 deployed (process-workflow fire-and-forget fix)
 
 ### 101. Drive token lifecycle hardening + Google OAuth verification plan (2026-08-01)
 
@@ -3167,3 +3165,33 @@ status + verification is required for durable tokens.
 - [ ] Verify Google scopes (confirm whether app can use `drive.file`+`drive.readonly` instead of `drive`)
 - [ ] Decide verification path (Testing mode vs Production sensitive-scope)
 - [ ] Note: `google-drive-auth` `action=get-token` (line 382) returns raw access token — red flag for verification review; fold into Tier 2
+
+### 102. Phase 2.2 — Log silent catch errors in upload functions + process-workflow (2026-08-02)
+
+**Problem**: Audit Reliability #2 — blanket `catch {}` / `catch { /* ignore */ }` swallows errors with no logging, hiding real failures (duplicate posts, stuck locks, stuck "processing" status).
+
+**Investigation finding**: The audit's "12+ functions" overstates — exhaustive grep classified every bare catch into:
+- **Category B (intentional, ~30 sites, left alone)**: `"Invalid JSON body" → 400` fallbacks, URL-hostname validators, token-decrypt failures (`get-file:40`, `_shared/crypto.ts:41`), AI-output `JSON.parse`→`{}`, Mega login-fail→401, `/* use existing token */` / `/* fallback to FB graph */`, `useLocalStorage` privacy-mode guards, `process-workflow:1195` (Phase 2.3 timeout — already logged).
+- **Category A (genuinely silent, 9 sites, fixed)**: secondary cleanup swallows that hide real failures.
+
+**Changes (9 edits, 6 functions)**:
+1. `youtube-upload/index.ts:319` — `catch (_) {}` → `catch (cleanupErr) { console.error(...) }` (failed "mark post failed" status update)
+2. `facebook-upload/index.ts:225` — `catch { // ignore }` → logged (same)
+3. `instagram-upload/index.ts:391` — `catch { // ignore }` → logged (same)
+4. `linkedin-upload/index.ts:222` — `catch { /* ignore */ }` → logged (same) — the 5th copy, missed by the audit's list
+5. `tiktok-upload/index.ts:419` — `catch { // ignore }` → logged (same)
+6. `process-workflow/index.ts:1215` — manual-run lock release swallow → `console.error("failed to release manual run lock", e)` — **highest value**: silent failure = stale `workflow_locks` row = permanent "workflow already running"
+7. `process-workflow/index.ts:668, 1013, 1142` — 3× `.catch(() => {})` (Phase 2.3 status-failed safety nets) → `.catch((e) => console.error(...))` with per-post labels (carousel / single / ig story)
+
+**Edge cases handled**:
+- Primary upload error already logged above each A1 catch → new logs are *secondary* (DB `posts.update()` failures; `updateSheetStatus` never throws, it logs internally)
+- Real consequence made visible: failed status-mark leaves sheet rows `ready to post` → duplicate post risk on next cron
+- 2-arg `console.error("label", err)` everywhere — JS catch binds any type (string/object), `${err.message}` would throw
+- Zero success-path noise; zero control-flow change; no secrets logged; no new imports
+- **Skipped (documented)**: mega-auth 9× `try { storage.api?.logout?.(); } catch {}` — optional-chained best-effort logout on success paths, near-zero value, fire-and-forget by design
+
+**Test**: `npx vitest run` — 6/6 pass (functions not in test graph).
+**Deploy**: `npx supabase functions deploy youtube-upload facebook-upload instagram-upload linkedin-upload tiktok-upload process-workflow --no-verify-jwt` (⚠️ 401 on first attempt — access token rotated; needs fresh `SUPABASE_ACCESS_TOKEN`)
+**Commit**: `b30b2bc`
+
+**Next**: Phase 2.4 (`useEffect` cleanup + `.catch()` handlers in frontend, audit Reliability #4/#5), then Phase 3.
