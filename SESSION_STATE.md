@@ -1,6 +1,6 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `b30b2bc` — Phase 2.2: silent catch logging committed (deploy pending fresh SUPABASE_ACCESS_TOKEN)
+## CURRENT HEAD: `54468ad` — Phase 2.2: silent catch logging committed + deployed (6 functions)
 
 ### Fix: instagram-upload polling restored to 10×12s=120s (2026-07-28)
 
@@ -3083,7 +3083,7 @@ Order: Security → Reliability → Performance → Code Quality → Architectur
 | Step | Issue | Status |
 |------|-------|--------|
 | 2.1 | Add top-level try/catch to 4 unprotected functions | ✅ `get-quota-usage`, `transfer-ticket`, `fetch-facebook-insights`, `fetch-instagram-insights` — all deployed, committed `b82ad89` |
-| 2.2 | Replace blanket `catch {}` in 12+ functions (at minimum log the error) | ✅ Done — 9 genuine silent swallows logged across 6 functions (see #102), committed `b30b2bc`; deploy pending fresh access token |
+| 2.2 | Replace blanket `catch {}` in 12+ functions (at minimum log the error) | ✅ Done — 9 genuine silent swallows logged across 6 functions (see #102), committed `b30b2bc`, deployed |
 | 2.3 | Replace `void fetch()` fire-and-forget in `process-workflow` (9 occurrences) | ✅ Done — tracked upload promises + dynamic budget timeout, committed `56ee745`, deployed |
 | 2.4 | Add `useEffect` cleanup + `.catch()` handlers in frontend | ⏳ Not started |
 
@@ -3191,7 +3191,7 @@ status + verification is required for durable tokens.
 - **Skipped (documented)**: mega-auth 9× `try { storage.api?.logout?.(); } catch {}` — optional-chained best-effort logout on success paths, near-zero value, fire-and-forget by design
 
 **Test**: `npx vitest run` — 6/6 pass (functions not in test graph).
-**Deploy**: `npx supabase functions deploy youtube-upload facebook-upload instagram-upload linkedin-upload tiktok-upload process-workflow --no-verify-jwt` (⚠️ 401 on first attempt — access token rotated; needs fresh `SUPABASE_ACCESS_TOKEN`)
+**Deploy**: `npx supabase functions deploy youtube-upload facebook-upload instagram-upload linkedin-upload tiktok-upload process-workflow --no-verify-jwt` — ✅ deployed (project `ximorwzknbizpceaoflw`), after first attempt 401'd (rotated token)
 **Commit**: `b30b2bc`
 
 **Next**: Phase 2.4 (`useEffect` cleanup + `.catch()` handlers in frontend, audit Reliability #4/#5), then Phase 3.
