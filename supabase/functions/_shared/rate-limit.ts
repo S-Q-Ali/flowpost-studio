@@ -32,6 +32,16 @@ export async function checkRateLimit(
     };
   }
 
+  // Lockout window has expired — reset the counter so the user isn't locked
+  // out forever (previously attempts stayed at MAX_ATTEMPTS with no expiry).
+  if (rateLimit.attempts >= MAX_ATTEMPTS) {
+    await supabase
+      .from("rate_limits")
+      .update({ attempts: 0 })
+      .eq("key", key);
+    return { allowed: true, remainingAttempts: MAX_ATTEMPTS };
+  }
+
   const remaining = MAX_ATTEMPTS - rateLimit.attempts;
   return { allowed: remaining > 0, remainingAttempts: remaining };
 }

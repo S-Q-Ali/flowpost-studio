@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { checkRateLimit, recordFailedAttempt, resetRateLimit, MAX_ATTEMPTS } from "../_shared/rate-limit.ts";
+import { checkRateLimit, recordFailedAttempt, resetRateLimit, MAX_ATTEMPTS, LOCKOUT_DURATION_MINUTES } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -38,8 +38,10 @@ Deno.serve(async (req) => {
     const rateCheck = await checkRateLimit(supabase, "verify-password", ip);
     
     if (!rateCheck.allowed) {
-      const lockoutDate = new Date(rateCheck.lockoutUntil!);
-      const remainingMinutes = Math.ceil((lockoutDate.getTime() - Date.now()) / 60000);
+      const lockoutDate = rateCheck.lockoutUntil ? new Date(rateCheck.lockoutUntil) : null;
+      const remainingMinutes = lockoutDate
+        ? Math.max(1, Math.ceil((lockoutDate.getTime() - Date.now()) / 60000))
+        : LOCKOUT_DURATION_MINUTES;
       return json({ 
         success: false, 
         error: `Too many failed attempts. Try again in ${remainingMinutes} minutes.`,

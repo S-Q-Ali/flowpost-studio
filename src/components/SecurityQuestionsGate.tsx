@@ -10,6 +10,24 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const TOKEN_KEY = "flowpost_token";
 
+async function extractError(err: unknown): Promise<string> {
+  const name = (err as { name?: string })?.name;
+  // supabase-js v2 wraps non-2xx edge function responses in a FunctionsHttpError
+  // whose .context is the Response — parse the JSON body to surface the real error.
+  if (name === "FunctionsHttpError") {
+    const context = (err as { context?: Response })?.context;
+    if (context) {
+      try {
+        const body = await context.json() as { message?: string; error?: string };
+        return body?.error || body?.message || "Verification failed";
+      } catch {
+        /* fall through to generic message */
+      }
+    }
+  }
+  return (err as { message?: string })?.message || "Verification failed";
+}
+
 function setStoredToken(token: string | null) {
   if (typeof window === "undefined") return;
   if (token) {
@@ -80,7 +98,7 @@ export function SecurityQuestionsGate() {
       });
 
       if (fnError) {
-        setError(fnError.message || "Verification failed");
+        setError(await extractError(fnError));
         return;
       }
 
@@ -114,7 +132,7 @@ export function SecurityQuestionsGate() {
       });
 
       if (fnError || !data?.success) {
-        setError("Failed to save security questions");
+        setError(fnError ? await extractError(fnError) : "Failed to save security questions");
         return;
       }
 
