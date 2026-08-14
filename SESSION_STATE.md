@@ -1,6 +1,30 @@
 ﻿# FlowPost Studio — Session State
 
-## CURRENT HEAD: `54468ad` — Phase 2.2: silent catch logging committed + deployed (6 functions)
+## CURRENT HEAD: `(pending commit)` — Bulk AI caption generation + Stop button (serial queue)
+
+### Feature: Bulk synchronous AI caption generation with Stop (work in progress, not yet committed)
+
+**Problem**: Generating AI captions required clicking "AI Captions" per item. No way to generate for many items at once, no aggregate progress, no cancel. Users with large workflows had to queue manually item-by-item.
+
+**Solution**: Client-side, strictly serial batch reusing the existing `queueRef`/`generatingId` pipeline. No edge function changes — the browser pipeline (`generate-ai-captions` proxy → Drive download → audio → Whisper → frames → describe → captions → save) is reused as-is.
+
+**Files changed**:
+- `src/lib/captions.ts` — Added optional `signal?: AbortSignal` param to the whole pipeline (`groqApiCall`, `getFileToken`, `downloadVideo`, `extractAudio`, `extractFrames`, `groqWhisper`, `groqDescribeFrames`, `groqGenerateCaptions`, `generateAICaptions`, `regenerateCaptions`). Throws `DOMException("AbortError")` at each await via `throwIfAborted()`. All params optional → existing single-item caller unaffected. supabase-js v2.98 supports `signal` on `functions.invoke` (verified in `function-invoke-options` types.d.ts).
+- `src/pages/WorkflowItemsPage.tsx` — New bulk feature:
+  1. **"Generate Captions (N)" button** in the bottom bulk bar — N = count of selected items missing required caption fields (same dedupe as `markCaptionedReady`), skips posted items, disabled while a generation is running
+  2. **`bulkGenerateCaptions()`** — filters selected items, skips already-captioned/posted/in-flight, seeds `queueRef`, chains items serially via existing `generateCaptions` recursion
+  3. **Stop Captions button** — `stopRef` + `abortRef` (AbortController); aborts the current item's in-flight pipeline, drains the queue, shows a stopped summary toast
+  4. **Progress banner** — "Generating captions 3/10 — filename" + failed/stopped counts (new `batchState` + `batchRef`)
+  5. **Summary toast** — "Generated X, skipped Y, failed Z, stopped W"
+  6. **Guard** — manual per-item queue clicks blocked while a batch is running (`toast.info`)
+
+**Behavior notes**:
+- Serial queue (one item at a time) intentionally avoids Groq free-tier RPM limits and the Free-plan 150s edge-function timeout.
+- An aborted item saves whatever caption fields completed before stop (matches existing per-item error semantics).
+- Browser tab must stay open for the whole batch; a server-side/cron queue remains a separate follow-up.
+- `AbortError` detection uses `err instanceof DOMException && err.name === "AbortError"` so interior labeled catch blocks re-throw instead of swallowing.
+
+**Verification**: `npx.cmd tsc --noEmit` clean; `npx.cmd vite build` passed (1m 47s). Manual smoke pending (needs live test session).
 
 ### Fix: instagram-upload polling restored to 10×12s=120s (2026-07-28)
 

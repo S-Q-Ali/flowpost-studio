@@ -33,7 +33,16 @@ function emit(onProgress: OnProgress | undefined, step: StepId, progress: number
   onProgress?.({ step, label: STEP_LABELS[step], progress });
 }
 
-async function groqApiCall(mode: string, payload: Record<string, unknown>): Promise<any> {
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+}
+
+async function groqApiCall(
+  mode: string,
+  payload: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<any> {
+  throwIfAborted(signal);
   const token = localStorage.getItem("flowpost_token");
   const { data, error } = await supabase.functions.invoke("generate-ai-captions", {
     method: "POST",
@@ -42,6 +51,7 @@ async function groqApiCall(mode: string, payload: Record<string, unknown>): Prom
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ mode, ...payload }),
+    signal,
   });
 
   if (error || data?.error) {
@@ -50,7 +60,8 @@ async function groqApiCall(mode: string, payload: Record<string, unknown>): Prom
   return data;
 }
 
-async function getFileToken(itemId: string): Promise<{ driveToken: string; driveUrl: string }> {
+async function getFileToken(itemId: string, signal?: AbortSignal): Promise<{ driveToken: string; driveUrl: string }> {
+  throwIfAborted(signal);
   const token = localStorage.getItem("flowpost_token");
   const { data, error } = await supabase.functions.invoke("generate-ai-captions", {
     method: "POST",
@@ -59,6 +70,7 @@ async function getFileToken(itemId: string): Promise<{ driveToken: string; drive
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ mode: "get-file-token", workflow_item_id: itemId }),
+    signal,
   });
 
   if (error || data?.error) {
@@ -68,9 +80,16 @@ async function getFileToken(itemId: string): Promise<{ driveToken: string; drive
   return { driveToken: data.driveToken, driveUrl: data.driveUrl };
 }
 
-async function downloadVideo(driveToken: string, driveUrl: string, onProgress?: OnProgress): Promise<Blob> {
+async function downloadVideo(
+  driveToken: string,
+  driveUrl: string,
+  onProgress?: OnProgress,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  throwIfAborted(signal);
   const res = await fetch(driveUrl, {
     headers: { Authorization: `Bearer ${driveToken}` },
+    signal,
   });
   if (!res.ok) {
     throw new Error(`Failed to download video: ${res.status}`);
@@ -83,6 +102,7 @@ async function downloadVideo(driveToken: string, driveUrl: string, onProgress?: 
   let received = 0;
 
   while (true) {
+    throwIfAborted(signal);
     const { done, value } = await reader.read();
     if (done) break;
     chunks.push(value);
@@ -95,7 +115,7 @@ async function downloadVideo(driveToken: string, driveUrl: string, onProgress?: 
   return new Blob(chunks);
 }
 
-async function extractFrames(videoBlob: Blob): Promise<string[]> {
+async function extractFrames(videoBlob: Blob, signal?: AbortSignal): Promise<string[]> {
   const url = URL.createObjectURL(videoBlob);
   const video = document.createElement("video");
   video.muted = true;
@@ -119,10 +139,12 @@ async function extractFrames(videoBlob: Blob): Promise<string[]> {
 
   const frames: string[] = [];
   for (const t of timestamps) {
+    throwIfAborted(signal);
     video.currentTime = t;
     await new Promise<void>((resolve) => {
       video.onseeked = () => resolve();
     });
+    throwIfAborted(signal);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     frames.push(canvas.toDataURL("image/jpeg", 0.6));
   }
@@ -132,7 +154,7 @@ async function extractFrames(videoBlob: Blob): Promise<string[]> {
   return frames;
 }
 
-async function extractAudio(videoBlob: Blob, onProgress?: OnProgress): Promise<Blob> {
+async function extractAudio(videoBlob: Blob, onProgress?: OnProgress, signal?: AbortSignal): Promise<Blob> {
   const url = URL.createObjectURL(videoBlob);
   const video = document.createElement("video");
   video.muted = false;
@@ -170,9 +192,11 @@ async function extractAudio(videoBlob: Blob, onProgress?: OnProgress): Promise<B
   video.play();
 
   await new Promise<void>((resolve) => { video.onended = () => resolve(); });
+  throwIfAborted(signal);
   await new Promise((r) => setTimeout(r, 500));
   recorder.stop();
   await done;
+  throwIfAborted(signal);
 
   audioCtx.close();
   URL.revokeObjectURL(url);
@@ -182,7 +206,12 @@ async function extractAudio(videoBlob: Blob, onProgress?: OnProgress): Promise<B
   return new Blob(chunks, { type: `audio/${ext}` });
 }
 
-async function groqWhisper(audioBlob: Blob, _apiKey: string, onProgress?: OnProgress): Promise<string> {
+async function groqWhisper(
+  audioBlob: Blob,
+  _apiKey: string,
+  onProgress?: OnProgress,
+  signal?: AbortSignal,
+): Promise<string> {
   emit(onProgress, "transcribing", 95);
 
   const ext = audioBlob.type.includes("mp4") ? "m4a" : "webm";
@@ -194,10 +223,14 @@ async function groqWhisper(audioBlob: Blob, _apiKey: string, onProgress?: OnProg
   }
   const audioBase64 = btoa(binary);
 
-  const data = await groqApiCall("groq-transcribe", {
-    audio_base64: audioBase64,
-    filename: `audio.${ext}`,
-  });
+  const data = await groqApiCall(
+    "groq-transcribe",
+    {
+      audio_base64: audioBase64,
+      filename: `audio.${ext}`,
+    },
+    signal,
+  );
 
   emit(onProgress, "transcribing", 100);
   return data.transcript;
@@ -207,6 +240,7 @@ async function groqDescribeFrames(
   frames: string[],
   _apiKey: string,
   onProgress?: OnProgress,
+  signal?: AbortSignal,
 ): Promise<string> {
   emit(onProgress, "analyzing-visuals", 0);
 
@@ -217,12 +251,16 @@ async function groqDescribeFrames(
     content.push({ type: "image_url", image_url: { url: frame } });
   }
 
-  const data = await groqApiCall("groq-chat", {
-    model: "qwen/qwen3.6-27b",
-    messages: [{ role: "user", content }],
-    temperature: 0.6,
-    max_tokens: 512,
-  });
+  const data = await groqApiCall(
+    "groq-chat",
+    {
+      model: "qwen/qwen3.6-27b",
+      messages: [{ role: "user", content }],
+      temperature: 0.6,
+      max_tokens: 512,
+    },
+    signal,
+  );
 
   const description: string = data.choices?.[0]?.message?.content || "";
   emit(onProgress, "analyzing-visuals", 100);
@@ -237,6 +275,7 @@ export async function groqGenerateCaptions(
   _apiKey: string,
   platforms?: string[],
   onProgress?: OnProgress,
+  signal?: AbortSignal,
 ): Promise<Record<string, string>> {
   emit(onProgress, "generating-captions", 0);
 
@@ -259,15 +298,19 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
 
   const userMessage = `Audio transcript:\n\n${transcript || "No transcript available."}\n\nVisual description:\n\n${visualDescription || "No visual description available."}`;
 
-  const chatData = await groqApiCall("groq-chat", {
-    model: "openai/gpt-oss-120b",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-    temperature: 0.7,
-    max_tokens: 4096,
-  });
+  const chatData = await groqApiCall(
+    "groq-chat",
+    {
+      model: "openai/gpt-oss-120b",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.7,
+      max_tokens: 4096,
+    },
+    signal,
+  );
 
   const content: string = chatData.choices?.[0]?.message?.content || "";
 
@@ -297,6 +340,7 @@ export interface GenerateCaptionsOptions {
   platforms?: string[];
   onProgress?: OnProgress;
   skipAudio?: boolean;
+  signal?: AbortSignal;
 }
 
 const PLATFORM_ALLOWED_KEYS: Record<string, string[]> = {
@@ -314,16 +358,17 @@ export interface AICaptionResult {
 }
 
 export async function generateAICaptions(options: GenerateCaptionsOptions): Promise<AICaptionResult> {
-  const { item, masterPrompt, platforms, onProgress } = options;
+  const { item, masterPrompt, platforms, onProgress, signal } = options;
   const prompt = masterPrompt || getDefaultMasterPrompt();
 
   try {
     emit(onProgress, "downloading", 0);
     let videoBlob: Blob;
     try {
-      const { driveToken, driveUrl } = await getFileToken(item.id);
-      videoBlob = await downloadVideo(driveToken, driveUrl, onProgress);
+      const { driveToken, driveUrl } = await getFileToken(item.id, signal);
+      videoBlob = await downloadVideo(driveToken, driveUrl, onProgress, signal);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
       console.error("[captions] FAIL download", err);
       throw new Error(`download: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -336,15 +381,17 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     } else {
       let audioBlob: Blob;
       try {
-        audioBlob = await extractAudio(videoBlob, onProgress);
+        audioBlob = await extractAudio(videoBlob, onProgress, signal);
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") throw err;
         console.error("[captions] FAIL extractAudio", err);
         throw new Error(`audio: ${err instanceof Error ? err.message : String(err)}`);
       }
 
       try {
-        transcript = await groqWhisper(audioBlob, "", onProgress);
+        transcript = await groqWhisper(audioBlob, "", onProgress, signal);
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") throw err;
         console.error("[captions] FAIL groqWhisper", err);
         throw new Error(`whisper: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
@@ -354,14 +401,15 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
 
     let visualDescription: string;
     try {
-      const frames = await extractFrames(videoBlob);
+      const frames = await extractFrames(videoBlob, signal);
       if (frames.length > 0) {
-        visualDescription = await groqDescribeFrames(frames, "", onProgress);
+        visualDescription = await groqDescribeFrames(frames, "", onProgress, signal);
       } else {
         visualDescription = "";
         emit(onProgress, "analyzing-visuals", 100);
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
       console.error("[captions] FAIL extractFrames/describe", err);
       visualDescription = "";
       emit(onProgress, "analyzing-visuals", 100);
@@ -371,8 +419,9 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
 
     let captions: Record<string, string>;
     try {
-      captions = await groqGenerateCaptions(transcript, visualDescription, item.file_name, prompt, "", platforms, onProgress);
+      captions = await groqGenerateCaptions(transcript, visualDescription, item.file_name, prompt, "", platforms, onProgress, signal);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
       console.error("[captions] FAIL groqGenerateCaptions", err);
       throw new Error(`generate: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -400,9 +449,10 @@ export async function regenerateCaptions(
   masterPrompt?: MasterPrompt | null,
   platforms?: string[],
   onProgress?: OnProgress,
+  signal?: AbortSignal,
 ): Promise<Record<string, string>> {
   const prompt = masterPrompt || getDefaultMasterPrompt();
-  const captions = await groqGenerateCaptions(transcript, visualDescription, fileName, prompt, "", platforms, onProgress);
+  const captions = await groqGenerateCaptions(transcript, visualDescription, fileName, prompt, "", platforms, onProgress, signal);
 
   if (platforms?.length) {
     const allowed = new Set(platforms.flatMap((p) => PLATFORM_ALLOWED_KEYS[p] || []));

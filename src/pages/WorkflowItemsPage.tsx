@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, XCircle, Archive, ListOrdered } from "lucide-react";
+import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, XCircle, Archive, ListOrdered, Square } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
@@ -94,6 +94,19 @@ export default function WorkflowItemsPage() {
   const [postStatusMap, setPostStatusMap] = useState<Record<string, Record<string, string>>>({});
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const queueRef = useRef<WorkflowItem[]>([]);
+  const stopRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const batchRef = useRef<BatchState | null>(null);
+  interface BatchState {
+    total: number;
+    done: number;
+    failed: number;
+    skipped: number;
+    aborted: number;
+    currentLabel: string | null;
+    stopped: boolean;
+  }
+  const [batchState, setBatchState] = useState<BatchState | null>(null);
   const [skipAudioMap, setSkipAudioMap] = useState<Record<string, boolean>>({});
   interface CaptionResult {
     captions: Record<string, string>;
@@ -610,6 +623,11 @@ export default function WorkflowItemsPage() {
     setGeneratingId(item.id);
     setPreviewProgress({ step: "fetching-key", label: "Preparing...", progress: 0 });
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    let outcome: "success" | "failed" | "aborted" = "success";
+
     try {
       const result = await generateAICaptions({
         item: { id: item.id, file_name: item.file_name, mime_type: item.mime_type },
@@ -617,6 +635,7 @@ export default function WorkflowItemsPage() {
         platforms: workflow?.platforms ?? [],
         onProgress: (progress) => setPreviewProgress(progress),
         skipAudio: skipAudioMap[item.id] ?? false,
+        signal: controller.signal,
       });
       setResults((prev) => ({
         ...prev,
@@ -628,20 +647,165 @@ export default function WorkflowItemsPage() {
         },
       }));
       await saveCaptions(item.id, result.captions);
-      toast.success("AI captions applied!");
+      toast.success(`AI captions applied for "${item.file_name}"`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to generate captions";
-      console.error("[WorkflowItemsPage] generateCaptions error", err);
-      toast.error(msg);
+      if (err instanceof DOMException && err.name === "AbortError") {
+        outcome = "aborted";
+      } else {
+        outcome = "failed";
+        const msg = err instanceof Error ? err.message : "Failed to generate captions";
+        console.error("[WorkflowItemsPage] generateCaptions error", err);
+        toast.error(`${item.file_name}: ${msg}`);
+      }
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setGeneratingId(null);
       setPreviewProgress(null);
+
+      if (batchRef.current) {
+        updateBatch({
+          done: batchRef.current.done + 1,
+          failed: batchRef.current.failed + (outcome === "failed" ? 1 : 0),
+          aborted: batchRef.current.aborted + (outcome === "aborted" ? 1 : 0),
+        });
+      }
+
+      if (stopRef.current) {
+        queueRef.current = [];
+        finishBatch(true);
+        return;
+      }
+
       const next = queueRef.current.shift();
-      if (next) generateCaptions(next);
+      if (next) {
+        if (batchRef.current) updateBatch({ currentLabel: next.file_name });
+        generateCaptions(next);
+      } else if (batchRef.current) {
+        finishBatch(false);
+      }
     }
   };
 
+  const updateBatch = (patch: Partial<BatchState>) => {
+    if (!batchRef.current) return;
+    batchRef.current = { ...batchRef.current, ...patch };
+    setBatchState(batchRef.current);
+  };
+
+  const finishBatch = (stopped: boolean) => {
+    const meta = batchRef.current;
+    batchRef.current = null;
+    setBatchState(null);
+    stopRef.current = false;
+    if (meta) {
+      const generated = meta.done - meta.failed - meta.aborted;
+      toast.success(
+        stopped
+          ? `Stopped — generated ${generated}, skipped ${meta.skipped}, failed ${meta.failed}, stopped ${meta.aborted}`
+          : `Batch complete — generated ${generated}, skipped ${meta.skipped}, failed ${meta.failed}, stopped ${meta.aborted}`,
+      );
+    }
+  };
+
+  const stopBulkGeneration = () => {
+    if (!batchRef.current) return;
+    stopRef.current = true;
+    updateBatch({ stopped: true });
+    abortRef.current?.abort();
+  };
+
+  const bulkGenerateCaptions = () => {
+    if (batchRef.current || generatingId) return;
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    const requiredFields = new Set<string>();
+    for (const p of workflow?.platforms ?? []) {
+      for (const f of platformCaptionConfig[p] ?? []) {
+        requiredFields.add(f.field);
+      }
+    }
+
+    const inFlight = new Set(queueRef.current.map((q) => q.id));
+    if (generatingId) inFlight.add(generatingId);
+
+    const toGenerate: WorkflowItem[] = [];
+    let skipped = 0;
+
+    for (const id of ids) {
+      const item = items.find((i) => i.id === id);
+      if (!item) continue;
+      if (item.status === "posted") continue;
+      if (inFlight.has(id)) continue;
+
+      const allFilled =
+        requiredFields.size > 0 &&
+        Array.from(requiredFields).every((field) => {
+          const val = getField(item, field as keyof WorkflowItem);
+          return val && val.trim().length > 0;
+        });
+
+      if (allFilled) {
+        skipped++;
+        continue;
+      }
+      toGenerate.push(item);
+    }
+
+    if (toGenerate.length === 0) {
+      toast.error("Nothing to generate — all selected items already have captions.");
+      return;
+    }
+
+    stopRef.current = false;
+    queueRef.current = toGenerate.slice(1);
+    const meta: BatchState = {
+      total: toGenerate.length,
+      done: 0,
+      failed: 0,
+      skipped,
+      aborted: 0,
+      currentLabel: toGenerate[0].file_name,
+      stopped: false,
+    };
+    batchRef.current = meta;
+    setBatchState(meta);
+    generateCaptions(toGenerate[0]);
+  };
+
+  const countNeedsCaptions = () => {
+    const requiredFields = new Set<string>();
+    for (const p of workflow?.platforms ?? []) {
+      for (const f of platformCaptionConfig[p] ?? []) {
+        requiredFields.add(f.field);
+      }
+    }
+
+    let count = 0;
+    for (const id of Array.from(selectedIds)) {
+      const item = items.find((i) => i.id === id);
+      if (!item) continue;
+      if (item.status === "posted") continue;
+      if (generatingId === item.id) continue;
+      if (queueRef.current.some((q) => q.id === item.id)) continue;
+
+      const allFilled =
+        requiredFields.size > 0 &&
+        Array.from(requiredFields).every((field) => {
+          const val = getField(item, field as keyof WorkflowItem);
+          return val && val.trim().length > 0;
+        });
+      if (allFilled) continue;
+      count++;
+    }
+    return count;
+  };
+
   const queueGeneration = (item: WorkflowItem) => {
+    if (batchRef.current) {
+      toast.info("A bulk caption generation is already running. Click Stop Captions to cancel.");
+      return;
+    }
     if (generatingId) {
       if (queueRef.current.some((q) => q.id === item.id)) return;
       queueRef.current = [...queueRef.current, item];
@@ -1129,6 +1293,21 @@ export default function WorkflowItemsPage() {
       />
       {selectedIds.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm shadow-lg p-3">
+          {batchState && (
+            <div className="max-w-7xl mx-auto mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span className="font-medium text-foreground">
+                Generating captions {Math.min(batchState.done, batchState.total)}/{batchState.total}
+              </span>
+              {batchState.currentLabel && (
+                <span className="truncate max-w-[40%]">— {batchState.currentLabel}</span>
+              )}
+              {batchState.failed > 0 && (
+                <span className="text-destructive">{batchState.failed} failed</span>
+              )}
+              {batchState.aborted > 0 && <span>{batchState.aborted} stopped</span>}
+            </div>
+          )}
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <span className="text-sm font-medium text-foreground">
               {selectedIds.size} item{selectedIds.size !== 1 ? "s" : ""} selected
@@ -1137,6 +1316,31 @@ export default function WorkflowItemsPage() {
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={deselectAll}>
                 <Circle className="h-3 w-3" /> Deselect All
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1"
+                onClick={bulkGenerateCaptions}
+                disabled={!!generatingId || countNeedsCaptions() === 0}
+              >
+                <Sparkles className="h-3 w-3" />
+                Generate Captions ({countNeedsCaptions()})
+              </Button>
+              {batchState && !batchState.stopped && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-8 text-xs gap-1"
+                  onClick={stopBulkGeneration}
+                >
+                  <Square className="h-3 w-3" /> Stop Captions
+                </Button>
+              )}
+              {batchState?.stopped && (
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1" disabled>
+                  <Loader2 className="h-3 w-3 animate-spin" /> Stopping…
+                </Button>
+              )}
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={markSelectedReady}>
                 <CheckCircle2 className="h-3 w-3" />
                 Mark Ready
