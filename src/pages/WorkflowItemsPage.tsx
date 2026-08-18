@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Loader2, Folder, File as FileIcon, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, XCircle, Archive, ListOrdered, Square } from "lucide-react";
+import { ArrowLeft, Loader2, Folder, File as FileIcon, FileText, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, XCircle, Archive, ListOrdered, Square } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
@@ -36,6 +36,19 @@ function formatBytes(b: number): string {
   if (!b) return "0 B";
   if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
   return (b / 1048576).toFixed(1) + " MB";
+}
+
+function filenameToCaption(fileName: string): string | null {
+  if (!fileName || !fileName.trim()) return null;
+  let name = fileName.trim();
+  const lastDot = name.lastIndexOf(".");
+  if (lastDot > 0) name = name.slice(0, lastDot);
+  // Protect hashtag tokens so separators inside them are never altered
+  name = name.replace(/(#[A-Za-z0-9_]+)/g, "\u0001$1\u0002");
+  name = name.replace(/[_\-]+/g, " ");
+  name = name.replace(/[\u0001\u0002]/g, "");
+  name = name.replace(/\s+/g, " ").trim();
+  return name || null;
 }
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -493,6 +506,45 @@ export default function WorkflowItemsPage() {
     );
 
     toast.success(`${eligible.length} items marked as ready${skipped > 0 ? ` (${skipped} skipped — missing captions)` : ""}`);
+  };
+
+  const useFileNameAsCaption = (item: WorkflowItem) => {
+    const caption = filenameToCaption(item.file_name);
+    if (!caption) {
+      toast.error("No file name to use as caption");
+      return;
+    }
+    updateLocal(item.id, "fb_ig_caption", caption);
+    toast.success("Caption filled from file name");
+  };
+
+  const bulkUseFileNameAsCaption = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    let filled = 0;
+    let skipped = 0;
+    for (const id of ids) {
+      const item = items.find((i) => i.id === id);
+      if (!item) continue;
+      if (item.status === "posted") {
+        skipped++;
+        continue;
+      }
+      const caption = filenameToCaption(item.file_name);
+      if (!caption) {
+        skipped++;
+        continue;
+      }
+      updateLocal(id, "fb_ig_caption", caption);
+      filled++;
+    }
+
+    if (filled === 0) {
+      toast.error(skipped > 0 ? "Nothing to fill — selected items are posted or have no file name" : "Nothing to fill");
+      return;
+    }
+    toast.success(`${filled} caption${filled !== 1 ? "s" : ""} filled from file names${skipped > 0 ? ` (${skipped} skipped)` : ""}`);
   };
 
   const bulkDeleteItems = async () => {
@@ -1196,6 +1248,16 @@ export default function WorkflowItemsPage() {
                         type="button"
                         variant="ghost"
                         size="sm"
+                        className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                        onClick={() => useFileNameAsCaption(item)}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        Use File Name
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
                         className="h-7 text-xs gap-1 text-primary hover:text-primary"
                         onClick={() => {
                           const hasResult = results[item.id];
@@ -1348,6 +1410,10 @@ export default function WorkflowItemsPage() {
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={markCaptionedReady}>
                 <CheckCircle2 className="h-3 w-3" />
                 Mark as Ready with Captions
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={bulkUseFileNameAsCaption}>
+                <FileText className="h-3 w-3" />
+                Use File Name as Caption
               </Button>
               <Popover open={bulkPlatformsOpen} onOpenChange={setBulkPlatformsOpen}>
                 <PopoverTrigger asChild>
