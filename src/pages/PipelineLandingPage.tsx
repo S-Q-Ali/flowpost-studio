@@ -102,6 +102,12 @@ function LandingNav() {
           <a href="#platforms" className="transition-colors hover:text-foreground">Platforms</a>
         </div>
         <div className="flex items-center gap-3">
+          <a
+            href="/dashboard"
+            className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:block"
+          >
+            Sign in
+          </a>
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="text-foreground"
