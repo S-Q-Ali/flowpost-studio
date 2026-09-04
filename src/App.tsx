@@ -26,8 +26,9 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const TermsPage = lazy(() => import("./pages/TermsPage"));
 const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
+const PipelineLandingPage = lazy(() => import("./pages/PipelineLandingPage"));
 
-const PUBLIC_PATHS = new Set(["/terms", "/privacy", "/auth/callback"]);
+const PUBLIC_PATHS = new Set(["/terms", "/privacy", "/auth/callback", "/pipeline"]);
 
 function RootRedirect() {
   const saved = localStorage.getItem("redirectPath");
@@ -76,6 +77,7 @@ function AppRoutes() {
       <Route path="/auth/callback" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><AuthCallback /></Suspense>} />
       <Route path="/terms" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><TermsPage /></Suspense>} />
       <Route path="/privacy" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><PrivacyPage /></Suspense>} />
+      <Route path="/pipeline" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><PipelineLandingPage /></Suspense>} />
       <Route element={<RequireVerified />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><Dashboard /></Suspense>} />

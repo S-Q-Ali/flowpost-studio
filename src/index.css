@@ -174,3 +174,33 @@
 .animate-password-shake {
   animation: password-shake 0.4s ease-in-out;
 }
+
+/* ═══ Pipeline Landing page animations ═══ */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+.animate-float-y { animation: float-y 5s ease-in-out infinite; }
+
+@keyframes marquee-x {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.marquee-track { animation: marquee-x 22s linear infinite; }
+
+/* Apple-style scroll reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(36px);
+  transition: opacity 0.8s cubic-bezier(0.2, 0.65, 0.25, 1), transform 0.8s cubic-bezier(0.2, 0.65, 0.25, 1);
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-scale {
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.2, 0.65, 0.25, 1);
+}
+.reveal-scale.visible { opacity: 1; transform: scale(1); }
+.reveal-delay-1 { transition-delay: 0.12s; }
+.reveal-delay-2 { transition-delay: 0.24s; }
+.reveal-delay-3 { transition-delay: 0.36s; }

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowPost Studio — 5 Pipeline Ideas (Aurora Rose Preview)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: { extend: { borderRadius: { xl: '0.625rem' } } }
+  }
+</script>
+<style>
+  :root {
+    --background: hsl(350 60% 98%); --foreground: hsl(340 45% 15%);
+    --card: hsl(345 40% 94%); --popover: hsl(345 40% 94%);
+    --primary: hsl(340 80% 65%); --primary-foreground: hsl(345 40% 98%);
+    --secondary: hsl(340 35% 88%); --muted: hsl(340 30% 92%);
+    --muted-foreground: hsl(340 20% 40%); --accent: hsl(345 45% 88%);
+    --border: hsl(340 25% 85%);
+    --status-scheduled: hsl(340 80% 65%); --status-processing: hsl(350 90% 70%);
+    --status-published: hsl(142 71% 45%); --status-failed: hsl(0 75% 65%);
+    --facebook: hsl(220 46% 48%); --instagram: hsl(340 75% 54%);
+    --youtube: hsl(0 100% 50%); --tiktok: hsl(0 0% 8%); --linkedin: hsl(211 72% 45%);
+    --gradient-primary: linear-gradient(135deg, hsl(340 80% 65%), hsl(350 75% 70%));
+    --gradient-hero: linear-gradient(135deg, hsl(340 80% 65%) 0%, hsl(20 80% 70%) 50%, hsl(320 70% 75%) 100%);
+    --shadow-glow: 0 0 40px -10px hsl(340 80% 65% / 0.2);
+    --shadow-card: 0 1px 3px 0 hsl(340 45% 15% / 0.1), 0 1px 2px -1px hsl(340 45% 15% / 0.1);
+  }
+  .dark {
+    --background: hsl(330 40% 8%); --foreground: hsl(330 35% 88%);
+    --card: hsl(325 25% 12%); --popover: hsl(325 25% 12%);
+    --primary: hsl(330 70% 65%); --primary-foreground: hsl(325 40% 10%);
+    --secondary: hsl(330 20% 18%); --muted: hsl(330 25% 16%);
+    --muted-foreground: hsl(330 15% 55%); --accent: hsl(325 30% 18%);
+    --border: hsl(330 20% 25%);
+    --status-failed: hsl(0 70% 60%); --tiktok: hsl(0 0% 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(330 70% 65%), hsl(340 75% 70%));
+    --gradient-hero: linear-gradient(135deg, hsl(330 70% 65%) 0%, hsl(0 70% 70%) 50%, hsl(320 60% 75%) 100%);
+    --shadow-glow: 0 0 40px -10px hsl(330 70% 65% / 0.2);
+    --shadow-card: 0 1px 3px 0 hsl(0 0% 0% / 0.3), 0 1px 2px -1px hsl(0 0% 0% / 0.3);
+  }
+  body { background: var(--background); color: var(--foreground); font-family: 'Segoe UI', system-ui, sans-serif; }
+  .bg-card2 { background: var(--card); }
+  .bg-pop2 { background: var(--popover); }
+  .text-fg { color: var(--foreground); }
+  .text-muted2 { color: var(--muted-foreground); }
+  .bg-muted2 { background: var(--muted); }
+  .bg-accent2 { background: var(--accent); }
+  .border-b2 { border-color: var(--border); }
+  .grad-primary { background: var(--gradient-primary); }
+  .grad-hero { background: var(--gradient-hero); }
+  .shadow-card2 { box-shadow: var(--shadow-card); }
+  .shadow-glow2 { box-shadow: var(--shadow-glow); }
+  .text-grad { background: var(--gradient-hero); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 hsl(340 80% 65% / .4);} 70% { box-shadow: 0 0 0 12px hsl(340 80% 65% / 0);} 100% { box-shadow: 0 0 0 0 hsl(340 80% 65% / 0);} }
+  .pulse-step { animation: pulse-ring 2s infinite; }
+  @keyframes flow-dash { to { stroke-dashoffset: -20; } }
+  .flow-line { stroke-dasharray: 6 6; animation: flow-dash 1s linear infinite; }
+  .card-hover { transition: transform .2s, box-shadow .2s; }
+  .card-hover:hover { transform: translateY(-3px); box-shadow: var(--shadow-glow); }
+  .drag-card { cursor: grab; transition: transform .15s, box-shadow .15s; }
+  .drag-card:active { cursor: grabbing; transform: scale(1.03); box-shadow: var(--shadow-glow); }
+</style>
+</head>
+<body class="min-h-screen p-6 md:p-10">
+
+<!-- Header with theme toggle -->
+<div class="max-w-6xl mx-auto flex items-center justify-between mb-10">
+  <div>
+    <h1 class="text-3xl font-bold text-grad">FlowPost Pipeline — 5 Ideas</h1>
+    <p class="text-muted2 mt-1">Aurora Rose Studio theme preview</p>
+  </div>
+  <button onclick="document.documentElement.classList.toggle('dark')"
+    class="px-4 py-2 rounded-xl border text-sm font-medium card-hover"
+    style="background: var(--popover); border-color: var(--border)">🌙 / ☀️ Toggle Theme</button>
+</div>
+
+<!-- ══════════ IDEA 1: Kanban Pipeline Board ══════════ -->
+<section class="max-w-6xl mx-auto mb-16">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="w-8 h-8 rounded-xl grad-primary flex items-center justify-center text-white font-bold">1</span>
+    <h2 class="text-2xl font-semibold">Kanban Pipeline Board</h2>
+  </div>
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="rounded-xl bg-card2 border border-b2 p-3 shadow-card2">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-2.5 h-2.5 rounded-full grad-primary"></span>
+        <span class="text-sm font-semibold">📁 Source</span>
+        <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-accent2 text-muted2">4</span>
+      </div>
+      <div class="drag-card rounded-xl bg-pop2 border border-b2 p-3 mb-2 shadow-card2">
+        <p class="text-sm font-medium">product-demo.mp4</p>
+        <p class="text-xs text-muted2 mt-1">Google Drive · 24 MB</p>
+      </div>
+      <div class="drag-card rounded-xl bg-pop2 border border-b2 p-3 shadow-card2">
+        <p class="text-sm font-medium">behind-scenes.mp4</p>
+        <p class="text-xs text-muted2 mt-1">Mega · 12 MB</p>
+      </div>
+    </div>
+    <div class="rounded-xl bg-card2 border border-b2 p-3 shadow-card2">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-2.5 h-2.5 rounded-full" style="background: var(--status-processing)"></span>
+        <span class="text-sm font-semibold">✨ AI Caption</span>
+        <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-accent2 text-muted2">2</span>
+      </div>
+      <div class="drag-card rounded-xl bg-pop2 border p-3 shadow-glow2" style="border-color: var(--primary)">
+        <p class="text-sm font-medium">launch-teaser.mp4</p>
+        <div class="mt-2 h-1.5 rounded-full bg-muted2 overflow-hidden">
+          <div class="h-full grad-primary rounded-full" style="width:65%"></div>
+        </div>
+        <p class="text-xs text-muted2 mt-1.5">Generating captions… 65%</p>
+      </div>
+    </div>
+    <div class="rounded-xl bg-card2 border border-b2 p-3 shadow-card2">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-2.5 h-2.5 rounded-full bg-accent2"></span>
+        <span class="text-sm font-semibold">🔍 Review</span>
+        <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-accent2 text-muted2">1</span>
+      </div>
+      <div class="drag-card rounded-xl bg-pop2 border border-b2 p-3 shadow-card2">
+        <p class="text-sm font-medium">vlog-ep12.mp4</p>
+        <p class="text-xs mt-1.5 px-2 py-0.5 rounded-full inline-block bg-accent2 text-muted2">✏️ Needs edits</p>
+      </div>
+    </div>
+    <div class="rounded-xl bg-card2 border border-b2 p-3 shadow-card2">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-2.5 h-2.5 rounded-full" style="background: var(--status-scheduled)"></span>
+        <span class="text-sm font-semibold">📅 Scheduled</span>
+        <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-accent2 text-muted2">3</span>
+      </div>
+      <div class="drag-card rounded-xl bg-pop2 border border-b2 p-3 shadow-card2">
+        <p class="text-sm font-medium">tutorial-part1.mp4</p>
+        <p class="text-xs text-muted2 mt-1">Tomorrow, 6:00 PM</p>
+        <div class="flex gap-1 mt-2">
+          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] text-white" style="background: var(--instagram)">IG</span>
+          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] text-white" style="background: var(--youtube)">YT</span>
+        </div>
+      </div>
+    </div>
+    <div class="rounded-xl bg-card2 border border-b2 p-3 shadow-card2">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-2.5 h-2.5 rounded-full" style="background: var(--status-published)"></span>
+        <span class="text-sm font-semibold">✅ Published</span>
+        <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-accent2 text-muted2">8</span>
+      </div>
+      <div class="drag-card rounded-xl bg-pop2 border border-b2 p-3 shadow-card2">
+        <p class="text-sm font-medium">tips-reel.mp4</p>
+        <p class="text-xs mt-1.5" style="color: var(--status-published)">✓ Posted 2h ago</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ IDEA 2: Horizontal Stepper Pipeline ══════════ -->
+<section class="max-w-6xl mx-auto mb-16">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="w-8 h-8 rounded-xl grad-primary flex items-center justify-center text-white font-bold">2</span>
+    <h2 class="text-2xl font-semibold">Horizontal Stepper Pipeline</h2>
+  </div>
+  <div class="rounded-xl bg-card2 border border-b2 p-6 shadow-card2">
+    <div class="flex items-center justify-between relative">
+      <div class="absolute top-5 left-[10%] right-[10%] h-1 rounded-full bg-muted2"></div>
+      <div class="absolute top-5 left-[10%] w-[55%] h-1 rounded-full grad-primary"></div>
+      <div class="relative z-10 flex flex-col items-center w-1/4">
+        <div class="w-10 h-10 rounded-full grad-primary flex items-center justify-center text-white">✓</div>
+        <span class="text-xs font-medium mt-2">File Fetched</span>
+        <span class="text-[11px] text-muted2">9:00 AM</span>
+      </div>
+      <div class="relative z-10 flex flex-col items-center w-1/4">
+        <div class="w-10 h-10 rounded-full grad-primary flex items-center justify-center text-white">✓</div>
+        <span class="text-xs font-medium mt-2">AI Captions</span>
+        <span class="text-[11px] text-muted2">9:01 AM</span>
+      </div>
+      <div class="relative z-10 flex flex-col items-center w-1/4">
+        <div class="w-10 h-10 rounded-full pulse-step flex items-center justify-center text-sm font-bold bg-pop2"
+             style="color: var(--primary); border: 2px solid var(--primary)">3</div>
+        <span class="text-xs font-medium mt-2" style="color: var(--primary)">Scheduling</span>
+        <span class="text-[11px] text-muted2">running…</span>
+      </div>
+      <div class="relative z-10 flex flex-col items-center w-1/4">
+        <div class="w-10 h-10 rounded-full bg-muted2 flex items-center justify-center text-muted2 text-sm font-bold">4</div>
+        <span class="text-xs font-medium mt-2 text-muted2">Posted</span>
+        <span class="text-[11px] text-muted2">pending</span>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ══════════ IDEA 3: Visual Pipeline Builder ══════════ -->
+<section class="max-w-6xl mx-auto mb-16">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="w-8 h-8 rounded-xl grad-primary flex items-center justify-center text-white font-bold">3</span>
+    <h2 class="text-2xl font-semibold">Visual Pipeline Builder (Nodes)</h2>
+  </div>
+  <div class="rounded-xl bg-card2 border border-b2 p-8 shadow-card2 overflow-x-auto">
+    <svg width="900" height="240" class="min-w-[900px]">
+      <defs>
+        <linearGradient id="g1" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="hsl(340 80% 65%)"/><stop offset="100%" stop-color="hsl(350 75% 70%)"/>
+        </linearGradient>
+      </defs>
+      <path d="M 210 120 C 270 120, 290 120, 350 120" fill="none" stroke="url(#g1)" stroke-width="2.5" class="flow-line"/>
+      <path d="M 550 120 C 610 120, 630 120, 690 120" fill="none" stroke="url(#g1)" stroke-width="2.5" class="flow-line"/>
+      <g>
+        <rect x="50" y="70" width="160" height="100" rx="12" fill="var(--popover)" stroke="var(--border)"/>
+        <circle cx="78" cy="98" r="6" fill="var(--secondary)"/>
+        <text x="96" y="103" fill="var(--foreground)" font-size="13" font-weight="600">📁 Drive Folder</text>
+        <text x="70" y="130" fill="var(--muted-foreground)" font-size="11">/content/weekly</text>
+        <text x="70" y="150" fill="var(--muted-foreground)" font-size="11">runs every 24h</text>
+      </g>
+      <g>
+        <rect x="350" y="70" width="200" height="100" rx="12" fill="var(--popover)" stroke="var(--primary)" stroke-width="2"/>
+        <text x="370" y="103" fill="var(--foreground)" font-size="13" font-weight="600">✨ AI Caption Master</text>
+        <text x="370" y="130" fill="var(--muted-foreground)" font-size="11">Prompt: "casual-viral"</text>
+        <text x="370" y="150" fill="var(--primary)" font-size="11">● active</text>
+      </g>
+      <g>
+        <rect x="690" y="70" width="180" height="100" rx="12" fill="var(--popover)" stroke="var(--border)"/>
+        <text x="710" y="103" fill="var(--foreground)" font-size="13" font-weight="600">🚀 Publish To</text>
+        <circle cx="722" cy="128" r="9" fill="var(--instagram)"/><text x="737" y="132" fill="var(--muted-foreground)" font-size="11">Instagram</text>
+        <circle cx="722" cy="152" r="9" fill="var(--youtube)"/><text x="737" y="156" fill="var(--muted-foreground)" font-size="11">YouTube</text>
+      </g>
+    </svg>
+    <button class="mt-2 px-5 py-2 rounded-xl grad-primary text-white text-sm font-semibold card-hover shadow-glow2">▶ Run Pipeline</button>
+  </div>
+</section>
+<!-- ══════════ IDEA 4: Pipeline Timeline Feed ══════════ -->
+<section class="max-w-6xl mx-auto mb-16">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="w-8 h-8 rounded-xl grad-primary flex items-center justify-center text-white font-bold">4</span>
+    <h2 class="text-2xl font-semibold">Pipeline Timeline / Activity Feed</h2>
+  </div>
+  <div class="rounded-xl bg-card2 border border-b2 p-6 shadow-card2 max-w-xl">
+    <div class="relative pl-8">
+      <div class="absolute left-3 top-2 bottom-2 w-0.5 bg-muted2"></div>
+      <div class="absolute left-3 top-2 h-[65%] w-0.5 grad-primary"></div>
+      <div class="relative mb-6 card-hover">
+        <span class="absolute -left-8 top-1 w-6 h-6 rounded-full grad-primary flex items-center justify-center text-[11px] text-white">📁</span>
+        <div class="rounded-xl bg-pop2 border border-b2 p-3 shadow-card2">
+          <p class="text-sm font-medium">File fetched from Google Drive</p>
+          <p class="text-xs text-muted2 mt-0.5">product-demo.mp4 · 9:00 AM</p>
+        </div>
+      </div>
+      <div class="relative mb-6 card-hover">
+        <span class="absolute -left-8 top-1 w-6 h-6 rounded-full grad-primary flex items-center justify-center text-[11px] text-white">✨</span>
+        <div class="rounded-xl bg-pop2 border border-b2 p-3 shadow-card2">
+          <p class="text-sm font-medium">AI captions generated (FB + IG + TikTok)</p>
+          <p class="text-xs text-muted2 mt-0.5">9:01 AM</p>
+        </div>
+      </div>
+      <div class="relative mb-6 card-hover">
+        <span class="absolute -left-8 top-1 w-6 h-6 rounded-full flex items-center justify-center text-[11px] text-white"
+              style="background: var(--status-scheduled)">📅</span>
+        <div class="rounded-xl bg-pop2 border border-b2 p-3 shadow-card2">
+          <p class="text-sm font-medium">Scheduled for tomorrow 6:00 PM</p>
+          <p class="text-xs text-muted2 mt-0.5">Instagram · YouTube</p>
+        </div>
+      </div>
+      <div class="relative card-hover">
+        <span class="absolute -left-8 top-1 w-6 h-6 rounded-full bg-muted2 flex items-center justify-center text-[11px] text-muted2">⏳</span>
+        <div class="rounded-xl border border-dashed p-3" style="border-color: var(--border)">
+          <p class="text-sm text-muted2">Waiting to publish…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ══════════ IDEA 5: Dashboard Analytics Strip ══════════ -->
+<section class="max-w-6xl mx-auto mb-16">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="w-8 h-8 rounded-xl grad-primary flex items-center justify-center text-white font-bold">5</span>
+    <h2 class="text-2xl font-semibold">Dashboard Pipeline Analytics Strip</h2>
+  </div>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+    <div class="rounded-xl bg-card2 border border-b2 p-5 shadow-card2 card-hover">
+      <div class="flex items-center gap-3">
+        <span class="w-10 h-10 rounded-xl bg-accent2 flex items-center justify-center">📥</span>
+        <div><p class="text-2xl font-bold">12</p><p class="text-xs text-muted2">Queued</p></div>
+      </div>
+    </div>
+    <div class="rounded-xl bg-card2 border border-b2 p-5 shadow-card2 card-hover">
+      <div class="flex items-center gap-3">
+        <span class="w-10 h-10 rounded-xl bg-accent2 flex items-center justify-center">⚙️</span>
+        <div><p class="text-2xl font-bold">8</p><p class="text-xs text-muted2">Processing</p></div>
+      </div>
+    </div>
+    <div class="rounded-xl bg-card2 border border-b2 p-5 shadow-card2 card-hover">
+      <div class="flex items-center gap-3">
+        <span class="w-10 h-10 rounded-xl bg-accent2 flex items-center justify-center">📅</span>
+        <div><p class="text-2xl font-bold" style="color: var(--status-scheduled)">15</p><p class="text-xs text-muted2">Scheduled</p></div>
+      </div>
+    </div>
+    <div class="rounded-xl bg-card2 border border-b2 p-5 shadow-card2 card-hover shadow-glow2">
+      <div class="flex items-center gap-3">
+        <span class="w-10 h-10 rounded-xl bg-accent2 flex items-center justify-center">🚀</span>
+        <div><p class="text-2xl font-bold" style="color: var(--status-published)">42</p><p class="text-xs text-muted2">Published</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="rounded-xl bg-card2 border border-b2 p-6 shadow-card2">
+    <p class="text-sm font-semibold mb-4">Content Funnel — This Week</p>
+    <div class="space-y-2.5">
+      <div class="flex items-center gap-3"><span class="w-20 text-xs text-muted2">Queued</span><div class="flex-1 h-6 rounded-lg bg-muted2 overflow-hidden"><div class="h-full grad-primary rounded-lg" style="width:100%"></div></div><span class="w-8 text-xs">12</span></div>
+      <div class="flex items-center gap-3"><span class="w-20 text-xs text-muted2">Processing</span><div class="flex-1 h-6 rounded-lg bg-muted2 overflow-hidden"><div class="h-full rounded-lg" style="width:66%; background: var(--status-processing)"></div></div><span class="w-8 text-xs">8</span></div>
+      <div class="flex items-center gap-3"><span class="w-20 text-xs text-muted2">Scheduled</span><div class="flex-1 h-6 rounded-lg bg-muted2 overflow-hidden"><div class="h-full rounded-lg" style="width:55%; background: var(--status-scheduled)"></div></div><span class="w-8 text-xs">15</span></div>
+      <div class="flex items-center gap-3"><span class="w-20 text-xs text-muted2">Published</span><div class="flex-1 h-6 rounded-lg bg-muted2 overflow-hidden"><div class="h-full rounded-lg" style="width:88%; background: var(--status-published)"></div></div><span class="w-8 text-xs">42</span></div>
+    </div>
+  </div>
+</section>
+
+<p class="max-w-6xl mx-auto text-center text-muted2 text-sm">💡 Tip: Upar right corner button se Dark Mode ("Warm Cocoa") test karein — colors automatically switch honge.</p>
+
+</body>
+</html>

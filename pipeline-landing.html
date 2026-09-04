@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowPost Pipeline — Content that posts itself.</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --background: hsl(350 60% 98%); --foreground: hsl(340 45% 15%);
+    --card: hsl(345 40% 94%); --popover: hsl(345 40% 94%);
+    --primary: hsl(340 80% 65%); --primary-foreground: hsl(345 40% 98%);
+    --secondary: hsl(340 35% 88%); --muted: hsl(340 30% 92%);
+    --muted-foreground: hsl(340 20% 40%); --accent: hsl(345 45% 88%);
+    --border: hsl(340 25% 85%);
+    --status-scheduled: hsl(340 80% 65%); --status-processing: hsl(350 90% 70%);
+    --status-published: hsl(142 71% 45%); --status-failed: hsl(0 75% 65%);
+    --facebook: hsl(220 46% 48%); --instagram: hsl(340 75% 54%);
+    --youtube: hsl(0 100% 50%); --tiktok: hsl(0 0% 8%); --linkedin: hsl(211 72% 45%);
+    --gradient-primary: linear-gradient(135deg, hsl(340 80% 65%), hsl(350 75% 70%));
+    --gradient-hero: linear-gradient(135deg, hsl(340 80% 65%) 0%, hsl(20 80% 70%) 50%, hsl(320 70% 75%) 100%);
+    --shadow-glow: 0 0 40px -10px hsl(340 80% 65% / 0.2);
+  }
+  .dark {
+    --background: hsl(330 40% 8%); --foreground: hsl(330 35% 88%);
+    --card: hsl(325 25% 12%); --popover: hsl(325 25% 12%);
+    --primary: hsl(330 70% 65%); --primary-foreground: hsl(325 40% 10%);
+    --secondary: hsl(330 20% 18%); --muted: hsl(330 25% 16%);
+    --muted-foreground: hsl(330 15% 55%); --accent: hsl(325 30% 18%);
+    --border: hsl(330 20% 25%);
+    --status-failed: hsl(0 70% 60%); --tiktok: hsl(0 0% 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(330 70% 65%), hsl(340 75% 70%));
+    --gradient-hero: linear-gradient(135deg, hsl(330 70% 65%) 0%, hsl(0 70% 70%) 50%, hsl(320 60% 75%) 100%);
+    --shadow-glow: 0 0 40px -10px hsl(330 70% 65% / 0.2);
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--background); color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+  .text-fg { color: var(--foreground); }
+  .text-muted2 { color: var(--muted-foreground); }
+  .bg-card2 { background: var(--card); }
+  .bg-pop2 { background: var(--popover); }
+  .bg-muted2 { background: var(--muted); }
+  .bg-accent2 { background: var(--accent); }
+  .border-b2 { border-color: var(--border); }
+  .grad-primary { background: var(--gradient-primary); }
+  .text-grad { background: var(--gradient-hero); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .shadow-glow2 { box-shadow: var(--shadow-glow); }
+
+  /* Apple-style typography */
+  .headline-xl { font-size: clamp(2.75rem, 7vw, 5.5rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+  .headline-lg { font-size: clamp(2rem, 4.5vw, 3.5rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+  .headline-md { font-size: clamp(1.4rem, 2.5vw, 2rem); font-weight: 600; letter-spacing: -0.01em; }
+  .body-lg { font-size: clamp(1.1rem, 2vw, 1.4rem); line-height: 1.5; }
+
+  /* Frosted glass nav (Apple style) */
+  .glass-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    background: color-mix(in srgb, var(--background) 72%, transparent);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Scroll reveal (Apple-style fade up) */
+  .reveal { opacity: 0; transform: translateY(36px); transition: opacity .8s cubic-bezier(.2,.65,.25,1), transform .8s cubic-bezier(.2,.65,.25,1); }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+  .reveal-scale { opacity: 0; transform: scale(.92); transition: opacity .9s ease, transform .9s cubic-bezier(.2,.65,.25,1); }
+  .reveal-scale.visible { opacity: 1; transform: scale(1); }
+  .reveal-delay-1 { transition-delay: .12s; } .reveal-delay-2 { transition-delay: .24s; } .reveal-delay-3 { transition-delay: .36s; }
+
+  /* Pill buttons (Apple style) */
+  .btn-pill { border-radius: 980px; padding: 0.9rem 1.9rem; font-weight: 500; transition: transform .2s, box-shadow .2s, opacity .2s; }
+  .btn-pill:hover { transform: scale(1.03); }
+  .btn-primary { background: var(--gradient-primary); color: var(--primary-foreground); box-shadow: var(--shadow-glow); }
+  .btn-ghost { color: var(--primary); border: 1.5px solid var(--primary); background: transparent; }
+  .btn-ghost:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+
+  /* Hero floating visual */
+  @keyframes float-y { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-12px);} }
+  .float-anim { animation: float-y 5s ease-in-out infinite; }
+
+  /* Gradient border bento cards */
+  .bento {
+    border-radius: 1.5rem; background: var(--card); border: 1px solid var(--border);
+    transition: transform .3s ease, box-shadow .3s ease;
+  }
+  .bento:hover { transform: translateY(-4px); box-shadow: var(--shadow-glow); }
+  .bento-dark { background: hsl(330 40% 10%); color: hsl(330 35% 88%); border: 1px solid hsl(330 20% 22%); }
+  .bento-dark .text-muted2 { color: hsl(330 15% 60%); }
+
+  /* Sticky showcase */
+  .sticky-wrap { position: sticky; top: 15vh; }
+
+  /* Marquee for platform icons */
+  @keyframes marquee { 0% { transform: translateX(0);} 100% { transform: translateX(-50%);} }
+  .marquee-track { animation: marquee 22s linear infinite; }
+
+  /* Beta badge (matches app's BetaBadge — amber) */
+  .beta-badge {
+    display: inline-flex; align-items: center;
+    font-size: 10px; font-weight: 600; line-height: 1;
+    padding: 3px 7px; border-radius: 999px; margin-left: 8px; vertical-align: middle;
+    color: hsl(38 92% 50%); background: hsl(38 92% 50% / 0.15);
+    border: 1px solid hsl(38 92% 50% / 0.3);
+  }
+  .marquee-chip { position: relative; }
+</style>
+</head>
+<!-- ANCHOR-HEAD -->
+<body>
+
+<!-- ══════════ Frosted Glass Nav ══════════ -->
+<nav class="glass-nav">
+  <div class="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
+    <div class="flex items-center gap-2">
+      <span class="w-7 h-7 rounded-lg grad-primary flex items-center justify-center text-white text-sm font-bold">F</span>
+      <span class="font-semibold text-lg tracking-tight">FlowPost</span>
+    </div>
+    <div class="hidden md:flex items-center gap-8 text-sm text-muted2">
+      <a href="#how" class="hover:text-fg transition-colors">How it works</a>
+      <a href="#features" class="hover:text-fg transition-colors">Features</a>
+      <a href="#platforms" class="hover:text-fg transition-colors">Platforms</a>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="document.documentElement.classList.toggle('dark')" class="text-lg" title="Toggle theme">🌙</button>
+      <a href="#cta" class="btn-pill btn-primary text-sm !py-2 !px-5">Get Started</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════ HERO ══════════ -->
+<header class="pt-40 pb-24 px-6 text-center">
+  <p class="reveal visible text-sm font-semibold uppercase tracking-[0.2em] mb-4" style="color: var(--primary)">Introducing FlowPost Pipeline</p>
+  <h1 class="headline-xl max-w-4xl mx-auto">
+    Content that <span class="text-grad">posts itself.</span>
+  </h1>
+  <p class="body-lg text-muted2 max-w-2xl mx-auto mt-6">
+    From a file in your Drive to a post on every platform — automatically.
+    You create. The pipeline does the rest.
+  </p>
+  <div class="flex flex-wrap items-center justify-center gap-4 mt-10">
+    <a href="#cta" class="btn-pill btn-primary">Start your pipeline →</a>
+    <a href="#how" class="btn-pill btn-ghost">See how it works</a>
+  </div>
+
+  <!-- Hero floating pipeline visual -->
+  <div class="reveal-scale visible max-w-3xl mx-auto mt-20 float-anim">
+    <div class="rounded-3xl bg-pop2 border border-b2 p-6 md:p-8 shadow-glow2 text-left">
+      <div class="flex items-center justify-between mb-6">
+        <span class="text-xs font-semibold uppercase tracking-widest text-muted2">Live Pipeline</span>
+        <span class="text-xs px-3 py-1 rounded-full" style="background: color-mix(in srgb, var(--status-published) 15%, transparent); color: var(--status-published)">● Running</span>
+      </div>
+      <div class="flex items-center gap-2 md:gap-3">
+        <div class="flex-1 rounded-xl bg-card2 border border-b2 p-3 text-center">
+          <span class="text-xl">📁</span>
+          <p class="text-[11px] md:text-xs font-medium mt-1">Drive File</p>
+          <p class="text-[10px]" style="color: var(--status-published)">✓ 9:00 AM</p>
+        </div>
+        <span class="text-muted2">→</span>
+        <div class="flex-1 rounded-xl bg-card2 border border-b2 p-3 text-center">
+          <span class="text-xl">✨</span>
+          <p class="text-[11px] md:text-xs font-medium mt-1">AI Caption</p>
+          <p class="text-[10px]" style="color: var(--status-published)">✓ 9:01 AM</p>
+        </div>
+        <span class="text-muted2">→</span>
+        <div class="flex-1 rounded-xl border p-3 text-center" style="border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, var(--popover))">
+          <span class="text-xl">📅</span>
+          <p class="text-[11px] md:text-xs font-medium mt-1">Scheduled</p>
+          <p class="text-[10px]" style="color: var(--primary)">● 6:00 PM</p>
+        </div>
+        <span class="text-muted2">→</span>
+        <div class="flex-1 rounded-xl bg-card2 border border-b2 p-3 text-center opacity-60">
+          <span class="text-xl">🚀</span>
+          <p class="text-[11px] md:text-xs font-medium mt-1">Posted</p>
+          <p class="text-[10px] text-muted2">pending</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<!-- ══════════ HOW IT WORKS — sticky scroll showcase ══════════ -->
+<section id="how" class="px-6 py-24">
+  <div class="max-w-6xl mx-auto">
+    <div class="reveal text-center mb-20">
+      <h2 class="headline-lg">Four steps. <span class="text-grad">Zero effort.</span></h2>
+      <p class="body-lg text-muted2 mt-4 max-w-xl mx-auto">One pipeline connects your storage to your social platforms. Set it up once — it runs forever.</p>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="grid md:grid-cols-2 gap-12 items-center mb-28">
+      <div class="reveal">
+        <p class="text-sm font-semibold uppercase tracking-[0.2em] mb-3" style="color: var(--primary)">Step 1</p>
+        <h3 class="headline-md text-3xl mb-4">Connect your storage.</h3>
+        <p class="body-lg text-muted2">Point the pipeline at any Google Drive or Mega folder. New files appear — the pipeline notices, instantly.</p>
+      </div>
+      <div class="reveal-scale reveal-delay-1 bento p-8 flex items-center justify-center">
+        <div class="w-full max-w-xs">
+          <div class="flex items-center gap-3 rounded-xl bg-pop2 border border-b2 p-4 mb-3">
+            <span class="w-10 h-10 rounded-xl bg-accent2 flex items-center justify-center text-lg">📁</span>
+            <div><p class="text-sm font-semibold">/content/weekly</p><p class="text-xs text-muted2">Google Drive · synced</p></div>
+          </div>
+          <div class="flex items-center gap-3 rounded-xl bg-pop2 border border-b2 p-4">
+            <span class="w-10 h-10 rounded-xl bg-accent2 flex items-center justify-center text-lg">📦</span>
+            <div><p class="text-sm font-semibold">/reels-archive</p><p class="text-xs text-muted2">Mega · synced</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="grid md:grid-cols-2 gap-12 items-center mb-28">
+      <div class="reveal-scale bento p-8 flex items-center justify-center md:order-1 order-2">
+        <div class="w-full max-w-xs">
+          <div class="rounded-xl bg-pop2 border border-b2 p-4">
+            <p class="text-xs font-semibold uppercase tracking-widest text-muted2 mb-2">✨ AI Caption — FB + IG</p>
+            <p class="text-sm leading-relaxed">"AI is changing content creation forever 🚀 Here's what every creator needs to know…"</p>
+            <div class="flex gap-1.5 mt-3">
+              <span class="text-[10px] px-2 py-1 rounded-full bg-accent2 text-muted2">#AItools</span>
+              <span class="text-[10px] px-2 py-1 rounded-full bg-accent2 text-muted2">#creator</span>
+              <span class="text-[10px] px-2 py-1 rounded-full bg-accent2 text-muted2">#2026</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal md:order-2 order-1">
+        <p class="text-sm font-semibold uppercase tracking-[0.2em] mb-3" style="color: var(--primary)">Step 2</p>
+        <h3 class="headline-md text-3xl mb-4">AI writes your captions.</h3>
+        <p class="body-lg text-muted2">Your master prompt. Your tone. Platform-perfect captions with hashtags for Facebook, Instagram &amp; YouTube (stable) — plus TikTok &amp; LinkedIn in beta — generated in seconds.</p>
+      </div>
+    </div>
+    <!-- Step 3 -->
+    <div class="grid md:grid-cols-2 gap-12 items-center mb-28">
+      <div class="reveal">
+        <p class="text-sm font-semibold uppercase tracking-[0.2em] mb-3" style="color: var(--primary)">Step 3</p>
+        <h3 class="headline-md text-3xl mb-4">Schedule on autopilot.</h3>
+        <p class="body-lg text-muted2">Smart intervals, time-zone aware, with a live content calendar. The engine posts every 5 minutes — you never touch a publish button again.</p>
+      </div>
+      <div class="reveal-scale reveal-delay-1 bento p-8 flex items-center justify-center">
+        <div class="w-full max-w-xs space-y-2.5">
+          <div class="flex items-center justify-between rounded-xl bg-pop2 border border-b2 p-3">
+            <span class="text-xs font-medium">📅 Tomorrow · 6:00 PM</span>
+            <span class="text-[10px] px-2 py-1 rounded-full text-white" style="background: var(--instagram)">IG</span>
+          </div>
+          <div class="flex items-center justify-between rounded-xl bg-pop2 border border-b2 p-3">
+            <span class="text-xs font-medium">📅 Fri · 9:00 AM</span>
+            <span class="text-[10px] px-2 py-1 rounded-full text-white" style="background: var(--youtube)">YT</span>
+          </div>
+          <div class="flex items-center justify-between rounded-xl bg-pop2 border border-b2 p-3">
+            <span class="text-xs font-medium">📅 Sat · 12:30 PM</span>
+            <span class="text-[10px] px-2 py-1 rounded-full text-white" style="background: var(--facebook)">FB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="grid md:grid-cols-2 gap-12 items-center">
+      <div class="reveal-scale bento bento-dark p-8 flex items-center justify-center md:order-1 order-2">
+        <div class="w-full max-w-xs space-y-2.5">
+          <div class="flex items-center gap-3 rounded-xl p-3" style="background: hsl(330 25% 15%)">
+            <span class="w-8 h-8 rounded-full flex items-center justify-center text-xs text-white" style="background: var(--status-published)">✓</span>
+            <div><p class="text-sm font-medium">tips-reel.mp4 → Instagram</p><p class="text-xs text-muted2">Posted 2h ago · 1.2k views</p></div>
+          </div>
+          <div class="flex items-center gap-3 rounded-xl p-3" style="background: hsl(330 25% 15%)">
+            <span class="w-8 h-8 rounded-full flex items-center justify-center text-xs text-white" style="background: var(--status-published)">✓</span>
+            <div><p class="text-sm font-medium">vlog-ep12.mp4 → YouTube</p><p class="text-xs text-muted2">Posted 5h ago · 340 views</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal md:order-2 order-1">
+        <p class="text-sm font-semibold uppercase tracking-[0.2em] mb-3" style="color: var(--primary)">Step 4</p>
+        <h3 class="headline-md text-3xl mb-4">Track every post, live.</h3>
+        <p class="body-lg text-muted2">A live timeline shows every fetch, caption, schedule and publish. If something fails, you know in seconds — not days.</p>
+      </div>
+    </div>
+<!-- ══════════ FEATURES — Bento Grid ══════════ -->
+<section id="features" class="px-6 py-24">
+  <div class="max-w-6xl mx-auto">
+    <div class="reveal text-center mb-16">
+      <h2 class="headline-lg">Everything. <span class="text-grad">One pipeline.</span></h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-5">
+      <div class="reveal bento p-8 md:col-span-2">
+        <span class="text-4xl">✨</span>
+        <h3 class="headline-md mt-4 mb-2">AI captions that sound like you</h3>
+        <p class="text-muted2">A master prompt defines your voice once — every platform gets a caption tuned to its audience, with smart hashtags.</p>
+      </div>
+      <div class="reveal reveal-delay-1 bento p-8">
+        <span class="text-4xl">🗂️</span>
+        <h3 class="headline-md mt-4 mb-2">Drive + Mega built in</h3>
+        <p class="text-muted2">Files flow straight from your cloud storage. No downloads, no uploads, no middleman.</p>
+      </div>
+      <div class="reveal bento p-8">
+        <span class="text-4xl">🛡️</span>
+        <h3 class="headline-md mt-4 mb-2">Smart retry & failure alerts</h3>
+        <p class="text-muted2">Transient errors retry automatically. Real failures alert you instantly.</p>
+      </div>
+      <div class="reveal reveal-delay-1 bento p-8 md:col-span-2">
+        <span class="text-4xl">📊</span>
+        <h3 class="headline-md mt-4 mb-2">Insights on autopilot</h3>
+        <p class="text-muted2">Queued, processing, scheduled, published — a live funnel shows exactly where every piece of content is in the pipeline, right on your dashboard.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ PLATFORMS — Marquee ══════════ -->
+<section id="platforms" class="py-20 overflow-hidden">
+  <p class="reveal text-center text-sm font-semibold uppercase tracking-[0.2em] text-muted2 mb-10">Publishes everywhere you are</p>
+  <div class="relative">
+    <div class="flex gap-6 marquee-track w-max">
+      <!-- duplicated for seamless loop -->
+      <span class="px-8 py-4 rounded-2xl bg-card2 border border-b2 font-semibold text-lg marquee-chip" style="color: var(--facebook)">f · Facebook</span>
+      <span class="px-8 py-4 rounded-2xl bg-card2 border border-b2 font-semibold text-lg marquee-chip" style="color: var(--instagram)">◉ · Instagram</span>
+      <span class="px-8 py-4 rounded-2xl bg-card2 border border-b2 font-semibold text-lg marquee-chip" style="color: var(--youtube)">▶ · YouTube</span>
+      <span class="px-8 py-4 rounded-2xl bg-card2 border border-b2 font-semibold text-lg marquee-chip" style="color: var(--tiktok)">♪ · TikTok<span class="beta-badge">Beta</span></span>
+      <span class="px-8 py-4 rounded-2xl bg-card2 border border-b2 font-semibold text-lg marquee-chip" style="color: var(--linkedin)">in · LinkedIn<span class="beta-badge">Beta</span></span>
+      <span class="px-8 py-4 rounded-2xl bg-card2 border border-b2 font-semibold text-lg marquee-chip" style="color: var(--facebook)">f · Facebook</span>
+      <span class="px-8 py-4 rounded-2xl bg-card2 border border-b2 font-semibold text-lg marquee-chip" style="color: var(--instagram)">◉ · Instagram</span>
+      <span class="px-8 py-4 rounded-2xl bg-card2 border border-b2 font-semibold text-lg marquee-chip" style="color: var(--youtube)">▶ · YouTube</span>
+      <span class="px-8 py-4 rounded-2xl bg-card2 border border-b2 font-semibold text-lg marquee-chip" style="color: var(--tiktok)">♪ · TikTok<span class="beta-badge">Beta</span></span>
+      <span class="px-8 py-4 rounded-2xl bg-card2 border border-b2 font-semibold text-lg marquee-chip" style="color: var(--linkedin)">in · LinkedIn<span class="beta-badge">Beta</span></span>
+    </div>
+  </div>
+  <p class="reveal text-center text-xs text-muted2 mt-8">
+    <span class="beta-badge !ml-0">Beta</span> TikTok &amp; LinkedIn support is in beta — early access, actively improving. Facebook, Instagram &amp; YouTube are fully stable.
+  </p>
+</section>
+<!-- ══════════ STATS ══════════ -->
+<section class="px-6 py-20">
+  <div class="max-w-4xl mx-auto grid grid-cols-3 gap-8 text-center">
+    <div class="reveal">
+      <p class="headline-xl text-grad">5</p>
+      <p class="text-muted2 mt-2">Platforms · 3 stable + 2 in beta</p>
+    </div>
+    <div class="reveal reveal-delay-1">
+      <p class="headline-xl text-grad">24/7</p>
+      <p class="text-muted2 mt-2">Pipeline never sleeps</p>
+    </div>
+    <div class="reveal reveal-delay-2">
+      <p class="headline-xl text-grad">0</p>
+      <p class="text-muted2 mt-2">Publish buttons pressed</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ CTA ══════════ -->
+<section id="cta" class="px-6 py-28 text-center">
+  <div class="max-w-3xl mx-auto reveal-scale">
+    <h2 class="headline-xl">Your content. <span class="text-grad">On autopilot.</span></h2>
+    <p class="body-lg text-muted2 mt-6">Set up your first pipeline in under two minutes. Your future self — the one who stopped copy-pasting captions — says thanks.</p>
+    <div class="flex flex-wrap items-center justify-center gap-4 mt-10">
+      <a href="#" class="btn-pill btn-primary text-lg !px-10 !py-4">Start your pipeline →</a>
+    </div>
+    <p class="text-sm text-muted2 mt-6">Free to try · No credit card required</p>
+  </div>
+</section>
+
+<!-- ══════════ Footer ══════════ -->
+<footer class="border-t border-b2 px-6 py-10">
+  <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted2">
+    <div class="flex items-center gap-2">
+      <span class="w-5 h-5 rounded-md grad-primary flex items-center justify-center text-white text-[10px] font-bold">F</span>
+      <span>FlowPost Studio</span>
+    </div>
+    <div class="flex gap-6">
+      <a href="#" class="hover:text-fg transition-colors">Privacy</a>
+      <a href="#" class="hover:text-fg transition-colors">Terms</a>
+      <a href="#" class="hover:text-fg transition-colors">Support</a>
+    </div>
+    <p>© 2026 FlowPost Studio</p>
+  </div>
+</footer>
+
+<script>
+  // Apple-style scroll reveal
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal, .reveal-scale').forEach((el) => observer.observe(el));
+</script>
+
+</body>
+</html>
