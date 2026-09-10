@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
-import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
 import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
@@ -147,9 +147,11 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/google-drive-auth?action=callback`;
 
     if (action === "url") {
-      const reqUserId = url.searchParams.get("userId") || (auth && auth.kind === "session" ? auth.userId ?? null : null);
+      const owner = resolveSessionOwner(auth, url.searchParams.get("userId"));
+      if (owner.denied) return json({ error: "Unauthorized" }, 401);
+      if (!owner.userId) return json({ error: "Missing userId" }, 400);
+      const reqUserId = owner.userId;
       const loginHint = url.searchParams.get("login_hint");
-      if (!reqUserId) return json({ error: "Missing userId" }, 400);
       const state = await createOAuthState(supabaseAdmin, { userId: reqUserId });
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", GD_CLIENT_ID!);

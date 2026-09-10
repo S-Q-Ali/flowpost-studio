@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { Storage as MegaStorage, File as MegaFile } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
-import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -61,7 +61,9 @@ Deno.serve(async (req) => {
 
     if (action === "connect") {
       const { email, password, userId: bodyUserId } = body as { email?: string; password?: string; userId?: string };
-      const userId = sessionUserId || bodyUserId || null;
+      const owner = resolveSessionOwner(auth, bodyUserId);
+      if (owner.denied) return json({ error: "Unauthorized" }, 401);
+      const userId = owner.userId;
       if (!email || !password || !userId) {
         return json({ error: "Missing email, password, or userId" }, 400);
       }

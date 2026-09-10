@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt } from "../_shared/crypto.ts";
-import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
 import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
@@ -111,9 +111,10 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/linkedin-auth?action=callback`;
 
     if (action === "url") {
-      const resolvedUserId = reqUserId || (auth && auth.kind === "session" ? auth.userId ?? null : null);
-      if (!resolvedUserId) return json({ error: "Missing userId" }, 400);
-      const state = await createOAuthState(supabaseAdmin, { userId: resolvedUserId });
+      const owner = resolveSessionOwner(auth, reqUserId);
+      if (owner.denied) return json({ error: "Unauthorized" }, 401);
+      if (!owner.userId) return json({ error: "Missing userId" }, 400);
+      const state = await createOAuthState(supabaseAdmin, { userId: owner.userId });
       const authUrl = new URL("https://www.linkedin.com/oauth/v2/authorization");
       authUrl.searchParams.set("client_id", LI_CLIENT_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);

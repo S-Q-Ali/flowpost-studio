@@ -3,6 +3,7 @@ import {
   isRequestAuthorized,
   createSessionLookup,
   createRequestAuthorizer,
+  resolveSessionOwner,
   type SessionLookupResult,
   type AuthInputs,
 } from "./auth";
@@ -283,5 +284,32 @@ describe("createRequestAuthorizer", () => {
     const result = await authorize(fakeRequest({ apikey: "public-anon-key" }));
     expect(result).toEqual({ allowed: false, reason: "no-credentials" });
     expect(sessionLookup).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveSessionOwner", () => {
+  it("returns the session user when the requested user matches", () => {
+    const result = resolveSessionOwner({ allowed: true, kind: "session", userId: "user-1" }, "user-1");
+    expect(result).toEqual({ userId: "user-1", denied: false });
+  });
+
+  it("returns the session user when no requested user is supplied", () => {
+    const result = resolveSessionOwner({ allowed: true, kind: "session", userId: "user-1" }, null);
+    expect(result).toEqual({ userId: "user-1", denied: false });
+  });
+
+  it("denies when a session user requests a different user", () => {
+    const result = resolveSessionOwner({ allowed: true, kind: "session", userId: "user-1" }, "user-2");
+    expect(result).toEqual({ userId: null, denied: true });
+  });
+
+  it("trusts the requested user for non-session credentials", () => {
+    const result = resolveSessionOwner({ allowed: true, kind: "frontend-api-key" } as AuthResult, "user-3");
+    expect(result).toEqual({ userId: "user-3", denied: false });
+  });
+
+  it("returns no owner when there is no session and no requested user", () => {
+    const result = resolveSessionOwner(null, null);
+    expect(result).toEqual({ userId: null, denied: false });
   });
 });

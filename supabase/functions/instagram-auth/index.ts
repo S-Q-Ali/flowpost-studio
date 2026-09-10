@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt } from "../_shared/crypto.ts";
-import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
 import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
@@ -136,10 +136,11 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/instagram-auth`;
 
     if (action === "url") {
-      const reqUserId = url.searchParams.get("userId") || bodyUserId || (auth && auth.kind === "session" ? auth.userId ?? null : null);
-      if (!reqUserId) return json({ error: "Missing userId" }, 400);
+      const owner = resolveSessionOwner(auth, url.searchParams.get("userId") || bodyUserId);
+      if (owner.denied) return json({ error: "Unauthorized" }, 401);
+      if (!owner.userId) return json({ error: "Missing userId" }, 400);
 
-      const state = await createOAuthState(supabaseAdmin, { userId: reqUserId });
+      const state = await createOAuthState(supabaseAdmin, { userId: owner.userId });
       const authUrl = new URL("https://api.instagram.com/oauth/authorize");
       authUrl.searchParams.set("client_id", APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);

@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
-import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
 import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
@@ -197,9 +197,10 @@ Deno.serve(async (req) => {
     const actionFromQuery = url.searchParams.get("action");
 
     if (actionFromQuery === "url") {
-      const reqUserId = url.searchParams.get("userId") || (auth && auth.kind === "session" ? auth.userId ?? null : null);
-      if (!reqUserId) return json({ error: "Missing userId" }, 400);
-      const state = await createOAuthState(supabaseAdmin, { userId: reqUserId });
+      const owner = resolveSessionOwner(auth, url.searchParams.get("userId"));
+      if (owner.denied) return json({ error: "Unauthorized" }, 401);
+      if (!owner.userId) return json({ error: "Missing userId" }, 400);
+      const state = await createOAuthState(supabaseAdmin, { userId: owner.userId });
 
       const authUrl = new URL("https://www.tiktok.com/v2/auth/authorize/");
       authUrl.searchParams.set("client_key", TIKTOK_CLIENT_KEY!);

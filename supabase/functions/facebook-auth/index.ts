@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt } from "../_shared/crypto.ts";
-import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
 import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
@@ -128,10 +128,11 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/facebook-auth?action=callback`;
 
     if (action === "url") {
-      const reqUserId = url.searchParams.get("userId") || (auth && auth.kind === "session" ? auth.userId ?? null : null);
-      if (!reqUserId) return json({ error: "Missing userId" }, 400);
+      const owner = resolveSessionOwner(auth, url.searchParams.get("userId"));
+      if (owner.denied) return json({ error: "Unauthorized" }, 401);
+      if (!owner.userId) return json({ error: "Missing userId" }, 400);
       const mode = url.searchParams.get("mode") || "facebook";
-      const state = await createOAuthState(supabaseAdmin, { userId: reqUserId, mode });
+      const state = await createOAuthState(supabaseAdmin, { userId: owner.userId, mode });
       const authUrl = new URL("https://www.facebook.com/v23.0/dialog/oauth");
       authUrl.searchParams.set("client_id", FB_APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);

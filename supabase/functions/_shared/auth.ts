@@ -8,13 +8,19 @@ export type AuthResult =
   | { allowed: true; kind: "service-role" | "cron" | "frontend-api-key" | "session"; userId?: string | null }
   | {
       allowed: false;
-      reason:
-        | "no-credentials"
-        | "anon-key"
-        | "expired-session"
-        | "invalid-session"
-        | "session-lookup-error";
+      reason: string;
     };
+
+export function resolveSessionOwner(
+  auth: AuthResult | null,
+  requestedUserId?: string | null,
+): { userId: string | null; denied: boolean } {
+  if (auth && auth.kind === "session" && auth.userId) {
+    if (requestedUserId && requestedUserId !== auth.userId) return { userId: null, denied: true };
+    return { userId: auth.userId, denied: false };
+  }
+  return { userId: requestedUserId ?? null, denied: false };
+}
 
 export interface AuthInputs {
   authorizationHeader: string | null;
