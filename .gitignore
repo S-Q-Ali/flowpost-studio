@@ -33,3 +33,9 @@ supabase/.temp/
 # graphify — commit the graph, keep machine-specific sidecars + cost local
 graphify-out/cost.json
 graphify-out/.graphify_*
+
+# Local artifacts
+eng.traineddata
+metamax-digital-bridge_v1.6/
+screenshots/
+*.tsbuildinfo
