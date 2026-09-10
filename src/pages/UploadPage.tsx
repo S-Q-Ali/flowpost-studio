@@ -24,6 +24,7 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { BetaBadge } from "@/components/BetaBadge";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const appSessionToken = () => localStorage.getItem("flowpost_token");
 
 const platforms: { id: Platform; label: string }[] = [
   { id: "facebook", label: "Facebook Page" },
@@ -187,7 +188,7 @@ export default function UploadPage() {
       do {
         const { data, error } = await supabase.functions.invoke("google-drive-auth", {
           method: "POST",
-          headers: { Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${appSessionToken()}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "list-files",
             account_id: selectedDriveId,
@@ -274,7 +275,7 @@ export default function UploadPage() {
         "google-drive-auth?action=upload-video-to-r2",
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${appSessionToken()}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             account_id: selectedDriveId,
             file_id: file.id,
@@ -319,7 +320,7 @@ export default function UploadPage() {
         "google-drive-auth?action=get-r2-upload-url",
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${appSessionToken()}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             user_id: userId,
             file_name: localFile.name,
@@ -644,7 +645,7 @@ export default function UploadPage() {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  Authorization: `Bearer ${anonKey}`,
+                  Authorization: `Bearer ${appSessionToken()}`,
                   apikey: anonKey,
                 },
                 body: JSON.stringify({ postId: post.id }),
@@ -662,7 +663,7 @@ export default function UploadPage() {
         const firePost = async (post: any, fn: string) => {
           const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}`, apikey: anonKey },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${appSessionToken()}`, apikey: anonKey },
             body: JSON.stringify({ postId: post.id }),
           });
           return res.ok;
@@ -699,7 +700,7 @@ export default function UploadPage() {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  Authorization: `Bearer ${anonKey}`,
+                  Authorization: `Bearer ${appSessionToken()}`,
                   apikey: anonKey,
                 },
                 body: JSON.stringify({ postId: post.id }),
@@ -724,7 +725,7 @@ export default function UploadPage() {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  Authorization: `Bearer ${anonKey}`,
+                  Authorization: `Bearer ${appSessionToken()}`,
                   apikey: anonKey,
                 },
                 body: JSON.stringify({ postId: post.id }),

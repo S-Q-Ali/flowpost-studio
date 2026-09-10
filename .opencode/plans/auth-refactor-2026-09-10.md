@@ -43,6 +43,9 @@ Rules:
 - [x] 5. R1: `_shared/google-drive.ts` (15 tests green); refactored generate-ai-captions + process-workflow to use it (duplicate `getDriveToken`/`getDriveAccount` removed).
 - [x] 6. R2: `last_triggered_at` update moved to after successful row processing in process-workflow (recorded only when `workflowVideoCount > 0`).
 - [x] 7. Commit + push (R1+R2 as `refactor: extract shared Google Drive token helper...`, graph refresh as `chore`). `6b81771`, `9176b55` on `main`.
+- [x] 8. Phase 4: `createRequestAuthorizer` added to `_shared/auth.ts` (6 tests, suite 60/60). Wired into youtube/facebook/instagram/tiktok/linkedin-upload + post-story — anon-key acceptance removed, browser calls now use `Authorization: Bearer flowpost_token` (session). `UploadPage.tsx` updated to send session token instead of anon key.
+  - Rationale: `get-file` left on capability-token auth (encrypted `?token=` — served to `<video>`/`<img>`/redirects where headers are unavailable); `post-story` rewired to helper (was service-key-only, browser stories needed session path). OAuth auth-callback functions (google-oauth, youtube-auth, etc.) still accept anon — separate follow-up (callbacks carry no headers).
+- [x] 9. Deploy Phase 4 functions + verify remote versions.
 
 ## Verified
 - Current suite: 4 files, 54 tests pass. `npx tsc --noEmit` → clean. Both rewired functions parse (esbuild transform OK). `graphify update .` run.

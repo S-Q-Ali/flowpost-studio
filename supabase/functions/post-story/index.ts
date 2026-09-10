@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { decrypt } from "../_shared/crypto.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -9,10 +10,23 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_SERVICE_ROLE_KEY for post-story function");
 }
+
+const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: { persistSession: false },
+});
+
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: SUPABASE_ANON_KEY,
+  sessionLookup: createSessionLookup(supabase),
+});
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -37,11 +51,8 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const validKeys = [SUPABASE_SERVICE_ROLE_KEY];
-
-  if (!token || !validKeys.includes(token)) {
+  const auth = await authorize(req);
+  if (!auth.allowed) {
     return json({ error: "Unauthorized" }, 401);
   }
 

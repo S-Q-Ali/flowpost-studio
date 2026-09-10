@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   isRequestAuthorized,
   createSessionLookup,
+  createRequestAuthorizer,
   type SessionLookupResult,
   type AuthInputs,
 } from "./auth";
@@ -197,5 +198,74 @@ describe("createSessionLookup", () => {
   it("returns missing when the token record has no expiry at all", async () => {
     const result = await lookupResult({ data: { id: "1", expires_at: null }, error: null });
     expect(result).toEqual({ status: "missing" });
+  });
+});
+
+describe("createRequestAuthorizer", () => {
+  function fakeRequest(headers: Record<string, string>): { headers: { get(name: string): string | null } } {
+    const lower: Record<string, string> = {};
+    for (const key of Object.keys(headers)) lower[key.toLowerCase()] = headers[key];
+    return {
+      headers: {
+        get: (name: string) => lower[name.toLowerCase()] ?? null,
+      },
+    };
+  }
+
+  function makeAuthorizer(sessionLookup = vi.fn(async () => ({ status: "missing" }))) {
+    return {
+      authorize: createRequestAuthorizer({
+        serviceRoleKey: "service-role-key",
+        cronApiKey: "cron-key",
+        frontendApiKey: "frontend-key",
+        anonKey: "public-anon-key",
+        sessionLookup,
+      }),
+      sessionLookup,
+    };
+  }
+
+  it("allows a service role bearer from an internal caller", async () => {
+    const { authorize } = makeAuthorizer();
+    const result = await authorize(fakeRequest({ Authorization: "Bearer service-role-key" }));
+    expect(result).toEqual({ allowed: true, kind: "service-role" });
+  });
+
+  it("rejects the public anon key sent by the browser", async () => {
+    const { authorize } = makeAuthorizer();
+    const result = await authorize(fakeRequest({ Authorization: "Bearer public-anon-key" }));
+    expect(result).toEqual({ allowed: false, reason: "anon-key" });
+  });
+
+  it("allows a valid session token from the Authorization header", async () => {
+    const sessionLookup = vi.fn(async (token: string) =>
+      token === "flowpost-session" ? { status: "valid" } : { status: "missing" },
+    );
+    const { authorize } = makeAuthorizer(sessionLookup);
+    const result = await authorize(fakeRequest({ Authorization: "Bearer flowpost-session" }));
+    expect(result).toEqual({ allowed: true, kind: "session" });
+  });
+
+  it("reads the x-admin-token header for admin session requests", async () => {
+    const sessionLookup = vi.fn(async (token: string) =>
+      token === "admin-session" ? { status: "valid" } : { status: "missing" },
+    );
+    const { authorize } = makeAuthorizer(sessionLookup);
+    const result = await authorize(fakeRequest({ "x-admin-token": "admin-session" }));
+    expect(result).toEqual({ allowed: true, kind: "session" });
+    expect(sessionLookup).toHaveBeenCalledWith("admin-session");
+  });
+
+  it("denies when no credential matches and no session exists", async () => {
+    const { authorize } = makeAuthorizer();
+    const result = await authorize(fakeRequest({}));
+    expect(result).toEqual({ allowed: false, reason: "no-credentials" });
+  });
+
+  it("ignores an apikey header that carries neither the anon key nor a known key", async () => {
+    const { authorize, sessionLookup } = makeAuthorizer();
+    const result = await authorize(fakeRequest({ apikey: "public-anon-key" }));
+    expect(result).toEqual({ allowed: false, reason: "no-credentials" });
+    expect(sessionLookup).not.toHaveBeenCalled();
   });
 });

@@ -82,3 +82,31 @@ export function createSessionLookup(supabase: any) {
     return { status: "valid" };
   };
 }
+
+export interface RequestAuthorizerDeps {
+  serviceRoleKey: string | null;
+  cronApiKey: string | null;
+  frontendApiKey: string | null;
+  anonKey: string | null;
+  sessionLookup: (token: string) => Promise<SessionLookupResult>;
+}
+
+export type RequestAuthorizer = (req: RequestLike) => Promise<AuthResult>;
+
+export interface RequestLike {
+  headers: { get(name: string): string | null };
+}
+
+export function createRequestAuthorizer(deps: RequestAuthorizerDeps): RequestAuthorizer {
+  return (req: RequestLike): Promise<AuthResult> =>
+    isRequestAuthorized({
+      authorizationHeader: req.headers.get("Authorization"),
+      adminTokenHeader: req.headers.get("x-admin-token"),
+      apiKeyHeader: req.headers.get("apikey"),
+      serviceRoleKey: deps.serviceRoleKey,
+      cronApiKey: deps.cronApiKey,
+      frontendApiKey: deps.frontendApiKey,
+      anonKey: deps.anonKey,
+      sessionLookup: deps.sessionLookup,
+    });
+}

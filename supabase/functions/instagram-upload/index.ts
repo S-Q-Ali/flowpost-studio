@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -20,6 +21,14 @@ const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
 
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: SUPABASE_ANON_KEY,
+  sessionLookup: createSessionLookup(supabase),
+});
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -32,11 +41,8 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const validKeys = [SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
-
-  if (!token || !validKeys.includes(token)) {
+  const auth = await authorize(req);
+  if (!auth.allowed) {
     return json({ error: "Unauthorized" }, 401);
   }
 
