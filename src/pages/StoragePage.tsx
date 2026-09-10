@@ -9,6 +9,7 @@ import { Loader2, HardDrive, FolderOpen, File, ChevronRight, Upload, Plus, Check
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { transferDriveToMega, type DriveFileInfo } from "@/lib/driveToMegaTransfer";
+import { invokeFunction } from "@/lib/invoke";
 import type { ConnectedAccount } from "@/lib/types";
 import {
   AlertDialog,
@@ -41,12 +42,6 @@ interface ConfirmDelete {
   name: string;
   isFolder: boolean;
 }
-
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const CALL_HEADERS = {
-  Authorization: `Bearer ${ANON_KEY}`,
-  "Content-Type": "application/json",
-};
 
 function formatBytes(b: number): string {
   if (!b) return "0 B";
@@ -150,9 +145,7 @@ export default function StoragePage() {
 
   async function fetchDriveQuota() {
     if (!selectedDriveId) return;
-    const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-      method: "POST",
-      headers: CALL_HEADERS,
+    const { data, error } = await invokeFunction("google-drive-auth", {
       body: JSON.stringify({ action: "quota", account_id: selectedDriveId }),
     });
     if (!error && data) setDriveQuota(data);
@@ -161,9 +154,7 @@ export default function StoragePage() {
   async function fetchDriveFiles(parentId: string, pageToken?: string) {
     if (!selectedDriveId) return;
     setDriveLoading(true);
-    const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-      method: "POST",
-      headers: CALL_HEADERS,
+    const { data, error } = await invokeFunction("google-drive-auth", {
       body: JSON.stringify({
         action: "list-files",
         account_id: selectedDriveId,
@@ -215,9 +206,7 @@ export default function StoragePage() {
   async function fetchMegaQuota() {
     const targetId = megaAccounts[0]?.id;
     if (!targetId) return;
-    const { data, error } = await supabase.functions.invoke("mega-auth", {
-      method: "POST",
-      headers: CALL_HEADERS,
+    const { data, error } = await invokeFunction("mega-auth", {
       body: JSON.stringify({ action: "quota", account_id: targetId }),
     });
     if (!error && data) setMegaQuota(data);
@@ -227,9 +216,7 @@ export default function StoragePage() {
     const targetId = megaAccounts[0]?.id;
     if (!targetId) return;
     setMegaBrowsing(true);
-    const { data, error } = await supabase.functions.invoke("mega-auth", {
-      method: "POST",
-      headers: CALL_HEADERS,
+    const { data, error } = await invokeFunction("mega-auth", {
       body: JSON.stringify({ action: "list-items", account_id: targetId, path }),
     });
     if (!error && data) {
@@ -257,9 +244,7 @@ export default function StoragePage() {
     const targetId = megaAccounts[0]?.id;
     if (!targetId) return;
     const currentPath = megaBreadcrumbs.join("/");
-    const { data, error } = await supabase.functions.invoke("mega-auth", {
-      method: "POST",
-      headers: CALL_HEADERS,
+    const { data, error } = await invokeFunction("mega-auth", {
       body: JSON.stringify({ action: "create-folder", account_id: targetId, path: currentPath, folderName: newFolderName.trim() }),
     });
     if (!error && data?.success) {
@@ -275,9 +260,7 @@ export default function StoragePage() {
   async function createDriveFolder() {
     if (!driveNewFolderName.trim() || !selectedDriveId) return;
     const pid = driveBreadcrumbs.length > 0 ? driveBreadcrumbs[driveBreadcrumbs.length - 1].id : "root";
-    const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-      method: "POST",
-      headers: CALL_HEADERS,
+    const { data, error } = await invokeFunction("google-drive-auth", {
       body: JSON.stringify({
         action: "create-folder",
         account_id: selectedDriveId,
@@ -297,9 +280,7 @@ export default function StoragePage() {
 
   async function getDriveAccessToken(): Promise<string> {
     if (!selectedDriveId || !userId) throw new Error("No Drive account selected");
-    const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-      method: "POST",
-      headers: CALL_HEADERS,
+    const { data, error } = await invokeFunction("google-drive-auth", {
       body: JSON.stringify({
         action: "get-token",
         account_id: selectedDriveId,
@@ -402,18 +383,14 @@ export default function StoragePage() {
     } else {
       if (platform === "drive") {
         if (!selectedDriveId) return;
-        const { error } = await supabase.functions.invoke("google-drive-auth", {
-          method: "POST",
-          headers: CALL_HEADERS,
+        const { error } = await invokeFunction("google-drive-auth", {
           body: JSON.stringify({ action: "delete", account_id: selectedDriveId, file_id: nodeId }),
         });
         if (error) { toast.error(`Failed to delete ${name}`); return; }
       } else {
         const targetId = megaAccounts[0]?.id;
         if (!targetId) return;
-        const { error } = await supabase.functions.invoke("mega-auth", {
-          method: "POST",
-          headers: CALL_HEADERS,
+        const { error } = await invokeFunction("mega-auth", {
           body: JSON.stringify({ action: "delete", account_id: targetId, nodeId }),
         });
         if (error) { toast.error(`Failed to delete ${name}`); return; }
@@ -427,18 +404,14 @@ export default function StoragePage() {
     const { platform, nodeId, name } = confirmDelete;
     if (platform === "drive") {
       if (!selectedDriveId) return;
-      const { error } = await supabase.functions.invoke("google-drive-auth", {
-        method: "POST",
-        headers: CALL_HEADERS,
+      const { error } = await invokeFunction("google-drive-auth", {
         body: JSON.stringify({ action: "delete", account_id: selectedDriveId, file_id: nodeId }),
       });
       if (error) { toast.error(`Failed to delete ${name}`); setConfirmDelete({ open: false, platform: "drive", nodeId: "", name: "", isFolder: false }); return; }
     } else {
       const targetId = megaAccounts[0]?.id;
       if (!targetId) return;
-      const { error } = await supabase.functions.invoke("mega-auth", {
-        method: "POST",
-        headers: CALL_HEADERS,
+      const { error } = await invokeFunction("mega-auth", {
         body: JSON.stringify({ action: "delete", account_id: targetId, nodeId }),
       });
       if (error) { toast.error(`Failed to delete ${name}`); setConfirmDelete({ open: false, platform: "drive", nodeId: "", name: "", isFolder: false }); return; }
@@ -456,9 +429,7 @@ export default function StoragePage() {
     try {
       for (let i = 0; i < files.length; i++) {
         setDeletingProgress(`Deleting (${i + 1}/${files.length}): ${files[i].name}`);
-        const { error } = await supabase.functions.invoke("google-drive-auth", {
-          method: "POST",
-          headers: CALL_HEADERS,
+        const { error } = await invokeFunction("google-drive-auth", {
           body: JSON.stringify({ action: "delete", account_id: selectedDriveId, file_id: files[i].id }),
         });
         if (error) { toast.error(`Failed to delete ${files[i].name}`); return; }

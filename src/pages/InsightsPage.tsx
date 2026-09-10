@@ -27,9 +27,7 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, BarChart3, Instagram, Facebook, AlertCircle, RefreshCw } from "lucide-react";
-
-const VITE_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const VITE_SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { invokeFunction } from "@/lib/invoke";
 
 type Platform = "instagram" | "facebook";
 type DateRange = 7 | 14 | 30 | 90;
@@ -180,26 +178,22 @@ export default function InsightsPage() {
     setFetching(true);
     setError(null);
     setData(null);
-    fetch(
-      `${VITE_SUPABASE_URL}/functions/v1/${config.functionName}?account_id=${selectedAccountId}&range=${dateRange}`,
-      {
-        headers: {
-          Authorization: `Bearer ${VITE_SUPABASE_ANON_KEY}`,
-        },
-      },
+    invokeFunction<InsightsResponse>(
+      `${config.functionName}?account_id=${selectedAccountId}&range=${dateRange}`,
+      { method: "GET" },
     )
-      .then(async (res) => {
-        const body = await res.json();
-        if (!res.ok) {
-          if (body.needs_refresh) {
+      .then(({ data, error }) => {
+        if (error) {
+          const context = error.context as { needs_refresh?: boolean } | undefined;
+          if (context?.needs_refresh) {
             setError(`${config.label} token expired. Please reconnect the account.`);
           } else {
-            setError(body.error || `Failed to fetch ${config.label} insights`);
+            setError(error.message || `Failed to fetch ${config.label} insights`);
           }
           return;
         }
-        setData(body as InsightsResponse);
-        console.log(`[InsightsPage] Response for ${platform} account ${selectedAccountId}:`, body);
+        setData(data);
+        console.log(`[InsightsPage] Response for ${platform} account ${selectedAccountId}:`, data);
       })
       .catch(() => {
         setError("Network error fetching insights");

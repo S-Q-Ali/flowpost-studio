@@ -36,8 +36,7 @@ import type { Platform, ConnectedAccount, MasterPrompt } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
-
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+import { invokeFunction } from "@/lib/invoke";
 
 type WorkflowRow = {
   id: string;
@@ -355,9 +354,7 @@ export default function WorkflowsPage() {
     let hasError = false;
 
     do {
-      const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+      const { data, error } = await invokeFunction("google-drive-auth", {
         body: JSON.stringify({
           action: "list-files",
           account_id: selectedDriveId,
@@ -558,7 +555,7 @@ export default function WorkflowsPage() {
     setIsAnyWorkflowRunning(true);
     try {
       const token = localStorage.getItem("flowpost_token");
-      const { data, error } = await supabase.functions.invoke<{
+      const { data, error } = await invokeFunction<{
         processed: number;
         workflows_triggered: number;
         error?: string;

@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { BetaBadge } from "@/components/BetaBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ConnectedAccount, Platform } from "@/lib/types";
+import { invokeFunction } from "@/lib/invoke";
 
 export default function AccountsPage() {
   const { userId } = useAuth();
@@ -219,7 +220,7 @@ export default function AccountsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.functions.invoke("get-quota-usage", {
+      const { data } = await invokeFunction("get-quota-usage", {
         body: { platform: "youtube" },
       });
       if (data) setYoutubeQuota(data);
@@ -270,9 +271,8 @@ export default function AccountsPage() {
   const connectYouTube = async () => {
     setIsYouTubeConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke(`youtube-auth?action=url&userId=${userId}`, {
+      const { data, error } = await invokeFunction(`youtube-auth?action=url&userId=${userId}`, {
         method: "GET",
-        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
 
       if (error) throw new Error(error.message || "Failed to start YouTube OAuth");
@@ -330,9 +330,8 @@ export default function AccountsPage() {
   const connectFacebook = async () => {
     setIsFacebookConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke(`facebook-auth?action=url&userId=${userId}`, {
+      const { data, error } = await invokeFunction(`facebook-auth?action=url&userId=${userId}`, {
         method: "GET",
-        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
 
       if (error) throw new Error(error.message || "Failed to start Facebook OAuth");
@@ -390,9 +389,7 @@ export default function AccountsPage() {
   const connectInstagram = async () => {
     setIsInstagramConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("instagram-auth", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      const { data, error } = await invokeFunction("instagram-auth", {
         body: { action: "url", userId },
       });
 
@@ -435,9 +432,8 @@ export default function AccountsPage() {
   const reconnectFacebook = async () => {
     setReconnectingFacebookId("facebook");
     try {
-      const { data, error } = await supabase.functions.invoke(`facebook-auth?action=url&userId=${userId}`, {
+      const { data, error } = await invokeFunction(`facebook-auth?action=url&userId=${userId}`, {
         method: "GET",
-        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
 
       if (error) throw new Error(error.message || "Failed to start Facebook OAuth");
@@ -475,9 +471,8 @@ export default function AccountsPage() {
   const connectTikTok = async () => {
     setIsTikTokConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke(`tiktok-auth?action=url&userId=${userId}`, {
+      const { data, error } = await invokeFunction(`tiktok-auth?action=url&userId=${userId}`, {
         method: "GET",
-        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
 
       if (error) throw new Error(error.message || "Failed to start TikTok OAuth");
@@ -535,9 +530,7 @@ export default function AccountsPage() {
   const connectLinkedIn = async () => {
     setIsLinkedInConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("linkedin-auth", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      const { data, error } = await invokeFunction("linkedin-auth", {
         body: { action: "url", userId },
       });
 
@@ -596,9 +589,8 @@ export default function AccountsPage() {
   const connectDrive = async () => {
     setIsDriveConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke(`google-drive-auth?action=url&userId=${userId}`, {
+      const { data, error } = await invokeFunction(`google-drive-auth?action=url&userId=${userId}`, {
         method: "GET",
-        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
 
       if (error) throw new Error(error.message || "Failed to start Google Drive OAuth");
@@ -642,9 +634,8 @@ export default function AccountsPage() {
     try {
       let url = `google-drive-auth?action=url&userId=${userId}`;
       if (email) url += `&login_hint=${encodeURIComponent(email)}`;
-      const { data, error } = await supabase.functions.invoke(url, {
+      const { data, error } = await invokeFunction(url, {
         method: "GET",
-        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
       });
 
       if (error) throw new Error(error.message || "Failed to start Google Drive OAuth");
@@ -691,12 +682,7 @@ export default function AccountsPage() {
     }
     setIsMegaConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("mega-auth", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          "Content-Type": "application/json",
-        },
+      const { data, error } = await invokeFunction("mega-auth", {
         body: JSON.stringify({
           action: "connect",
           email: megaEmail.trim(),
@@ -721,12 +707,7 @@ export default function AccountsPage() {
   const listMegaFiles = async (accountId: string) => {
     setMegaFilesLoading((prev) => ({ ...prev, [accountId]: true }));
     try {
-      const { data, error } = await supabase.functions.invoke("mega-auth", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          "Content-Type": "application/json",
-        },
+      const { data, error } = await invokeFunction("mega-auth", {
         body: JSON.stringify({ action: "files", account_id: accountId }),
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);

@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Loader2, Youtube, Instagram, Facebook, Film, Folder, FileIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { invokeFunction } from "@/lib/invoke";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Platform } from "@/lib/types";
@@ -22,9 +23,6 @@ import type { ConnectedAccount } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { BetaBadge } from "@/components/BetaBadge";
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-const appSessionToken = () => localStorage.getItem("flowpost_token");
 
 const platforms: { id: Platform; label: string }[] = [
   { id: "facebook", label: "Facebook Page" },
@@ -162,7 +160,7 @@ export default function UploadPage() {
 
   useEffect(() => {
     if (selectedPlatforms.includes("youtube")) {
-      supabase.functions.invoke("get-quota-usage", {
+      invokeFunction("get-quota-usage", {
         body: { platform: "youtube" },
       }).then(({ data }) => {
         if (data) setYoutubeQuota(data);
@@ -186,9 +184,7 @@ export default function UploadPage() {
       let hasError = false;
 
       do {
-        const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${appSessionToken()}`, "Content-Type": "application/json" },
+        const { data, error } = await invokeFunction("google-drive-auth", {
           body: JSON.stringify({
             action: "list-files",
             account_id: selectedDriveId,
@@ -271,11 +267,9 @@ export default function UploadPage() {
     if (!selectedDriveId) return;
     setImportingFile(file.id);
     try {
-      const { data, error } = await supabase.functions.invoke(
+      const { data, error } = await invokeFunction(
         "google-drive-auth?action=upload-video-to-r2",
         {
-          method: "POST",
-          headers: { Authorization: `Bearer ${appSessionToken()}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             account_id: selectedDriveId,
             file_id: file.id,
@@ -316,11 +310,9 @@ export default function UploadPage() {
     try {
       const ext = localFile.name.split(".").pop()?.toLowerCase() || "mp4";
       const isImage = ["jpg", "jpeg", "png", "gif", "webp"].includes(ext);
-      const { data, error } = await supabase.functions.invoke(
+      const { data, error } = await invokeFunction(
         "google-drive-auth?action=get-r2-upload-url",
         {
-          method: "POST",
-          headers: { Authorization: `Bearer ${appSessionToken()}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             user_id: userId,
             file_name: localFile.name,
@@ -639,19 +631,10 @@ export default function UploadPage() {
           toast.info("Uploading to YouTube...");
           let allOk = true;
           for (const post of youtubePosts) {
-            const res = await fetch(
-              `${supabaseUrl}/functions/v1/youtube-upload`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${appSessionToken()}`,
-                  apikey: anonKey,
-                },
-                body: JSON.stringify({ postId: post.id }),
-              },
-            );
-            if (!res.ok) {
+            const { error } = await invokeFunction("youtube-upload", {
+              body: { postId: post.id },
+            });
+            if (error) {
               allOk = false;
             }
           }
@@ -661,12 +644,10 @@ export default function UploadPage() {
         }
 
         const firePost = async (post: any, fn: string) => {
-          const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${appSessionToken()}`, apikey: anonKey },
-            body: JSON.stringify({ postId: post.id }),
+          const { error } = await invokeFunction(fn, {
+            body: { postId: post.id },
           });
-          return res.ok;
+          return !error;
         };
 
         if (facebookFeedPosts.length > 0) {
@@ -694,19 +675,10 @@ export default function UploadPage() {
           toast.info("Uploading to TikTok...");
           let allOk = true;
           for (const post of tiktokPosts) {
-            const res = await fetch(
-              `${supabaseUrl}/functions/v1/tiktok-upload`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${appSessionToken()}`,
-                  apikey: anonKey,
-                },
-                body: JSON.stringify({ postId: post.id }),
-              },
-            );
-            if (!res.ok) {
+            const { error } = await invokeFunction("tiktok-upload", {
+              body: { postId: post.id },
+            });
+            if (error) {
               allOk = false;
             }
           }
@@ -719,19 +691,10 @@ export default function UploadPage() {
           toast.info("Posting to LinkedIn...");
           let allOk = true;
           for (const post of linkedinPosts) {
-            const res = await fetch(
-              `${supabaseUrl}/functions/v1/linkedin-upload`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${appSessionToken()}`,
-                  apikey: anonKey,
-                },
-                body: JSON.stringify({ postId: post.id }),
-              },
-            );
-            if (!res.ok) {
+            const { error } = await invokeFunction("linkedin-upload", {
+              body: { postId: post.id },
+            });
+            if (error) {
               allOk = false;
             }
           }

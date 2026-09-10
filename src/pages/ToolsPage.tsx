@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Wrench, Chrome, CheckCircle2, XCircle, AlertCircle, RefreshCw, Clock, CloudDownload } from "lucide-react";
 import { formatDistanceToNow, differenceInHours } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { invokeFunction } from "@/lib/invoke";
 
 const EXT_SOURCE = 'FLOWPOST_EXT';
 const DASH_SOURCE = 'FLOWPOST_DASH';
@@ -165,7 +166,7 @@ export default function ToolsPage() {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke<{ success: boolean; pages: PageAccount[] }>(
+      const { data, error } = await invokeFunction<{ success: boolean; pages: PageAccount[] }>(
         "facebook-auth?action=sync-pages",
         { body: { userId, pages: extPages.pages.map(p => ({ account_id: p.id, account_name: p.name })) } }
       );

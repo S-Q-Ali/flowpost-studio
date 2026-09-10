@@ -29,8 +29,7 @@ import type { Workflow, WorkflowItem } from "@/lib/types";
 import { CaptionPreviewModal } from "@/components/CaptionPreviewModal";
 import { generateAICaptions, regenerateCaptions, type StepProgress } from "@/lib/captions";
 import { getItemPublishTime } from "@/lib/scheduling";
-
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+import { invokeFunction } from "@/lib/invoke";
 
 function formatBytes(b: number): string {
   if (!b) return "0 B";
@@ -586,9 +585,7 @@ export default function WorkflowItemsPage() {
     let hasError = false;
 
     do {
-      const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+      const { data, error } = await invokeFunction("google-drive-auth", {
         body: JSON.stringify({
           action: "list-files",
           account_id: workflow.drive_account_id,

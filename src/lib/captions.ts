@@ -1,5 +1,5 @@
-import { supabase } from "@/integrations/supabase/client";
 import { getDefaultMasterPrompt, type MasterPrompt } from "@/lib/prompt-templates";
+import { invokeFunction } from "@/lib/invoke";
 
 
 export type StepId =
@@ -43,13 +43,8 @@ async function groqApiCall(
   signal?: AbortSignal,
 ): Promise<any> {
   throwIfAborted(signal);
-  const token = localStorage.getItem("flowpost_token");
-  const { data, error } = await supabase.functions.invoke("generate-ai-captions", {
+  const { data, error } = await invokeFunction("generate-ai-captions", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({ mode, ...payload }),
     signal,
   });
@@ -62,13 +57,8 @@ async function groqApiCall(
 
 async function getFileToken(itemId: string, signal?: AbortSignal): Promise<{ driveToken: string; driveUrl: string }> {
   throwIfAborted(signal);
-  const token = localStorage.getItem("flowpost_token");
-  const { data, error } = await supabase.functions.invoke("generate-ai-captions", {
+  const { data, error } = await invokeFunction("generate-ai-captions", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({ mode: "get-file-token", workflow_item_id: itemId }),
     signal,
   });

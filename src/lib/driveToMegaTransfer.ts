@@ -1,7 +1,5 @@
 import { Storage as MegaStorage, File as MegaFile } from "megajs";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { invokeFunction } from "@/lib/invoke";
 
 export interface TransferTicket {
   driveToken: string;
@@ -30,19 +28,13 @@ export interface TransferProgress {
 export type TransferListener = (event: { type: "progress"; progress: TransferProgress } | { type: "done"; fileName: string } | { type: "error"; fileName: string; message: string }) => void;
 
 async function callTransferTicket(sessionToken: string, driveAccountId: string, megaAccountId: string, megaFolderPath?: string): Promise<TransferTicket> {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/transfer-ticket`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${ANON_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ sessionToken, driveAccountId, megaAccountId, megaFolderPath }),
+  const { data, error } = await invokeFunction<TransferTicket | null>("transfer-ticket", {
+    body: { sessionToken, driveAccountId, megaAccountId, megaFolderPath },
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `Ticket request failed (${res.status})`);
+  if (error || !data) {
+    throw new Error(error?.message || `Ticket request failed (${error?.status ?? "unknown"})`);
   }
-  return res.json();
+  return data;
 }
 
 async function getDriveFileInfo(driveToken: string, fileId: string): Promise<DriveFileInfo> {
