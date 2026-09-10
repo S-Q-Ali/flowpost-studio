@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
@@ -36,6 +38,14 @@ const supabaseAdmin = createClient(
   SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { persistSession: false } },
 );
+
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: Deno.env.get("SUPABASE_ANON_KEY"),
+  sessionLookup: createSessionLookup(supabaseAdmin),
+});
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -122,14 +132,14 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const action = url.searchParams.get("action") || body?.action;
 
-  if (action !== "callback" && action !== "url") {
-    const authHeader = req.headers.get("Authorization");
-    const validKeys = [Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), Deno.env.get("SUPABASE_ANON_KEY"), Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
-    const token = authHeader?.replace("Bearer ", "");
-    if (!token || !validKeys.includes(token)) {
+  let auth: Awaited<ReturnType<typeof authorize>> | null = null;
+  if (action !== "callback") {
+    auth = await authorize(req);
+    if (!auth.allowed) {
       return json({ error: "Unauthorized" }, 401);
     }
   }
+  const sessionUserId = auth && auth.kind === "session" ? auth.userId : null;
 
   try {
     if (!action) return json({ error: "Missing action" }, 400);
@@ -137,15 +147,16 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/google-drive-auth?action=callback`;
 
     if (action === "url") {
-      const reqUserId = url.searchParams.get("userId");
+      const reqUserId = url.searchParams.get("userId") || (auth && auth.kind === "session" ? auth.userId ?? null : null);
       const loginHint = url.searchParams.get("login_hint");
       if (!reqUserId) return json({ error: "Missing userId" }, 400);
+      const state = await createOAuthState(supabaseAdmin, { userId: reqUserId });
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", GD_CLIENT_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("access_type", "offline");
-      authUrl.searchParams.set("state", reqUserId);
+      authUrl.searchParams.set("state", state);
       authUrl.searchParams.set("prompt", "select_account consent");
       if (loginHint) authUrl.searchParams.set("login_hint", loginHint);
       authUrl.searchParams.set(
@@ -169,9 +180,11 @@ Deno.serve(async (req) => {
       }
 
       const code = url.searchParams.get("code");
-      const userId = url.searchParams.get("state");
+      const rawState = url.searchParams.get("state") || "";
+      const oauthState = await consumeOAuthState(supabaseAdmin, rawState);
       if (!code) return html("<html><body>Missing code</body></html>", 400);
-      if (!userId) return html("<html><body>Missing user ID in state</body></html>", 400);
+      if (!oauthState) return html("<html><body>Invalid or expired state. Please start the connection from FlowPost again.</body></html>", 400);
+      const userId = oauthState.userId;
 
       const tokens = await exchangeCodeForTokens(code, redirectUri);
       const userInfo = await fetchDriveUserInfo(tokens.access_token);
@@ -221,6 +234,7 @@ Deno.serve(async (req) => {
       const userIdParam = url.searchParams.get("user_id");
       const accountIdParam = url.searchParams.get("account_id");
       if (!userIdParam) return json({ error: "Missing user_id" }, 400);
+      if (sessionUserId && userIdParam !== sessionUserId) return json({ error: "Unauthorized" }, 401);
 
       let query = supabaseAdmin
         .from("connected_accounts")
@@ -265,13 +279,14 @@ Deno.serve(async (req) => {
       const accountIdParam = url.searchParams.get("account_id") || body?.account_id;
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+      let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("id", accountIdParam)
         .eq("platform", "google_drive")
-        .eq("is_connected", true)
-        .single();
+        .eq("is_connected", true);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
 
@@ -301,13 +316,14 @@ Deno.serve(async (req) => {
 
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+      let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("id", accountIdParam)
         .eq("platform", "google_drive")
-        .eq("is_connected", true)
-        .single();
+        .eq("is_connected", true);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
 
@@ -347,13 +363,14 @@ Deno.serve(async (req) => {
       const parentId = url.searchParams.get("parent_id") || body?.parent_id || "root";
       if (!accountIdParam || !folderName) return json({ error: "Missing account_id or name" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+      let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("id", accountIdParam)
         .eq("platform", "google_drive")
-        .eq("is_connected", true)
-        .single();
+        .eq("is_connected", true);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
 
@@ -383,6 +400,7 @@ Deno.serve(async (req) => {
       const reqUserId = url.searchParams.get("user_id") || body?.user_id;
       const accountIdParam = url.searchParams.get("account_id") || body?.account_id;
       if (!reqUserId || !accountIdParam) return json({ error: "Missing user_id or account_id" }, 400);
+      if (sessionUserId && reqUserId !== sessionUserId) return json({ error: "Unauthorized" }, 401);
 
       const { data: account, error: fetchError } = await supabaseAdmin
         .from("connected_accounts")
@@ -410,14 +428,16 @@ Deno.serve(async (req) => {
 
       const { account_id, file_id, file_name, user_id, media_type } = body;
       if (!account_id || !file_id || !user_id) return json({ error: "Missing required fields" }, 400);
+      if (sessionUserId && user_id !== sessionUserId) return json({ error: "Unauthorized" }, 401);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+      let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("id", account_id)
         .eq("platform", "google_drive")
-        .eq("is_connected", true)
-        .single();
+        .eq("is_connected", true);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
 
@@ -492,6 +512,7 @@ Deno.serve(async (req) => {
 
       const { user_id, file_name, file_size, media_type, content_type } = body;
       if (!user_id || !file_name) return json({ error: "Missing required fields" }, 400);
+      if (sessionUserId && user_id !== sessionUserId) return json({ error: "Unauthorized" }, 401);
 
       if (!s3Client) return json({ error: "R2 not configured" }, 500);
 
@@ -536,13 +557,14 @@ Deno.serve(async (req) => {
       const fileId = url.searchParams.get("file_id") || body?.file_id;
       if (!accountIdParam || !fileId) return json({ error: "Missing account_id or file_id" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+      let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("id", accountIdParam)
         .eq("platform", "google_drive")
-        .eq("is_connected", true)
-        .single();
+        .eq("is_connected", true);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
 

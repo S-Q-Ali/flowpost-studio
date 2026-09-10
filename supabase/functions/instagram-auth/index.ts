@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt } from "../_shared/crypto.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -21,6 +23,14 @@ const supabaseAdmin = createClient(
   SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { persistSession: false } },
 );
+
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: SUPABASE_ANON_KEY,
+  sessionLookup: createSessionLookup(supabaseAdmin),
+});
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -111,19 +121,29 @@ Deno.serve(async (req) => {
     }
   }
 
+  let auth: Awaited<ReturnType<typeof authorize>> | null = null;
+  if (action !== "callback") {
+    auth = await authorize(req);
+    if (!auth.allowed) {
+      return json({ error: "Unauthorized" }, 401);
+    }
+  }
+  const sessionUserId = auth && auth.kind === "session" ? auth.userId : null;
+
   try {
     if (!action) return json({ error: "Missing action" }, 400);
 
     const redirectUri = `${SUPABASE_URL}/functions/v1/instagram-auth`;
 
     if (action === "url") {
-      const reqUserId = url.searchParams.get("userId") || bodyUserId;
+      const reqUserId = url.searchParams.get("userId") || bodyUserId || (auth && auth.kind === "session" ? auth.userId ?? null : null);
       if (!reqUserId) return json({ error: "Missing userId" }, 400);
 
+      const state = await createOAuthState(supabaseAdmin, { userId: reqUserId });
       const authUrl = new URL("https://api.instagram.com/oauth/authorize");
       authUrl.searchParams.set("client_id", APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
-      authUrl.searchParams.set("state", reqUserId);
+      authUrl.searchParams.set("state", state);
       authUrl.searchParams.set("scope", [
         "instagram_business_basic",
         "instagram_business_content_publish",
@@ -145,9 +165,11 @@ Deno.serve(async (req) => {
       }
 
       const code = url.searchParams.get("code");
-      const userId = url.searchParams.get("state") || "";
+      const rawState = url.searchParams.get("state") || "";
+      const oauthState = await consumeOAuthState(supabaseAdmin, rawState);
       if (!code) return html("<html><body>Missing code</body></html>", 400);
-      if (!userId) return html("<html><body>Missing user ID in state</body></html>", 400);
+      if (!oauthState) return html("<html><body>Invalid or expired state. Please start the connection from FlowPost again.</body></html>", 400);
+      const userId = oauthState.userId;
 
       const shortLived = await exchangeCodeForShortLivedToken(code, redirectUri);
       const longLived = await getLongLivedToken(shortLived.access_token);
@@ -194,12 +216,13 @@ Deno.serve(async (req) => {
       const accountId = body?.accountId;
       if (!accountId) return json({ error: "Missing accountId" }, 400);
 
-      const { data: account, error: accountError } = await supabaseAdmin
+      let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("account_id", accountId)
-        .eq("platform", "instagram")
-        .single();
+        .eq("platform", "instagram");
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: accountError } = await accountQuery.single();
 
       if (accountError || !account?.access_token) {
         return json({ error: "Instagram account not found" }, 404);

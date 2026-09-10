@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt } from "../_shared/crypto.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -21,6 +23,14 @@ const supabaseAdmin = createClient(
   SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { persistSession: false } },
 );
+
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: SUPABASE_ANON_KEY,
+  sessionLookup: createSessionLookup(supabaseAdmin),
+});
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -87,11 +97,10 @@ Deno.serve(async (req) => {
   const action = (url.searchParams.get("action") || body?.action) as string | undefined;
   const reqUserId = (url.searchParams.get("userId") || body?.userId) as string | undefined;
 
+  let auth: Awaited<ReturnType<typeof authorize>> | null = null;
   if (action !== "callback") {
-    const authHeader = req.headers.get("Authorization");
-    const validKeys = [SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
-    const token = authHeader?.replace("Bearer ", "");
-    if (!token || !validKeys.includes(token)) {
+    auth = await authorize(req);
+    if (!auth.allowed) {
       return json({ error: "Unauthorized" }, 401);
     }
   }
@@ -102,12 +111,14 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/linkedin-auth?action=callback`;
 
     if (action === "url") {
-      if (!reqUserId) return json({ error: "Missing userId" }, 400);
+      const resolvedUserId = reqUserId || (auth && auth.kind === "session" ? auth.userId ?? null : null);
+      if (!resolvedUserId) return json({ error: "Missing userId" }, 400);
+      const state = await createOAuthState(supabaseAdmin, { userId: resolvedUserId });
       const authUrl = new URL("https://www.linkedin.com/oauth/v2/authorization");
       authUrl.searchParams.set("client_id", LI_CLIENT_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set("response_type", "code");
-      authUrl.searchParams.set("state", reqUserId);
+      authUrl.searchParams.set("state", state);
       authUrl.searchParams.set("scope", "openid profile email w_member_social");
       return json({ url: authUrl.toString() });
     }
@@ -121,9 +132,11 @@ Deno.serve(async (req) => {
       }
 
       const code = url.searchParams.get("code");
-      const userId = url.searchParams.get("state");
+      const rawState = url.searchParams.get("state") || "";
+      const oauthState = await consumeOAuthState(supabaseAdmin, rawState);
       if (!code) return html("<html><body>Missing code</body></html>", 400);
-      if (!userId) return html("<html><body>Missing user ID in state</body></html>", 400);
+      if (!oauthState) return html("<html><body>Invalid or expired state. Please start the connection from FlowPost again.</body></html>", 400);
+      const userId = oauthState.userId;
 
       const tokens = await exchangeCodeForToken(code, redirectUri);
       const profile = await fetchLinkedInProfile(tokens.access_token);

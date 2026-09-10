@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -22,6 +24,14 @@ const supabaseAdmin = createClient(
   { auth: { persistSession: false } },
 );
 
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: SUPABASE_ANON_KEY,
+  sessionLookup: createSessionLookup(supabaseAdmin),
+});
+
 const TIKTOK_SCOPES = "user.info.basic,video.publish,video.upload";
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/tiktok-auth`;
 
@@ -37,28 +47,6 @@ function html(body: string, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
   });
-}
-
-function generateState(): string {
-  const arr = new Uint8Array(24);
-  crypto.getRandomValues(arr);
-  return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function encodeStateParam(userId: string): string {
-  const rawState = generateState();
-  const obj = JSON.stringify({ r: rawState, u: userId });
-  return btoa(obj).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function decodeUserIdFromState(encoded: string): string | null {
-  try {
-    const json = atob(encoded.replace(/-/g, "+").replace(/_/g, "/"));
-    const obj = JSON.parse(json);
-    return obj?.u || null;
-  } catch {
-    return null;
-  }
 }
 
 async function exchangeCodeForToken(code: string) {
@@ -126,14 +114,14 @@ Deno.serve(async (req) => {
   // in the TikTok app is the bare function URL with no query string.
   const isCallback = url.searchParams.has("code") && url.searchParams.has("state");
 
+  let auth: Awaited<ReturnType<typeof authorize>> | null = null;
   if (!isCallback) {
-    const authHeader = req.headers.get("Authorization");
-    const validKeys = [SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
-    const token = authHeader?.replace("Bearer ", "");
-    if (!token || !validKeys.includes(token)) {
+    auth = await authorize(req);
+    if (!auth.allowed) {
       return json({ error: "Unauthorized" }, 401);
     }
   }
+  const sessionUserId = auth && auth.kind === "session" ? auth.userId : null;
 
   try {
     if (isCallback) {
@@ -149,39 +137,14 @@ Deno.serve(async (req) => {
       if (!code || !state) {
         return html("<html><body>Missing code or state</body></html>", 400);
       }
-      const userId = decodeUserIdFromState(state);
-      if (!userId) return html("<html><body>Invalid state: could not extract user</body></html>", 400);
-
-      // Verify state from the DB (one-time use, expires in 10 min)
-      const { data: stateRow, error: stateError } = await supabaseAdmin
-        .from("tiktok_oauth_states")
-        .select("state, expires_at")
-        .eq("state", state)
-        .maybeSingle();
-
-      if (stateError) {
-        console.error("State lookup error", stateError);
-        return html("<html><body>State verification failed</body></html>", 500);
-      }
-
-      if (!stateRow) {
+      const oauthState = await consumeOAuthState(supabaseAdmin, state);
+      if (!oauthState) {
         return html(
           `<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f0f0f;color:white;"><h2>Invalid or expired state</h2><p>Please try connecting again from FlowPost.</p></body></html>`,
           400,
         );
       }
-
-      const expiresAt = new Date(stateRow.expires_at);
-      if (expiresAt < new Date()) {
-        await supabaseAdmin.from("tiktok_oauth_states").delete().eq("state", state);
-        return html(
-          `<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f0f0f;color:white;"><h2>State expired</h2><p>Please try again.</p></body></html>`,
-          400,
-        );
-      }
-
-      // Consume the state (one-time use)
-      await supabaseAdmin.from("tiktok_oauth_states").delete().eq("state", state);
+      const userId = oauthState.userId;
 
       const tokenData = await exchangeCodeForToken(code);
       console.log("TikTok token scope:", tokenData.scope);
@@ -234,19 +197,9 @@ Deno.serve(async (req) => {
     const actionFromQuery = url.searchParams.get("action");
 
     if (actionFromQuery === "url") {
-      const reqUserId = url.searchParams.get("userId");
+      const reqUserId = url.searchParams.get("userId") || (auth && auth.kind === "session" ? auth.userId ?? null : null);
       if (!reqUserId) return json({ error: "Missing userId" }, 400);
-      const state = encodeStateParam(reqUserId);
-      const expiresAtIso = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
-      const { error: stateInsertError } = await supabaseAdmin
-        .from("tiktok_oauth_states")
-        .insert({ state, expires_at: expiresAtIso });
-
-      if (stateInsertError) {
-        console.error("Failed to store state", stateInsertError);
-        return json({ error: "Failed to initiate OAuth" }, 500);
-      }
+      const state = await createOAuthState(supabaseAdmin, { userId: reqUserId });
 
       const authUrl = new URL("https://www.tiktok.com/v2/auth/authorize/");
       authUrl.searchParams.set("client_key", TIKTOK_CLIENT_KEY!);
@@ -263,6 +216,7 @@ Deno.serve(async (req) => {
       const userId = url.searchParams.get("userId");
       if (!openId) return json({ error: "Missing open_id" }, 400);
       if (!userId) return json({ error: "Missing userId" }, 400);
+      if (sessionUserId && userId !== sessionUserId) return json({ error: "Unauthorized" }, 401);
 
       const { data: account, error: accountError } = await supabaseAdmin
         .from("connected_accounts")

@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { Storage as MegaStorage, File as MegaFile } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -16,6 +17,14 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabaseAdmin = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
+});
+
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: Deno.env.get("SUPABASE_ANON_KEY"),
+  sessionLookup: createSessionLookup(supabaseAdmin),
 });
 
 function json(data: unknown, status = 200) {
@@ -41,18 +50,18 @@ Deno.serve(async (req) => {
 
   const action = (body.action as string) || url.searchParams.get("action");
 
-  const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const validKeys = [Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), Deno.env.get("SUPABASE_ANON_KEY"), Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
-  if (!token || !validKeys.includes(token)) {
+  const auth = await authorize(req);
+  if (!auth.allowed) {
     return json({ error: "Unauthorized" }, 401);
   }
+  const sessionUserId = auth.kind === "session" ? auth.userId : null;
 
   try {
     if (!action) return json({ error: "Missing action" }, 400);
 
     if (action === "connect") {
-      const { email, password, userId } = body as { email?: string; password?: string; userId?: string };
+      const { email, password, userId: bodyUserId } = body as { email?: string; password?: string; userId?: string };
+      const userId = sessionUserId || bodyUserId || null;
       if (!email || !password || !userId) {
         return json({ error: "Missing email, password, or userId" }, 400);
       }
@@ -102,13 +111,14 @@ Deno.serve(async (req) => {
       const accountIdParam = (body as { account_id?: string }).account_id || url.searchParams.get("account_id");
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("id", accountIdParam)
         .eq("platform", "mega")
-        .eq("is_connected", true)
-        .single();
+        .eq("is_connected", true);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
 
@@ -140,11 +150,13 @@ Deno.serve(async (req) => {
       const { accountId } = body as { accountId?: string };
       if (!accountId) return json({ error: "Missing accountId" }, 400);
 
-      const { error: updateError } = await supabaseAdmin
+      let disconnectQuery = supabaseAdmin
         .from("connected_accounts")
         .update({ is_connected: false })
         .eq("id", accountId)
         .eq("platform", "mega");
+      if (sessionUserId) disconnectQuery = disconnectQuery.eq("user_id", sessionUserId);
+      const { error: updateError } = await disconnectQuery;
 
       if (updateError) throw updateError;
 
@@ -155,13 +167,14 @@ Deno.serve(async (req) => {
       const accountIdParam = (body as { account_id?: string }).account_id || url.searchParams.get("account_id");
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("id", accountIdParam)
         .eq("platform", "mega")
-        .eq("is_connected", true)
-        .single();
+        .eq("is_connected", true);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
 
@@ -188,13 +201,14 @@ Deno.serve(async (req) => {
 
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("id", accountIdParam)
         .eq("platform", "mega")
-        .eq("is_connected", true)
-        .single();
+        .eq("is_connected", true);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
 
@@ -238,13 +252,14 @@ Deno.serve(async (req) => {
 
       if (!accountIdParam || !folderName) return json({ error: "Missing account_id or folderName" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("id", accountIdParam)
         .eq("platform", "mega")
-        .eq("is_connected", true)
-        .single();
+        .eq("is_connected", true);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
 
@@ -280,13 +295,14 @@ Deno.serve(async (req) => {
       const nodeId = (body as { nodeId?: string }).nodeId || url.searchParams.get("nodeId");
       if (!accountIdParam || !nodeId) return json({ error: "Missing account_id or nodeId" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
         .eq("id", accountIdParam)
         .eq("platform", "mega")
-        .eq("is_connected", true)
-        .single();
+        .eq("is_connected", true);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
 
