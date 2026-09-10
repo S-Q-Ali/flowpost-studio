@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { Storage as MegaStorage } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -18,6 +19,14 @@ if (!GD_CLIENT_ID || !GD_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROL
 
 const supabaseAdmin = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
+});
+
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: Deno.env.get("SUPABASE_ANON_KEY"),
+  sessionLookup: createSessionLookup(supabaseAdmin),
 });
 
 function json(data: unknown, status = 200) {
@@ -66,12 +75,11 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const validKeys = [Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), Deno.env.get("SUPABASE_ANON_KEY"), Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
-  if (!token || !validKeys.includes(token)) {
+  const auth = await authorize(req);
+  if (!auth.allowed) {
     return json({ error: "Unauthorized" }, 401);
   }
+  const sessionUserId = auth.kind === "session" ? auth.userId : null;
 
   let body: { driveFileId?: string; googleAccessToken?: string; driveAccountId?: string; megaAccountId?: string; fileName?: string; megaFolderPath?: string };
   try {
@@ -87,13 +95,14 @@ Deno.serve(async (req) => {
 
   let googleAccessToken = directToken;
   if (!googleAccessToken && driveAccountId) {
-    const { data: driveAccount, error: daError } = await supabaseAdmin
+    let driveQuery = supabaseAdmin
       .from("connected_accounts")
       .select("*")
       .eq("id", driveAccountId)
       .eq("platform", "google_drive")
-      .eq("is_connected", true)
-      .single();
+      .eq("is_connected", true);
+    if (sessionUserId) driveQuery = driveQuery.eq("user_id", sessionUserId);
+    const { data: driveAccount, error: daError } = await driveQuery.single();
     if (daError || !driveAccount) return json({ error: "Drive account not found" }, 404);
 
     const rawToken = await decrypt(driveAccount.access_token as string);
@@ -139,13 +148,14 @@ Deno.serve(async (req) => {
     const contentLength = parseInt(headRes.headers.get("Content-Length") || "0", 10);
     if (!contentLength) return json({ error: "Could not determine file size" }, 400);
 
-    const { data: account, error: fetchError } = await supabaseAdmin
+    let megaQuery = supabaseAdmin
       .from("connected_accounts")
       .select("*")
       .eq("id", megaAccountId)
       .eq("platform", "mega")
-      .eq("is_connected", true)
-      .single();
+      .eq("is_connected", true);
+    if (sessionUserId) megaQuery = megaQuery.eq("user_id", sessionUserId);
+    const { data: account, error: fetchError } = await megaQuery.single();
 
     if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
 

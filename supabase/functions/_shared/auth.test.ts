@@ -82,6 +82,17 @@ describe("isRequestAuthorized", () => {
     expect(result).toEqual({ allowed: true, kind: "session" });
   });
 
+  it("returns the resolved userId for a valid session token", async () => {
+    const inputs = makeInputs({
+      authorizationHeader: "Bearer valid-session-token",
+      sessionLookup: vi.fn(async (token: string) =>
+        token === "valid-session-token" ? { status: "valid", userId: "user-1" } : { status: "missing" },
+      ),
+    });
+    const result = await isRequestAuthorized(inputs);
+    expect(result).toEqual({ allowed: true, kind: "session", userId: "user-1" });
+  });
+
   it("allows a valid session token sent via the x-admin-token header (process-workflow pattern)", async () => {
     const inputs = makeInputs({
       adminTokenHeader: "valid-admin-token",
@@ -177,6 +188,11 @@ describe("createSessionLookup", () => {
   it("returns valid for a session row that has not expired", async () => {
     const result = await lookupResult({ data: { id: "1", expires_at: future }, error: null });
     expect(result).toEqual({ status: "valid" });
+  });
+
+  it("returns valid with the userId from the session row", async () => {
+    const result = await lookupResult({ data: { id: "1", user_id: "user-1", expires_at: future }, error: null });
+    expect(result).toEqual({ status: "valid", userId: "user-1" });
   });
 
   it("returns expired for a session row whose expiry has passed", async () => {

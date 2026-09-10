@@ -1,11 +1,11 @@
 export type SessionLookupResult =
-  | { status: "valid" }
+  | { status: "valid"; userId?: string | null }
   | { status: "expired" }
   | { status: "missing" }
   | { status: "error"; error?: unknown };
 
 export type AuthResult =
-  | { allowed: true; kind: "service-role" | "cron" | "frontend-api-key" | "session" }
+  | { allowed: true; kind: "service-role" | "cron" | "frontend-api-key" | "session"; userId?: string | null }
   | {
       allowed: false;
       reason:
@@ -62,7 +62,7 @@ export async function isRequestAuthorized(inputs: AuthInputs): Promise<AuthResul
   }
 
   const lookup = await inputs.sessionLookup(sessionCandidate);
-  if (lookup.status === "valid") return { allowed: true, kind: "session" };
+  if (lookup.status === "valid") return { allowed: true, kind: "session", userId: lookup.userId };
   if (lookup.status === "expired") return { allowed: false, reason: "expired-session" };
   if (lookup.status === "error") return { allowed: false, reason: "session-lookup-error" };
   return { allowed: false, reason: "invalid-session" };
@@ -72,14 +72,14 @@ export function createSessionLookup(supabase: any) {
   return async (token: string): Promise<SessionLookupResult> => {
     const { data, error } = await supabase
       .from("sessions")
-      .select("id, expires_at")
+      .select("id, user_id, expires_at")
       .eq("token", token)
       .maybeSingle();
 
     if (error) return { status: "error", error };
     if (!data || !data.expires_at) return { status: "missing" };
     if (new Date(data.expires_at).getTime() <= Date.now()) return { status: "expired" };
-    return { status: "valid" };
+    return { status: "valid", userId: data.user_id };
   };
 }
 

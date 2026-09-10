@@ -1,10 +1,27 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { decrypt } from "../_shared/crypto.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false },
+});
+
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: SUPABASE_ANON_KEY,
+  sessionLookup: createSessionLookup(supabase),
+});
 
 Deno.serve(async (req) => {
   try {
@@ -12,12 +29,12 @@ Deno.serve(async (req) => {
       return new Response("ok", { headers: corsHeaders });
     }
 
-    const authHeader = req.headers.get("Authorization");
-    const token = authHeader?.replace("Bearer ", "");
-    const validKeys = [Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), Deno.env.get("SUPABASE_ANON_KEY"), Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
-    if (!token || !validKeys.includes(token)) {
+    const auth = await authorize(req);
+    if (!auth.allowed) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
+    const sessionUserId = auth.kind === "session" ? auth.userId : null;
 
     const url = new URL(req.url);
   const accountId = url.searchParams.get("account_id");
@@ -31,20 +48,14 @@ Deno.serve(async (req) => {
   const rangeParam = url.searchParams.get("range");
   const rangeDays = Math.max(7, Math.min(90, parseInt(rangeParam || "30", 10)));
 
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false },
-  });
-
-  const { data: account, error: accountError } = await supabase
+  let accountQuery = supabase
     .from("connected_accounts")
     .select("*")
     .eq("account_id", accountId)
     .eq("platform", "instagram")
-    .eq("is_connected", true)
-    .single();
+    .eq("is_connected", true);
+  if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+  const { data: account, error: accountError } = await accountQuery.single();
 
   if (accountError || !account) {
     return new Response(

@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { Storage as MegaStorage } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -16,6 +17,14 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabaseAdmin = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
+});
+
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: Deno.env.get("SUPABASE_ANON_KEY"),
+  sessionLookup: createSessionLookup(supabaseAdmin),
 });
 
 function json(data: unknown, status = 200) {
@@ -35,11 +44,9 @@ Deno.serve(async (req) => {
       return json({ error: "Method not allowed" }, 405);
     }
 
-    // 1. Validate API key (same pattern as other functions)
-    const authHeader = req.headers.get("Authorization");
-    const apiToken = authHeader?.replace("Bearer ", "");
-    const validKeys = [Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), Deno.env.get("SUPABASE_ANON_KEY"), Deno.env.get("FRONTEND_API_KEY")].filter(Boolean);
-    if (!apiToken || !validKeys.includes(apiToken)) {
+    // 1. Authorize request (session token, service role, or frontend key)
+    const auth = await authorize(req);
+    if (!auth.allowed) {
       return json({ error: "Unauthorized" }, 401);
     }
 
@@ -47,23 +54,30 @@ Deno.serve(async (req) => {
 
     const { sessionToken, driveAccountId, megaAccountId, megaFolderPath } = body;
 
-    if (!sessionToken || !driveAccountId || !megaAccountId) {
-      return json({ error: "Missing sessionToken, driveAccountId, or megaAccountId" }, 400);
+    if (!driveAccountId || !megaAccountId) {
+      return json({ error: "Missing driveAccountId or megaAccountId" }, 400);
     }
 
-    // 2. Validate session token and resolve userId
-    const { data: session, error: sessionError } = await supabaseAdmin
-      .from("sessions")
-      .select("id, user_id")
-      .eq("token", sessionToken)
-      .gt("expires_at", new Date().toISOString())
-      .maybeSingle();
+    // 2. Resolve userId from the session credential (Authorization header or legacy body token)
+    let userId: string | null = auth.kind === "session" ? auth.userId || null : null;
+    if (!userId && sessionToken) {
+      const { data: session, error: sessionError } = await supabaseAdmin
+        .from("sessions")
+        .select("id, user_id")
+        .eq("token", sessionToken)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
 
-    if (sessionError || !session) {
+      if (sessionError || !session) {
+        return json({ error: "Invalid or expired session" }, 401);
+      }
+
+      userId = session.user_id;
+    }
+
+    if (!userId) {
       return json({ error: "Invalid or expired session" }, 401);
     }
-
-    const userId = session.user_id;
 
     // 3. Fetch and verify Drive account belongs to user
     const { data: driveAccount, error: driveError } = await supabaseAdmin
