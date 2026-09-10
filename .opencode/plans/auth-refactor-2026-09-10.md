@@ -42,7 +42,7 @@ Rules:
 - [x] 4. C2: `_shared/groq.ts` `sanitizeChatOptions` (12 tests green) wired into groq-chat — model whitelist (`openai/gpt-oss-120b`, `qwen/qwen3.6-27b`), max_tokens cap 8192.
 - [x] 5. R1: `_shared/google-drive.ts` (15 tests green); refactored generate-ai-captions + process-workflow to use it (duplicate `getDriveToken`/`getDriveAccount` removed).
 - [x] 6. R2: `last_triggered_at` update moved to after successful row processing in process-workflow (recorded only when `workflowVideoCount > 0`).
-- [ ] 7. Commit (per git-workflow): auth helper as one commit, wiring as another.
+- [x] 7. Commit + push (R1+R2 as `refactor: extract shared Google Drive token helper...`, graph refresh as `chore`). `6b81771`, `9176b55` on `main`.
 
 ## Verified
 - Current suite: 4 files, 54 tests pass. `npx tsc --noEmit` → clean. Both rewired functions parse (esbuild transform OK). `graphify update .` run.
