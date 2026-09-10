@@ -47,6 +47,13 @@ Rules:
   - Rationale: `get-file` left on capability-token auth (encrypted `?token=` — served to `<video>`/`<img>`/redirects where headers are unavailable); `post-story` rewired to helper (was service-key-only, browser stories needed session path). OAuth auth-callback functions (google-oauth, youtube-auth, etc.) still accept anon — separate follow-up (callbacks carry no headers).
 - [x] 9. Deploy Phase 4 functions + verify remote versions.
 
+## Live verification findings (2026-09-10)
+- Deployed source confirmed new via `supabase functions download`.
+- **Misconfig found & fixed**: the `FRONTEND_API_KEY` secret was literally the legacy anon JWT (sha256 matched `791850…`) — so Phase 4's anon-key rejection was defeated via the `frontend-api-key` allow path. Rotated `FRONTEND_API_KEY` to a fresh random secret; no frontend/client consumes that key (verified by grep — only `generate-ai-captions` reads it, and its browser caller uses session tokens).
+- `supabase/functions/youtube-upload/index.ts` had an undeclared `SUPABASE_ANON_KEY` reference (module ReferenceError → all requests 500). Added the `const`.
+- Live smoke (after rotate+redeploy): all 6 → no-auth=401, anon=401, random=401; positive path verified (valid frontend key → reaches DB / 404 "Post not found").
+- Note: project env `SUPABASE_SERVICE_ROLE_KEY`/`SUPABASE_ANON_KEY` hashes differ from the legacy keys returned by `supabase projects api-keys` (legacy service JWT no longer accepted by functions) — internal service-role callers (process-workflow etc.) read env at runtime and are unaffected.
+
 ## Verified
 - Current suite: 4 files, 54 tests pass. `npx tsc --noEmit` → clean. Both rewired functions parse (esbuild transform OK). `graphify update .` run.
 - R1 parity: refresh threshold (<5 min), refresh URL + service-role header, fallback-to-existing, null on missing account/token — all preserved via held-out tests.

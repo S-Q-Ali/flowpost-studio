@@ -462,8 +462,8 @@
     "semantic_hash": "8f68c27c3fc38817b2726b20e2d4f1ee"
   },
   "supabase/functions/_shared/crypto.ts": {
-    "mtime": 1783173239.7461314,
-    "seen": 1789020917.2984962,
+    "mtime": 1789033764.689526,
+    "seen": 1789034083.8067226,
     "ast_hash": "61203f3adb9582947129c48b40564ab2",
     "semantic_hash": "61203f3adb9582947129c48b40564ab2"
   },
@@ -474,8 +474,8 @@
     "semantic_hash": "3d57eef7d5b1baeec369fc5eff3ab562"
   },
   "supabase/functions/_shared/sheet-status.ts": {
-    "mtime": 1783968081.8379374,
-    "seen": 1789020917.2984962,
+    "mtime": 1789033764.69539,
+    "seen": 1789034083.8067226,
     "ast_hash": "5d98f16469d36b1bfeb0110eb128a5ab",
     "semantic_hash": "5d98f16469d36b1bfeb0110eb128a5ab"
   },
@@ -492,8 +492,8 @@
     "semantic_hash": "ed19ff355fc2ed0edfaa6d32a1c79be5"
   },
   "supabase/functions/facebook-upload/index.ts": {
-    "mtime": 1789032757.5738134,
-    "seen": 1789033053.8029778,
+    "mtime": 1789033764.67538,
+    "seen": 1789034083.8067226,
     "ast_hash": "8aff2ba11eadebab25dcabac628cf43a",
     "semantic_hash": ""
   },
@@ -654,9 +654,9 @@
     "semantic_hash": "5612f8c860166436f46e1aa491ab01f4"
   },
   "supabase/functions/youtube-upload/index.ts": {
-    "mtime": 1789032822.5022287,
-    "seen": 1789033053.8029778,
-    "ast_hash": "9414a0c2bb7e5318afe8a965a62a464c",
+    "mtime": 1789033899.232938,
+    "seen": 1789034083.8067226,
+    "ast_hash": "f72698b583d05bc0a32f0c8d94b718da",
     "semantic_hash": ""
   },
   "tailwind.config.ts": {
@@ -894,8 +894,8 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/auth.ts": {
-    "mtime": 1789032530.024204,
-    "seen": 1789033053.8029778,
+    "mtime": 1789033764.710272,
+    "seen": 1789034083.8067226,
     "ast_hash": "3d77c68ca6d0e6587328d9bbf11359ab",
     "semantic_hash": ""
   },
@@ -942,9 +942,9 @@
     "semantic_hash": ""
   },
   ".opencode/plans/auth-refactor-2026-09-10.md": {
-    "mtime": 1789033028.5894687,
-    "seen": 1789033053.8029778,
-    "ast_hash": "6cfb326795806f48dd8256e493415316",
+    "mtime": 1789034062.550202,
+    "seen": 1789034083.8067226,
+    "ast_hash": "10cbaad6ff8c95bd699ac19f6ac3dbc2",
     "semantic_hash": ""
   },
   ".opencode/plans/security-audit-2026-09-10.md": {
