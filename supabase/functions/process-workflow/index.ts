@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
@@ -37,6 +38,15 @@ if (!CRON_API_KEY) {
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
+
+const driveTokenCtx: DriveTokenContext = {
+  supabase,
+  decrypt,
+  fetch: (url, init) => fetch(url, init),
+  now: () => new Date(),
+  supabaseUrl: SUPABASE_URL!,
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY!,
+};
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -166,58 +176,6 @@ Deno.serve(async (req) => {
     let totalProcessedVideos = 0;
     let workflowsTriggered = 0;
 
-    async function getDriveToken(userId: string, driveAccountId?: string | null): Promise<string | null> {
-      let query = supabase
-        .from("connected_accounts")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("platform", "google_drive")
-        .eq("is_connected", true);
-
-      if (driveAccountId) {
-        query = query.eq("id", driveAccountId);
-      }
-
-      const { data: driveAccount, error: daError } = await query.maybeSingle();
-
-      if (daError || !driveAccount) {
-        console.warn(`No Google Drive connected for user ${userId}${driveAccountId ? ` (id=${driveAccountId})` : ""}`);
-        return null;
-      }
-
-      const tokenExpiry = driveAccount.token_expiry ? new Date(driveAccount.token_expiry) : null;
-      if (tokenExpiry && tokenExpiry.getTime() - Date.now() < 5 * 60 * 1000) {
-        // Token expiring soon — refresh it
-        const rawRefresh = await decrypt(driveAccount.refresh_token as string);
-        if (rawRefresh) {
-          try {
-            const refreshUrl = `${SUPABASE_URL}/functions/v1/google-drive-auth?action=refresh&user_id=${userId}${driveAccountId ? `&account_id=${driveAccountId}` : ""}`;
-            const refreshRes = await fetch(
-              refreshUrl,
-              { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
-            );
-            if (refreshRes.ok) {
-              // Re-fetch the updated token
-              let refreshQuery = supabase
-                .from("connected_accounts")
-                .select("access_token")
-                .eq("user_id", userId)
-                .eq("platform", "google_drive");
-              if (driveAccountId) {
-                refreshQuery = refreshQuery.eq("id", driveAccountId);
-              }
-              const { data: refreshed } = await refreshQuery.single();
-              if (refreshed?.access_token) return await decrypt(refreshed.access_token as string);
-            }
-          } catch (e) {
-            console.warn(`Drive token refresh failed for user ${userId}:`, e);
-          }
-        }
-      }
-
-      return await decrypt(driveAccount.access_token as string);
-    }
-
     // Use UTC time directly for scheduling
     const now = new Date();
     const utcHour = now.getUTCHours();
@@ -307,7 +265,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const googleToken = await getDriveToken(wf.user_id, wf.drive_account_id);
+      const googleToken = await getDriveToken(wf.user_id, wf.drive_account_id, driveTokenCtx);
       if (!googleToken) {
         errors.push(`No Google Drive connected for workflow ${wf.id} (user ${wf.user_id})`);
         continue;
@@ -382,22 +340,6 @@ Deno.serve(async (req) => {
           continue;
         }
         rows = fetchedRows;
-      }
-
-      // Update trigger tracking now that we know we have data
-      const triggerUpdate = isManualRun
-        ? { last_manual_triggered_at: new Date().toISOString() }
-        : { last_triggered_at: new Date().toISOString() };
-      const { error: triggerError } = await supabase
-        .from("workflows")
-        .update(triggerUpdate)
-        .eq("id", wf.id);
-      if (triggerError) {
-        console.error("Failed to update trigger time", wf.id, triggerError);
-        errors.push(
-          `Failed to claim workflow ${wf.id}: ${triggerError.message}`,
-        );
-        continue;
       }
 
       const headers = rows[0] ?? [];
@@ -1168,6 +1110,21 @@ Deno.serve(async (req) => {
         if (updateError) {
           console.error("Failed to update workflow stats", updateError);
           errors.push(`Failed to update stats for workflow ${wf.id}: ${updateError.message}`);
+        }
+
+        const triggerUpdate = isManualRun
+          ? { last_manual_triggered_at: new Date().toISOString() }
+          : { last_triggered_at: new Date().toISOString() };
+        const { error: triggerError } = await supabase
+          .from("workflows")
+          .update(triggerUpdate)
+          .eq("id", wf.id);
+
+        if (triggerError) {
+          console.error("Failed to update trigger time", wf.id, triggerError);
+          errors.push(
+            `Failed to record trigger time for workflow ${wf.id}: ${triggerError.message}`,
+          );
         }
       }
     }

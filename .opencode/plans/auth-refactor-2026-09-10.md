@@ -40,12 +40,13 @@ Rules:
 - [x] 2. `vitest.config.ts` include extended (3 test files / 39 tests green). `auth.ts`/`groq.ts` importable by vitest — no Deno at import time.
 - [x] 3. C1: `generate-ai-captions` wired to `isRequestAuthorized`; local `isAuthorized` + anon-key path removed.
 - [x] 4. C2: `_shared/groq.ts` `sanitizeChatOptions` (12 tests green) wired into groq-chat — model whitelist (`openai/gpt-oss-120b`, `qwen/qwen3.6-27b`), max_tokens cap 8192.
-- [ ] 5. R1: `_shared/google-drive.ts`; refactor both functions to use it.
-- [ ] 6. R2: fix `last_triggered_at` ordering in process-workflow.
+- [x] 5. R1: `_shared/google-drive.ts` (15 tests green); refactored generate-ai-captions + process-workflow to use it (duplicate `getDriveToken`/`getDriveAccount` removed).
+- [x] 6. R2: `last_triggered_at` update moved to after successful row processing in process-workflow (recorded only when `workflowVideoCount > 0`).
 - [ ] 7. Commit (per git-workflow): auth helper as one commit, wiring as another.
 
 ## Verified
-- `npx vitest run` → 3 files, 39 tests pass. `npx tsc --noEmit` → clean.
+- Current suite: 4 files, 54 tests pass. `npx tsc --noEmit` → clean. Both rewired functions parse (esbuild transform OK). `graphify update .` run.
+- R1 parity: refresh threshold (<5 min), refresh URL + service-role header, fallback-to-existing, null on missing account/token — all preserved via held-out tests.
 - Key finding while wiring: `supabase.functions.invoke` sends ONLY invoke-level headers (FunctionsClient.js:126 → client headers empty in this repo). So `generate-ai-captions` accent legit calls receive `Authorization: Bearer flowpost_token` + NO apikey — meaning the anon-key branch was the only thing ever authorizing them (C1) and, with anon removed, the session token is now what's actually validated. Frontend `captions.ts` needs no change.
 - No Deno CLI on this machine; `deno check` unavailable (consistent with tsc excluding `supabase/`).
 

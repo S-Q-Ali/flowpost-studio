@@ -1,7 +1,8 @@
-import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+﻿import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { decrypt } from "../_shared/crypto.ts";
 import { createSessionLookup, isRequestAuthorized } from "../_shared/auth.ts";
 import { sanitizeChatOptions } from "../_shared/groq.ts";
+import { getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
 import { PROMPT_TEMPLATES, getDefaultMasterPrompt } from "./prompt-templates.ts";
 
 const corsHeaders = {
@@ -19,12 +20,21 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for generate-ai-captions");
 }
 if (!GROQ_API_KEY) {
-  console.error("Missing GROQ_API_KEY — caption generation will fail");
+  console.error("Missing GROQ_API_KEY â€” caption generation will fail");
 }
 
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
+
+const driveTokenCtx: DriveTokenContext = {
+  supabase,
+  decrypt,
+  fetch: (url, init) => fetch(url, init),
+  now: () => new Date(),
+  supabaseUrl: SUPABASE_URL!,
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY!,
+};
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -85,14 +95,14 @@ async function generateCaptions(
 
   const systemPrompt = `You are an expert social media content strategist. Generate captions for a video file named "${fileName}".
 
-Follow this prompt template EXACTLY — return valid JSON matching the output_format below.
+Follow this prompt template EXACTLY â€” return valid JSON matching the output_format below.
 
 ${promptJson}
 ${platformHint}
 
-Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
+Return ONLY valid JSON â€” no markdown, no code fences, no explanation.`;
 
-  const userMessage = `Video transcript:\n\n${transcript || "No transcript available — generate captions based on the file name and general best practices."}`;
+  const userMessage = `Video transcript:\n\n${transcript || "No transcript available â€” generate captions based on the file name and general best practices."}`;
 
   const chatRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -139,58 +149,6 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
   }
 
   return captions;
-}
-
-async function getDriveAccount(userId: string, driveAccountId?: string | null) {
-  let query = supabase
-    .from("connected_accounts")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("platform", "google_drive")
-    .eq("is_connected", true);
-
-  if (driveAccountId) {
-    query = query.eq("id", driveAccountId);
-  }
-
-  return await query.maybeSingle();
-}
-
-async function getDriveToken(userId: string, driveAccountId?: string | null): Promise<string | null> {
-  const { data: driveAccount } = await getDriveAccount(userId, driveAccountId);
-  if (!driveAccount?.access_token) return null;
-
-  const tokenExpiry = driveAccount.token_expiry ? new Date(driveAccount.token_expiry) : null;
-  if (tokenExpiry && tokenExpiry.getTime() - Date.now() < 5 * 60 * 1000) {
-    // Token expiring soon — refresh it
-    const rawRefresh = await decrypt(driveAccount.refresh_token as string);
-    if (rawRefresh) {
-      try {
-        const refreshUrl = `${SUPABASE_URL}/functions/v1/google-drive-auth?action=refresh&user_id=${userId}${driveAccountId ? `&account_id=${driveAccountId}` : ""}`;
-        const refreshRes = await fetch(
-          refreshUrl,
-          { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
-        );
-        if (refreshRes.ok) {
-          // Re-fetch the updated token
-          let refreshQuery = supabase
-            .from("connected_accounts")
-            .select("access_token")
-            .eq("user_id", userId)
-            .eq("platform", "google_drive");
-          if (driveAccountId) {
-            refreshQuery = refreshQuery.eq("id", driveAccountId);
-          }
-          const { data: refreshed } = await refreshQuery.single();
-          if (refreshed?.access_token) return await decrypt(refreshed.access_token as string);
-        }
-      } catch (e) {
-        console.warn(`Drive token refresh failed for user ${userId}:`, e);
-      }
-    }
-  }
-
-  return await decrypt(driveAccount.access_token as string);
 }
 
 Deno.serve(async (req) => {
@@ -319,7 +277,7 @@ Deno.serve(async (req) => {
         return json({ error: "Workflow not found" }, 404);
       }
 
-      const driveToken = await getDriveToken(workflow.user_id, workflow.drive_account_id);
+      const driveToken = await getDriveToken(workflow.user_id, workflow.drive_account_id, driveTokenCtx);
       if (!driveToken) {
         return json({ error: "No Google Drive token available" }, 400);
       }
@@ -383,7 +341,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const driveToken = await getDriveToken(workflow.user_id, workflow.drive_account_id);
+    const driveToken = await getDriveToken(workflow.user_id, workflow.drive_account_id, driveTokenCtx);
     if (!driveToken) {
       return json({ error: "No Google Drive token available" }, 400);
     }
