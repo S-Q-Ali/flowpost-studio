@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { decrypt } from "../_shared/crypto.ts";
+import { createSessionLookup, isRequestAuthorized } from "../_shared/auth.ts";
+import { sanitizeChatOptions } from "../_shared/groq.ts";
 import { PROMPT_TEMPLATES, getDefaultMasterPrompt } from "./prompt-templates.ts";
 
 const corsHeaders = {
@@ -30,13 +32,6 @@ function json(data: unknown, status = 200) {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
-
-const isAuthorized =
-  (bearerToken: string | null, apiKeyHeader: string | null) =>
-    bearerToken === SUPABASE_SERVICE_ROLE_KEY ||
-    bearerToken === SUPABASE_ANON_KEY ||
-    bearerToken === FRONTEND_API_KEY ||
-    apiKeyHeader === FRONTEND_API_KEY;
 
 async function transcribeAudio(audioUrl: string, mimeType: string, driveToken: string): Promise<string> {
   const response = await fetch(audioUrl, {
@@ -207,11 +202,18 @@ Deno.serve(async (req) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
-  const authHeader = req.headers.get("Authorization");
-  const apiKeyHeader = req.headers.get("apikey");
-  const bearerToken = authHeader?.replace("Bearer ", "");
+  const authResult = await isRequestAuthorized({
+    authorizationHeader: req.headers.get("Authorization"),
+    adminTokenHeader: req.headers.get("x-admin-token"),
+    apiKeyHeader: req.headers.get("apikey"),
+    serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+    cronApiKey: null,
+    frontendApiKey: FRONTEND_API_KEY,
+    anonKey: SUPABASE_ANON_KEY,
+    sessionLookup: createSessionLookup(supabase),
+  });
 
-  if (!isAuthorized(bearerToken, apiKeyHeader)) {
+  if (!authResult.allowed) {
     return json({ error: "Unauthorized" }, 401);
   }
 
@@ -260,9 +262,9 @@ Deno.serve(async (req) => {
     if (!GROQ_API_KEY) {
       return json({ error: "Groq API key not configured" }, 500);
     }
-    const { model, messages, temperature, max_tokens } = body as Record<string, unknown>;
-    if (!model || !messages) {
-      return json({ error: "model and messages are required" }, 400);
+    const sanitized = sanitizeChatOptions(body);
+    if (!sanitized.ok) {
+      return json({ error: sanitized.reason }, 400);
     }
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -271,7 +273,12 @@ Deno.serve(async (req) => {
           Authorization: `Bearer ${GROQ_API_KEY}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ model, messages, temperature, max_tokens }),
+        body: JSON.stringify({
+          model: sanitized.model,
+          messages: sanitized.messages,
+          temperature: sanitized.temperature,
+          max_tokens: sanitized.max_tokens,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
