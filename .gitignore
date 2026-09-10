@@ -29,3 +29,7 @@ flowpost-wrokflow.json
 zinc-bucksaw-489020-n0-d456522f61c7.json
 *.local
 supabase/.temp/
+
+# graphify — commit the graph, keep machine-specific sidecars + cost local
+graphify-out/cost.json
+graphify-out/.graphify_*

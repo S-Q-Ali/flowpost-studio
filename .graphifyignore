@@ -1,0 +1,13 @@
+# graphify corpus exclusions (gitignore syntax; merged with .gitignore, wins on conflict)
+# separate/third-party projects — keep the graph focused on the FlowPost app
+flowpost-extension/
+metamax-digital-bridge_v1.6/
+screenshots/
+eng.traineddata
+
+# build artifacts / generated output
+*.tsbuildinfo
+
+# graphify self-output
+graphify-out/
+raw/
