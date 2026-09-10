@@ -1,16 +1,16 @@
 # Graph Report - flowpost-studio  (2026-09-10)
 
 ## Corpus Check
-- 192 files · ~178,903 words
+- 192 files · ~179,539 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1725 nodes · 2635 edges · 176 communities (107 shown, 46 thin omitted)
+- 1741 nodes · 2674 edges · 170 communities (101 shown, 46 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 4 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `9564881d`
+- Built from commit: `8cee33dd`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -22,38 +22,36 @@
 - Runtime Dependencies
 - package.json
 - use-toast.ts
-- sidebar.tsx
+- cn
 - Dev Dependencies
 - Admin Auth & Rate Limits
-- cn
+- next-themes
 - captions.ts
 - generate-ai-captions/index.ts
 - TypeScript App Config
-- UserMenu.tsx
-- utils.ts
+- fetch-facebook-insights/index.ts
+- NotFound.tsx
 - Components Config
-- CaptionPreviewModal.tsx
 - Google Drive OAuth
-- encrypt
+- instagram-upload/index.ts
 - crypto.ts
 - TypeScript Node Config
-- process-workflow/index.ts
 - TikTok OAuth
 - Facebook OAuth
 - Instagram OAuth
-- Auth Context
+- AuthContext.tsx
 - LinkedIn OAuth
 - YouTube OAuth
 - Supabase Types
 - Drive-to-Mega OAuth
 - tiktok-upload/index.ts
-- YouTube Upload
+- youtube-upload/index.ts
 - Admin Users
 - Migration: Initial Schema
 - Package Scripts
-- Scheduling Utilities
-- LinkedIn Upload
-- Post Story Upload
+- scheduling.ts
+- linkedin-upload/index.ts
+- post-story/index.ts
 - Sheet Status Function
 - Root TypeScript Config
 - ESLint Config
@@ -110,7 +108,7 @@
 - Test-Driven Development
 - Performance Checklist
 - Git Workflow and Versioning
-- react
+- ProfilePage.tsx
 - Shipping and Launch
 - What You Must Do When Invoked
 - Performance Optimization
@@ -141,7 +139,6 @@
 - Current Issues
 - FlowPost Studio — User Guide
 - Troubleshooting
-- CaptionPromptEditor.tsx
 - Logo.tsx
 - graphify reference: extra exports and benchmark
 - FlowPost Studio — Agent Operating Rules
@@ -152,7 +149,7 @@
 - Test Coverage Analysis — FlowPost Studio (2026-09-10)
 - Connected Accounts
 - graphify reference: query, path, explain
-- auth.test.ts
+- auth.ts
 - graphify reference: add a URL and watch a folder
 - graphify reference: commit hook and native CLAUDE.md integration
 - graphify reference: incremental update and cluster-only
@@ -164,10 +161,7 @@
 - graphify reference: transcribe video and audio
 - Dashboard
 - extraction-spec.md
-- google-drive.test.ts
-- groq.ts
 - SQA & Performance Audit Plan
-- mega-auth/index.ts
 
 ## God Nodes (most connected - your core abstractions)
 1. `cn()` - 125 edges
@@ -182,53 +176,53 @@
 10. `decrypt()` - 19 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `CaptionPromptEditorProps` --references--> `MasterPrompt`  [EXTRACTED]
-  src/components/CaptionPromptEditor.tsx → src/lib/prompt-templates.ts
-- `AlertDialogOverlay` --calls--> `cn()`  [EXTRACTED]
-  src/components/ui/alert-dialog.tsx → src/lib/utils.ts
-- `DialogOverlay` --calls--> `cn()`  [EXTRACTED]
-  src/components/ui/dialog.tsx → src/lib/utils.ts
-- `DropdownMenuSubTrigger` --calls--> `cn()`  [EXTRACTED]
-  src/components/ui/dropdown-menu.tsx → src/lib/utils.ts
-- `DropdownMenuSubContent` --calls--> `cn()`  [EXTRACTED]
-  src/components/ui/dropdown-menu.tsx → src/lib/utils.ts
+- `RequireVerified()` --calls--> `useAuth()`  [EXTRACTED]
+  src/App.tsx → src/contexts/AuthContext.tsx
+- `AppRoutes()` --calls--> `useAuth()`  [EXTRACTED]
+  src/App.tsx → src/contexts/AuthContext.tsx
+- `ToastAction` --calls--> `cn()`  [EXTRACTED]
+  src/components/ui/toast.tsx → src/lib/utils.ts
+- `AuthCallback()` --calls--> `useAuth()`  [EXTRACTED]
+  src/pages/AuthCallback.tsx → src/contexts/AuthContext.tsx
+- `AppSidebar()` --calls--> `useAuth()`  [EXTRACTED]
+  src/components/AppSidebar.tsx → src/contexts/AuthContext.tsx
 
 ## Import Cycles
 - None detected.
 
-## Communities (176 total, 46 thin omitted)
+## Communities (170 total, 46 thin omitted)
 
 ### Community 0 - "QueuePage.tsx"
-Cohesion: 0.18
-Nodes (19): AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter(), AlertDialogHeader(), AlertDialogOverlay, AlertDialogTitle (+11 more)
+Cohesion: 0.19
+Nodes (18): AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter(), AlertDialogHeader(), AlertDialogTitle, Button (+10 more)
 
 ### Community 1 - "App.tsx"
-Cohesion: 0.14
-Nodes (12): AccountsPage, App(), AuthCallback, Dashboard, NotFound, ProfilePage, PUBLIC_PATHS, QueuePage (+4 more)
+Cohesion: 0.11
+Nodes (17): AccountsPage, App(), AppRoutes(), AuthCallback, CalendarPage, Dashboard, InsightsPage, ProfilePage (+9 more)
 
 ### Community 2 - "StoragePage"
 Cohesion: 0.09
 Nodes (32): megajs, callTransferTicket(), DriveFileInfo, fetchDriveStream(), getDriveFileInfo(), resolveMegaFolder(), transferDriveToMega(), TransferListener (+24 more)
 
 ### Community 3 - "WorkflowItemsPage.tsx"
-Cohesion: 0.11
-Nodes (20): recharts, InsightsPage, CaptionPreviewModal(), Skeleton(), useLocalStorage(), ConnectedAccount, DateRange, InsightsPage() (+12 more)
+Cohesion: 0.10
+Nodes (25): CaptionPromptEditor(), normalizeField(), templateOptions, SelectContent, SelectItem, SelectTrigger, Skeleton(), Textarea (+17 more)
 
 ### Community 4 - "Runtime Dependencies"
 Cohesion: 0.06
 Nodes (31): dependencies, class-variance-authority, clsx, date-fns, lucide-react, megajs, next-themes, @radix-ui/react-alert-dialog (+23 more)
 
 ### Community 5 - "package.json"
-Cohesion: 0.07
-Nodes (28): name, private, type, version, autoprefixer, clsx, eslint, jsdom (+20 more)
+Cohesion: 0.06
+Nodes (32): name, private, type, version, autoprefixer, clsx, eslint, jsdom (+24 more)
 
 ### Community 6 - "use-toast.ts"
 Cohesion: 0.12
-Nodes (24): Toast, ToastAction, ToastActionElement, ToastClose, ToastDescription, ToastProps, ToastTitle, toastVariants (+16 more)
+Nodes (25): @radix-ui/react-toast, Toast, ToastAction, ToastActionElement, ToastClose, ToastDescription, ToastProps, ToastTitle (+17 more)
 
-### Community 7 - "sidebar.tsx"
-Cohesion: 0.07
-Nodes (35): @radix-ui/react-slot, AppLayout(), AppSidebar(), navItems, NavLink, NavLinkCompatProps, Separator, Sidebar (+27 more)
+### Community 7 - "cn"
+Cohesion: 0.05
+Nodes (68): @radix-ui/react-dialog, @radix-ui/react-dropdown-menu, @radix-ui/react-radio-group, AppSidebar(), navItems, NavLink, NavLinkCompatProps, AlertDialogOverlay (+60 more)
 
 ### Community 8 - "Dev Dependencies"
 Cohesion: 0.09
@@ -238,53 +232,45 @@ Nodes (22): devDependencies, autoprefixer, eslint, @eslint/js, eslint-plugin-rea
 Cohesion: 0.14
 Nodes (16): checkRateLimit(), LOCKOUT_DURATION_MINUTES, MAX_ATTEMPTS, recordFailedAttempt(), resetRateLimit(), APP_PASSWORD, corsHeaders, supabase (+8 more)
 
-### Community 10 - "cn"
-Cohesion: 0.14
-Nodes (21): @radix-ui/react-radio-group, @radix-ui/react-select, CardFooter, RadioGroup, RadioGroupItem, SelectContent, SelectItem, SelectLabel (+13 more)
+### Community 10 - "next-themes"
+Cohesion: 0.50
+Nodes (3): next-themes, Toaster(), ToasterProps
 
 ### Community 11 - "captions.ts"
-Cohesion: 0.18
-Nodes (22): AICaptionResult, downloadVideo(), emit(), extractAudio(), extractFrames(), generateAICaptions(), GenerateCaptionsOptions, getFileToken() (+14 more)
+Cohesion: 0.16
+Nodes (24): CaptionPromptEditorProps, AICaptionResult, downloadVideo(), emit(), extractAudio(), extractFrames(), generateAICaptions(), GenerateCaptionsOptions (+16 more)
 
 ### Community 12 - "generate-ai-captions/index.ts"
-Cohesion: 0.13
-Nodes (15): corsHeaders, driveTokenCtx, FRONTEND_API_KEY, generateCaptions(), GROQ_API_KEY, json(), PLATFORM_ALLOWED_KEYS, supabase (+7 more)
+Cohesion: 0.05
+Nodes (39): vitest, corsHeaders, driveTokenCtx, FRONTEND_API_KEY, generateCaptions(), GROQ_API_KEY, json(), PLATFORM_ALLOWED_KEYS (+31 more)
 
 ### Community 13 - "TypeScript App Config"
 Cohesion: 0.10
 Nodes (19): compilerOptions, allowImportingTsExtensions, isolatedModules, jsx, lib, module, moduleDetection, moduleResolution (+11 more)
 
-### Community 14 - "UserMenu.tsx"
-Cohesion: 0.16
-Nodes (15): @radix-ui/react-avatar, @radix-ui/react-dropdown-menu, Avatar, AvatarFallback, AvatarImage, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem (+7 more)
+### Community 14 - "fetch-facebook-insights/index.ts"
+Cohesion: 0.67
+Nodes (3): corsHeaders, fetchMeta(), fetchSingleMetric()
 
 ### Community 16 - "Components Config"
 Cohesion: 0.12
 Nodes (16): aliases, components, hooks, lib, ui, utils, rsc, $schema (+8 more)
 
-### Community 17 - "CaptionPreviewModal.tsx"
-Cohesion: 0.22
-Nodes (11): @radix-ui/react-dialog, CAPTION_LABELS, CaptionPreviewModalProps, STEP_LABELS, StepId, DialogContent, DialogDescription, DialogFooter() (+3 more)
-
 ### Community 18 - "Google Drive OAuth"
 Cohesion: 0.14
 Nodes (15): corsHeaders, exchangeCodeForTokens(), fetchDriveUserInfo(), GD_CLIENT_ID, GD_CLIENT_SECRET, json(), R2_ACCESS_KEY, R2_BUCKET (+7 more)
 
-### Community 19 - "encrypt"
-Cohesion: 0.25
-Nodes (7): corsHeaders, resolveMediaUrl(), supabase, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, encrypt()
+### Community 19 - "instagram-upload/index.ts"
+Cohesion: 0.12
+Nodes (13): authorize, corsHeaders, supabase, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, authorize, corsHeaders (+5 more)
 
 ### Community 20 - "crypto.ts"
-Cohesion: 0.12
-Nodes (14): corsHeaders, fetchMeta(), fetchSingleMetric(), corsHeaders, corsHeaders, supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL (+6 more)
+Cohesion: 0.11
+Nodes (17): corsHeaders, corsHeaders, supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, resolveMediaUrl(), corsHeaders, SUPABASE_SERVICE_ROLE_KEY (+9 more)
 
 ### Community 21 - "TypeScript Node Config"
 Cohesion: 0.12
 Nodes (15): compilerOptions, allowImportingTsExtensions, isolatedModules, lib, module, moduleDetection, moduleResolution, noEmit (+7 more)
-
-### Community 22 - "process-workflow/index.ts"
-Cohesion: 0.12
-Nodes (11): corsHeaders, CRON_API_KEY, driveTokenCtx, R2_ACCESS_KEY, R2_BUCKET, R2_ENDPOINT, R2_SECRET_KEY, SheetValuesResponse (+3 more)
 
 ### Community 23 - "TikTok OAuth"
 Cohesion: 0.16
@@ -298,9 +284,9 @@ Nodes (11): corsHeaders, exchangeCodeForUserToken(), FB_APP_ID, FB_APP_SECRET, f
 Cohesion: 0.19
 Nodes (11): APP_ID, APP_SECRET, corsHeaders, exchangeCodeForShortLivedToken(), fetchIgProfile(), getLongLivedToken(), json(), SUPABASE_ANON_KEY (+3 more)
 
-### Community 26 - "Auth Context"
-Cohesion: 0.29
-Nodes (11): AuthContext, AuthContextValue, AuthProvider(), clearCache(), clearVerifyCache(), getCache(), getStoredToken(), getVerifyCache() (+3 more)
+### Community 26 - "AuthContext.tsx"
+Cohesion: 0.13
+Nodes (21): date-fns, AuthContext, AuthContextValue, AuthProvider(), clearCache(), clearVerifyCache(), getCache(), getStoredToken() (+13 more)
 
 ### Community 27 - "LinkedIn OAuth"
 Cohesion: 0.20
@@ -319,12 +305,12 @@ Cohesion: 0.22
 Nodes (8): corsHeaders, GD_CLIENT_ID, GD_CLIENT_SECRET, start(), SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, supabaseAdmin, uploadWithMega()
 
 ### Community 31 - "tiktok-upload/index.ts"
-Cohesion: 0.12
-Nodes (12): corsHeaders, supabase, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, updateSheetStatus(), ALLOWED_DOMAINS, corsHeaders (+4 more)
+Cohesion: 0.18
+Nodes (7): ALLOWED_DOMAINS, authorize, corsHeaders, supabase, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
 
-### Community 32 - "YouTube Upload"
-Cohesion: 0.22
-Nodes (7): ALLOWED_DOMAINS, corsHeaders, json(), refreshYouTubeToken(), supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
+### Community 32 - "youtube-upload/index.ts"
+Cohesion: 0.20
+Nodes (8): ALLOWED_DOMAINS, authorize, corsHeaders, json(), refreshYouTubeToken(), supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
 
 ### Community 33 - "Admin Users"
 Cohesion: 0.05
@@ -338,17 +324,17 @@ Nodes (7): public.connected_accounts, public.posts, public.videos, public.workfl
 Cohesion: 0.25
 Nodes (8): scripts, build, build:dev, dev, lint, preview, test, test:watch
 
-### Community 36 - "Scheduling Utilities"
-Cohesion: 0.46
-Nodes (7): computeTargetsForDay(), formatTime(), getDayLabel(), getItemPublishTime(), getNextPublishTime(), simpleHash(), Workflow
+### Community 36 - "scheduling.ts"
+Cohesion: 0.57
+Nodes (6): computeTargetsForDay(), formatTime(), getDayLabel(), getItemPublishTime(), getNextPublishTime(), simpleHash()
 
-### Community 37 - "LinkedIn Upload"
-Cohesion: 0.29
-Nodes (5): corsHeaders, supabase, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
+### Community 37 - "linkedin-upload/index.ts"
+Cohesion: 0.25
+Nodes (6): authorize, corsHeaders, supabase, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
 
-### Community 38 - "Post Story Upload"
-Cohesion: 0.29
-Nodes (5): corsHeaders, PostStoryPayload, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SupportedPlatform
+### Community 38 - "post-story/index.ts"
+Cohesion: 0.20
+Nodes (8): authorize, corsHeaders, PostStoryPayload, supabase, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SupportedPlatform
 
 ### Community 39 - "Sheet Status Function"
 Cohesion: 0.29
@@ -410,9 +396,9 @@ Nodes (26): API, Backend Checklist, Cache checklist, Caching Strategies, Common 
 Cohesion: 0.07
 Nodes (26): 1. Commit Early, Commit Often, 2. Atomic Commits, 3. Descriptive Messages, 4. Keep Concerns Separate, 5. Size Your Changes, Branch Naming, Branching Strategy, Change Summaries (+18 more)
 
-### Community 118 - "react"
-Cohesion: 0.23
-Nodes (14): class-variance-authority, react, react-router-dom, extractError(), SecurityQuestionsGate(), setStoredToken(), Card, CardContent (+6 more)
+### Community 118 - "ProfilePage.tsx"
+Cohesion: 0.17
+Nodes (18): class-variance-authority, react-router-dom, sonner, extractError(), SecurityQuestionsGate(), setStoredToken(), Card, CardContent (+10 more)
 
 ### Community 119 - "Shipping and Launch"
 Cohesion: 0.08
@@ -439,8 +425,8 @@ Cohesion: 0.09
 Nodes (21): ADR Lifecycle, ADR Template, API Documentation, Architecture Decision Records (ADRs), Changelog Maintenance, Common Rationalizations, Document Known Gotchas, Documentation and ADRs (+13 more)
 
 ### Community 125 - "WorkflowsPage.tsx"
-Cohesion: 0.15
-Nodes (17): BetaBadge(), Badge(), BadgeProps, badgeVariants, Checkbox, PopoverContent, Switch, supabase (+9 more)
+Cohesion: 0.16
+Nodes (19): react, BetaBadge(), Badge(), BadgeProps, badgeVariants, Checkbox, Input, PopoverContent (+11 more)
 
 ### Community 126 - "FlowPost Studio"
 Cohesion: 0.10
@@ -451,8 +437,8 @@ Cohesion: 0.10
 Nodes (20): 55. Per-Item Publish Times for Custom Ranges (2026-07-22), 56. Sort Preference Persisted in localStorage (2026-07-22), 57. Infinite Loading Fix — WorkflowItemsPage (2026-07-22), 58. Skeleton Loading — InsightsPage (2026-07-22), 59. Skeleton Loading — ProfilePage (2026-07-22), 60. FlowPost Bridge Extension — Monetization Eligibility Checker (2026-07-23), 61. Extension Improvements — Token Fallback, Fetch Pages Bridge, DOM Extraction (2026-07-23), 62. Phase 1 Persistence — Eligibility Results Saved to Supabase (2026-07-23) (+12 more)
 
 ### Community 128 - "CalendarPage.tsx"
-Cohesion: 0.17
-Nodes (15): lucide-react, sonner, CalendarPage, config, PlatformIcon(), StatusBadge(), statusConfig, CarouselItem (+7 more)
+Cohesion: 0.12
+Nodes (23): lucide-react, CAPTION_LABELS, CaptionPreviewModal(), CaptionPreviewModalProps, STEP_LABELS, StepId, config, PlatformIcon() (+15 more)
 
 ### Community 129 - "Security Checklist"
 Cohesion: 0.11
@@ -463,8 +449,8 @@ Cohesion: 0.12
 Nodes (16): Accessibility Checklist, Accessible Lists, ARIA Roles, Buttons vs. Links, Common Anti-Patterns, Common HTML Patterns, Content, Essential Checks (+8 more)
 
 ### Community 131 - "PipelineLandingPage.tsx"
-Cohesion: 0.10
-Nodes (6): next-themes, PipelineLandingPage, Toaster(), ToasterProps, PipelineLandingPage(), useScrollReveal()
+Cohesion: 0.12
+Nodes (3): PipelineLandingPage, PipelineLandingPage(), useScrollReveal()
 
 ### Community 132 - "Web Performance Auditor"
 Cohesion: 0.12
@@ -491,8 +477,8 @@ Cohesion: 0.15
 Nodes (12): 1. Input Handling, 2. Authentication & Authorization, 3. Data Protection, 4. Infrastructure, 5. Third-Party Integrations, 6. AI / LLM Features (if present), Composition, Output Format (+4 more)
 
 ### Community 138 - "useAuth"
-Cohesion: 0.11
-Nodes (24): date-fns, AppRoutes(), RequireVerified(), ToolsPage, CardTitle, useAuth(), usePageLoading(), AccountsPage() (+16 more)
+Cohesion: 0.26
+Nodes (11): useAuth(), usePageLoading(), AccountsPage(), CalendarPage(), Dashboard(), LoginPage(), ProfilePage(), QueuePage() (+3 more)
 
 ### Community 139 - "Google Sheets & FlowPost Workflows"
 Cohesion: 0.15
@@ -534,10 +520,6 @@ Nodes (10): Authentication, Content Calendar, FlowPost Studio — User Guide, Ge
 Cohesion: 0.18
 Nodes (11): AI Caption Generation Fails, CORS Errors in Browser Console, FlowPost Workflow Not Triggering, Getting Help, Google Drive / Mega Issues, Google Sheets Workflow Not Triggering, LinkedIn Post Fails, OAuth Errors (+3 more)
 
-### Community 149 - "CaptionPromptEditor.tsx"
-Cohesion: 0.20
-Nodes (11): @radix-ui/react-tabs, CaptionPromptEditor(), CaptionPromptEditorProps, normalizeField(), templateOptions, TabsContent, TabsList, TabsTrigger (+3 more)
-
 ### Community 150 - "Logo.tsx"
 Cohesion: 0.24
 Nodes (5): PrivacyPage, TermsPage, Logo(), LogoProps, sizeMap
@@ -578,9 +560,9 @@ Nodes (7): Connected Accounts, Connecting an Account, LinkedIn Notes, Managing C
 Cohesion: 0.33
 Nodes (5): For /graphify explain, For /graphify path, graphify reference: query, path, explain, Step 0 — Constrained query expansion (REQUIRED before traversal), Step 1 — Traversal
 
-### Community 160 - "auth.test.ts"
-Cohesion: 0.31
-Nodes (8): AuthInputs, AuthResult, bearerOf(), createSessionLookup(), isRequestAuthorized(), SessionLookupResult, lookupResult(), stubSupabase()
+### Community 160 - "auth.ts"
+Cohesion: 0.18
+Nodes (14): AuthInputs, AuthResult, bearerOf(), createRequestAuthorizer(), createSessionLookup(), get(), isRequestAuthorized(), RequestAuthorizer (+6 more)
 
 ### Community 161 - "graphify reference: add a URL and watch a folder"
 Cohesion: 0.50
@@ -610,41 +592,29 @@ Nodes (4): Google Drive, Mega, Storage Manager, Transfer Files
 Cohesion: 0.67
 Nodes (3): Dashboard, Recent Activity, Stats Cards
 
-### Community 172 - "google-drive.test.ts"
-Cohesion: 0.36
-Nodes (7): buildRefreshUrl(), DriveTokenContext, getDriveToken(), shouldRefreshToken(), fakeSupabase(), makeCtx(), NOW
-
-### Community 173 - "groq.ts"
-Cohesion: 0.36
-Nodes (6): vitest, ALLOWED_CHAT_MODELS, DEFAULT_CHAT_TOKENS, MAX_CHAT_TOKENS, sanitizeChatOptions(), SanitizedChatOptions
-
 ### Community 174 - "SQA & Performance Audit Plan"
 Cohesion: 0.29
 Nodes (7): Phase 1 — Unit Tests, Phase 2 — Edge Function Integration Tests, Phase 3 — React Component Tests, Phase 4 — Manual E2E Test Cases, Phase 5 — Post-Deploy Smoke Tests, SQA & Performance Audit Plan, Test Infrastructure
 
-### Community 175 - "mega-auth/index.ts"
-Cohesion: 0.33
-Nodes (4): corsHeaders, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, supabaseAdmin
-
 ## Knowledge Gaps
-- **971 isolated node(s):** `$schema`, `plugin`, `$schema`, `style`, `rsc` (+966 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1143 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **982 isolated node(s):** `$schema`, `plugin`, `$schema`, `style`, `rsc` (+977 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1155 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **46 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `vitest` connect `groq.ts` to `auth.test.ts`, `google-drive.test.ts`, `package.json`, `utils.ts`?**
-  _High betweenness centrality (0.086) - this node is a cross-community bridge._
-- **Why does `react` connect `react` to `QueuePage.tsx`, `App.tsx`, `CalendarPage.tsx`, `WorkflowItemsPage.tsx`, `PipelineLandingPage.tsx`, `package.json`, `use-toast.ts`, `sidebar.tsx`, `cn`, `useAuth`, `UserMenu.tsx`, `utils.ts`, `CaptionPreviewModal.tsx`, `CaptionPromptEditor.tsx`, `Auth Context`, `WorkflowsPage.tsx`?**
+- **Why does `vitest` connect `generate-ai-captions/index.ts` to `auth.ts`, `package.json`?**
+  _High betweenness centrality (0.088) - this node is a cross-community bridge._
+- **Why does `react` connect `WorkflowsPage.tsx` to `QueuePage.tsx`, `App.tsx`, `CalendarPage.tsx`, `WorkflowItemsPage.tsx`, `PipelineLandingPage.tsx`, `package.json`, `use-toast.ts`, `cn`, `NotFound.tsx`, `ProfilePage.tsx`, `AuthContext.tsx`?**
   _High betweenness centrality (0.030) - this node is a cross-community bridge._
-- **Why does `decrypt()` connect `crypto.ts` to `YouTube Upload`, `LinkedIn Upload`, `Post Story Upload`, `generate-ai-captions/index.ts`, `mega-auth/index.ts`, `Google Drive OAuth`, `encrypt`, `process-workflow/index.ts`, `TikTok OAuth`, `YouTube OAuth`, `Drive-to-Mega OAuth`, `tiktok-upload/index.ts`?**
+- **Why does `cn()` connect `cn` to `QueuePage.tsx`, `CalendarPage.tsx`, `WorkflowItemsPage.tsx`, `use-toast.ts`, `useAuth`, `generate-ai-captions/index.ts`, `ProfilePage.tsx`, `Logo.tsx`, `WorkflowsPage.tsx`?**
   _High betweenness centrality (0.029) - this node is a cross-community bridge._
 - **What connects `$schema`, `plugin`, `$schema` to the rest of the system?**
-  _971 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _982 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `App.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.14166666666666666 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.1111111111111111 - nodes in this community are weakly interconnected._
 - **Should `StoragePage` be split into smaller, more focused modules?**
   _Cohesion score 0.09411764705882353 - nodes in this community are weakly interconnected._
 - **Should `WorkflowItemsPage.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.11 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10416666666666667 - nodes in this community are weakly interconnected._
