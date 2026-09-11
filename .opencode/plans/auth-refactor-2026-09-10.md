@@ -95,4 +95,13 @@ Decisions locked: OAuth callbacks stay open (state hardening in-band via `oauth_
 - [x] Live smoke: no-auth/anon bearer/anon apikey → 401; real session row → 200 + user-scoped quota; cross-user url → 401; forged/legacy state callback → 400. Smoke session + states cleaned up.
 
 ### Slice D — XSS hardening (localStorage risk)
-- Pending: externalize inline theme script (`index.html` → `public/theme.js`); add CSP + security headers via `vercel.json` (script-src 'self', connect-src incl. `*.supabase.co`, Google Fonts; frame-ancestors; X-Content-Type-Options; Referrer-Policy; Permissions-Policy).
+- [x] Externalized inline theme script to `public/theme.js` (synchronous in `<head>`, no FOUC); `index.html` now loads via `<script src="/theme.js">`.
+- [x] `vercel.json` hardened: `Content-Security-Policy` (`script-src 'self'`; `style-src 'self' 'unsafe-inline'`; `img-src self data: https:`; `connect-src self` + supabase/googleapis/r2.dev; `frame-ancestors 'none'`; `base-uri self`; `form-action self`); plus HSTS, nosniff, DENY frame, referrer, permissions (no cam/mic/geo/payment).
+- [x] Live verified: `Content-Security-Policy` + all security headers present on production HTML; `theme.js` served correctly as `application/javascript`.
+
+### Slice E — final verification + deployment
+- [x] `validKeys` audit across all `supabase/functions/*/index.ts`: zero anon-key acceptance remains (two remaining `validKeys` lists = `process-scheduled-posts` and `youtube-auth`, both service-role-only; intentional).
+- [x] Residual `SUPABASE_ANON_KEY` references now exclusively feed the authorizer's `anonKey` reject-input (established pattern for browser callers).
+- [x] Frontend audit: all browser edge-function calls via `invokeFunction` (session bearer, no apikey); `supabase.functions.invoke` only in out-of-scope paths (verify-session, verify-security-questions) and supabase-js client init (required).
+- [x] Vercel auto-deploy: all 11 edge functions + frontend deploy confirmed; CSP live.
+- [x] Live noAuth/anon → 401 (established in Slices A/B/C and re-confirmed post-CSP deploy).
