@@ -69,3 +69,30 @@ Rules:
 - `npx vitest run` — new auth suite green; alter no existing behavior.
 - `npx tsc --noEmit` — clean.
 - Manual: existing flows still auth (service-key cron, admin x-admin-token, user flowpost_token).
+
+## Phase 4B (anon-key elimination across remaining 11 functions + payment) — 2026-09-11
+Decisions locked: OAuth callbacks stay open (state hardening in-band via `oauth_states`); localStorage `flowpost_token` accepted + XSS-hardening same phase; `youtube-auth` stays service-only (out of scope).
+
+### Slice A — session-token invoke wrapper (browser)
+- [x] `src/lib/invoke.ts`: `getSessionToken()`, `invokeFunction<T>()` (POST, `Authorization: Bearer <flowpost_token>`, no anon apikey, FormData/string passthrough, `signal`, query-string refs), `InvokeFunctionError`.
+- [x] 17 wrapper tests (suite 60 → 77). Migrated 11 callers (`AccountsPage`, `UploadPage`, `StoragePage`, `WorkflowsPage`, `WorkflowItemsPage`, `ToolsPage`, `InsightsPage`, `captions.ts`, `driveToMegaTransfer`). Left: AuthContext/SecurityQuestionsGate/ProfilePage verify-session calls (out of scope).
+- [x] `npx tsc --noEmit` clean, `npm run build` green. Commits `2226c0f` (refactor) + `eb68744` (graphify) pushed → Vercel auto-deploy.
+
+### Slice B — belt 5 non-OAuth functions + C3 ownership
+- [x] `auth.ts` extended: `createSessionLookup` selects `user_id`; `SessionLookupResult`/`AuthResult` carry `userId` (2 RED tests → green; suite 77 → 79).
+- [x] `get-quota-usage` user-scoped count; `fetch-facebook-insights`, `fetch-instagram-insights`, `transfer-ticket`, `drive-to-mega` authorizer-wired + `user_id` scoping (account queries bind to session owner).
+- [x] Commit `4362309` pushed. esbuild parse all 5 OK; suite 79/79 green.
+
+### Slice C — OAuth state hardening + belt 6 OAuth functions
+- [x] C1: migration `20260910000000_oauth_states.sql` (service-role-only table, RLS enabled, `state` unique, `used_at`/`expires_at`); applied + recorded via Management API SQL endpoint (no local DB creds).
+- [x] C2: `_shared/oauth-state.ts` — server nonce (48-hex), `createOAuthState` (userId+mode bound), `consumeOAuthState` (atomic single-use via conditional UPDATE..SELECT). 8 tests green.
+- [x] C3: coded + deployed all 11 functions:
+  - facebook-auth: `state=userId:mode` (forgeable) → opaque nonce; url action authorized.
+  - google-drive-auth: `url` was open → now authorized; state nonce; per-action session-owner checks on refresh/quota/list/create-folder/get-token/r2/delete.
+  - linkedin-auth, tiktok-auth (unified off legacy `tiktok_oauth_states`), instagram-auth (had **no gate at all** — added authorizer + state), mega-auth (belt + owner-bound connect + scoped account ops).
+  - `resolveSessionOwner(auth, requestedUserId)` helper (5 tests) — cross-user url/connect attempts denied 401.
+- [x] Suite 79 → 92; esbuild parse all 11 OK. Commits `087e3b0` + `aa9b24d`. Deployed all 11 (`--no-verify-jwt`).
+- [x] Live smoke: no-auth/anon bearer/anon apikey → 401; real session row → 200 + user-scoped quota; cross-user url → 401; forged/legacy state callback → 400. Smoke session + states cleaned up.
+
+### Slice D — XSS hardening (localStorage risk)
+- Pending: externalize inline theme script (`index.html` → `public/theme.js`); add CSP + security headers via `vercel.json` (script-src 'self', connect-src incl. `*.supabase.co`, Google Fonts; frame-ancestors; X-Content-Type-Options; Referrer-Policy; Permissions-Policy).
