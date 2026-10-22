@@ -41,3 +41,7 @@ eng.traineddata
 metamax-digital-bridge_v1.6/
 screenshots/
 *.tsbuildinfo
+
+# opencode can sync the global skill set into the workspace root; the
+# canonical copy lives in .opencode/skills/
+/skills/
