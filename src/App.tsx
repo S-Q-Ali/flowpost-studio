@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +10,7 @@ import LoginPage from "./pages/LoginPage";
 import { AppLayout } from "@/components/AppLayout";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { toast } from "sonner";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
@@ -48,7 +49,7 @@ function AppRoutes() {
         className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 bg-background text-foreground"
       >
         <Logo size="lg" />
-         <p className="text-sm text-muted-foreground flex items-center gap-2">
+        <p className="text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 size={18} className="animate-spin" />
           Verifying...
         </p>
@@ -89,18 +90,47 @@ function AppRoutes() {
   );
 }
 
-const App = () => (
-  <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
-  </ThemeProvider>
-);
+const App = () => {
+  useEffect(() => {
+    // Desktop keyboard shortcuts (injected by Pake/Tauri via desktop/inject/flowpost.js)
+    const handleSave = () => {
+      toast.info("Save triggered - use Ctrl+S on current page to save");
+    };
+
+    const handleSchedule = () => {
+      // Navigate to upload page to create new post
+      window.location.href = "/upload";
+    };
+
+    const handleCloseDialog = () => {
+      // Close modals - individual pages listen for this event
+      window.dispatchEvent(new CustomEvent("flowpost:close-dialog"));
+    };
+
+    window.addEventListener("flowpost:save", handleSave);
+    window.addEventListener("flowpost:schedule", handleSchedule);
+    window.addEventListener("flowpost:close-dialog", handleCloseDialog);
+
+    return () => {
+      window.removeEventListener("flowpost:save", handleSave);
+      window.removeEventListener("flowpost:schedule", handleSchedule);
+      window.removeEventListener("flowpost:close-dialog", handleCloseDialog);
+    };
+  }, []);
+
+  return (
+    <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AuthProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AuthProvider>
+      </TooltipProvider>
+    </ThemeProvider>
+  );
+};
 
 export default App;
