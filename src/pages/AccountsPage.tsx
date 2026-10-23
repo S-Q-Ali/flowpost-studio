@@ -320,7 +320,7 @@ export default function AccountsPage() {
         setIsYouTubeConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "youtube-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "YouTube connection failed");
       setIsYouTubeConnecting(false);
@@ -379,7 +379,7 @@ export default function AccountsPage() {
         setIsFacebookConnecting(false);
       }, 10 * 60 * 1000);
 
-      window.open(data.url, "facebook-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Facebook connection failed");
       setIsFacebookConnecting(false);
@@ -422,7 +422,7 @@ export default function AccountsPage() {
         setIsInstagramConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "instagram-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Instagram connection failed");
       setIsInstagramConnecting(false);
@@ -461,7 +461,7 @@ export default function AccountsPage() {
         toast.error("Reconnection timed out. Try again.");
       }, 10 * 60 * 1000);
 
-      window.open(data.url, "facebook-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Facebook reconnection failed");
       setReconnectingFacebookId(null);
@@ -520,7 +520,7 @@ export default function AccountsPage() {
         setIsTikTokConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "tiktok-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "TikTok connection failed");
       setIsTikTokConnecting(false);
@@ -579,7 +579,7 @@ export default function AccountsPage() {
         setIsLinkedInConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "linkedin-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "LinkedIn connection failed");
       setIsLinkedInConnecting(false);
@@ -622,7 +622,7 @@ export default function AccountsPage() {
         setIsDriveConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "drive-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Google Drive connection failed");
       setIsDriveConnecting(false);
@@ -668,7 +668,7 @@ export default function AccountsPage() {
         toast.error("Reconnection timed out. Try again.");
       }, 30_000);
 
-      window.open(data.url, "drive-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Google Drive reconnection failed");
       setReconnectingDriveId(null);
