@@ -107,14 +107,21 @@ const App = () => {
       window.dispatchEvent(new CustomEvent("flowpost:close-dialog"));
     };
 
+    const handleNotify = (e: CustomEvent) => {
+      const { title, body, icon } = e.detail || {};
+      toast.info(`${title}: ${body}`);
+    };
+
     window.addEventListener("flowpost:save", handleSave);
     window.addEventListener("flowpost:schedule", handleSchedule);
     window.addEventListener("flowpost:close-dialog", handleCloseDialog);
+    window.addEventListener("flowpost:notify", handleNotify);
 
     return () => {
       window.removeEventListener("flowpost:save", handleSave);
       window.removeEventListener("flowpost:schedule", handleSchedule);
       window.removeEventListener("flowpost:close-dialog", handleCloseDialog);
+      window.removeEventListener("flowpost:notify", handleNotify);
     };
   }, []);
 
