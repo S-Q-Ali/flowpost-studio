@@ -50,6 +50,9 @@ screenshots/
 FlowPost-Portable*.zip
 FlowPost-Portable*/
 dist-tauri-portable/
+FlowPost.exe
+FlowPost.msi
+WebView2Loader.dll
 
 # Tauri leftovers (desktop now uses Pake, not Tauri)
 src-tauri/
