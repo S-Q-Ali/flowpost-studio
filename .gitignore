@@ -45,3 +45,12 @@ screenshots/
 # opencode can sync the global skill set into the workspace root; the
 # canonical copy lives in .opencode/skills/
 /skills/
+
+# Pake desktop build artifacts
+FlowPost-Portable*.zip
+FlowPost-Portable*/
+dist-tauri-portable/
+
+# Tauri leftovers (desktop now uses Pake, not Tauri)
+src-tauri/
+src/preload.ts
