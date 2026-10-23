@@ -1,44 +1,5 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import {
-  getCurrentWindow,
-  minimizeToTray,
-  restoreFromTray,
-  globalShortcut,
-} from "./preload";
-
-getCurrentWindow().then((window) => {
-  // Minimize to system tray on close (Windows taskbar fallback)
-  window.onclose(() => {
-    minimizeToTray();
-  });
-
-  // Restore from tray on double-click
-  window.ondoubleclick(() => {
-    restoreFromTray();
-  });
-
-  // Register global keyboard shortcuts
-  globalShortcut.register("Control+s", () => {
-    // Trigger save action (would integrate with form state)
-    console.log("Save shortcut pressed");
-  });
-
-  globalShortcut.register("Control+p", () => {
-    // Trigger print/schedule dialog
-    console.log("Print/schedule shortcut pressed");
-  });
-
-  // Listen for Escape key to close dialogs
-  window.onkeydown = (event) => {
-    if (event.key === "Escape") {
-      // Close any open modals/dialogs
-      console.log("Escape pressed - close dialogs");
-    }
-  };
-}).catch((err) => {
-  console.error("Failed to get Tauri window:", err);
-});
 
 createRoot(document.getElementById("root")!).render(<App />);
