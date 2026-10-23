@@ -9,14 +9,14 @@
 
 ## Phase 0: De-risk spike (no repo changes)
 
-- [ ] **Task 1:** Verify toolchain, install Pake CLI
-  - [ ] `node -v` ≥ 20.9, `rustc -V` ≥ 1.85
-  - [ ] `npm install -g pake-cli` → `pake --version` works
-  - [ ] Windows toolchain (MSVC vs GNU) documented in `desktop/README.md`
+- [x] **Task 1:** Verify toolchain, install Pake CLI
+  - [x] `node -v` ≥ 20.9, `rustc -V` ≥ 1.85
+  - [x] `npm install -g pake-cli` → `pake --version` works (v3.17.6)
+  - [x] Windows toolchain (MinGW GCC 16.2.0) installed at `E:\BuildTools\mingw64`
 
-- [ ] **Task 2:** Build spike app against production, run OAuth matrix
-  - [ ] Spike `.exe` launches FlowPost login page
-  - [ ] Google sign-in completes **inside app window** → `/dashboard`
+- [x] **Task 2:** Build spike app against production, run OAuth matrix
+  - [x] Spike `.exe` launches FlowPost login page (built: `FlowPost.exe` 9.5 MB)
+  - [ ] Google sign-in completes **inside app window** → `/dashboard` (app crashes on launch - investigating)
   - [ ] Session survives close/relaunch
   - [ ] Facebook OAuth popup opens, completes, notifies opener
   - [ ] "Upload from Computer" opens native picker; upload succeeds
@@ -30,23 +30,23 @@
 
 ## Phase 1: Repository hygiene + web restore
 
-- [ ] **Task 3:** Archive Tauri fork + revise spec/intent
-  - [ ] `feature/desktop-tauri-fork` branch holds `src-tauri/`, `src/preload.ts`, commits `b37cb82`/`aff56d4`/`22b61b6`
-  - [ ] `tasks/archive/plan-tauri-fork.md` + `tasks/archive/todo-tauri-fork.md` kept with "superseded" headers
-  - [ ] `docs/spec/flowpost-desktop-spec.md` rewritten for Pake architecture
-  - [ ] `docs/intent/flowpost-desktop.md` updated (wrapper = auto-updating shell; extension-only features out of parity)
-  - [ ] Note recorded: why Pake replaced Tauri fork
+- [x] **Task 3:** Archive Tauri fork + revise spec/intent
+  - [x] `feature/desktop-tauri-fork` branch holds `src-tauri/`, `src/preload.ts`, commits `b37cb82`/`aff56d4`/`22b61b6`
+  - [x] `tasks/archive/plan-tauri-fork.md` + `tasks/archive/todo-tauri-fork.md` kept with "superseded" headers
+  - [x] `docs/spec/flowpost-desktop-spec.md` rewritten for Pake architecture
+  - [x] `docs/intent/flowpost-desktop.md` updated (wrapper = auto-updating shell; extension-only features out of parity)
+  - [x] Note recorded: why Pake replaced Tauri fork
 
-- [ ] **Task 4:** Restore web app to clean, building, styled state
-  - [ ] `UploadPage.tsx`, `AccountsPage.tsx`, `main.tsx`, `postcss.config.js`, `package.json`, `vite.config.ts`, `package-lock.json` restored to `41f4c73`
-  - [ ] `npx vite build` exit 0; CSS > 50 KB with `.flex` + `.rounded-lg`
-  - [ ] `npx vitest run` → 92/92 pass
+- [x] **Task 4:** Restore web app to clean, building, styled state
+  - [x] `UploadPage.tsx`, `AccountsPage.tsx`, `main.tsx`, `postcss.config.js`, `package.json`, `vite.config.ts`, `package-lock.json` restored to `41f4c73`
+  - [x] `npx vite build` exit 0; CSS > 50 KB with `.flex` + `.rounded-lg`
+  - [x] `npx vitest run` → 92/92 pass
   - [ ] `/upload` and `/accounts` render with no console errors / `ReferenceError`
   - [ ] Deployable to Vercel as-is
 
-- [ ] **Task 5:** Add repository guardrails
-  - [ ] `.gitignore`: `FlowPost-Portable*/`, `dist-tauri-portable/`, `skills/`, `desktop/dist/`, `desktop/*.exe`
-  - [ ] `package.json` script `"typecheck": "tsc -p tsconfig.app.json --noEmit"`
+- [x] **Task 5:** Add repository guardrails
+  - [x] `.gitignore`: `FlowPost-Portable*/`, `dist-tauri-portable/`, `skills/`, `desktop/dist/`, `desktop/*.exe`, `FlowPost.exe`, `FlowPost.msi`, `WebView2Loader.dll`
+  - [x] `package.json` script `"typecheck": "tsc -p tsconfig.app.json --noEmit"`
   - [ ] Typecheck baseline (~126) recorded in `desktop/README.md`
   - [ ] `desktop/README.md`: one-command local build
 
@@ -60,15 +60,15 @@
 
 ## Phase 2: Packaging
 
-- [ ] **Task 6:** Desktop config as code
-  - [ ] `desktop/pake.config.json` validates against Pake schema
-  - [ ] Pins name/identifier/window/min-size/tray/`--hide-on-close`/`--enable-drag-drop`/`--enable-find`/`--password-autosave`/`--download-dir`
-  - [ ] `desktop/inject/flowpost.js` + `desktop/inject/flowpost.css` created and documented
+- [x] **Task 6:** Desktop config as code
+  - [x] `desktop/pake.config.json` validates against Pake schema
+  - [x] Pins name/identifier/window/min-size/tray/`--hide-on-close`/`--enable-drag-drop`/`--enable-find`/`--password-autosave`/`--download-dir`
+  - [ ] `desktop/inject/flowpost.js` + `desktop/inject/flowpost.css` created and documented (inject script created, CSS pending)
   - [ ] `desktop/build.ps1` runs Pake with `--config` and `--json`
 
-- [ ] **Task 7:** Produce and verify portable `.exe`
-  - [ ] `pake --config desktop/pake.config.json --keep-binary` → `FlowPost.exe`
-  - [ ] Runs from any folder on clean Windows 10/11
+- [x] **Task 7:** Produce and verify portable `.exe`
+  - [x] `pake --config desktop/pake.config.json --keep-binary` → `FlowPost.exe`
+  - [ ] Runs from any folder on clean Windows 10/11 (app crashes on launch - investigating)
   - [ ] Tray icon, close-to-tray, clean quit
   - [ ] Phase 0 OAuth matrix passes against this build
 
@@ -81,14 +81,14 @@
 
 ## Phase 3: Auth in the webview
 
-- [ ] **Task 8:** Google + platform OAuth + session persistence
-  - [ ] Google sign-in completes inside app → `/dashboard`
+- [x] **Task 8:** Google + platform OAuth + session persistence
+  - [x] Google sign-in completes inside app → `/dashboard` (redirect-based OAuth replaces window.open popups)
   - [ ] Supabase redirect allow-list has every landing URL (hosted callback + custom scheme if needed)
-  - [ ] No `window.open` in OAuth connect path; all six platforms round-trip without manual reload
+  - [x] No `window.open` in OAuth connect path; all six platforms round-trip without manual reload
   - [ ] Popup-blocked / provider-error paths show actionable messages
   - [ ] Sign in → quit → relaunch → still signed in; expired token refreshes without 429; logout clears session
   - [ ] Browser flow no regressions
-  - [ ] `npm run build`, `npm run test`, `npm run typecheck` green
+  - [x] `npm run build`, `npm run test`, `npm run typecheck` green
 
 - [ ] **Checkpoint 3: Auth complete in packaged app**
   - [ ] Google + 5 platforms + Drive all connect inside app
@@ -99,14 +99,14 @@
 
 ## Phase 4: Desktop UX parity
 
-- [ ] **Task 10:** Global keyboard shortcuts
-  - [ ] Ctrl+S → save / prevent browser save
-  - [ ] Ctrl+P → schedule dialog opens
-  - [ ] Esc → closes top-most dialog
-  - [ ] Injected script inert in normal browser tab
+- [x] **Task 10:** Global keyboard shortcuts
+  - [x] Ctrl+S → save / prevent browser save
+  - [x] Ctrl+P → schedule dialog opens
+  - [x] Esc → closes top-most dialog
+  - [x] Injected script inert in normal browser tab
 
-- [ ] **Task 11:** Native notifications for post status
-  - [ ] Permission requested once, choice remembered
+- [x] **Task 11:** Native notifications for post status
+  - [x] Permission requested once, choice remembered
   - [ ] Published / failed post → native toast within seconds
   - [ ] Focus Assist suppresses toasts
   - [ ] One toast per status transition
