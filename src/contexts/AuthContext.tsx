@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Token is validated server-side via edge function, never stored in localStorage
     const verifySession = supabase.functions.invoke<{ valid?: boolean; userId?: string }>("verify-session", { 
       body: { 
-        // Pass userId from sessionStorage if available (desktop mode)
+        // Desktop mode: Check if server has valid admin session
         userId: getCache()?.userId 
       } 
     })
@@ -140,7 +140,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         
-        // 3. Check if Supabase session exists (web browser only)
+        // 3. For desktop app - redirect to browser OAuth
+        if (window.__isDesktop) {
+          // Desktop: Open browser for secure OAuth (httpOnly cookies)
+          // Browser handles OAuth, saves session to httpOnly cookies
+          // Desktop will auto-refresh and get server session
+          setTimeout(() => {
+            // Open default browser to login page
+            const { shell } = require('electron') || (window.electron && window.electron.shell);
+            if (shell) {
+              shell.openExternal('https://flowpost-studio.vercel.app');
+            }
+          }, 1000);
+          resolve();
+          return;
+        }
+        
+        // 4. Check if Supabase session exists (web browser only)
         const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
         const hasSession = !!localStorage.getItem(storageKey);
         if (hasSession) {

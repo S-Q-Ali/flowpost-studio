@@ -21,5 +21,8 @@
   "darkMode": false,
   "alwaysOnTop": false,
   "maximize": false,
-  "icon": "public/logo.png"
+  "icon": "public/logo.png",
+  // Desktop OAuth settings
+  "userAgent": "FlowPost/1.0.0 (Desktop)",
+  "inject": []
 }

@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SecurityQuestionsGate } from "@/components/SecurityQuestionsGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SystemTray } from "@/components/SystemTray";
+import { DesktopHeader } from "@/components/DesktopHeader";
 import LoginPage from "./pages/LoginPage";
 import { AppLayout } from "@/components/AppLayout";
 import { Loader2 } from "lucide-react";
@@ -114,22 +115,34 @@ const App = () => {
       toast.info(`${title}: ${body}`);
     };
 
+    // Desktop refresh shortcut (Ctrl+R or F5)
+    const handleRefresh = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "r") {
+        e.preventDefault();
+        toast.info("Refreshing page...");
+        window.location.reload();
+      }
+    };
+
     window.addEventListener("flowpost:save", handleSave);
     window.addEventListener("flowpost:schedule", handleSchedule);
     window.addEventListener("flowpost:close-dialog", handleCloseDialog);
     window.addEventListener("flowpost:notify", handleNotify);
+    window.addEventListener("keydown", handleRefresh);
 
     return () => {
       window.removeEventListener("flowpost:save", handleSave);
       window.removeEventListener("flowpost:schedule", handleSchedule);
       window.removeEventListener("flowpost:close-dialog", handleCloseDialog);
       window.removeEventListener("flowpost:notify", handleNotify);
+      window.removeEventListener("keydown", handleRefresh);
     };
   }, []);
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
       <TooltipProvider>
+        <DesktopHeader />
         <Toaster />
         <Sonner />
         <ErrorBoundary>
