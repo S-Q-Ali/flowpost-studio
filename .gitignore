@@ -32,9 +32,15 @@ desktop/*.dmg
 desktop/*.deb
 desktop/*.AppImage
 desktop/out/
+FlowPost.exe
+FlowPost.msi
+WebView2Loader.dll
 
 # Pake-specific
 pake/
+
+# Skills (opencode internal)
+skills/
 
 # Logs
 logs/
