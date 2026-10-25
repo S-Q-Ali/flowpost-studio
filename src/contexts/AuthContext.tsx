@@ -99,28 +99,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 1. Check custom token (admin) - token received via verify-session, not stored client-side
     // Token is validated server-side via edge function, never stored in localStorage
-    supabase.functions.invoke<{ valid?: boolean; userId?: string }>("verify-session", { body: {} })
+    const verifySession = supabase.functions.invoke<{ valid?: boolean; userId?: string }>("verify-session", { 
+      body: { 
+        // Pass userId from sessionStorage if available (desktop mode)
+        userId: getCache()?.userId 
+      } 
+    })
       .then(async ({ data, error }) => {
         if (cancelled) return;
         
-        // Desktop app: Check if verify-session returned valid session
-        // Web app: Also check httpOnly cookie via session check
-        if (data?.valid || data?.userId) {
-          // Session is valid
+        // Desktop app: Check if verify-session returned valid admin session
+        // If server has valid admin session → auto-login, no popup needed!
+        if (data?.valid && data?.userId) {
           setIsAuthenticated(true);
-          setUserId(data.userId || null);
+          setUserId(data.userId);
+          // Check if admin
+          try {
+            const { data: userData } = await supabase
+              .from("users")
+              .select("is_admin")
+              .eq("id", data.userId)
+              .single();
+            if (userData?.is_admin) {
+              setIsAdmin(true);
+              setPendingSecurityVerification(true);
+            }
+          } catch {}
           resolve();
           return;
         }
         
-        // Fallback: Check if Supabase session exists (web browser only)
-        const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
-        const hasSession = !!localStorage.getItem(storageKey);
-        if (!hasSession) {
+        // 2. Check sessionStorage cache (reduces API calls)
+        const cached = getCache();
+        if (cached?.userId) {
+          setIsAuthenticated(true);
+          setUserId(cached.userId);
+          setIsAdmin(cached.isAdmin);
+          setPendingSecurityVerification(cached.isAdmin);
           resolve();
           return;
         }
-        resolve();
+        
+        // 3. Check if Supabase session exists (web browser only)
+        const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
+        const hasSession = !!localStorage.getItem(storageKey);
+        if (hasSession) {
+          resolve();
+        } else {
+          resolve();
+        }
       })
       .catch(() => {
         resolve();
