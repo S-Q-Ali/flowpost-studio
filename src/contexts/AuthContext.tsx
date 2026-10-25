@@ -7,20 +7,16 @@ import {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const TOKEN_KEY = "flowpost_token";
+// Admin token stored in memory only (not localStorage)
+// Token is received via verify-session edge function, not from client
+let adminTokenMemory: string | null = null;
 
 function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return adminTokenMemory;
 }
 
 function setStoredToken(token: string | null) {
-  if (typeof window === "undefined") return;
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
-  } else {
-    localStorage.removeItem(TOKEN_KEY);
-  }
+  adminTokenMemory = token;
 }
 
 type AuthContextValue = {
@@ -101,66 +97,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // 1. Check custom token (admin)
-    const token = getStoredToken();
-    if (token) {
-      // Check sessionStorage cache first (survives page refreshes within 5s TTL)
-      const cached = getVerifyCache();
-      if (cached) {
-        if (cached.valid) {
-          setIsAuthenticated(true);
-          setUserId(cached.userId ?? "00000000-0000-0000-0000-000000000000");
-          setIsAdmin(true);
-          setPendingSecurityVerification(false);
-          // Check if Supabase session exists in localStorage
-          const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
-          const hasSession = !!localStorage.getItem(storageKey);
-          if (!hasSession) {
-            setStoredToken(null);
-            setIsAuthenticated(false);
-            setUserId(null);
-            setIsAdmin(false);
-          }
-        } else {
-          // Cached as invalid — clear token
-          setStoredToken(null);
+    // 1. Check custom token (admin) - token received via verify-session, not stored client-side
+    // Token is validated server-side via edge function, never stored in localStorage
+    supabase.functions.invoke<{ valid?: boolean; userId?: string }>("verify-session", { body: {} })
+      .then(async ({ data, error }) => {
+        if (cancelled) return;
+        // Admin token is now managed via httpOnly cookie set by edge function
+        // Check if Supabase session exists (this is the only token we trust)
+        const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
+        const hasSession = !!localStorage.getItem(storageKey);
+        if (!hasSession) {
+          resolve();
+          return;
         }
+        // If no admin token, just verify regular session
         resolve();
-        return;
-      }
-
-      supabase.functions.invoke<{ valid?: boolean; userId?: string }>("verify-session", { body: { token } })
-        .then(async ({ data, error }) => {
-          if (cancelled) return;
-          if (data?.valid) {
-            setVerifyCache({ valid: true, userId: data.userId ?? "00000000-0000-0000-0000-000000000000" });
-            setIsAuthenticated(true);
-            setUserId(data.userId ?? "00000000-0000-0000-0000-000000000000");
-            setIsAdmin(true);
-            setPendingSecurityVerification(false);
-            // Check if Supabase session exists in localStorage (synchronous, no API call)
-            const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
-            const hasSession = !!localStorage.getItem(storageKey);
-            if (!hasSession) {
-              setStoredToken(null);
-              setIsAuthenticated(false);
-              setUserId(null);
-              setIsAdmin(false);
-            }
-          } else if (!error) {
-            // Token is genuinely invalid (edge function ran successfully)
-            setVerifyCache({ valid: false, userId: "" });
-            setStoredToken(null);
-          }
-          // else: HTTP error (429, 5xx, etc.) — preserve token, try again next load
-          resolve();
-        })
-        .catch(() => {
-          // Network error — preserve token, try again next load
-          resolve();
-        });
-      return;
-    }
+      })
+      .catch(() => {
+        resolve();
+      });
+    return;
 
     // 2. Check sessionStorage cache (reduces API calls)
     const cached = getCache();
@@ -299,6 +255,7 @@ useEffect(() => {
   }, []);
 
   const logout = useCallback(async () => {
+    // Clear admin token from memory
     setStoredToken(null);
     clearCache();
     clearVerifyCache();

@@ -1,59 +1,58 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+dist-client/
+dist-desktop/
+build/
+*.egg-info/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Desktop build outputs (keep config, ignore binaries)
+desktop/*.app
+desktop/*.exe
+desktop/*.dmg
+desktop/*.deb
+desktop/*.AppImage
+desktop/out/
+
+# Pake-specific
+pake/
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Testing
+coverage/
+.nyc_output/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Temporary files
+tmp/
+temp/
+*.tmp
 
-# Environment and secrets
-.env
-flowpost-wrokflow.json
-zinc-bucksaw-489020-n0-d456522f61c7.json
-*.local
-supabase/.temp/
-
-# graphify — commit the graph, keep machine-specific sidecars + cost local
-graphify-out/cost.json
-graphify-out/.graphify_*
-graphify-out/cache/
-graphify-out/20*/
-
-# Local artifacts
-eng.traineddata
-metamax-digital-bridge_v1.6/
-screenshots/
-*.tsbuildinfo
-
-# opencode can sync the global skill set into the workspace root; the
-# canonical copy lives in .opencode/skills/
-/skills/
-
-# Pake desktop build artifacts
-FlowPost-Portable*.zip
-FlowPost-Portable*/
-dist-tauri-portable/
-FlowPost.exe
-FlowPost.msi
-WebView2Loader.dll
-
-# Tauri leftovers (desktop now uses Pake, not Tauri)
-src-tauri/
-src/preload.ts
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini

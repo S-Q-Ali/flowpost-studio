@@ -264,9 +264,38 @@ Frontend variables (in `.env.local`):
 |--------|---------|-------------|
 | `dev` | `npm run dev` | Start dev server on port 8080 |
 | `build` | `npm run build` | Production build |
+| `build:desktop` | `npm run build:desktop` | Build and package as desktop app (requires Pake) |
 | `test` | `npm run test` | Run test suite (requires Vitest setup) |
 | `lint` | `npm run lint` | Lint all source files |
 | `preview` | `npm run preview` | Preview production build locally |
+
+## Desktop App
+
+The desktop app is built using [Pake](https://github.com/tw93/pake) - a web-to-desktop wrapper.
+
+### Build Desktop App
+
+1. Install Pake:
+   ```bash
+   npm install -g pake-cli
+   ```
+
+2. Add icon to `public/icon.ico` (256x256 PNG)
+
+3. Build:
+   ```bash
+   npm run build:desktop
+   ```
+
+Desktop app will be available in `dist-desktop/` folder.
+
+### Desktop Features
+
+- System tray support with minimize-to-tray
+- Native desktop notifications
+- Offline queue persistence via IndexedDB
+- Error boundary for crash recovery
+- Global keyboard shortcuts (Ctrl+S, Ctrl+P)
 
 ---
 

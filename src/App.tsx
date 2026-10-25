@@ -6,6 +6,8 @@ import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SecurityQuestionsGate } from "@/components/SecurityQuestionsGate";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { SystemTray } from "@/components/SystemTray";
 import LoginPage from "./pages/LoginPage";
 import { AppLayout } from "@/components/AppLayout";
 import { Loader2 } from "lucide-react";
@@ -91,8 +93,15 @@ function AppRoutes() {
 }
 
 const App = () => {
+  return (
+    <ErrorBoundary>
+      <SystemTray />
+      <AppRoutes />
+    </ErrorBoundary>
+  );
+}
+  // Desktop-specific: System tray functionality
   useEffect(() => {
-    // Desktop keyboard shortcuts (injected by Pake/Tauri via desktop/inject/flowpost.js)
     const handleSave = () => {
       toast.info("Save triggered - use Ctrl+S on current page to save");
     };
