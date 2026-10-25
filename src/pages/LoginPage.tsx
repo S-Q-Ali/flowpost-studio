@@ -71,50 +71,22 @@ export default function LoginPage() {
              <h1 className="text-2xl font-bold tracking-tight text-foreground">
             FlowPost
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {isDesktop ? "Open browser for secure login" : "Sign in to continue"}
-          </p>
+          <p className="text-sm text-muted-foreground">Sign in to continue</p>
         </div>
 
         <Card className="bg-card border-border w-full">
           <CardContent className="pt-6 space-y-4">
-            {/* Desktop: Open Browser Button */}
-            {isDesktop && (
-              <Button
-                onClick={() => {
-                  // Open default browser to login page
-                  const { shell } = require('electron') || (window.electron && window.electron.shell);
-                  if (shell) {
-                    shell.openExternal('https://flowpost-studio.vercel.app');
-                  } else {
-                    // Fallback for non-electron desktop
-                    window.open('https://flowpost-studio.vercel.app', '_blank');
-                  }
-                  setError(null);
-                  toast.success("Opening browser for secure login...", { duration: 3000 });
-                }}
-                disabled={googleVerifying}
-                className="w-full h-12 rounded-xl font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-70"
-              >
-                <Loader2 size={18} className={googleVerifying ? "animate-spin mr-2" : "mr-2"} />
-                {googleVerifying ? "Opening browser..." : "Open Browser to Login"}
-              </Button>
-            )}
-
-            {/* Web: Google OAuth Button */}
-            {!isDesktop && (
-              <Button
-                onClick={handleGoogle}
-                disabled={googleVerifying}
+            <Button
+              onClick={handleGoogle}
+              disabled={googleVerifying}
                 className="w-full h-12 rounded-xl font-medium bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-70"
-              >
-                {googleVerifying ? (
-                  <><Loader2 size={18} className="animate-spin mr-2" /> Signing in...</>
-                ) : (
-                  "Continue with Google"
-                )}
-              </Button>
-            )}
+            >
+              {googleVerifying ? (
+                <><Loader2 size={18} className="animate-spin mr-2" /> Signing in...</>
+              ) : (
+                "Continue with Google"
+              )}
+            </Button>
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">

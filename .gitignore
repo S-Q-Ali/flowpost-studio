@@ -36,6 +36,9 @@ FlowPost.exe
 FlowPost.msi
 WebView2Loader.dll
 
+# Local tool installers
+vs_buildtools.exe
+
 # Pake-specific
 pake/
 

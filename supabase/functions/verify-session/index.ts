@@ -29,26 +29,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = (await req.json()) as { token?: string; userId?: string };
+    const body = (await req.json()) as { token?: string };
     const token = body?.token;
-    const userId = body?.userId;
 
-    // Desktop mode: Check session table for valid admin session
-    // If admin has valid session → return valid, no token needed
-    if (!token && userId) {
-      const { data: session, error } = await supabase
-        .from("sessions")
-        .select("id, user_id")
-        .eq("user_id", userId)
-        .gt("expires_at", new Date().toISOString())
-        .maybeSingle();
-      
-      if (session) {
-        return json({ valid: true, userId: session.user_id });
-      }
-    }
-
-    // Fallback: Check if token provided
     if (!token) {
       return json({ valid: false }, 401);
     }
