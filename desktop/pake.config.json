@@ -17,10 +17,9 @@
   "enableDragDrop": true,
   "enableFind": true,
   "passwordAutosave": true,
-  "downloadDir": "%USERPROFILE%\\FlowPost Downloads",
   "keepBinary": true,
   "darkMode": false,
   "alwaysOnTop": false,
   "maximize": false,
-  "icon": "public/icon.ico"
+  "icon": "public/logo.png"
 }

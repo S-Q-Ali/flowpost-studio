@@ -93,13 +93,6 @@ function AppRoutes() {
 }
 
 const App = () => {
-  return (
-    <ErrorBoundary>
-      <SystemTray />
-      <AppRoutes />
-    </ErrorBoundary>
-  );
-}
   // Desktop-specific: System tray functionality
   useEffect(() => {
     const handleSave = () => {
@@ -139,11 +132,14 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <BrowserRouter>
+              <SystemTray />
+              <AppRoutes />
+            </BrowserRouter>
+          </AuthProvider>
+        </ErrorBoundary>
       </TooltipProvider>
     </ThemeProvider>
   );
