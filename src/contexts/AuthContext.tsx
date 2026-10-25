@@ -102,15 +102,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.functions.invoke<{ valid?: boolean; userId?: string }>("verify-session", { body: {} })
       .then(async ({ data, error }) => {
         if (cancelled) return;
-        // Admin token is now managed via httpOnly cookie set by edge function
-        // Check if Supabase session exists (this is the only token we trust)
+        
+        // Desktop app: Check if verify-session returned valid session
+        // Web app: Also check httpOnly cookie via session check
+        if (data?.valid || data?.userId) {
+          // Session is valid
+          setIsAuthenticated(true);
+          setUserId(data.userId || null);
+          resolve();
+          return;
+        }
+        
+        // Fallback: Check if Supabase session exists (web browser only)
         const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
         const hasSession = !!localStorage.getItem(storageKey);
         if (!hasSession) {
           resolve();
           return;
         }
-        // If no admin token, just verify regular session
         resolve();
       })
       .catch(() => {
