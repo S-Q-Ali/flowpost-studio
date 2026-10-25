@@ -65,12 +65,18 @@ async function exchangeCodeForShortLivedToken(code: string, redirectUri: string)
 }
 
 async function getLongLivedToken(shortLivedToken: string) {
-  const url = new URL("https://graph.instagram.com/v21.0/access_token");
-  url.searchParams.set("grant_type", "ig_exchange_token");
-  url.searchParams.set("client_secret", APP_SECRET!);
-  url.searchParams.set("access_token", shortLivedToken);
-
-  const res = await fetch(url.toString(), { method: "GET" });
+  const url = "https://graph.instagram.com/v21.0/access_token";
+  
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "ig_exchange_token",
+      client_secret: APP_SECRET!,
+      access_token: shortLivedToken,
+    }),
+  });
+  
   const jsonRes = await res.json();
   if (!res.ok || jsonRes.error) throw new Error(`IG long-lived exchange failed: ${JSON.stringify(jsonRes)}`);
   return jsonRes as { access_token: string; expires_in?: number };
