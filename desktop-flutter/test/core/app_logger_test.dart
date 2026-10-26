@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flowpost_desktop/core/logging/app_logger.dart';
+import 'package:logging/logging.dart';
 
 void main() {
   test('redacts query-style and JSON token values', () {
@@ -29,6 +30,19 @@ void main() {
   test('leaves messages without secrets untouched', () {
     const safe = 'Handed handoff intent to the primary process.';
     expect(redactSecrets(safe), safe);
+  });
+
+  group('flushLogging', () {
+    // In widget tests path_provider has no implementation, so every queued
+    // write fails inside the chain — exactly the failure that must not
+    // poison _lastWrite or make flushLogging() throw before exit(0).
+    test('completes even when the underlying write fails', () async {
+      await initLogging();
+      Logger.root.info('unwritable in tests');
+      await expectLater(flushLogging(), completes);
+      Logger.root.info('still accepted after a failed write');
+      await expectLater(flushLogging(), completes);
+    });
   });
 
   group('rotateLogIfNeeded', () {

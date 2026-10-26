@@ -65,16 +65,18 @@ Future<Logger> initLogging() async {
   Logger.root.level = Level.INFO;
   Logger.root.onRecord.listen((record) {
     _lastWrite = _lastWrite.then((_) async {
-      final dir = await _logsDirectory();
-      final file = File('${dir.path}${Platform.pathSeparator}app.log');
-      await rotateLogIfNeeded(file);
-      final line =
-          '${record.time.toIso8601String()} ${record.level.name} '
-          '${record.loggerName}: ${redactSecrets(record.message)}\n';
       try {
+        final dir = await _logsDirectory();
+        final file = File('${dir.path}${Platform.pathSeparator}app.log');
+        await rotateLogIfNeeded(file);
+        final line =
+            '${record.time.toIso8601String()} ${record.level.name} '
+            '${record.loggerName}: ${redactSecrets(record.message)}\n';
         await file.writeAsString(line, mode: FileMode.append);
-      } on FileSystemException {
-        // Logging must never take the app down.
+      } on Object {
+        // Logging must never take the app down — and a rejected link would
+        // skip every later callback and make flushLogging() throw before
+        // exit(0), so nothing inside this body may escape.
       }
     });
   });
