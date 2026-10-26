@@ -21,30 +21,50 @@ final Set<String> redactedKeys = {
 String redactSecrets(String message) {
   var redacted = message;
   for (final key in redactedKeys) {
-    // Quoted "key": "value" first, then bare key=value; \b on the bare
-    // form keeps `token` from re-firing inside an already-redacted match.
+    // Quoted "key": "value" first, then bare key=value; the capture group
+    // keeps the log's original key casing.
     redacted = redacted.replaceAllMapped(
-      RegExp('"\\b$key\\b"\\s*:\\s*"[^"]*"', caseSensitive: false),
-      (m) => '"$key":"[redacted]"',
+      RegExp('"($key)"\\s*:\\s*"[^"]*"', caseSensitive: false),
+      (m) => '"${m.group(1)}":"[redacted]"',
     );
     redacted = redacted.replaceAllMapped(
-      RegExp('\\b$key\\b\\s*[=:]\\s*"?[^&\\s,}\\]"]+', caseSensitive: false),
-      (m) => '$key=[redacted]',
+      RegExp('\\b($key)\\b\\s*[=:]\\s*"?[^&\\s,}\\]"]+', caseSensitive: false),
+      (m) => '${m.group(1)}=[redacted]',
     );
   }
   return redacted;
+}
+
+/// Renames [log] to `<log>.1` once it exceeds [maxBytes]; the next append
+/// recreates it. Keeps `%APPDATA%\FlowPost\logs\app.log` bounded.
+Future<void> rotateLogIfNeeded(File log, {int maxBytes = 1 << 20}) async {
+  int size;
+  try {
+    size = await log.length();
+  } on FileSystemException {
+    return;
+  }
+  if (size <= maxBytes) return;
+  final archive = File('${log.path}.1');
+  try {
+    if (await archive.exists()) await archive.delete();
+    await log.rename(archive.path);
+  } on FileSystemException {
+    // Best-effort: a locked archive must never break logging.
+  }
 }
 
 Future<Logger> initLogging() async {
   Logger.root.level = Level.INFO;
   Logger.root.onRecord.listen((record) async {
     final dir = await _logsDirectory();
+    final file = File('${dir.path}${Platform.pathSeparator}app.log');
+    await rotateLogIfNeeded(file);
     final line =
         '${record.time.toIso8601String()} ${record.level.name} '
         '${record.loggerName}: ${redactSecrets(record.message)}\n';
     try {
-      await File('${dir.path}${Platform.pathSeparator}app.log')
-          .writeAsString(line, mode: FileMode.append);
+      await file.writeAsString(line, mode: FileMode.append);
     } on FileSystemException {
       // Logging must never take the app down.
     }

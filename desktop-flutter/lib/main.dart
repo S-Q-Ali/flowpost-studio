@@ -35,10 +35,11 @@ Future<void> main() async {
     trayIconPath:
         '${File(Platform.resolvedExecutable).parent.path}${Platform.pathSeparator}resources${Platform.pathSeparator}tray.ico',
   );
-  await shell.initialise();
+  await shell.prepareGuard();
   if (!await shell.acquireSingleInstance(initialLink)) {
     exit(0);
   }
+  await shell.startWindowAndTray();
 
   final pendingLink = ValueNotifier<String?>(null);
   unawaited(_listenDeepLinks(pendingLink, shell, log));

@@ -14,12 +14,50 @@ import 'package:window_manager/window_manager.dart';
 
 import 'tray_menu.dart';
 
+/// True when [imagePath] points at our branded executable.
+bool isFlowPostImage(String? imagePath) {
+  if (imagePath == null) return false;
+  final name = imagePath.split(RegExp(r'[\\/]')).last.toLowerCase();
+  return name == 'flowpost.exe';
+}
+
+/// Delivers queued hand-off intents and consumes the file. The batch is
+/// renamed away (not deleted after reading), so a secondary instance that
+/// appends while a batch is in flight recreates the original file and is
+/// picked up by the next loop pass instead of losing its intent.
+Future<void> drainIntentFile(
+  File intents,
+  void Function(String link) onLink,
+) async {
+  while (await intents.exists()) {
+    final batch = File('${intents.path}.$pid.draining');
+    try {
+      await intents.rename(batch.path);
+    } on FileSystemException {
+      return; // Lost the claim to a concurrent drainer.
+    }
+    List<String> lines = const [];
+    try {
+      lines = (await batch.readAsLines())
+          .where((line) => line.isNotEmpty)
+          .toList();
+      await batch.delete();
+    } on FileSystemException {
+      // Partially-written batch is best-effort; watcher re-fires on change.
+    }
+    for (final line in lines) {
+      onLink(line);
+    }
+  }
+}
+
 /// Owns window, tray, single-instance guard and close-to-tray behaviour.
 ///
-/// The guard is a lock file in the app-data root: if a live *other* process
-/// owns it, this launch hands its deep link (or `flowpost://focus`) to the
-/// primary via a shared intents file, restores the primary window by PID,
-/// and exits. The primary watches that file.
+/// The guard is a lock file in the app-data root, naming a live
+/// `flowpost.exe` PID: if such a process owns it, this launch hands its deep
+/// link (or `flowpost://focus`) via a shared intents file, restores the
+/// primary window by PID, and exits before any window is shown. The primary
+/// watches that file.
 class FlowPostShell with WindowListener, TrayListener {
   FlowPostShell({required this.trayIconPath});
 
@@ -34,7 +72,18 @@ class FlowPostShell with WindowListener, TrayListener {
   Directory? _watchRoot;
   StreamSubscription<FileSystemEvent>? _intentSub;
 
-  Future<void> initialise() async {
+  /// Resolves guard files (lock + intents). Must run before any window is
+  /// shown so a secondary instance can exit without flashing UI.
+  Future<void> prepareGuard() async {
+    final support = await getApplicationSupportDirectory();
+    _watchRoot = support;
+    _lockFile = File('${support.path}${Platform.pathSeparator}flowpost.lock');
+    _intentsFile = File(
+      '${support.path}${Platform.pathSeparator}flowpost-intents.txt',
+    );
+  }
+
+  Future<void> startWindowAndTray() async {
     await windowManager.ensureInitialized();
     // The options embed runtime values; not constant-able.
     await windowManager.waitUntilReadyToShow(
@@ -54,13 +103,6 @@ class FlowPostShell with WindowListener, TrayListener {
     await trayManager.setToolTip('FlowPost');
     await trayManager.setContextMenu(TrayMenu.build());
     trayManager.addListener(this);
-
-    final support = await getApplicationSupportDirectory();
-    _watchRoot = support;
-    _lockFile = File('${support.path}${Platform.pathSeparator}flowpost.lock');
-    _intentsFile = File(
-      '${support.path}${Platform.pathSeparator}flowpost-intents.txt',
-    );
   }
 
   /// Returns false when another live FlowPost process owns the lock; the
@@ -71,7 +113,7 @@ class FlowPostShell with WindowListener, TrayListener {
     if (lock == null) return true;
     if (await lock.exists()) {
       final ownerPid = int.tryParse((await lock.readAsString()).trim());
-      if (ownerPid != null && ownerPid != pid && _isProcessAlive(ownerPid)) {
+      if (ownerPid != null && ownerPid != pid && _ownerIsFlowPost(ownerPid)) {
         await _handOffTo(ownerPid, incomingLink);
         return false;
       }
@@ -99,38 +141,44 @@ class FlowPostShell with WindowListener, TrayListener {
     final intents = _intentsFile;
     final root = _watchRoot;
     if (intents == null || root == null) return;
-    await _drainIntents(intents, onLink);
+    await drainIntentFile(intents, onLink);
     await _intentSub?.cancel();
     _intentSub = root.watch(events: FileSystemEvent.all).listen((event) async {
       if (event.path == intents.path) {
-        await _drainIntents(intents, onLink);
+        await drainIntentFile(intents, onLink);
       }
     });
   }
 
-  Future<void> _drainIntents(
-    File intents,
-    void Function(String link) onLink,
-  ) async {
-    if (!await intents.exists()) return;
-    final pending = (await intents.readAsLines())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    await intents.delete();
-    for (final link in pending) {
-      onLink(link);
-    }
-  }
-
-  static bool _isProcessAlive(int otherPid) {
+  /// A lock owner counts as live only when its PID resolves to
+  /// `flowpost.exe`; a recycled PID owned by an unrelated process must not
+  /// wedge future launches. An owner we cannot inspect (e.g. elevated) is
+  /// trusted as alive rather than risking two primaries.
+  static bool _ownerIsFlowPost(int ownerPid) {
     final handle = OpenProcess(
       PROCESS_QUERY_LIMITED_INFORMATION,
       false,
-      otherPid,
+      ownerPid,
     ).value;
-    final alive = handle.address != 0;
-    if (alive) CloseHandle(handle);
-    return alive;
+    if (handle.address == 0) return false;
+    final name = pkgffi.calloc<ffi.Uint16>(512);
+    final size = pkgffi.calloc<ffi.Uint32>(1)..value = 512;
+    try {
+      final ok = QueryFullProcessImageName(
+        handle,
+        PROCESS_NAME_WIN32,
+        PWSTR(name.cast<pkgffi.Utf16>()),
+        size,
+      ).value;
+      if (!ok) return true;
+      return isFlowPostImage(
+        String.fromCharCodes(name.asTypedList(size.value)),
+      );
+    } finally {
+      pkgffi.calloc.free(size);
+      pkgffi.calloc.free(name);
+      CloseHandle(handle);
+    }
   }
 
   static PCWSTR _utf16(String value) {
@@ -140,18 +188,28 @@ class FlowPostShell with WindowListener, TrayListener {
     return PCWSTR(buffer.cast<pkgffi.Utf16>());
   }
 
+  /// Enumerate every window of our class: the topmost one is frequently
+  /// *this* (secondary) process's own window, so a single FindWindow would
+  /// miss the primary.
   HWND? _windowOfPid(int ownerPid) {
+    final classPtr = _utf16(_windowClass);
     try {
-      final window = FindWindow(_utf16(_windowClass), null).value;
-      if (window.address == 0) return null;
-      final pidBuf = pkgffi.calloc<ffi.Uint32>();
-      GetWindowThreadProcessId(window, pidBuf);
-      final owner = pidBuf.value;
-      pkgffi.calloc.free(pidBuf);
-      return owner == ownerPid ? window : null;
+      HWND? previous;
+      while (true) {
+        final window = FindWindowEx(null, previous, classPtr, null).value;
+        if (window.address == 0) return null;
+        final pidBuf = pkgffi.calloc<ffi.Uint32>();
+        GetWindowThreadProcessId(window, pidBuf);
+        final owner = pidBuf.value;
+        pkgffi.calloc.free(pidBuf);
+        if (owner == ownerPid) return window;
+        previous = window;
+      }
     } on Object catch (e) {
       _log.warning('Window probe failed: $e');
       return null;
+    } finally {
+      pkgffi.calloc.free(classPtr);
     }
   }
 
