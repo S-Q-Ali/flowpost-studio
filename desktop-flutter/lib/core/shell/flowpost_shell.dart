@@ -98,6 +98,9 @@ class FlowPostShell with WindowListener, TrayListener {
       },
     );
     windowManager.addListener(this);
+    // Without this the native WM_CLOSE destroys the window and exits,
+    // bypassing onWindowClose entirely.
+    await windowManager.setPreventClose(true);
 
     await trayManager.setIcon(trayIconPath);
     await trayManager.setToolTip('FlowPost');
@@ -214,6 +217,7 @@ class FlowPostShell with WindowListener, TrayListener {
   }
 
   Future<void> showFromTray() async {
+    await windowManager.setSkipTaskbar(false);
     await windowManager.show();
     await windowManager.focus();
   }
@@ -231,12 +235,11 @@ class FlowPostShell with WindowListener, TrayListener {
 
   @override
   void onWindowClose() async {
-    // destroy() hides on Windows, keeping the process alive for the tray.
-    if (_hideOnClose) {
-      await windowManager.destroy();
-    } else {
-      await windowManager.close();
-    }
+    // window_manager's destroy() is fatal — verified by smoke test: the
+    // process exits. Close-to-tray must hide a live window instead.
+    if (!_hideOnClose) return;
+    await windowManager.hide();
+    await windowManager.setSkipTaskbar(true);
   }
 
   @override

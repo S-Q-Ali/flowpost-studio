@@ -54,20 +54,29 @@ Future<void> rotateLogIfNeeded(File log, {int maxBytes = 1 << 20}) async {
   }
 }
 
+/// Writes are chained FIFO so `flushLogging()` can await them all before a
+/// short-lived (hand-off) process calls `exit()`.
+Future<void> _lastWrite = Future<void>.value();
+
+/// Resolves once every queued log record has been written to disk.
+Future<void> flushLogging() => _lastWrite;
+
 Future<Logger> initLogging() async {
   Logger.root.level = Level.INFO;
-  Logger.root.onRecord.listen((record) async {
-    final dir = await _logsDirectory();
-    final file = File('${dir.path}${Platform.pathSeparator}app.log');
-    await rotateLogIfNeeded(file);
-    final line =
-        '${record.time.toIso8601String()} ${record.level.name} '
-        '${record.loggerName}: ${redactSecrets(record.message)}\n';
-    try {
-      await file.writeAsString(line, mode: FileMode.append);
-    } on FileSystemException {
-      // Logging must never take the app down.
-    }
+  Logger.root.onRecord.listen((record) {
+    _lastWrite = _lastWrite.then((_) async {
+      final dir = await _logsDirectory();
+      final file = File('${dir.path}${Platform.pathSeparator}app.log');
+      await rotateLogIfNeeded(file);
+      final line =
+          '${record.time.toIso8601String()} ${record.level.name} '
+          '${record.loggerName}: ${redactSecrets(record.message)}\n';
+      try {
+        await file.writeAsString(line, mode: FileMode.append);
+      } on FileSystemException {
+        // Logging must never take the app down.
+      }
+    });
   });
   return Logger.root;
 }

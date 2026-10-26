@@ -37,6 +37,7 @@ Future<void> main() async {
   );
   await shell.prepareGuard();
   if (!await shell.acquireSingleInstance(initialLink)) {
+    await flushLogging();
     exit(0);
   }
   await shell.startWindowAndTray();
