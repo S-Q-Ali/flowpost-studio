@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../core/theme/app_theme.dart';
+import '../domain/media_job.dart';
 import '../domain/media_validation.dart';
 import '../media_providers.dart';
 
@@ -21,12 +25,13 @@ class MediaPage extends ConsumerWidget {
             MediaFailed(message: final message) => _FailedState(
               message: message,
             ),
-            MediaPicked(
-              displayName: final displayName,
-              kind: final kind,
-              bytes: final bytes,
+            MediaProcessing(
+              job: final job,
+              fraction: final fraction,
+              message: final message,
             ) =>
-              _PickedState(displayName: displayName, kind: kind, bytes: bytes),
+              _ProcessingState(job: job, fraction: fraction, message: message),
+            MediaReady(job: final job) => _ReadyState(job: job),
           },
         ),
       ),
@@ -125,39 +130,197 @@ class _FailedState extends ConsumerWidget {
   }
 }
 
-class _PickedState extends ConsumerWidget {
-  const _PickedState({
-    required this.displayName,
-    required this.kind,
-    required this.bytes,
+class _ProcessingState extends ConsumerWidget {
+  const _ProcessingState({
+    required this.job,
+    required this.fraction,
+    this.message,
   });
 
-  final String displayName;
-  final MediaKind kind;
-  final int bytes;
+  final MediaJob job;
+  final double fraction;
+  final String? message;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(displayName, style: Theme.of(context).textTheme.titleMedium),
+        Text(job.displayName, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 4),
         Row(
           children: [
-            Text(kind == MediaKind.video ? 'Video' : 'Image'),
+            Text(job.kind == MediaKind.video ? 'Video' : 'Image'),
             const SizedBox(width: 8),
-            Text(formatMediaBytes(bytes)),
+            Text(formatMediaBytes(job.sourceBytes)),
           ],
         ),
         const SizedBox(height: 24),
+        LinearProgressIndicator(value: fraction),
+        const SizedBox(height: 8),
+        Text(message ?? 'Processing...'),
+        Text('${(fraction * 100).round()}%'),
+        const SizedBox(height: 16),
         OutlinedButton.icon(
-          onPressed: () =>
-              ref.read(mediaControllerProvider.notifier).chooseAnother(),
-          icon: const Icon(Icons.folder_open),
-          label: const Text('Choose another file'),
+          onPressed: () => ref.read(mediaControllerProvider.notifier).cancel(),
+          icon: const Icon(Icons.stop_circle_outlined),
+          label: const Text('Cancel'),
         ),
       ],
+    );
+  }
+}
+
+class _ReadyState extends ConsumerWidget {
+  const _ReadyState({required this.job});
+
+  final MediaJob job;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final probe = job.probe;
+    final outputs = job.outputs;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(job.displayName, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Text(job.kind == MediaKind.video ? 'Video' : 'Image'),
+            const SizedBox(width: 8),
+            Text(formatMediaBytes(job.sourceBytes)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (outputs != null) ...[
+          _Thumbnail(file: outputs.thumbnail),
+          const SizedBox(height: 16),
+        ],
+        if (probe != null) ...[
+          _SummaryRow(
+            label: 'Dimensions',
+            value: '${probe.width} x ${probe.height}',
+          ),
+          if (job.kind == MediaKind.video)
+            _SummaryRow(
+              label: 'Duration',
+              value: formatMediaDuration(probe.duration),
+            ),
+          _SummaryRow(label: 'Video codec', value: probe.videoCodec),
+          if (probe.hasAudio)
+            _SummaryRow(label: 'Audio codec', value: probe.audioCodec!),
+        ],
+        if (outputs != null) ...[
+          const SizedBox(height: 16),
+          Text('Outputs', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          if (outputs.normalized != null)
+            const _OutputRow(name: 'normalized.mp4', label: 'Normalized video'),
+          const _OutputRow(name: 'thumb.jpg', label: 'Thumbnail'),
+          for (final frame in outputs.frames)
+            _OutputRow(name: p.basename(frame.path), label: 'Caption frame'),
+          if (outputs.audio != null)
+            const _OutputRow(name: 'audio.mp3', label: 'Transcription audio'),
+        ],
+        const SizedBox(height: 24),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            FilledButton.icon(
+              onPressed: null,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Generate captions'),
+            ),
+            FilledButton.icon(
+              onPressed: null,
+              icon: const Icon(Icons.cloud_upload),
+              label: const Text('Upload'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () =>
+                  ref.read(mediaControllerProvider.notifier).chooseAnother(),
+              icon: const Icon(Icons.folder_open),
+              label: const Text('Choose another file'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text('Sign in required to generate captions or upload.'),
+      ],
+    );
+  }
+}
+
+/// The generated thumbnail, with a placeholder until the file is there.
+class _Thumbnail extends StatelessWidget {
+  const _Thumbnail({required this.file});
+
+  final File file;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: file.exists(),
+      builder: (context, snapshot) {
+        final exists = snapshot.data ?? false;
+        if (!exists) {
+          return Container(
+            width: 320,
+            height: 180,
+            alignment: Alignment.center,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: const Text('No preview'),
+          );
+        }
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(
+            file,
+            width: 320,
+            height: 180,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stack) => Container(
+              width: 320,
+              height: 180,
+              alignment: Alignment.center,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: const Text('No preview'),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text('$label: $value'),
+    );
+  }
+}
+
+class _OutputRow extends StatelessWidget {
+  const _OutputRow({required this.name, required this.label});
+
+  final String name;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text('$label — $name'),
     );
   }
 }
@@ -166,4 +329,11 @@ String formatMediaBytes(int bytes) {
   if (bytes < 1024) return '$bytes B';
   if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
   return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
+String formatMediaDuration(Duration value) {
+  final total = value.inSeconds;
+  final minutes = total ~/ 60;
+  final seconds = total % 60;
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }

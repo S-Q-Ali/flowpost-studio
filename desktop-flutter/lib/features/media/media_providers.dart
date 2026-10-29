@@ -1,10 +1,17 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
+import 'data/ffmpeg_paths.dart';
+import 'data/ffmpeg_runner.dart';
 import 'data/media_file_picker.dart';
+import 'data/media_processor.dart';
 import 'data/media_workspace.dart';
+import 'domain/media_job.dart';
+import 'domain/media_processing.dart';
 import 'domain/media_validation.dart';
 
 final mediaPickerProvider = Provider<MediaFilePicker>(
@@ -23,6 +30,31 @@ final mediaWorkspaceProvider = FutureProvider<MediaWorkspace>((ref) async {
   return MediaWorkspace.forApplication();
 });
 
+/// The bundled FFmpeg, or null when it is not installed.
+final mediaFfmpegPathsProvider = FutureProvider<FfmpegPaths?>((ref) {
+  return FfmpegPaths.locate();
+});
+
+/// Builds the processor for one job. Tests replace this seam so no FFmpeg
+/// process is started.
+final mediaProcessorFactoryProvider = Provider<MediaProcessorFactory>((ref) {
+  return (job) async {
+    final paths = await ref.read(mediaFfmpegPathsProvider.future);
+    if (paths == null) {
+      throw const MediaProcessingException(
+        'FFmpeg is missing. Reinstall the app to process media.',
+      );
+    }
+    return FfmpegMediaProcessor(
+      executor: FfmpegRunner(
+        ffmpegPath: paths.ffmpeg,
+        ffprobePath: paths.ffprobe,
+      ),
+      paths: paths,
+    );
+  };
+});
+
 sealed class MediaState {
   const MediaState();
 }
@@ -35,23 +67,25 @@ class MediaChecking extends MediaState {
   const MediaChecking();
 }
 
-class MediaPicked extends MediaState {
-  const MediaPicked({
-    required this.jobId,
-    required this.sourcePath,
-    required this.displayName,
-    required this.kind,
-    required this.bytes,
+class MediaProcessing extends MediaState {
+  const MediaProcessing({
+    required this.job,
+    required this.fraction,
+    this.message,
   });
 
-  final String jobId;
+  final MediaJob job;
 
-  /// Absolute path of the source file. Never logged.
-  final String sourcePath;
+  /// How far along the pipeline is, from 0 to 1.
+  final double fraction;
 
-  final String displayName;
-  final MediaKind kind;
-  final int bytes;
+  final String? message;
+}
+
+class MediaReady extends MediaState {
+  const MediaReady(this.job);
+
+  final MediaJob job;
 }
 
 class MediaFailed extends MediaState {
@@ -65,7 +99,10 @@ final mediaControllerProvider = NotifierProvider<MediaController, MediaState>(
 );
 
 class MediaController extends Notifier<MediaState> {
+  static final Logger _log = Logger('media');
+
   Directory? _job;
+  MediaProcessor? _processor;
 
   @override
   MediaState build() => const MediaIdle();
@@ -90,23 +127,76 @@ class MediaController extends Notifier<MediaState> {
     _job = job;
     // A second pick replaces the first file, so its folder goes away too.
     if (previous != null) await workspace.deleteJob(previous);
-    state = MediaPicked(
-      jobId: p.basename(job.path),
+
+    final mediaJob = MediaJob(
+      id: p.basename(job.path),
       sourcePath: file.path,
       displayName: p.basename(file.path),
       kind: validation.kind!,
-      bytes: validation.bytes!,
+      sourceBytes: validation.bytes!,
+      workspacePath: job.path,
     );
+    state = MediaProcessing(job: mediaJob, fraction: 0);
+    // The pipeline runs on in the background: the pick returns as soon as the
+    // job starts, not when the encode is done.
+    unawaited(_process(mediaJob));
+  }
+
+  Future<void> _process(MediaJob job) async {
+    // Only the job id is logged: a path would leak the user's folders.
+    _log.info('Media job ${job.id} started.');
+    try {
+      final processor = await ref.read(mediaProcessorFactoryProvider)(job);
+      _processor = processor;
+      final result = await processor.process(
+        job,
+        onProgress: (progress) {
+          state = MediaProcessing(
+            job: job,
+            fraction: progress.fraction,
+            message: progress.message,
+          );
+        },
+      );
+      state = MediaReady(result);
+      _log.info('Media job ${job.id} ready.');
+    } on MediaCancelled {
+      // A cancelled job leaves nothing behind.
+      await _deleteJob();
+      state = const MediaIdle();
+      _log.info('Media job ${job.id} cancelled.');
+    } on MediaProcessingException catch (error) {
+      // The folder stays so the action can be retried.
+      state = MediaFailed(error.message);
+      _log.warning('Media job ${job.id} failed: ${error.message}');
+    } catch (_) {
+      state = const MediaFailed(
+        'Something went wrong while processing the file.',
+      );
+      _log.severe('Media job ${job.id} failed unexpectedly.');
+    } finally {
+      _processor = null;
+    }
+  }
+
+  /// Stops the running FFmpeg process.
+  void cancel() {
+    _processor?.cancel();
   }
 
   /// Abandons the current file and removes its workspace.
   Future<void> chooseAnother() async {
+    _processor?.cancel();
+    await _deleteJob();
+    state = const MediaIdle();
+  }
+
+  Future<void> _deleteJob() async {
     final job = _job;
     _job = null;
     if (job != null) {
       final workspace = await ref.read(mediaWorkspaceProvider.future);
       await workspace.deleteJob(job);
     }
-    state = const MediaIdle();
   }
 }

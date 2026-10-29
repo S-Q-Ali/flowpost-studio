@@ -15,11 +15,15 @@ import 'core/providers/app_providers.dart';
 import 'core/router/app_router.dart' show deepLinkAllowlist;
 import 'core/router/deep_link_dispatcher.dart';
 import 'core/shell/flowpost_shell.dart';
+import 'features/media/data/media_file_picker.dart';
 import 'features/media/data/media_workspace.dart';
+import 'features/media/media_providers.dart';
 
 final AppLinks _appLinks = AppLinks();
 
-Future<void> main() async {
+/// [picker] replaces the native file dialog so the upload screen can be
+/// driven end to end in a test.
+Future<void> main({MediaFilePicker? picker}) async {
   await runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
@@ -59,7 +63,10 @@ Future<void> main() async {
 
       runApp(
         ProviderScope(
-          overrides: [appConfigProvider.overrideWithValue(config)],
+          overrides: [
+            appConfigProvider.overrideWithValue(config),
+            if (picker != null) mediaPickerProvider.overrideWithValue(picker),
+          ],
           child: FlowPostApp(
             initialDeepLink: dispatcher.routeFor(initialLink),
             refreshListenable: pendingLink,
