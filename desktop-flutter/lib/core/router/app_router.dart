@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/accounts/presentation/accounts_page.dart';
 import '../../features/home/home_page.dart';
+import '../shell/app_shell.dart';
 
 const String homeRoute = '/';
+const String accountsRoute = '/accounts';
+const String uploadRoute = '/upload';
+const String calendarRoute = '/calendar';
+const String settingsRoute = '/settings';
 
 /// SPEC-shell Success Criterion 6: only these protocol paths are honoured.
 const List<String> deepLinkAllowlist = ['/', '/auth-callback'];
@@ -18,10 +24,39 @@ GoRouter buildRouter({
     refreshListenable: refreshListenable,
     redirect: (context, state) => pendingDeepLink?.call(),
     routes: [
-      GoRoute(path: homeRoute, builder: (context, state) => const HomePage()),
+      ShellRoute(
+        builder: (context, state, child) =>
+            AppShell(location: state.uri.path, child: child),
+        routes: [
+          GoRoute(
+            path: homeRoute,
+            builder: (context, state) => const HomePage(),
+          ),
+          GoRoute(
+            path: accountsRoute,
+            builder: (context, state) => const AccountsPage(),
+          ),
+          GoRoute(
+            path: uploadRoute,
+            builder: (context, state) =>
+                const _PendingModulePage(name: 'Upload'),
+          ),
+          GoRoute(
+            path: calendarRoute,
+            builder: (context, state) =>
+                const _PendingModulePage(name: 'Calendar'),
+          ),
+          GoRoute(
+            path: settingsRoute,
+            builder: (context, state) =>
+                const _PendingModulePage(name: 'Settings'),
+          ),
+        ],
+      ),
       GoRoute(
         path: '/auth-callback',
-        builder: (context, state) => const _PendingModulePage(name: 'Sign-in'),
+        builder: (context, state) =>
+            const Scaffold(body: _PendingModulePage(name: 'Sign-in')),
       ),
     ],
     errorBuilder: (context, state) =>
@@ -29,7 +64,7 @@ GoRouter buildRouter({
   );
 }
 
-/// Placeholder until the `identity` module mounts its real screens.
+/// Placeholder until the module mounts its real screen.
 class _PendingModulePage extends StatelessWidget {
   const _PendingModulePage({required this.name});
 
@@ -37,9 +72,15 @@ class _PendingModulePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(name)),
-      body: const Center(child: Text('Coming soon in the next module.')),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(name, style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 8),
+          const Text('Coming soon in the next module.'),
+        ],
+      ),
     );
   }
 }

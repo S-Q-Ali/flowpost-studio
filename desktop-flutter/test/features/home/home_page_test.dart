@@ -18,7 +18,7 @@ void main() {
         child: const FlowPostApp(),
       ),
     );
-    expect(find.text('FlowPost'), findsOneWidget);
+    expect(find.text('FlowPost Studio'), findsOneWidget);
     expect(find.textContaining('native desktop experience'), findsOneWidget);
   });
 
