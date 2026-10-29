@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/format/media_format.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
@@ -495,17 +496,4 @@ class _OutputRow extends StatelessWidget {
       child: Text('$label — $name'),
     );
   }
-}
-
-String formatMediaBytes(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-}
-
-String formatMediaDuration(Duration value) {
-  final total = value.inSeconds;
-  final minutes = total ~/ 60;
-  final seconds = total % 60;
-  return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }
