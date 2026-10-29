@@ -18,6 +18,8 @@ import 'package:flowpost_desktop/features/media/domain/media_processing.dart';
 import 'package:flowpost_desktop/features/media/domain/media_validation.dart';
 import 'package:flowpost_desktop/features/media/media_providers.dart';
 import 'package:flowpost_desktop/features/media/presentation/media_page.dart';
+import 'package:flowpost_desktop/features/media/upload/data/upload_client.dart';
+import 'package:flowpost_desktop/features/media/upload/upload_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,9 +62,13 @@ class _FakeWorkspace extends MediaWorkspace {
 }
 
 class _FakeProcessor implements MediaProcessor {
-  _FakeProcessor({this.error});
+  _FakeProcessor({this.error, this.normalized});
 
   final Object? error;
+
+  /// The normalized file. It has to exist, because the upload counts its
+  /// bytes.
+  final File? normalized;
 
   @override
   Future<MediaJob> process(
@@ -90,7 +96,7 @@ class _FakeProcessor implements MediaProcessor {
       outputs: MediaOutputs(
         thumbnail: File('thumb.jpg'),
         frames: [File('frame_1.jpg'), File('frame_2.jpg'), File('frame_3.jpg')],
-        normalized: File('normalized.mp4'),
+        normalized: normalized ?? File('normalized.mp4'),
         audio: File('audio.mp3'),
       ),
       stage: MediaStage.ready,
@@ -99,6 +105,56 @@ class _FakeProcessor implements MediaProcessor {
 
   @override
   void cancel() {}
+}
+
+/// A transport that answers from memory, without reading the disk.
+class _FakeTransport implements UploadTransport {
+  UploadReply reply = const UploadReply(
+    statusCode: 200,
+    body: {
+      'success': true,
+      'videoId': 'video-1',
+      'url': 'https://cdn.example.com/user/job-1.mp4',
+      'filename': 'normalized.mp4',
+      'size': 2048,
+    },
+  );
+
+  int cancelCalls = 0;
+
+  @override
+  Future<UploadReply> send({
+    required Uri url,
+    required MultipartBody body,
+    String? token,
+    UploadSentCallback? onSent,
+  }) async {
+    onSent?.call(body.fileLength);
+    return reply;
+  }
+
+  @override
+  void cancel() => cancelCalls++;
+}
+
+/// A transport that never answers, so the test can cancel the upload.
+class _PendingTransport implements UploadTransport {
+  final Completer<UploadReply> completer = Completer();
+  int cancelCalls = 0;
+
+  @override
+  Future<UploadReply> send({
+    required Uri url,
+    required MultipartBody body,
+    String? token,
+    UploadSentCallback? onSent,
+  }) {
+    onSent?.call(body.fileLength);
+    return completer.future;
+  }
+
+  @override
+  void cancel() => cancelCalls++;
 }
 
 /// A processor that stays on the processing step until the test ends.
@@ -211,18 +267,26 @@ Future<MediaValidation> _fakeValidator(FileSystemEntity file) async {
 
 void main() {
   late _FakeWorkspace workspace;
+  late Directory temp;
+  late File normalized;
 
   setUp(() {
     workspace = _FakeWorkspace();
+    temp = Directory.systemTemp.createTempSync('flowpost-page');
+    normalized = File('${temp.path}${Platform.pathSeparator}normalized.mp4')
+      ..writeAsBytesSync(List<int>.generate(2048, (index) => index % 256));
   });
+
+  tearDown(() => temp.deleteSync(recursive: true));
 
   Future<void> pumpUploadPage(
     WidgetTester tester,
     MediaFilePicker picker, {
     Size size = const Size(1280, 800),
     MediaProcessor? processor,
-    String? captionToken,
+    String? sessionToken,
     CaptionGenerator? captionGenerator,
+    UploadTransport? uploadTransport,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -236,12 +300,22 @@ void main() {
           mediaValidatorProvider.overrideWithValue(_fakeValidator),
           mediaWorkspaceProvider.overrideWith((ref) async => workspace),
           mediaProcessorFactoryProvider.overrideWithValue(
-            (job) async => processor ?? _FakeProcessor(),
+            (job) async => processor ?? _FakeProcessor(normalized: normalized),
           ),
-          if (captionToken != null)
-            captionTokenProvider.overrideWithValue(captionToken),
+          if (sessionToken != null)
+            sessionTokenProvider.overrideWithValue(sessionToken),
           if (captionGenerator != null)
             captionGeneratorProvider.overrideWithValue(captionGenerator),
+          if (uploadTransport != null)
+            uploadClientProvider.overrideWithValue(
+              UploadClient(
+                endpoint: Uri.parse(
+                  'https://test.supabase.co/functions/v1/upload-local-file',
+                ),
+                token: sessionToken,
+                transport: uploadTransport,
+              ),
+            ),
         ],
         child: const FlowPostApp(initialDeepLink: '/upload'),
       ),
@@ -399,7 +473,7 @@ void main() {
     await pumpUploadPage(
       tester,
       _FakePicker([File('C:\\clips\\clip.mp4')]),
-      captionToken: 'session-token',
+      sessionToken: 'session-token',
       captionGenerator: _FakeGenerator(),
     );
 
@@ -418,7 +492,7 @@ void main() {
     await pumpUploadPage(
       tester,
       _FakePicker([File('C:\\clips\\clip.mp4')]),
-      captionToken: 'session-token',
+      sessionToken: 'session-token',
       captionGenerator: _FakeGenerator()
         ..failure = const CaptionException('The caption service said no.'),
     );
@@ -436,7 +510,7 @@ void main() {
     await pumpUploadPage(
       tester,
       _FakePicker([File('C:\\clips\\clip.mp4')]),
-      captionToken: 'session-token',
+      sessionToken: 'session-token',
       captionGenerator: _FakeGenerator(),
     );
 
@@ -460,7 +534,7 @@ void main() {
     await pumpUploadPage(
       tester,
       _FakePicker([File('C:\\clips\\clip.mp4')]),
-      captionToken: 'session-token',
+      sessionToken: 'session-token',
       captionGenerator: _PendingGenerator(),
     );
 
@@ -476,6 +550,85 @@ void main() {
 
     expect(find.text('Transcribing audio...'), findsNothing);
     expect(find.text('Captions'), findsNothing);
+  });
+
+  testWidgets('the upload action is off without a session token', (
+    tester,
+  ) async {
+    await pumpUploadPage(tester, _FakePicker([File('C:\\clips\\clip.mp4')]));
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+
+    final upload = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Upload'),
+    );
+    expect(upload.onPressed, isNull);
+    expect(find.textContaining('Sign in required'), findsOneWidget);
+  });
+
+  testWidgets('the upload runs when a session token exists', (tester) async {
+    await pumpUploadPage(
+      tester,
+      _FakePicker([File('C:\\clips\\clip.mp4')]),
+      sessionToken: 'session-token',
+      uploadTransport: _FakeTransport(),
+    );
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Upload'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Uploaded — normalized.mp4 (2.0 KB)'), findsOneWidget);
+    expect(find.textContaining('Sign in required'), findsNothing);
+  });
+
+  testWidgets('a failed upload shows a readable error', (tester) async {
+    final transport = _FakeTransport()
+      ..reply = const UploadReply(
+        statusCode: 500,
+        body: {'error': 'R2 upload failed: 500'},
+      );
+    await pumpUploadPage(
+      tester,
+      _FakePicker([File('C:\\clips\\clip.mp4')]),
+      sessionToken: 'session-token',
+      uploadTransport: transport,
+    );
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Upload'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('R2 upload failed: 500'), findsOneWidget);
+    expect(find.textContaining('Uploaded'), findsNothing);
+  });
+
+  testWidgets('the upload can be cancelled', (tester) async {
+    final transport = _PendingTransport();
+    await pumpUploadPage(
+      tester,
+      _FakePicker([File('C:\\clips\\clip.mp4')]),
+      sessionToken: 'session-token',
+      uploadTransport: transport,
+    );
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Upload'));
+    await tester.pump();
+
+    expect(find.text('Uploading...'), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(transport.cancelCalls, 1);
+    expect(find.text('The upload was cancelled.'), findsOneWidget);
+    expect(find.text('Uploading...'), findsNothing);
   });
 
   testWidgets('grows with large text at the minimum window size', (

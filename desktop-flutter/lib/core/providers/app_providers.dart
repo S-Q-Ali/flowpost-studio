@@ -7,3 +7,9 @@ import '../config/app_config.dart';
 final Provider<AppConfig> appConfigProvider = Provider<AppConfig>(
   (ref) => throw UnimplementedError('appConfigProvider must be overridden'),
 );
+
+/// The session token the backend calls are made with.
+///
+/// Null until the identity module exists, so the actions that need one stay
+/// disabled with the sign-in hint.
+final Provider<String?> sessionTokenProvider = Provider<String?>((ref) => null);

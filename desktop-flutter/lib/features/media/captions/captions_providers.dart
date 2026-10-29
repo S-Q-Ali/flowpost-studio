@@ -7,19 +7,14 @@ import 'data/caption_generator.dart';
 import 'data/captions_client.dart';
 import 'domain/caption_processing.dart';
 
-/// The session token the caption service is called with.
-///
-/// Null until the identity module exists, so the caption action stays
-/// disabled with the sign-in hint.
-final captionTokenProvider = Provider<String?>((ref) => null);
-
+/// The client the caption service is called with.
 final captionsClientProvider = Provider<CaptionsClient>((ref) {
   final config = ref.watch(appConfigProvider);
   return CaptionsClient(
     endpoint: Uri.parse(
       '${config.supabaseUrl}/functions/v1/generate-ai-captions',
     ),
-    token: ref.watch(captionTokenProvider),
+    token: ref.watch(sessionTokenProvider),
   );
 });
 

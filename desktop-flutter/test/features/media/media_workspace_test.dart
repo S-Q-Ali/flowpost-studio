@@ -40,6 +40,12 @@ void main() {
       );
     });
 
+    test('the job id is accepted as an idempotency key', () {
+      // The upload service only accepts these characters in the key, and
+      // the job id is what the client sends as the key.
+      expect(newJobId(), matches(RegExp(r'^[A-Za-z0-9_-]{1,128}$')));
+    });
+
     test('createJob makes the jobs root when it is missing', () async {
       final job = await buildWorkspace().createJob();
 

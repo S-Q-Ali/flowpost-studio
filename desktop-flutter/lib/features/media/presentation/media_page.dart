@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/providers/app_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../captions/captions_providers.dart';
 import '../captions/domain/caption_prompt.dart';
 import '../domain/media_job.dart';
 import '../domain/media_validation.dart';
 import '../media_providers.dart';
+import '../upload/upload_providers.dart';
 
 class MediaPage extends ConsumerWidget {
   const MediaPage({super.key});
@@ -17,27 +19,92 @@ class MediaPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(mediaControllerProvider);
+    final upload = ref.watch(uploadControllerProvider);
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          child: switch (state) {
-            MediaIdle() => const _EmptyState(),
-            MediaChecking() => const _CheckingState(),
-            MediaFailed(message: final message) => _FailedState(
-              message: message,
-            ),
-            MediaProcessing(
-              job: final job,
-              fraction: final fraction,
-              message: final message,
-            ) =>
-              _ProcessingState(job: job, fraction: fraction, message: message),
-            MediaReady(job: final job) => _ReadyState(job: job),
-          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              switch (state) {
+                MediaIdle() => const _EmptyState(),
+                MediaChecking() => const _CheckingState(),
+                MediaFailed(message: final message) => _FailedState(
+                  message: message,
+                ),
+                MediaProcessing(
+                  job: final job,
+                  fraction: final fraction,
+                  message: final message,
+                ) =>
+                  _ProcessingState(
+                    job: job,
+                    fraction: fraction,
+                    message: message,
+                  ),
+                MediaReady(job: final job) => _ReadyState(job: job),
+              },
+              ..._uploadSection(context, ref, upload),
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+/// The upload progress, the stored file, or the failure.
+///
+/// It sits outside the media states, because the file is gone once the
+/// upload is done.
+List<Widget> _uploadSection(
+  BuildContext context,
+  WidgetRef ref,
+  UploadState state,
+) {
+  switch (state) {
+    case UploadIdle():
+      return const [];
+    case UploadRunning(progress: final progress):
+      return [
+        const SizedBox(height: 16),
+        LinearProgressIndicator(value: progress.fraction),
+        const SizedBox(height: 8),
+        Text(progress.message),
+        Text('${(progress.fraction * 100).round()}%'),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => ref.read(uploadControllerProvider.notifier).cancel(),
+          icon: const Icon(Icons.stop_circle_outlined),
+          label: const Text('Cancel'),
+        ),
+      ];
+    case UploadDone(result: final result):
+      return [
+        const SizedBox(height: 16),
+        Text(
+          'Uploaded — ${result.filename} '
+          '(${formatMediaBytes(result.size)})',
+        ),
+      ];
+    case UploadFailed(message: final message):
+      return [
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.error_outline, color: FlowPostColors.destructive),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+      ];
+    case UploadCancelled():
+      return [
+        const SizedBox(height: 16),
+        const Text('The upload was cancelled.'),
+      ];
   }
 }
 
@@ -183,7 +250,12 @@ class _ReadyState extends ConsumerWidget {
     final probe = job.probe;
     final outputs = job.outputs;
     final captionState = ref.watch(captionControllerProvider);
-    final canGenerate = ref.watch(captionTokenProvider) != null;
+    final uploadState = ref.watch(uploadControllerProvider);
+    final canGenerate = ref.watch(sessionTokenProvider) != null;
+    final canUpload =
+        canGenerate &&
+        uploadState is! UploadRunning &&
+        uploadState is! UploadDone;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -242,7 +314,10 @@ class _ReadyState extends ConsumerWidget {
               label: const Text('Generate captions'),
             ),
             FilledButton.icon(
-              onPressed: null,
+              onPressed: canUpload
+                  ? () =>
+                        ref.read(uploadControllerProvider.notifier).upload(job)
+                  : null,
               icon: const Icon(Icons.cloud_upload),
               label: const Text('Upload'),
             ),

@@ -14,6 +14,7 @@ import 'data/media_workspace.dart';
 import 'domain/media_job.dart';
 import 'domain/media_processing.dart';
 import 'domain/media_validation.dart';
+import 'upload/upload_providers.dart';
 
 final mediaPickerProvider = Provider<MediaFilePicker>(
   (ref) => const FileSelectorMediaPicker(),
@@ -122,6 +123,7 @@ class MediaController extends Notifier<MediaState> {
     }
     // The captions belong to the previous file, so they go away with it.
     ref.read(captionControllerProvider.notifier).reset();
+    ref.read(uploadControllerProvider.notifier).reset();
     // The workspace is created only once the file passes validation, so a
     // rejected file never leaves a folder behind.
     final MediaWorkspace workspace;
@@ -207,10 +209,23 @@ class MediaController extends Notifier<MediaState> {
     _processor?.cancel();
   }
 
+  /// Finishes a job: the file is uploaded or the upload was cancelled, so
+  /// the temporary files go away and the screen is empty again.
+  ///
+  /// A job that is no longer the current one is left alone: the user has
+  /// already moved on to another file.
+  Future<void> completeJob(String jobId) async {
+    final job = _job;
+    if (job == null || p.basename(job.path) != jobId) return;
+    await _deleteJob();
+    state = const MediaIdle();
+  }
+
   /// Abandons the current file and removes its workspace.
   Future<void> chooseAnother() async {
     _processor?.cancel();
     ref.read(captionControllerProvider.notifier).reset();
+    ref.read(uploadControllerProvider.notifier).reset();
     await _deleteJob();
     state = const MediaIdle();
   }
