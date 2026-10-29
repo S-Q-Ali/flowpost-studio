@@ -55,6 +55,8 @@ class FfmpegMediaProcessor implements MediaProcessor {
   static const Duration _probeTimeout = Duration(seconds: 30);
   static const String _tooLongMessage =
       'Processing took too long and was stopped.';
+  static const String _cannotStartMessage =
+      'FFmpeg could not start. Reinstall the app.';
 
   bool _cancelled = false;
 
@@ -110,6 +112,12 @@ class FfmpegMediaProcessor implements MediaProcessor {
       timeout: remaining < _probeTimeout ? remaining : _probeTimeout,
     );
     if (run.cancelled) throw const MediaCancelled();
+    if (run.failedToStart) {
+      throw const MediaProcessingException(_cannotStartMessage);
+    }
+    if (run.timedOut) {
+      throw const MediaProcessingException(_tooLongMessage);
+    }
     if (!run.isSuccess) {
       throw const MediaProcessingException(
         "This file can't be read. It may be damaged.",
@@ -284,6 +292,9 @@ class FfmpegMediaProcessor implements MediaProcessor {
     );
     _throwIfCancelled();
     if (run.cancelled) throw const MediaCancelled();
+    if (run.failedToStart) {
+      throw const MediaProcessingException(_cannotStartMessage);
+    }
     if (run.timedOut) {
       throw const MediaProcessingException(_tooLongMessage);
     }

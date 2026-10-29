@@ -205,6 +205,66 @@ void main() {
     expect(executor.calls, hasLength(1));
   });
 
+  test(
+    'a probe that runs out of time is not reported as a damaged file',
+    () async {
+      final executor = _FakeExecutor((call) {
+        if (call.executable == 'ffprobe') {
+          return const FfmpegRun(
+            exitCode: -1,
+            stdout: '',
+            stderr: '',
+            timedOut: true,
+          );
+        }
+        _writeOutput(call.outputPath);
+        return const FfmpegRun(exitCode: 0, stdout: '', stderr: '');
+      });
+      final processor = FfmpegMediaProcessor(executor: executor, paths: _paths);
+
+      await expectLater(
+        processor.process(job()),
+        throwsA(
+          isA<MediaProcessingException>().having(
+            (error) => error.message,
+            'message',
+            'Processing took too long and was stopped.',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'an FFmpeg that cannot start is not reported as a damaged file',
+    () async {
+      final executor = _FakeExecutor((call) {
+        if (call.executable == 'ffprobe') {
+          return const FfmpegRun(
+            exitCode: -1,
+            stdout: '',
+            stderr: 'The application was unable to start correctly.',
+            failedToStart: true,
+          );
+        }
+        _writeOutput(call.outputPath);
+        return const FfmpegRun(exitCode: 0, stdout: '', stderr: '');
+      });
+      final processor = FfmpegMediaProcessor(executor: executor, paths: _paths);
+
+      await expectLater(
+        processor.process(job()),
+        throwsA(
+          isA<MediaProcessingException>().having(
+            (error) => error.message,
+            'message',
+            'FFmpeg could not start. Reinstall the app.',
+          ),
+        ),
+      );
+    },
+  );
+
   test('a video longer than three minutes is rejected', () async {
     const probeJson = '''
 {

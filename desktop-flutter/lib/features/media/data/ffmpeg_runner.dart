@@ -12,6 +12,7 @@ class FfmpegRun {
     required this.stderr,
     this.timedOut = false,
     this.cancelled = false,
+    this.failedToStart = false,
   });
 
   final int exitCode;
@@ -20,7 +21,12 @@ class FfmpegRun {
   final bool timedOut;
   final bool cancelled;
 
-  bool get isSuccess => exitCode == 0 && !timedOut && !cancelled;
+  /// True when the process could not be started at all — a broken install
+  /// rather than a file FFmpeg disliked.
+  final bool failedToStart;
+
+  bool get isSuccess =>
+      exitCode == 0 && !timedOut && !cancelled && !failedToStart;
 }
 
 /// Runs one FFmpeg or ffprobe process.
@@ -81,7 +87,12 @@ class FfmpegRunner implements FfmpegExecutor {
     try {
       process = await Process.start(executable, arguments);
     } on ProcessException catch (error) {
-      return FfmpegRun(exitCode: -1, stdout: '', stderr: error.message);
+      return FfmpegRun(
+        exitCode: -1,
+        stdout: '',
+        stderr: error.message,
+        failedToStart: true,
+      );
     }
     _active = process;
     if (_cancelRequested) process.kill();
