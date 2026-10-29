@@ -170,7 +170,7 @@ The platform's own text is shown only after it is stripped of anything that coul
 
 ## UI
 
-- **Compose:** the finished media on the left; on the right the platform checkboxes with the connected accounts under each, the caption field, and the mode (Publish now / Schedule).
+- **Compose:** the finished media on the left; on the right the platform checkboxes with the connected accounts under each, the caption field, and the mode (Publish now / Schedule). A Facebook or Instagram story is its own option next to the feed post of the same platform, not a mode of it.
 - **Per platform:** the caption can differ per platform, as in the web app (`src/pages/UploadPage.tsx:420-559`). The caption the AI wrote is the starting point for each selected platform.
 - **Validation:** the caption limit and the media type are checked before the button is enabled, and the reason is shown next to the field.
 - **Schedule:** a date and a time in the admin's timezone, with the UTC instant shown underneath so there is no doubt about what was stored.
@@ -231,10 +231,15 @@ The live publish cannot be run before identity exists, so the contract tests use
 - Carousels, the workflow fan-out rows, bulk publishing.
 - Persisting the platform id and the failure reason (a column, or the Phase 5 cache).
 
+## Decisions (2026-10-29, owner)
+
+| Question | Decision |
+|---|---|
+| A caption over the platform's limit | **Refuse it.** The client names the limit and does not send the post. The web app cuts it silently; the desktop client does not. |
+| How a story is chosen | **Its own option** next to the Facebook/Instagram choice, not a mode of it. |
+| Who publishes a scheduled post | **The scheduler only.** The client writes the row and reads the status back; it never publishes a due row itself, so one publisher is always in charge. |
+| The backend guards (status guard, atomic claim) | **After the app ships.** The client's strict guard carries the MVP; the backend changes follow when there is deploy access. |
+
 ## Open questions
 
-1. Does the `process-scheduled-posts` cron exist in the live database? The migration ships it commented out (`supabase/migrations/20260307000300_cron_process_scheduled_posts.sql:6-22`), and the whole scheduled flow depends on it.
-2. Should the client refuse an over-limit caption (this spec) or cut it like the functions do? This spec refuses; the web app cuts silently.
-3. Is a story a separate choice in the compose screen, or a mode of the Facebook/Instagram choice?
-4. Should the client publish a scheduled post itself when the app is running, or leave every scheduled post to the scheduler? This spec leaves them all to the scheduler, so one publisher is always in charge.
-5. The atomic claim in the scheduler and the status guard in the upload functions are backend changes; do they go on the v1 list, or stay after the app ships?
+1. Does the `process-scheduled-posts` cron exist in the live database? The migration ships it commented out (`supabase/migrations/20260307000300_cron_process_scheduled_posts.sql:6-22`), and the whole scheduled flow depends on it. If it is not there, it has to be created before a scheduled post can work.

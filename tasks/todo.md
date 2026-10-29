@@ -292,12 +292,13 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 
 ## Phase 4 — Publishing
 
-- [ ] **4.1** Write/approve `SPEC-publishing.md`; map upload functions/statuses
+- [x] **4.1** Write/approve `SPEC-publishing.md`; map upload functions/statuses
   - [x] `docs/spec/SPEC-publishing.md`: the publish unit, the two credentials, the platform contract, the limits, the status model, the duplicate rule, the error model
   - [x] The existing functions mapped: `upload-local-file`, `youtube-upload`, `instagram-upload`, `facebook-upload`, `tiktok-upload`, `linkedin-upload`, `post-story`, `process-scheduled-posts`; `transfer-ticket` and `drive-to-mega` are storage infrastructure, not the publish path
   - [x] The web app's publish path mapped: one `posts` row per (platform × account), then `{postId}` per function
   - [x] The five backend gaps that force the client's guard to be strict, each cited
-  - [ ] Human approval of the spec and its five open questions
+  - [x] The owner's decisions (2026-10-29): refuse an over-limit caption, a story is its own option, the scheduler alone publishes a scheduled post, the backend guards come after the app ships
+  - [x] Human approval of the spec
 - [ ] **4.2** Compose/publish UI with validation and per-platform status
 - [ ] **4.3** Publish-now flow with status polling
 - [ ] **4.4** Schedule + retry guard: refresh status before retry
@@ -320,7 +321,7 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Limits:** the client refuses an over-limit caption instead of letting the function cut it silently (`instagram-upload/index.ts:118` cuts at 2200, `youtube-upload/index.ts:242` at 5000). The web app has no client-side validation at all.
 - **Backend gaps found** (each needs the owner's approval and deploy access, so none are in the v1 scope): no status guard in the upload functions; no provider id for YouTube; the scheduler's claim is not atomic (`process-scheduled-posts/index.ts:82-85`); Instagram can re-send the publish call inside its 120 s window (`instagram-upload/index.ts:341-359`); TikTok can time out after the platform accepted the post (`tiktok-upload/index.ts:386-395`); the `posts` table has no `error_message` or `platform_post_id` column.
 - **Also found:** the `pg_cron` job for `process-scheduled-posts` ships commented out (`supabase/migrations/20260307000300_cron_process_scheduled_posts.sql:6-22`), so the whole scheduled flow depends on a job that has to be created by hand; and the web app's story branches never run, because the row it filters on is not selected after the insert (`src/pages/UploadPage.tsx:569` selects `id, platform, account_id, status`, but `:618-624` filters on `post_type`) — a story is published as a feed post there.
-- **Open for the owner:** five questions at the end of the spec — the cron's existence, refuse-or-cut for an over-limit caption, story as a separate choice, who publishes a scheduled post, and whether the backend guards go on the v1 list.
+- **Open for the owner:** the `process-scheduled-posts` cron — the migration ships it commented out (`supabase/migrations/20260307000300_cron_process_scheduled_posts.sql:6-22`), so the scheduled flow needs a job that may not exist in the live database.
 
 ---
 
