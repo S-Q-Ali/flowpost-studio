@@ -385,13 +385,13 @@ class _ScheduleFields extends ConsumerWidget {
 }
 
 /// What one platform's attempt did.
-class _StatusRow extends StatelessWidget {
+class _StatusRow extends ConsumerWidget {
   const _StatusRow({required this.status});
 
   final PublishTargetStatus status;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final (label, color) = switch (status.phase) {
       PublishPhase.waiting => ('Waiting', theme.colorScheme.onSurfaceVariant),
@@ -399,6 +399,7 @@ class _StatusRow extends StatelessWidget {
       PublishPhase.published => ('Published', Colors.green.shade700),
       PublishPhase.failed => ('Failed', FlowPostColors.destructive),
       PublishPhase.unconfirmed => ('Not confirmed', theme.colorScheme.tertiary),
+      PublishPhase.scheduled => ('Scheduled', theme.colorScheme.primary),
     };
     final messageColor = switch (status.phase) {
       PublishPhase.failed => theme.colorScheme.error,
@@ -410,11 +411,16 @@ class _StatusRow extends StatelessWidget {
       children: [
         Text(
           '${status.target.label}: $label',
-          style: theme.textTheme.bodyMedium,
+          style: theme.textTheme.bodyMedium?.copyWith(color: color),
         ),
         if (status.platformId != null)
           Text(
             'Post id: ${status.platformId}',
+            style: theme.textTheme.bodySmall,
+          ),
+        if (status.scheduledAt != null)
+          Text(
+            'Goes out at ${formatLocalSchedule(status.scheduledAt!)}',
             style: theme.textTheme.bodySmall,
           ),
         if (status.message != null)
@@ -422,6 +428,23 @@ class _StatusRow extends StatelessWidget {
             status.message!,
             style: theme.textTheme.bodySmall?.copyWith(color: messageColor),
           ),
+        if (status.phase == PublishPhase.failed) ...[
+          TextButton.icon(
+            key: Key('retry-${status.target.id}'),
+            onPressed: status.canRetry
+                ? () =>
+                      ref.read(publishControllerProvider.notifier).retry(status)
+                : null,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+          if (!status.canRetry)
+            Text(
+              'The queue is asked again before a retry, so the post is not '
+              'sent twice.',
+              style: theme.textTheme.bodySmall,
+            ),
+        ],
       ],
     );
   }

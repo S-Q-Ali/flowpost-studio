@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/data/publish_client.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_errors.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_selection.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
+import 'package:flowpost_desktop/features/publishing/domain/publish_validation.dart';
 import 'package:flowpost_desktop/features/publishing/publishing_controller.dart';
 import 'package:flowpost_desktop/features/publishing/publishing_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +34,12 @@ class _FakeRepository implements PostsRepository {
   /// The ids the client read back.
   final List<String> reads = [];
 
+  /// Whether the compare-and-set of a retry moves the row.
+  bool movesOnRetry = true;
+
+  /// The rows a retry tried to move.
+  final List<String> rescheduled = [];
+
   @override
   Future<String> insert(PostDraft draft) async {
     if (failure != null) throw failure!;
@@ -47,8 +56,10 @@ class _FakeRepository implements PostsRepository {
   }
 
   @override
-  Future<bool> rescheduleFailed(String postId, DateTime scheduledAt) async =>
-      false;
+  Future<bool> rescheduleFailed(String postId, DateTime scheduledAt) async {
+    rescheduled.add(postId);
+    return movesOnRetry;
+  }
 }
 
 /// A publisher that answers from memory.
@@ -57,6 +68,9 @@ class _FakeClient implements PublishApi {
   final Map<String, PublishException> failures = {};
   PublishResult result = const PublishResult(platformId: 'platform-1');
 
+  /// Holds the call until it is let go.
+  Completer<void>? gate;
+
   @override
   Future<PublishResult> publish({
     required PublishTarget target,
@@ -64,6 +78,8 @@ class _FakeClient implements PublishApi {
   }) async {
     final failure = failures[target.id];
     if (failure != null) throw failure;
+    final gate = this.gate;
+    if (gate != null) await gate.future;
     postIds.add(postId);
     return result;
   }
@@ -514,5 +530,207 @@ void main() {
       state.statuses.single.message,
       'The post may have gone out. Check the Queue before trying again.',
     );
+  });
+
+  test('a scheduled post is queued and nothing is sent', () async {
+    final repository = _FakeRepository();
+    final client = _FakeClient();
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(
+            targetIds: {'instagram:ig-1:feed'},
+            mode: PublishMode.schedule,
+            scheduleDate: '2026-11-01',
+            scheduleTime: '09:30',
+          ),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    // The scheduler publishes it, so the client sends nothing itself.
+    expect(client.postIds, isEmpty);
+    expect(repository.reads, isEmpty);
+    final draft = repository.drafts.single;
+    expect(draft.status, 'scheduled');
+    expect(draft.scheduledAt, DateTime(2026, 11, 1, 9, 30));
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.scheduled);
+    expect(state.statuses.single.scheduledAt, DateTime(2026, 11, 1, 9, 30));
+  });
+
+  test('a scheduled post with no time fails with the format', () async {
+    final repository = _FakeRepository();
+    final client = _FakeClient();
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(
+            targetIds: {'instagram:ig-1:feed'},
+            mode: PublishMode.schedule,
+            scheduleDate: 'not a date',
+            scheduleTime: '09:30',
+          ),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.failed);
+    expect(state.statuses.single.message, scheduleFormatMessage);
+    expect(repository.drafts, isEmpty);
+  });
+
+  test('a retry puts a failed row back into the queue', () async {
+    final repository = _FakeRepository()
+      ..answers = const [
+        PostRow(id: 'post-1', platform: 'instagram', status: PostStatus.failed),
+      ];
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(
+        PublishFailure(PublishErrorCode.platformRejected, 'Instagram said no.'),
+      );
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+    final controller = container.read(publishControllerProvider.notifier);
+
+    await controller.publish(
+      selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+      targets: const [_instagram],
+      videoId: 'video-1',
+    );
+    final failed = (container.read(
+      publishControllerProvider,
+    ) as PublishDone).statuses.single;
+    expect(failed.canRetry, isTrue);
+
+    await controller.retry(failed);
+
+    expect(repository.rescheduled, ['post-1']);
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.scheduled);
+    expect(state.statuses.single.message, 'It goes out in a minute.');
+    expect(
+      state.statuses.single.scheduledAt!.difference(DateTime.now()).inSeconds,
+      closeTo(60, 5),
+    );
+    // The retry never sends the call again.
+    expect(client.postIds, isEmpty);
+  });
+
+  test(
+    'a retry that changes nothing reads the row and shows the truth',
+    () async {
+      final repository = _FakeRepository()
+        ..answers = const [
+          PostRow(
+            id: 'post-1',
+            platform: 'instagram',
+            status: PostStatus.failed,
+          ),
+          PostRow(
+            id: 'post-1',
+            platform: 'instagram',
+            status: PostStatus.published,
+          ),
+        ]
+        ..movesOnRetry = false;
+      final client = _FakeClient()
+        ..failures[_instagram.id] = const PublishException(
+          PublishFailure(
+            PublishErrorCode.platformRejected,
+            'Instagram said no.',
+          ),
+        );
+      final container = _container(repository: repository, client: client);
+      addTearDown(container.dispose);
+      final controller = container.read(publishControllerProvider.notifier);
+
+      await controller.publish(
+        selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+        targets: const [_instagram],
+        videoId: 'video-1',
+      );
+      final failed = (container.read(
+        publishControllerProvider,
+      ) as PublishDone).statuses.single;
+
+      await controller.retry(failed);
+
+      final state = container.read(publishControllerProvider) as PublishDone;
+      expect(state.statuses.single.phase, PublishPhase.published);
+      expect(state.statuses.single.canRetry, isFalse);
+      expect(
+        state.statuses.single.message,
+        'The row changed. Its status is now published.',
+      );
+    },
+  );
+
+  test(
+    'a retry is not offered when the row was not read back as failed',
+    () async {
+      final repository = _FakeRepository();
+      final client = _FakeClient()
+        ..failures[_instagram.id] = const PublishException(
+          PublishFailure(
+            PublishErrorCode.platformRejected,
+            'Instagram said no.',
+          ),
+        );
+      final container = _container(repository: repository, client: client);
+      addTearDown(container.dispose);
+      final controller = container.read(publishControllerProvider.notifier);
+
+      await controller.publish(
+        selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+        targets: const [_instagram],
+        videoId: 'video-1',
+      );
+      final failed = (container.read(
+        publishControllerProvider,
+      ) as PublishDone).statuses.single;
+      expect(failed.canRetry, isFalse);
+
+      await controller.retry(failed);
+
+      expect(repository.rescheduled, isEmpty);
+    },
+  );
+
+  test('a second click while a run works writes no second row', () async {
+    final repository = _FakeRepository();
+    final gate = Completer<void>();
+    final client = _FakeClient()..gate = gate;
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+    final controller = container.read(publishControllerProvider.notifier);
+    const selection = PublishSelection(targetIds: {'instagram:ig-1:feed'});
+
+    final first = controller.publish(
+      selection: selection,
+      targets: const [_instagram],
+      videoId: 'video-1',
+    );
+    await controller.publish(
+      selection: selection,
+      targets: const [_instagram],
+      videoId: 'video-1',
+    );
+
+    expect(repository.drafts, hasLength(1));
+    expect(client.postIds, isEmpty);
+
+    gate.complete();
+    await first;
+
+    expect(repository.drafts, hasLength(1));
+    expect(client.postIds, hasLength(1));
   });
 }

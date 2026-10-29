@@ -31,21 +31,41 @@ const _youtube = PublishTarget(
 
 /// A queue that answers from memory.
 class _FakeRepository implements PostsRepository {
-  @override
-  Future<String> insert(PostDraft draft) async => 'post-1';
+  /// The rows the client wrote.
+  final List<PostDraft> drafts = [];
+
+  /// The row the client reads back.
+  PostRow? row;
+
+  /// Whether the compare-and-set of a retry moves the row.
+  bool movesOnRetry = true;
+
+  /// The rows a retry tried to move.
+  final List<String> rescheduled = [];
 
   @override
-  Future<PostRow?> read(String postId) async => null;
+  Future<String> insert(PostDraft draft) async {
+    drafts.add(draft);
+    return 'post-1';
+  }
 
   @override
-  Future<bool> rescheduleFailed(String postId, DateTime scheduledAt) async =>
-      false;
+  Future<PostRow?> read(String postId) async => row;
+
+  @override
+  Future<bool> rescheduleFailed(String postId, DateTime scheduledAt) async {
+    rescheduled.add(postId);
+    return movesOnRetry;
+  }
 }
 
 /// A publisher that answers from memory.
 class _FakeClient implements PublishApi {
   PublishResult result = const PublishResult(platformId: 'ig-99');
   PublishException? failure;
+
+  /// The rows the client sent out.
+  final List<String> postIds = [];
 
   @override
   Future<PublishResult> publish({
@@ -54,8 +74,22 @@ class _FakeClient implements PublishApi {
   }) async {
     final failure = this.failure;
     if (failure != null) throw failure;
+    postIds.add(postId);
     return result;
   }
+}
+
+/// A date and a time far enough ahead that the form accepts them.
+({String date, String time}) _later() {
+  final when = DateTime.now().add(const Duration(days: 2));
+  final date =
+      '${when.year.toString().padLeft(4, '0')}-'
+      '${when.month.toString().padLeft(2, '0')}-'
+      '${when.day.toString().padLeft(2, '0')}';
+  final time =
+      '${when.hour.toString().padLeft(2, '0')}:'
+      '${when.minute.toString().padLeft(2, '0')}';
+  return (date: date, time: time);
 }
 
 Future<void> _pump(
@@ -65,6 +99,7 @@ Future<void> _pump(
   bool withMedia = true,
   Size size = const Size(1280, 800),
   _FakeClient? client,
+  _FakeRepository? repository,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -89,7 +124,9 @@ Future<void> _pump(
           sessionTokenProvider.overrideWithValue('session-token'),
           authAccessTokenProvider.overrideWithValue('auth-token'),
         ],
-        postsRepositoryProvider.overrideWithValue(_FakeRepository()),
+        postsRepositoryProvider.overrideWithValue(
+          repository ?? _FakeRepository(),
+        ),
         publishClientProvider.overrideWithValue(client ?? _FakeClient()),
         publishPollPolicyProvider.overrideWithValue(
           const PublishPollPolicy(interval: Duration.zero, attempts: 1),
@@ -225,6 +262,102 @@ void main() {
     expect(find.byKey(const Key('schedule-date')), findsOneWidget);
     expect(find.byKey(const Key('schedule-time')), findsOneWidget);
     expect(find.textContaining('Stored as'), findsOneWidget);
+  });
+
+  testWidgets(
+    'a scheduled post is queued and the screen says when it goes out',
+    (tester) async {
+      final repository = _FakeRepository();
+      final client = _FakeClient();
+      await _pump(tester, client: client, repository: repository);
+      await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Later'));
+      await tester.pumpAndSettle();
+      final when = _later();
+      await tester.enterText(find.byKey(const Key('schedule-date')), when.date);
+      await tester.enterText(find.byKey(const Key('schedule-time')), when.time);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Schedule'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Instagram: Scheduled'), findsOneWidget);
+      expect(find.textContaining('Goes out at'), findsOneWidget);
+      expect(repository.drafts.single.status, 'scheduled');
+      // The scheduler publishes it, so the client sends nothing itself.
+      expect(client.postIds, isEmpty);
+    },
+  );
+
+  testWidgets('a failure offers a retry that is ready', (tester) async {
+    final client = _FakeClient()
+      ..failure = const PublishException(
+        PublishFailure(PublishErrorCode.platformRejected, 'Instagram said no.'),
+      );
+    final repository = _FakeRepository()
+      ..row = const PostRow(
+        id: 'post-1',
+        platform: 'instagram',
+        status: PostStatus.failed,
+      );
+    await _pump(tester, client: client, repository: repository);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Instagram: Failed'), findsOneWidget);
+    final button = tester.widget<TextButton>(
+      find.byKey(const Key('retry-instagram:ig-1:feed')),
+    );
+    expect(button.onPressed, isNotNull);
+  });
+
+  testWidgets('the retry puts the row back into the queue', (tester) async {
+    final client = _FakeClient()
+      ..failure = const PublishException(
+        PublishFailure(PublishErrorCode.platformRejected, 'Instagram said no.'),
+      );
+    final repository = _FakeRepository()
+      ..row = const PostRow(
+        id: 'post-1',
+        platform: 'instagram',
+        status: PostStatus.failed,
+      );
+    await _pump(tester, client: client, repository: repository);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('retry-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    expect(repository.rescheduled, ['post-1']);
+    expect(find.text('Instagram: Scheduled'), findsOneWidget);
+    expect(find.text('It goes out in a minute.'), findsOneWidget);
+  });
+
+  testWidgets('a retry waits for the row before it is offered', (tester) async {
+    final client = _FakeClient()
+      ..failure = const PublishException(
+        PublishFailure(PublishErrorCode.platformRejected, 'Instagram said no.'),
+      );
+    await _pump(tester, client: client);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    final button = tester.widget<TextButton>(
+      find.byKey(const Key('retry-instagram:ig-1:feed')),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.textContaining('asked again before a retry'), findsOneWidget);
   });
 
   testWidgets('grows with large text at the minimum window size', (

@@ -314,7 +314,10 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] `publishing_controller.dart`: the row read back after every attempt, the bounded wait for a row that is still running
   - [x] `publish_page.dart`: the phase that is not confirmed
   - [x] 13 tests
-- [ ] **4.4** Schedule + retry guard: refresh status before retry
+- [x] **4.4** Schedule + retry guard: refresh status before retry
+  - [x] `publishing_controller.dart`: the scheduled row, the `scheduled` phase, the retry that moves a failed row, the one run at a time
+  - [x] `publish_page.dart`: the scheduled label, the time it goes out, the Retry button and the sentence that explains why it is off
+  - [x] 10 tests
 - [ ] **4.5** Phase 4 gate
   - [ ] State-machine tests for timeout/already-published
   - [ ] One real platform publish
@@ -359,6 +362,16 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **The queue call is bounded too** (`posts_repository.dart`): 30 s per call, so the read-back and the wait can never hang the window.
 - **Tests:** 13 new (the timeout and the dropped connection against a real local server, the mapping of the unknown outcome, the read-back, the wait, the row that settles, the row that never settles, the published time over a failed status, the unconfirmed phase on the screen) — 363 in the suite; `flutter analyze` and the format check are clean.
 - **Deferred to 4.4:** the scheduled row and its status, the Retry button, the compare-and-set that moves a row back into the queue, and the rule that the button stays disabled until the row has been refreshed.
+
+### Phase 4.4 evidence (2026-10-29)
+
+- **One publisher** (`publishing_controller.dart`): a scheduled post is only a row — `status = 'scheduled'` and `scheduled_at` = the chosen UTC instant — and the client sends nothing. The scheduler alone publishes it (`process-scheduled-posts/index.ts:43-48` takes the rows that are `scheduled` and due), so the client and the scheduler can never publish the same row. The web app's own retry does the same thing (`src/pages/QueuePage.tsx:178-194`).
+- **The retry never sends the call again**: it moves the row back to `scheduled` with `scheduled_at = now + 60 s`, and the scheduler publishes it. A client that re-sent the function itself could post the same thing twice.
+- **The compare-and-set is the duplicate guard** (`posts_repository.dart`): the move is a `PATCH … ?id=eq.<id>&status=eq.failed`, so only a row that is still failed moves. A row that went out in the meantime matches nothing, and the client reads the row again and shows the truth ("The row changed. Its status is now published."). The button is only enabled when the row was read back and still says failed — the unknown outcome (`unconfirmed`) offers no retry at all, because the platform may have taken the post.
+- **One run at a time** (`_inFlight`): a second click while a run works does nothing. The first click has already written the row, and a second row would post the same thing twice.
+- **The screen** (`publish_page.dart`): "Scheduled" with the local time it goes out, the Retry button under a failure, and the sentence that says why the button is off.
+- **Tests:** 10 new (the scheduled row and the instant it stores, the scheduled row with no time, the retry that moves the row, the retry that changes nothing, the retry that is not offered, the second click, and the four on the screen) — 373 in the suite; `flutter analyze` and the format check are clean.
+- **Known limit for the 4.5 gate:** the functions' early bail-outs (no `postId`, the wrong platform, no `account_id`, no video, no connected account) leave the row in `processing`, so such a row is not `failed` and cannot be retried from the client — the admin publishes it again from the draft the screen kept.
 
 ---
 

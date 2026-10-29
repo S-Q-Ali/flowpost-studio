@@ -6,10 +6,18 @@ import 'data/publish_client.dart';
 import 'domain/publish_errors.dart';
 import 'domain/publish_selection.dart';
 import 'domain/publish_target.dart';
+import 'domain/publish_validation.dart';
 import 'publishing_providers.dart';
 
 /// What one platform's attempt is doing.
-enum PublishPhase { waiting, publishing, published, failed, unconfirmed }
+enum PublishPhase {
+  waiting,
+  publishing,
+  published,
+  failed,
+  unconfirmed,
+  scheduled,
+}
 
 /// The state of one platform's attempt.
 class PublishTargetStatus {
@@ -19,6 +27,8 @@ class PublishTargetStatus {
     this.postId,
     this.platformId,
     this.message,
+    this.canRetry = false,
+    this.scheduledAt,
   });
 
   final PublishTarget target;
@@ -33,11 +43,20 @@ class PublishTargetStatus {
   /// Why it failed, in the words of the screen.
   final String? message;
 
+  /// The row was read back and still says failed, so a retry cannot post
+  /// something twice.
+  final bool canRetry;
+
+  /// When the post goes out, for a scheduled or a retried row.
+  final DateTime? scheduledAt;
+
   PublishTargetStatus copyWith({
     PublishPhase? phase,
     String? postId,
     String? platformId,
     String? message,
+    bool? canRetry,
+    DateTime? scheduledAt,
   }) {
     return PublishTargetStatus(
       target: target,
@@ -45,6 +64,8 @@ class PublishTargetStatus {
       postId: postId ?? this.postId,
       platformId: platformId ?? this.platformId,
       message: message ?? this.message,
+      canRetry: canRetry ?? this.canRetry,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
     );
   }
 }
@@ -83,6 +104,12 @@ class PublishController extends Notifier<PublishState> {
   /// lost it writes nothing.
   int _run = 0;
 
+  /// The run that is working right now.
+  ///
+  /// A second click while it works does nothing: the first one has already
+  /// written the row, and a second row would post the same thing twice.
+  bool _inFlight = false;
+
   @override
   PublishState build() => const PublishIdle();
 
@@ -91,6 +118,20 @@ class PublishController extends Notifier<PublishState> {
   /// One row per target, then one call per row. A target that fails does not
   /// stop the others: each carries its own outcome.
   Future<void> publish({
+    required PublishSelection selection,
+    required List<PublishTarget> targets,
+    required String videoId,
+  }) async {
+    if (_inFlight) return;
+    _inFlight = true;
+    try {
+      await _publish(selection: selection, targets: targets, videoId: videoId);
+    } finally {
+      _inFlight = false;
+    }
+  }
+
+  Future<void> _publish({
     required PublishSelection selection,
     required List<PublishTarget> targets,
     required String videoId,
@@ -105,15 +146,72 @@ class PublishController extends Notifier<PublishState> {
       if (run != _run) return;
       final target = targets[index];
       statuses[index] = statuses[index].copyWith(
-        phase: PublishPhase.publishing,
+        phase: selection.isScheduled
+            ? PublishPhase.waiting
+            : PublishPhase.publishing,
       );
       state = PublishRunning([...statuses]);
-      statuses[index] = await _attempt(target, selection, videoId);
+      statuses[index] = selection.isScheduled
+          ? await _schedule(target, selection, videoId)
+          : await _attempt(target, selection, videoId);
       if (run != _run) return;
       state = PublishRunning([...statuses]);
     }
     if (run != _run) return;
     state = PublishDone(statuses);
+  }
+
+  /// Writes the row of a post that goes out later.
+  ///
+  /// The client does not publish it: the scheduler does, so one publisher is
+  /// always in charge (SPEC-publishing "Scheduling").
+  Future<PublishTargetStatus> _schedule(
+    PublishTarget target,
+    PublishSelection selection,
+    String videoId,
+  ) async {
+    final when = parseLocalSchedule(
+      date: selection.scheduleDate,
+      time: selection.scheduleTime,
+    );
+    if (when == null) {
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.failed,
+        message: scheduleFormatMessage,
+      );
+    }
+    final String postId;
+    try {
+      postId = await ref
+          .read(postsRepositoryProvider)
+          .insert(_draft(target, selection, videoId, when: when));
+    } on PostsException catch (error) {
+      _log.warning('The queue refused the ${target.platform.name} post.');
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.failed,
+        message: error.message,
+      );
+    } on Object catch (error, stackTrace) {
+      _log.severe(
+        'The ${target.platform.name} post could not be queued '
+        '(${error.runtimeType}).',
+        null,
+        stackTrace,
+      );
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.failed,
+        message: 'The post could not be prepared.',
+      );
+    }
+    return PublishTargetStatus(
+      target: target,
+      phase: PublishPhase.scheduled,
+      postId: postId,
+      scheduledAt: when,
+    );
   }
 
   /// Writes the row of one target and sends it out.
@@ -211,6 +309,7 @@ class PublishController extends Notifier<PublishState> {
         phase: PublishPhase.failed,
         postId: postId,
         message: failure.message,
+        canRetry: phase == PublishPhase.failed,
       );
     }
 
@@ -227,11 +326,24 @@ class PublishController extends Notifier<PublishState> {
       );
     }
     if (settledPhase == PublishPhase.failed) {
+      // The row is read once more before a retry is offered: the row is the
+      // only proof that the post did not go out.
+      final fresh = await _readRow(postId);
+      final freshPhase = _phaseOf(fresh);
+      if (freshPhase == PublishPhase.published) {
+        return PublishTargetStatus(
+          target: target,
+          phase: PublishPhase.published,
+          postId: postId,
+          platformId: result?.platformId,
+        );
+      }
       return PublishTargetStatus(
         target: target,
         phase: PublishPhase.failed,
         postId: postId,
         message: failure.message,
+        canRetry: freshPhase == PublishPhase.failed,
       );
     }
     return PublishTargetStatus(
@@ -253,6 +365,7 @@ class PublishController extends Notifier<PublishState> {
       return PublishPhase.published;
     }
     if (row.status == PostStatus.failed) return PublishPhase.failed;
+    if (row.status == PostStatus.scheduled) return PublishPhase.scheduled;
     return null;
   }
 
@@ -288,6 +401,76 @@ class PublishController extends Notifier<PublishState> {
     state = const PublishIdle();
   }
 
+  /// Puts a failed row back into the queue.
+  ///
+  /// The retry never sends the call again: the row goes back to `scheduled`
+  /// and the scheduler publishes it, so one publisher is always in charge.
+  /// The move only happens where the row is still failed, so a row that went
+  /// out in the meantime is never published twice.
+  Future<void> retry(PublishTargetStatus status) async {
+    final postId = status.postId;
+    if (postId == null || !status.canRetry) return;
+    final when = DateTime.now().add(const Duration(seconds: 60));
+    final changed = await ref
+        .read(postsRepositoryProvider)
+        .rescheduleFailed(postId, when);
+    if (changed) {
+      _replace(
+        PublishTargetStatus(
+          target: status.target,
+          phase: PublishPhase.scheduled,
+          postId: postId,
+          scheduledAt: when,
+          message: 'It goes out in a minute.',
+        ),
+      );
+      return;
+    }
+    // The row is not failed any more, so the truth is read again.
+    final row = await _readRow(postId);
+    final phase = _phaseOf(row);
+    _replace(
+      PublishTargetStatus(
+        target: status.target,
+        phase: phase ?? PublishPhase.failed,
+        postId: postId,
+        message: phase == PublishPhase.failed
+            ? status.message
+            : 'The row changed. Its status is now ${_labelOf(phase)}.',
+        canRetry: phase == PublishPhase.failed,
+      ),
+    );
+  }
+
+  /// The name of a status, for the sentence the screen shows.
+  String _labelOf(PublishPhase? phase) => switch (phase) {
+    PublishPhase.published => 'published',
+    PublishPhase.scheduled => 'scheduled',
+    PublishPhase.failed => 'failed',
+    PublishPhase.unconfirmed => 'not confirmed',
+    PublishPhase.waiting => 'waiting',
+    PublishPhase.publishing => 'publishing',
+    null => 'unknown',
+  };
+
+  /// Puts one target's new state into the list the screen shows.
+  void _replace(PublishTargetStatus updated) {
+    final current = state;
+    if (current is PublishRunning) {
+      state = PublishRunning(_replaced(current.statuses, updated));
+    } else if (current is PublishDone) {
+      state = PublishDone(_replaced(current.statuses, updated));
+    }
+  }
+
+  List<PublishTargetStatus> _replaced(
+    List<PublishTargetStatus> statuses,
+    PublishTargetStatus updated,
+  ) => [
+    for (final status in statuses)
+      if (status.target.id == updated.target.id) updated else status,
+  ];
+
   /// The row one target needs.
   ///
   /// The caption, the account and the media stay on the server; the row only
@@ -295,8 +478,9 @@ class PublishController extends Notifier<PublishState> {
   PostDraft _draft(
     PublishTarget target,
     PublishSelection selection,
-    String videoId,
-  ) {
+    String videoId, {
+    DateTime? when,
+  }) {
     final caption = (selection.captions[target.id] ?? '').trim();
     final title = selection.youtubeTitle.trim();
     return PostDraft(
@@ -304,8 +488,8 @@ class PublishController extends Notifier<PublishState> {
       platform: target.platform.name,
       accountId: target.accountId,
       postType: target.postType.name,
-      scheduledAt: DateTime.now(),
-      status: 'processing',
+      scheduledAt: when ?? DateTime.now(),
+      status: when == null ? 'processing' : 'scheduled',
       caption: caption.isEmpty ? null : caption,
       hashtags: null,
       containsAlteredContent: selection.aiCaptionTargetIds.contains(target.id),
