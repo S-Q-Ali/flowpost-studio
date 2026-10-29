@@ -293,6 +293,11 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 ## Phase 4 — Publishing
 
 - [ ] **4.1** Write/approve `SPEC-publishing.md`; map upload functions/statuses
+  - [x] `docs/spec/SPEC-publishing.md`: the publish unit, the two credentials, the platform contract, the limits, the status model, the duplicate rule, the error model
+  - [x] The existing functions mapped: `upload-local-file`, `youtube-upload`, `instagram-upload`, `facebook-upload`, `tiktok-upload`, `linkedin-upload`, `post-story`, `process-scheduled-posts`; `transfer-ticket` and `drive-to-mega` are storage infrastructure, not the publish path
+  - [x] The web app's publish path mapped: one `posts` row per (platform × account), then `{postId}` per function
+  - [x] The five backend gaps that force the client's guard to be strict, each cited
+  - [ ] Human approval of the spec and its five open questions
 - [ ] **4.2** Compose/publish UI with validation and per-platform status
 - [ ] **4.3** Publish-now flow with status polling
 - [ ] **4.4** Schedule + retry guard: refresh status before retry
@@ -304,6 +309,18 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [ ] `performance-optimization` review
   - [ ] Scoped `ponytail-audit` no Must-fix
   - [ ] Human approval
+
+### Phase 4.1 evidence (2026-10-29)
+
+- **Spec** (`docs/spec/SPEC-publishing.md`): the publish unit is the `posts` row, not the request — the client writes one row per (platform × account) and then calls the platform function with `{"postId": …}`, exactly what the web app does (`src/pages/UploadPage.tsx:569`, `:634-704`). The caption, the media URL and the access token are never sent by the client.
+- **Two credentials** (ADR 0001): the Supabase Auth access token for PostgREST — the RLS on `posts` is `user_id = auth.uid()` (`supabase/migrations/20260616000000_add_multi_user_rls.sql:54`) — and the `sessions` token for the edge functions (`supabase/functions/_shared/auth.ts:77-90`). The service-role key and `FRONTEND_API_KEY` are never used in the client: the latter carries no user scope.
+- **Functions mapped:** `upload-local-file` (Phase 3.5), `youtube-upload`, `instagram-upload`, `facebook-upload`, `tiktok-upload`, `linkedin-upload`, `post-story`, `process-scheduled-posts`. `transfer-ticket` and `drive-to-mega` are storage infrastructure, not the publish path.
+- **Status model:** the five values the database allows (`supabase/migrations/20260320000000_posts_status_publishing.sql:3-4`). The web app's `PostStatus` type lists only four — `publishing` is missing (`src/lib/types.ts:2`) — and its badge has no style for it (`src/components/StatusBadge.tsx:4-9`).
+- **Duplicate rule:** refresh the row before a retry, and never blind-retry. No upload function looks at `post.status` before publishing (they all select it and none branch on it — `youtube-upload/index.ts:129`, `instagram-upload/index.ts:88`, `facebook-upload/index.ts:87`, `tiktok-upload/index.ts:124`, `linkedin-upload/index.ts:70`, `post-story/index.ts:89`), and the platform's state is not readable afterwards — YouTube keeps no video id (`youtube-upload/index.ts:253-319`). The retry is a compare-and-set, like the web app's (`src/pages/QueuePage.tsx:178-194`).
+- **Limits:** the client refuses an over-limit caption instead of letting the function cut it silently (`instagram-upload/index.ts:118` cuts at 2200, `youtube-upload/index.ts:242` at 5000). The web app has no client-side validation at all.
+- **Backend gaps found** (each needs the owner's approval and deploy access, so none are in the v1 scope): no status guard in the upload functions; no provider id for YouTube; the scheduler's claim is not atomic (`process-scheduled-posts/index.ts:82-85`); Instagram can re-send the publish call inside its 120 s window (`instagram-upload/index.ts:341-359`); TikTok can time out after the platform accepted the post (`tiktok-upload/index.ts:386-395`); the `posts` table has no `error_message` or `platform_post_id` column.
+- **Also found:** the `pg_cron` job for `process-scheduled-posts` ships commented out (`supabase/migrations/20260307000300_cron_process_scheduled_posts.sql:6-22`), so the whole scheduled flow depends on a job that has to be created by hand; and the web app's story branches never run, because the row it filters on is not selected after the insert (`src/pages/UploadPage.tsx:569` selects `id, platform, account_id, status`, but `:618-624` filters on `post_type`) — a story is published as a feed post there.
+- **Open for the owner:** five questions at the end of the spec — the cron's existence, refuse-or-cut for an over-limit caption, story as a separate choice, who publishes a scheduled post, and whether the backend guards go on the v1 list.
 
 ---
 
