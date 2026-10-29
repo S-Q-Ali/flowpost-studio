@@ -27,8 +27,8 @@ Constraints:
    rotated within a day and the hash no longer matched, so the version-specific
    asset under a fixed tag is pinned instead.
 2. **Ship only what runs:** `ffmpeg.exe`, `ffprobe.exe`, seven runtime DLLs, and
-   `LICENSE.txt` — 162.0 MB uncompressed, 10 files. Exclude `ffplay.exe`, headers,
-   import libraries, and presets.
+   `LICENSE.txt` — 161.2 MiB uncompressed (169,051,107 bytes), 10 files. Exclude
+   `ffplay.exe`, headers, import libraries, and presets.
 3. **Install path:** `{app}\ffmpeg\bin\`. Runtime resolves it relative to the running
    executable. `FLOWPOST_FFMPEG_DIR` overrides it for development and fixture tests only.
 4. **Invoke as a separate process, never a shell.** `Process.start` with an argument
@@ -64,7 +64,7 @@ Constraints:
 | Item | Size |
 |---|---|
 | Upstream zip | 78.0 MB (81,649,021 bytes) |
-| `bin/` without `ffplay.exe` | 162.0 MB, 10 files |
+| `bin/` without `ffplay.exe` | 161.2 MiB (169,051,107 bytes), 10 files |
 | Installer growth | to be measured in 3.3; expected 55–75 MB compressed |
 
 ## Alternatives rejected

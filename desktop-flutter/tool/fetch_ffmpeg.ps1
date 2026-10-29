@@ -86,10 +86,18 @@ Remove-Item $extractRoot -Recurse -Force
 $version = & (Join-Path $TargetDir 'ffmpeg.exe') -hide_banner -version 2>&1 | Out-String
 Write-Host ($version -split "`n" | Select-Object -First 1)
 
-if ($version -match '--enable-gpl') { throw 'The build is GPL; it cannot be shipped.' }
-if ($version -notmatch '--enable-version3') { throw 'The build is not the expected LGPL v3 build.' }
-if ($version -notmatch '--enable-shared') { throw 'The build is not the shared build ADR 0002 pins.' }
-if ($version -notmatch '--disable-libx264') { throw 'The build ships libx264; it cannot be shipped.' }
+# A build that fails the license check must not stay on disk, or a later
+# packaging step could ship it.
+function Assert-BuildLicense($ok, $message) {
+  if ($ok) { return }
+  if (Test-Path $TargetDir) { Remove-Item $TargetDir -Recurse -Force }
+  throw $message
+}
+
+Assert-BuildLicense ($version -notmatch '--enable-gpl') 'The build is GPL; it cannot be shipped.'
+Assert-BuildLicense ($version -match '--enable-version3') 'The build is not the expected LGPL v3 build.'
+Assert-BuildLicense ($version -match '--enable-shared') 'The build is not the shared build ADR 0002 pins.'
+Assert-BuildLicense ($version -match '--disable-libx264') 'The build ships libx264; it cannot be shipped.'
 
 $size = (Get-ChildItem $TargetDir -File | Measure-Object -Property Length -Sum).Sum
 Write-Host ("Ready: {0} files, {1:N1} MB in {2}" -f (Get-ChildItem $TargetDir -File).Count, ($size / 1MB), $TargetDir)
