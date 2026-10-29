@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
 import 'package:flowpost_desktop/features/scheduling/data/scheduled_posts_repository.dart';
+import 'package:flowpost_desktop/features/scheduling/domain/post_edit.dart';
 import 'package:flowpost_desktop/features/scheduling/domain/scheduled_post.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 class _FakeTransport implements PostsTransport {
   final List<Uri> urls = [];
   final List<String?> tokens = [];
+  final List<String> methods = [];
+  final List<String?> bodies = [];
 
   /// The rows each call answers with, in call order. Past the end the table
   /// answers nothing.
@@ -24,6 +29,8 @@ class _FakeTransport implements PostsTransport {
   }) async {
     urls.add(url);
     tokens.add(token);
+    methods.add(method);
+    bodies.add(body);
     final answer = _call < answers.length
         ? answers[_call]
         : const <Map<String, Object?>>[];
@@ -331,6 +338,92 @@ void main() {
       expect(
         transport.urls.first.queryParameters['order'],
         'scheduled_at.asc.nullslast,created_at.asc',
+      );
+    });
+  });
+
+  group('changing a row', () {
+    PostEdit edit() => PostEdit(
+      caption: 'New caption',
+      hashtags: '#new',
+      containsAlteredContent: true,
+      scheduledAt: DateTime.utc(2026, 10, 30, 9),
+    );
+
+    test('an edit is a compare-and-set on a scheduled row', () async {
+      final transport = _FakeTransport()
+        ..answers.add([
+          {'id': 'post-1'},
+        ]);
+
+      final saved = await _repository(transport)
+          .updateScheduled('post-1', edit());
+
+      expect(saved, isTrue);
+      expect(transport.methods.single, 'PATCH');
+      final url = transport.urls.single;
+      expect(url.queryParameters['id'], 'eq.post-1');
+      expect(url.queryParameters['status'], 'eq.scheduled');
+      expect(jsonDecode(transport.bodies.single!), {
+        'caption': 'New caption',
+        'hashtags': '#new',
+        'contains_altered_content': true,
+        'scheduled_at': '2026-10-30T09:00:00.000Z',
+      });
+    });
+
+    test('an edit that no longer matches changes nothing', () async {
+      final saved = await _repository(_FakeTransport())
+          .updateScheduled('post-1', edit());
+
+      expect(saved, isFalse);
+    });
+
+    test('an edit without a token is refused', () async {
+      final transport = _FakeTransport();
+
+      await expectLater(
+        _repository(transport, token: null).updateScheduled('post-1', edit()),
+        throwsA(
+          isA<PostsException>().having(
+            (error) => error.message,
+            'message',
+            'Sign in required to change a post.',
+          ),
+        ),
+      );
+      expect(transport.urls, isEmpty);
+    });
+
+    test('a delete asks the table for that row', () async {
+      final transport = _FakeTransport()
+        ..answers.add([
+          {'id': 'post-1'},
+        ]);
+
+      final deleted = await _repository(transport).delete('post-1');
+
+      expect(deleted, isTrue);
+      expect(transport.methods.single, 'DELETE');
+      expect(transport.urls.single.queryParameters['id'], 'eq.post-1');
+    });
+
+    test('a delete of a row that is already gone says so', () async {
+      final deleted = await _repository(_FakeTransport()).delete('post-1');
+
+      expect(deleted, isFalse);
+    });
+
+    test('a delete without a token is refused', () async {
+      await expectLater(
+        _repository(_FakeTransport(), token: null).delete('post-1'),
+        throwsA(
+          isA<PostsException>().having(
+            (error) => error.message,
+            'message',
+            'Sign in required to delete a post.',
+          ),
+        ),
       );
     });
   });

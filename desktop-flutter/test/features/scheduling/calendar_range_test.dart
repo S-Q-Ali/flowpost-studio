@@ -145,6 +145,14 @@ void main() {
     expect(clockLabel(null), '—');
   });
 
+  test('a sentence names the day and the time', () {
+    expect(
+      longTimeLabel(DateTime(2026, 10, 29, 10)),
+      '29 October 2026 at 10:00',
+    );
+    expect(longTimeLabel(null), 'no time set');
+  });
+
   group('grouping by day', () {
     test('posts land on their own local day, in time order', () {
       final days = groupByDay([

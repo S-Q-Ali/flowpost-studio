@@ -8,6 +8,7 @@ import '../../publishing/data/posts_repository.dart';
 import '../../publishing/domain/publish_target.dart';
 import '../domain/scheduled_post.dart';
 import '../scheduling_controller.dart';
+import 'post_actions.dart';
 
 /// The admin's posts, ordered by when they go out (SPEC-scheduling "The
 /// queue").
@@ -182,57 +183,61 @@ class _PostCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       key: Key('queue-post-${post.id}'),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Thumbnail(url: post.thumbnailUrl),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          post.videoTitle ?? 'Untitled media',
-                          style: theme.textTheme.titleSmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+      child: InkWell(
+        onTap: () => showScheduledPost(context, post),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Thumbnail(url: post.thumbnailUrl),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            post.videoTitle ?? 'Untitled media',
+                            style: theme.textTheme.titleSmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      _StatusChip(status: post.status),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    post.accountName == null
-                        ? post.targetLabel
-                        : '${post.targetLabel} · ${post.accountName}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _timeLine(post),
-                    key: Key('queue-time-${post.id}'),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  if (post.caption != null) ...[
+                        const SizedBox(width: 8),
+                        _StatusChip(status: post.status),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      post.accountName == null
+                          ? post.targetLabel
+                          : '${post.targetLabel} · ${post.accountName}',
+                      style: theme.textTheme.bodySmall,
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                      post.caption!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium,
+                      _timeLine(post),
+                      key: Key('queue-time-${post.id}'),
+                      style: theme.textTheme.bodySmall,
                     ),
+                    if (post.caption != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        post.caption!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -163,4 +163,16 @@ void main() {
 
     expect(find.byKey(const Key('calendar-new')), findsOneWidget);
   });
+
+  testWidgets('a post on the grid can be opened', (tester) async {
+    final repository = FakeScheduledPostsRepository()
+      ..rangePosts = [post(scheduledAt: DateTime(2026, 10, 29, 10))];
+    await _pump(tester, repository);
+
+    await tester.tap(find.byKey(const Key('calendar-post-post-1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('post-cancel')), findsOneWidget);
+    expect(find.byKey(const Key('post-edit')), findsOneWidget);
+  });
 }

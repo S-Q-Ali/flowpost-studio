@@ -1,3 +1,5 @@
+import 'package:flowpost_desktop/core/providers/app_providers.dart';
+import 'package:flowpost_desktop/core/time/time_zone.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
 import 'package:flowpost_desktop/features/scheduling/data/scheduled_posts_repository.dart';
@@ -9,15 +11,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/fake_scheduled_posts.dart';
+import '../../support/fake_time_zone.dart';
 
 Future<void> _pump(
   WidgetTester tester,
-  FakeScheduledPostsRepository repository,
-) async {
+  FakeScheduledPostsRepository repository, {
+  TimeZone? zone,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         scheduledPostsRepositoryProvider.overrideWithValue(repository),
+        if (zone != null) timeZoneProvider.overrideWithValue(zone),
       ],
       child: const MaterialApp(home: QueuePage()),
     ),
@@ -178,5 +183,199 @@ void main() {
     await _pump(tester, repository);
 
     expect(find.byKey(const Key('queue-load-more')), findsNothing);
+  });
+
+  group('a row can be opened', () {
+    Future<void> open(WidgetTester tester) async {
+      await tester.tap(find.byKey(const Key('queue-post-post-1')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the details offer to edit and to cancel a scheduled post', (
+      tester,
+    ) async {
+      final repository = FakeScheduledPostsRepository()
+        ..pages[0] = ScheduledPostsPage(
+          posts: [post(scheduledAt: DateTime(2026, 10, 29, 10))],
+          hasMore: false,
+        );
+      await _pump(tester, repository);
+      await open(tester);
+
+      final dialog = find.byType(AlertDialog);
+      expect(
+        find.descendant(of: dialog, matching: find.text('A caption')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('post-edit')), findsOneWidget);
+      expect(find.byKey(const Key('post-cancel')), findsOneWidget);
+      expect(find.byKey(const Key('post-delete')), findsNothing);
+    });
+
+    testWidgets('a cancel asks first and deletes the row on a yes', (
+      tester,
+    ) async {
+      final repository = FakeScheduledPostsRepository()
+        ..pages[0] = ScheduledPostsPage(
+          posts: [post(scheduledAt: DateTime(2026, 10, 29, 10))],
+          hasMore: false,
+        );
+      await _pump(tester, repository);
+      await open(tester);
+
+      await tester.tap(find.byKey(const Key('post-cancel')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Delete the Instagram post for 29 October 2026 at 10:00? '
+          'The caption is deleted with it and it cannot be recovered.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('confirm-delete')));
+      await tester.pumpAndSettle();
+
+      expect(repository.changes.single.id, 'post-1');
+      expect(repository.changes.single.edit, isNull);
+      expect(find.byType(AlertDialog), findsNothing);
+    });
+
+    testWidgets('keeping the post changes nothing', (tester) async {
+      final repository = FakeScheduledPostsRepository()
+        ..pages[0] = ScheduledPostsPage(
+          posts: [post(scheduledAt: DateTime(2026, 10, 29, 10))],
+          hasMore: false,
+        );
+      await _pump(tester, repository);
+      await open(tester);
+
+      await tester.tap(find.byKey(const Key('post-cancel')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-keep')));
+      await tester.pumpAndSettle();
+
+      expect(repository.changes, isEmpty);
+    });
+
+    testWidgets('a published post can be deleted but not cancelled', (
+      tester,
+    ) async {
+      final repository = FakeScheduledPostsRepository()
+        ..pages[0] = ScheduledPostsPage(
+          posts: [
+            post(
+              status: PostStatus.published,
+              scheduledAt: DateTime(2026, 10, 29, 10),
+              publishedAt: DateTime(2026, 10, 29, 10),
+            ),
+          ],
+          hasMore: false,
+        );
+      await _pump(tester, repository);
+      await open(tester);
+
+      expect(find.byKey(const Key('post-delete')), findsOneWidget);
+      expect(find.byKey(const Key('post-cancel')), findsNothing);
+      expect(find.byKey(const Key('post-edit')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('post-delete')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('that went out on'), findsOneWidget);
+    });
+
+    testWidgets('a row that is already gone keeps the dialog and says so', (
+      tester,
+    ) async {
+      final repository = FakeScheduledPostsRepository()
+        ..changeSucceeds = false
+        ..pages[0] = ScheduledPostsPage(
+          posts: [post(scheduledAt: DateTime(2026, 10, 29, 10))],
+          hasMore: false,
+        );
+      await _pump(tester, repository);
+      await open(tester);
+
+      await tester.tap(find.byKey(const Key('post-cancel')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-delete')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('post-error')), findsOneWidget);
+      expect(find.byType(AlertDialog), findsOneWidget);
+    });
+
+    testWidgets('an edit saves the caption and the typed time', (tester) async {
+      final at = DateTime(2026, 10, 30, 10);
+      final repository = FakeScheduledPostsRepository()
+        ..pages[0] = ScheduledPostsPage(
+          posts: [post(scheduledAt: at)],
+          hasMore: false,
+        );
+      await _pump(tester, repository);
+      await open(tester);
+
+      await tester.tap(find.byKey(const Key('post-edit')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('edit-caption')),
+        'New caption',
+      );
+      await tester.tap(find.byKey(const Key('edit-save')));
+      await tester.pumpAndSettle();
+
+      final edit = repository.changes.single.edit!;
+      expect(edit.caption, 'New caption');
+      expect(edit.scheduledAt, at.toUtc());
+      expect(find.byType(AlertDialog), findsNothing);
+    });
+
+    testWidgets('an edit onto a time the clock skips is refused', (
+      tester,
+    ) async {
+      final repository = FakeScheduledPostsRepository()
+        ..pages[0] = ScheduledPostsPage(
+          posts: [post(scheduledAt: DateTime(2026, 10, 30, 10))],
+          hasMore: false,
+        );
+      await _pump(tester, repository, zone: easternSpringForward());
+      await open(tester);
+
+      await tester.tap(find.byKey(const Key('post-edit')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('edit-date')), '2026-03-08');
+      await tester.enterText(find.byKey(const Key('edit-time')), '02:30');
+      await tester.tap(find.byKey(const Key('edit-save')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('edit-error')), findsOneWidget);
+      expect(find.textContaining('does not exist'), findsOneWidget);
+      expect(repository.changes, isEmpty);
+    });
+
+    testWidgets('an edit of a row that moved on is not written', (
+      tester,
+    ) async {
+      final repository = FakeScheduledPostsRepository()
+        ..changeSucceeds = false
+        ..pages[0] = ScheduledPostsPage(
+          posts: [post(scheduledAt: DateTime(2026, 10, 30, 10))],
+          hasMore: false,
+        );
+      await _pump(tester, repository);
+      await open(tester);
+
+      await tester.tap(find.byKey(const Key('post-edit')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('edit-save')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('This post is no longer scheduled, so it was not changed.'),
+        findsOneWidget,
+      );
+    });
   });
 }

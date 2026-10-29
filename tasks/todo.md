@@ -434,11 +434,11 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] `docs/spec/SPEC-offline.md`: the connectivity state, the cache, the schema and the migrations, corruption, the drafts and the conflict rule
   - [x] `docs/adr/0003-local-cache-engine.md`: `package:sqlite3` directly, two databases, the version in the database, a broken file renamed and never deleted
   - [x] Human approval of the three documents and of the six scheduling and eight offline decisions (2026-10-29)
-- [ ] **5.2** Calendar/queue UI; timezone/DST correctness
+- [x] **5.2** Calendar/queue UI; timezone/DST correctness
   - [x] The `TimeZone` seam and the three cases a wall clock can have (skipped, repeated, ordinary)
   - [x] The read model and the queue list
   - [x] The calendar: month, week and list
-  - [ ] Editing a scheduled post and cancelling one
+  - [x] Editing a scheduled post and cancelling one
 - [ ] **5.3** SQLite cache with schema version and migration
   - [x] The spike: the engine works in the test runner and in the Windows build (ADR 0003)
 - [ ] **5.4** Local drafts: autosave, restore, delete, no offline publish
@@ -505,6 +505,18 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **The shell test caught the placeholder.** The navigation-rail test still expected "Coming soon in the next module." on `/calendar`; it now asserts the real screen's answer when there is no session ("Sign in required to see the calendar."), which is what keeps the rail route honest.
 - **Tests:** 39 new — domain 20 (`calendar_range_test.dart`: month and week ranges, the Sunday-first grid with its blanks, a leap February, month/week steps, three title shapes, the full day label, the clock label, grouping and a row with no time), repository 4 (both bounds as instants, rows and names, the token gate, ordering), controller 7 (the opening month, rows, the week read, both arrow steps, the list step, the failed read not retrying), page 8 (a post on its day, three plus a count, the week's seven days and its read, the grouped list with all rows, the arrows re-reading, the empty state, the error and retry, the new-post button).
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (111 files), `flutter analyze lib test` no issues, `flutter test` **471 passed** (was 432).
+
+### Phase 5.2d evidence (2026-10-29)
+
+- **A row opens from both screens.** `showScheduledPost` (`lib/features/scheduling/presentation/post_actions.dart`) is the one details dialog, and the queue card (`queue_page.dart`, `InkWell` on `queue-post-<id>`) and the calendar chip and listed row (`calendar_page.dart`, `calendar-post-<id>`) all open it, so the two screens cannot drift apart on what a row can do.
+- **The dialog offers only what the row allows.** Edit appears for a `scheduled` row with a time, Cancel for a `scheduled` row, Delete for a `failed` or `published` row, and a row with no status match shows nothing but Close. A published row is deletable but not cancellable — there is nothing left to cancel.
+- **Cancel and delete are the same write, with a name and a confirmation.** The backend has no `cancelled` status, so cancel is the DELETE the web app already does (`src/pages/CalendarPage.tsx:47-52`) with the confirmation the web app does not have. `deleteSentence` says which row is going and adds "that went out on …" for a published row, so the caption's loss is visible before the yes.
+- **Edit is a compare-and-set, not a blind write.** `updateScheduled` PATCHes with `id=eq.…&status=eq.scheduled` (`data/scheduled_posts_repository.dart`) and the transport always asks for `Prefer: return=representation`, so an empty answer means the row left `scheduled` while the form was open. The form then says "This post is no longer scheduled, so it was not changed." and keeps the dialog with the typed values rather than pretending.
+- **The edit form reuses the publish rules.** `checkScheduleEdit` (`domain/post_edit.dart`) runs the same caption limit, the same `parseLocalSchedule`, the same skipped-hour refusal and the same repeated-hour acceptance as the publish screen, through the same `TimeZone` seam. A skipped hour is refused with the jump named; a repeated hour is accepted as the first one. The past check only fires when the typed time actually moved, so fixing the caption of a row that is already waiting is never blocked.
+- **Only the four editable fields are sent.** `PostEdit.toRow()` writes `caption`, `hashtags`, `contains_altered_content` and `scheduled_at` as a UTC instant and nothing else — no status, no user id, no account.
+- **A row this build cannot parse stays out of the calendar too.** `_shownPosts` is now the one mapping the queue and the range read share, so the two reads drop the same broken rows.
+- **Tests:** 29 new — domain 13 (`post_edit_test.dart`: the three platform caption limits, an unreadable date, the skipped hour, the repeated hour resolving to 05:30Z, an ordinary time, a changed past time refused, an unchanged past time accepted, `toRow`, three confirmation sentences), repository 6 (both bounds, the range rows, the token gate for the range, the PATCH's filter and body, the compare-and-set answer, the DELETE), range 1 (`longTimeLabel`), page 9 (details and both actions, cancel asking first and deleting on a yes, keeping changing nothing, a published row's delete-only wording, an already-gone row keeping the dialog and saying so, an edit saving caption and instant, a skipped-hour edit refused, a moved-on edit not written, a calendar chip opening the dialog).
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (114 files), `flutter analyze lib test` no issues, `flutter test` **500 passed** (was 471).
 
 ---
 

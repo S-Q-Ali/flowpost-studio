@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import '../../publishing/data/posts_repository.dart';
 import '../../publishing/domain/publish_target.dart';
+import '../domain/post_edit.dart';
 import '../domain/scheduled_post.dart';
 
 /// The fields a read is allowed to ask for.
@@ -40,6 +43,15 @@ abstract class ScheduledPostsRepository {
   /// The calendar shows one month or one week at a time, so the range is the
   /// bound; [from] and [to] are wall-clock days in the machine's zone.
   Future<List<ScheduledPost>> loadBetween(DateTime from, DateTime to);
+
+  /// Saves an edit to a row that is still `scheduled`.
+  ///
+  /// Returns false when the row has moved on: the platform may already have
+  /// it, so the edit is not written.
+  Future<bool> updateScheduled(String postId, PostEdit edit);
+
+  /// Deletes a row. Returns false when it was already gone.
+  Future<bool> delete(String postId);
 }
 
 /// Reads the queue through PostgREST.
@@ -127,6 +139,45 @@ class PostgrestScheduledPostsRepository implements ScheduledPostsRepository {
       for (final row in rows) row['account_id'],
     ], token);
     return _shownPosts(rows, names);
+  }
+
+  @override
+  Future<bool> updateScheduled(String postId, PostEdit edit) async {
+    final token = this.token;
+    if (token == null || token.isEmpty) {
+      throw const PostsException('Sign in required to change a post.');
+    }
+    // The status filter makes the edit a compare-and-set: a row that moved
+    // to processing while the form was open is left alone.
+    final rows = await _transport.send(
+      method: 'PATCH',
+      url: _posts.replace(
+        queryParameters: {
+          'id': 'eq.$postId',
+          'status': 'eq.scheduled',
+          'select': 'id',
+        },
+      ),
+      body: jsonEncode(edit.toRow()),
+      token: token,
+    );
+    return rows.isNotEmpty;
+  }
+
+  @override
+  Future<bool> delete(String postId) async {
+    final token = this.token;
+    if (token == null || token.isEmpty) {
+      throw const PostsException('Sign in required to delete a post.');
+    }
+    final rows = await _transport.send(
+      method: 'DELETE',
+      url: _posts.replace(
+        queryParameters: {'id': 'eq.$postId', 'select': 'id'},
+      ),
+      token: token,
+    );
+    return rows.isNotEmpty;
   }
 
   /// The rows that can be shown, in the order they came back.

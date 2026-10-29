@@ -8,6 +8,7 @@ import '../../publishing/data/posts_repository.dart';
 import '../domain/calendar_range.dart';
 import '../domain/scheduled_post.dart';
 import '../scheduling_controller.dart';
+import 'post_actions.dart';
 
 /// The admin's posts by day (SPEC-scheduling "The calendar").
 class CalendarPage extends ConsumerWidget {
@@ -260,30 +261,33 @@ class _PostChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = _statusColor(post.status, theme.colorScheme);
-    return Container(
-      key: Key('calendar-post-${post.id}'),
-      margin: const EdgeInsets.only(bottom: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(
-        children: [
-          Text(
-            clockLabel(post.scheduledAt),
-            style: theme.textTheme.labelSmall?.copyWith(color: color),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              post.videoTitle ?? 'Untitled media',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall,
+    return GestureDetector(
+      onTap: () => showScheduledPost(context, post),
+      child: Container(
+        key: Key('calendar-post-${post.id}'),
+        margin: const EdgeInsets.only(bottom: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          children: [
+            Text(
+              clockLabel(post.scheduledAt),
+              style: theme.textTheme.labelSmall?.copyWith(color: color),
             ),
-          ),
-        ],
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                post.videoTitle ?? 'Untitled media',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -327,37 +331,41 @@ class _ListedPost extends StatelessWidget {
     return Card(
       key: Key('calendar-post-${post.id}'),
       margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            Text(
-              clockLabel(post.scheduledAt),
-              style: theme.textTheme.titleSmall,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    post.videoTitle ?? 'Untitled media',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  Text(where, style: theme.textTheme.bodySmall),
-                ],
+      child: InkWell(
+        onTap: () => showScheduledPost(context, post),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Text(
+                clockLabel(post.scheduledAt),
+                style: theme.textTheme.titleSmall,
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              post.status.label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: _statusColor(post.status, theme.colorScheme),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      post.videoTitle ?? 'Untitled media',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    Text(where, style: theme.textTheme.bodySmall),
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Text(
+                post.status.label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: _statusColor(post.status, theme.colorScheme),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

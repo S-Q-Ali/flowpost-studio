@@ -100,6 +100,14 @@ String clockLabel(DateTime? instant) {
   return '${_two(local.hour)}:${_two(local.minute)}';
 }
 
+/// An instant as a sentence names it: "29 October 2026 at 10:00".
+String longTimeLabel(DateTime? instant) {
+  if (instant == null) return 'no time set';
+  final local = instant.toLocal();
+  return '${local.day} ${_monthNames[local.month - 1]} ${local.year} '
+      'at ${clockLabel(instant)}';
+}
+
 /// One day of the list view.
 class CalendarDay {
   const CalendarDay({required this.day, required this.posts});

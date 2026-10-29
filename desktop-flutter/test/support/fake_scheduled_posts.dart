@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
 import 'package:flowpost_desktop/features/scheduling/data/scheduled_posts_repository.dart';
+import 'package:flowpost_desktop/features/scheduling/domain/post_edit.dart';
 import 'package:flowpost_desktop/features/scheduling/domain/scheduled_post.dart';
 
 /// A repository that answers from memory.
@@ -20,6 +21,12 @@ class FakeScheduledPostsRepository implements ScheduledPostsRepository {
 
   /// The answer to every calendar read.
   List<ScheduledPost> rangePosts = [];
+
+  /// Every edit and delete, in call order. An edit is null for a delete.
+  final List<({String id, PostEdit? edit})> changes = [];
+
+  /// What an edit or a delete answers.
+  bool changeSucceeds = true;
 
   /// Thrown instead of an answer when set.
   Object? error;
@@ -53,6 +60,24 @@ class FakeScheduledPostsRepository implements ScheduledPostsRepository {
     final error = this.error;
     if (error != null) throw error;
     return rangePosts;
+  }
+
+  @override
+  Future<bool> updateScheduled(String postId, PostEdit edit) async {
+    await _maybeWait();
+    final error = this.error;
+    if (error != null) throw error;
+    changes.add((id: postId, edit: edit));
+    return changeSucceeds;
+  }
+
+  @override
+  Future<bool> delete(String postId) async {
+    await _maybeWait();
+    final error = this.error;
+    if (error != null) throw error;
+    changes.add((id: postId, edit: null));
+    return changeSucceeds;
   }
 
   Future<void> _maybeWait() async {
