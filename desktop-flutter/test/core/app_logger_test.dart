@@ -16,6 +16,22 @@ void main() {
     );
   });
 
+  test('redacts OAuth code and state in deep links', () {
+    expect(
+      redactSecrets(
+        'flowpost://auth-callback?code=abc123&state=xyz789&next=%2Fhome',
+      ),
+      'flowpost://auth-callback?code=[redacted]&state=[redacted]&next=%2Fhome',
+    );
+  });
+
+  test('redacts bare code and state keys outside URLs', () {
+    expect(
+      redactSecrets('code=abc123 state=xyz789'),
+      'code=[redacted] state=[redacted]',
+    );
+  });
+
   test('keeps the original key casing when redacting', () {
     expect(
       redactSecrets('GET /auth?ACCESS_TOKEN=supersecret&x=1'),

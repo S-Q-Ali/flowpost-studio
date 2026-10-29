@@ -41,6 +41,39 @@ void main() {
       });
       expect(received, ['flowpost://first', 'flowpost://second']);
     });
+
+    test('restores the batch when reading it fails', () async {
+      await intents.writeAsString('flowpost://first\n');
+      await drainIntentFile(
+        intents,
+        (_) {},
+        readLines: (_) async =>
+            throw const FileSystemException('simulated read failure'),
+      );
+
+      expect(await intents.exists(), isTrue);
+      expect(await intents.readAsString(), 'flowpost://first\n');
+    });
+
+    test('appends a failed batch to a concurrently recreated file', () async {
+      await intents.writeAsString('flowpost://first\n');
+      await drainIntentFile(
+        intents,
+        (_) {},
+        readLines: (_) async {
+          // A secondary instance wrote while this batch was being read.
+          await intents.writeAsString(
+            'flowpost://second\n',
+            mode: FileMode.append,
+          );
+          throw const FileSystemException('simulated read failure');
+        },
+      );
+
+      final restored = await intents.readAsString();
+      expect(restored, contains('flowpost://first'));
+      expect(restored, contains('flowpost://second'));
+    });
   });
 
   group('isFlowPostImage', () {
@@ -51,6 +84,48 @@ void main() {
       );
       expect(isFlowPostImage(r'C:\Windows\explorer.exe'), isFalse);
       expect(isFlowPostImage(null), isFalse);
+    });
+  });
+
+  group('isFlowPostProcess', () {
+    test('treats an uninspectable pid as alive', () {
+      // Fail closed: a PID we cannot inspect must never allow a second primary.
+      expect(isFlowPostProcess(0x7FFFFFFF), isTrue);
+    });
+
+    test('rejects a live process that is not flowpost.exe', () {
+      expect(isFlowPostProcess(pid), isFalse);
+    });
+  });
+
+  group('configureTray', () {
+    test('reports success only after every tray step runs', () async {
+      final calls = <String>[];
+      final error = await configureTray(
+        setIcon: () async => calls.add('icon'),
+        setToolTip: () async => calls.add('tip'),
+        setContextMenu: () async => calls.add('menu'),
+        addListener: () => calls.add('listener'),
+      );
+
+      expect(error, isNull);
+      expect(calls, ['icon', 'tip', 'menu', 'listener']);
+    });
+
+    test('returns the failure and stops when the icon cannot load', () async {
+      final calls = <String>[];
+      final error = await configureTray(
+        setIcon: () async {
+          calls.add('icon');
+          throw StateError('missing tray icon');
+        },
+        setToolTip: () async => calls.add('tip'),
+        setContextMenu: () async => calls.add('menu'),
+        addListener: () => calls.add('listener'),
+      );
+
+      expect(error, isA<StateError>());
+      expect(calls, ['icon']);
     });
   });
 }

@@ -4,6 +4,21 @@ import 'package:flowpost_desktop/core/router/deep_links.dart';
 void main() {
   const allowed = ['/', '/auth-callback'];
 
+  group('describeDeepLink', () {
+    test('drops query and fragment so codes never reach a log', () {
+      expect(
+        describeDeepLink(
+          'flowpost://auth-callback?code=abc123&state=xyz#token=nope',
+        ),
+        'flowpost://auth-callback',
+      );
+    });
+
+    test('returns a stable marker for malformed input', () {
+      expect(describeDeepLink('not a uri'), '<malformed>');
+    });
+  });
+
   group('resolveDeepLink', () {
     test('maps an auth callback with a query to its route', () {
       final route = resolveDeepLink(

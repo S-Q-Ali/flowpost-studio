@@ -17,3 +17,7 @@ pubspec.overview
 # Real config files stay out of git (SPEC-shell: only dev.example.json is committed)
 config/dev.json
 config/prod.json
+
+# Pinned FFmpeg binaries are fetched, not committed (ADR 0002)
+third_party/ffmpeg/
+third_party/cache/

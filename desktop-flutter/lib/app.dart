@@ -21,7 +21,7 @@ class FlowPostApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'FlowPost',
+      title: 'FlowPost Studio',
       debugShowCheckedModeBanner: false,
       theme: flowPostLightTheme(),
       routerConfig: buildRouter(
@@ -42,7 +42,7 @@ class ConfigErrorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'FlowPost',
+      title: 'FlowPost Studio',
       home: Scaffold(
         body: Center(
           child: Padding(

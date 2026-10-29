@@ -9,7 +9,7 @@ abstract final class TrayMenu {
 
   static List<MenuItem> items() {
     return [
-      MenuItem(key: showTag, label: 'Show FlowPost'),
+      MenuItem(key: showTag, label: 'Show FlowPost Studio'),
       MenuItem.separator(),
       MenuItem(key: quitTag, label: 'Quit'),
     ];

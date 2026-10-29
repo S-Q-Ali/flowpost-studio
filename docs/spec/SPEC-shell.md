@@ -25,7 +25,7 @@ Create the installable Flutter Windows application that every later module plugs
 3. **Inno Setup 6** produces the installer. If a code-signing certificate is unavailable, v1 ships unsigned and the SmartScreen warning is documented.
 4. **Updates are manual in v1:** check a JSON manifest, show the version, and open the download URL. Silent auto-update is v1.1.
 5. **Brand theme:** port the colour tokens from `src/index.css` (primary, background, surface, border) into a Material 3 `ColorScheme`; use Material 3 components everywhere else.
-6. **App identity:** name `FlowPost`, package `flowpost_desktop`, identifier `com.flowpost.desktop`, protocol `flowpost://`, data root `%APPDATA%\FlowPost\`.
+6. **App identity:** display name `FlowPost Studio`, package `flowpost_desktop`, identifier `com.flowpost.desktop`, protocol `flowpost://`, data root `%APPDATA%\com.flowpost\FlowPost\` (company metadata remains `com.flowpost` so the path stays stable).
 7. **One window.** Close hides to tray; tray Quit exits. No multi-window.
 8. **No WebView for app UI.** The only browser use is the system browser for OAuth in `identity`.
 9. **Windows 10 64-bit 1809+ and Windows 11.** No macOS, Linux, or mobile.
@@ -62,7 +62,7 @@ flutter build windows --release --dart-define-from-file=config/prod.json
 iscc installer/flowpost.iss
 ```
 
-Build output: `desktop-flutter/build/windows/x64/runner/Release/flowpost.exe` (confirm the exact folder on first build). Installer output: `desktop-flutter/installer/FlowPostNativeSetup.exe`.
+Build output: `desktop-flutter/build/windows/x64/runner/Release/flowpost.exe` (confirm the exact folder on first build). Installer output: `dist-desktop/FlowPostNativeSetup.exe`.
 
 Repository-wide checks stay unchanged: `npm test`, `npm run build`.
 
@@ -156,7 +156,7 @@ No coverage percentage in v1; every new branch in the shell gets one test. Exist
 4. A second launch focuses the existing window and exits the new process.
 5. Close button hides to tray; tray **Show** restores; tray **Quit** exits.
 6. `flowpost://auth-callback?code=...` opens or focuses the app and is handed to the router; an unknown `flowpost://` path is rejected and logged.
-7. Logs are written to `%APPDATA%\FlowPost\logs\app.log`; no token or key appears in them.
+7. Logs are written to `%APPDATA%\com.flowpost\FlowPost\logs\app.log`; no token or key appears in them.
 8. Inno Setup produces `FlowPostNativeSetup.exe`; install, Start Menu launch, and uninstall work; the protocol registry entry is removed on uninstall.
 9. Update check shows the current version and opens the download URL when the manifest version is newer (manifest mocked in tests).
 10. Cold start on this machine is under 3 seconds.

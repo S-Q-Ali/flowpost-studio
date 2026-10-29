@@ -4,7 +4,7 @@ import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Never log raw tokens, cookies, or API keys — shell must keep secrets out
-/// of `%APPDATA%\FlowPost\logs` (SPEC-shell Boundaries).
+/// of `%APPDATA%\com.flowpost\FlowPost\logs` (SPEC-shell Boundaries).
 final Set<String> redactedKeys = {
   'token',
   'access_token',
@@ -16,10 +16,17 @@ final Set<String> redactedKeys = {
   'secret',
   'fb_dtsg',
   'session',
+  'code',
+  'state',
 };
 
 String redactSecrets(String message) {
-  var redacted = message;
+  // OAuth callbacks put code/state in the query (or fragment). Redact them
+  // before the generic key pass so a one-word key like `code` stays precise.
+  var redacted = message.replaceAllMapped(
+    RegExp(r'([?#&](?:code|state)=)[^&\s#]+', caseSensitive: false),
+    (m) => '${m.group(1)}[redacted]',
+  );
   for (final key in redactedKeys) {
     // Quoted "key": "value" first, then bare key=value; the capture group
     // keeps the log's original key casing.
@@ -28,7 +35,7 @@ String redactSecrets(String message) {
       (m) => '"${m.group(1)}":"[redacted]"',
     );
     redacted = redacted.replaceAllMapped(
-      RegExp('\\b($key)\\b\\s*[=:]\\s*"?[^&\\s,}\\]"]+', caseSensitive: false),
+      RegExp('\\b($key)\\b\\s*[=:]\\s*"?[^&\\s,}"]+', caseSensitive: false),
       (m) => '${m.group(1)}=[redacted]',
     );
   }
@@ -36,7 +43,7 @@ String redactSecrets(String message) {
 }
 
 /// Renames [log] to `<log>.1` once it exceeds [maxBytes]; the next append
-/// recreates it. Keeps `%APPDATA%\FlowPost\logs\app.log` bounded.
+/// recreates it. Keeps `%APPDATA%\com.flowpost\FlowPost\logs\app.log` bounded.
 Future<void> rotateLogIfNeeded(File log, {int maxBytes = 1 << 20}) async {
   int size;
   try {
@@ -69,10 +76,18 @@ Future<Logger> initLogging() async {
         final dir = await _logsDirectory();
         final file = File('${dir.path}${Platform.pathSeparator}app.log');
         await rotateLogIfNeeded(file);
-        final line =
-            '${record.time.toIso8601String()} ${record.level.name} '
-            '${record.loggerName}: ${redactSecrets(record.message)}\n';
-        await file.writeAsString(line, mode: FileMode.append);
+        final line = StringBuffer(
+          '${record.time.toIso8601String()} ${record.level.name} '
+          '${record.loggerName}: ${redactSecrets(record.message)}',
+        );
+        if (record.error != null) {
+          line.write(' | error=${redactSecrets('${record.error}')}');
+        }
+        if (record.stackTrace != null) {
+          line.write('\n${redactSecrets('${record.stackTrace}')}');
+        }
+        line.write('\n');
+        await file.writeAsString(line.toString(), mode: FileMode.append);
       } on Object {
         // Logging must never take the app down — and a rejected link would
         // skip every later callback and make flushLogging() throw before

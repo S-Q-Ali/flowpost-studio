@@ -1,3 +1,11 @@
+/// Returns a log-safe form of a deep link: scheme, host and path only.
+/// Query strings and fragments routinely carry OAuth codes/tokens.
+String describeDeepLink(String raw) {
+  final uri = Uri.tryParse(raw);
+  if (uri == null || uri.scheme != 'flowpost') return '<malformed>';
+  return 'flowpost://${uri.host}${uri.path}';
+}
+
 /// Parses `flowpost://` URIs into in-app routes against a fixed allowlist.
 /// For custom schemes Dart puts the first segment in `host`, so `host` and
 /// `path` are flattened into segments. Anything unknown returns null so the
