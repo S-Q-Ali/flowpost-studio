@@ -430,6 +430,10 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 ## Phase 5 — Scheduling and Offline Slice
 
 - [ ] **5.1** Write/approve `SPEC-scheduling.md` + `SPEC-offline.md`; SQLite ADR
+  - [x] `docs/spec/SPEC-scheduling.md`: the read model, the queue, the calendar, the timezone and the DST rules, editing and cancelling
+  - [x] `docs/spec/SPEC-offline.md`: the connectivity state, the cache, the schema and the migrations, corruption, the drafts and the conflict rule
+  - [x] `docs/adr/0003-local-cache-engine.md`: `package:sqlite3` directly, two databases, the version in the database, a broken file renamed and never deleted
+  - [ ] Human approval of the three documents, and of the six decisions in each spec
 - [ ] **5.2** Calendar/queue UI; timezone/DST correctness
 - [ ] **5.3** SQLite cache with schema version and migration
 - [ ] **5.4** Local drafts: autosave, restore, delete, no offline publish
@@ -442,6 +446,22 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [ ] Data-loss review
   - [ ] Scoped `ponytail-audit` no Must-fix
   - [ ] Human approval
+
+### Phase 5.1 evidence (2026-10-29)
+
+- **Three documents, all proposed and waiting for the owner.** `docs/spec/SPEC-scheduling.md`, `docs/spec/SPEC-offline.md` and `docs/adr/0003-local-cache-engine.md`. Each ends with the decisions that need a yes or a no; nothing is implemented on top of an unapproved spec.
+- **What the web app does today, so the desktop is not guessing.** The queue is one page (`src/pages/QueuePage.tsx`) that fetches **every** row and filters it in the browser (`:65-72`), with a status filter only (`:42`) and a bulk bar (`:247-262`). The calendar is a month grid and a list (`src/pages/CalendarPage.tsx:22`), three posts a day and a count of the rest (`:127-139`), and its "Cancel Post" **deletes the row** with no confirmation (`:47-52`). The desktop follows the same shape and adds the confirmation, because a deleted row takes the caption with it.
+- **The timezone is the machine's, and the DST rules are new.** The web app resolves a typed time silently (`src/pages/QueuePage.tsx:104-107`, `:123-128`), so a post written for an hour the clock skips moves by an hour with nothing on the screen to say so. The desktop **refuses** a skipped hour and names the repeated one. The rules are written against a small `TimeZone` seam so a fake zone with a daylight-saving jump can pin them on a machine whose zone has none.
+- **The profile has no timezone.** The `users` table carries `id, name, email, avatar_url, is_admin, created_at` (`src/pages/ProfilePage.tsx:15-22`, `:46-50`) and the Preferences tab is a placeholder (`:376-388`), so storing the admin's zone would need a migration and a deploy. The screen shows the zone instead.
+- **The engine: `package:sqlite3` 3.8.0, directly.** It binds SQLite over `dart:ffi` and gets the library through Dart build hooks, so **no `sqlite3.dll` ships and the installer does not change** — the usual objection to SQLite on Windows does not apply. `sqflite` has no Windows target, `sqflite_common_ffi` is the same engine under another name, and `drift` adds a code generator and a build step for a dataset that a few hand-written statements cover. The SDK floor is Dart ≥ 3.10 and the project is on 3.13.7.
+- **Two databases, not one.** `cache.db` holds the rebuildable reads, `drafts.db` holds the compose drafts. A cache that is wiped or corrupted then never reaches a draft, and the no-data-loss rule costs nothing to keep.
+- **A broken database is renamed, never deleted** (`cache.corrupt-20261029-1432.db`), and a database whose version is **newer** than the app's is not touched at all, so a downgrade cannot destroy data.
+- **The cache holds no token.** The `connected_accounts` rows are read by name — `platform`, `account_id`, `account_name`, `is_connected` — so `access_token` and `refresh_token` are never fetched and can never be written down. The local account store already works the same way (`desktop-flutter/lib/features/accounts/domain/connected_account.dart:34-39`).
+- **The app never polls for connectivity.** It learns the state from the calls it makes, and only a connection-level failure means offline — a timeout does not. That needs the queue error to carry its kind, which the Phase 4.5 gate merged into one sentence; 5.5 splits the kind from the message.
+- **The draft keeps the time the admin typed.** A draft stores the wall clock as it was typed, the instant it resolved to and the offset. On restore the app resolves the wall clock again: if the instant moved, the screen says so and the admin chooses; the typed value is never silently replaced.
+- **The web app's offline store is dead code.** `src/lib/offline-db.ts` wraps IndexedDB and is never imported (`:84`), and there is no draft, no autosave and no connectivity handling anywhere in `src/`.
+- **Open for the owner:** six decisions in `SPEC-scheduling.md` and eight in `SPEC-offline.md`, of which the ones that change the work are the platform filter, the week view, the timezone source, the delete of a published row, whether the cache keeps the `videos` rows, more than one draft per media, and whether the cache is wiped on sign-out while the drafts are kept.
+- **Spike before 5.3:** open a database in a temp directory under `flutter test` and under `flutter build windows`, and show that the compiled asset is inside the built app and that no `sqlite3.dll` sits next to the executable. The build hook has to run in the test runner on Windows, and that is the one thing the sources do not settle.
 
 ---
 
