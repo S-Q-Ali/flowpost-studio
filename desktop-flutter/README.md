@@ -3,9 +3,9 @@
 Flutter Windows client for FlowPost Studio. The shell provides the window,
 tray, single instance, `flowpost://` links, logging, config and theme; the
 Accounts screen manages the six publish targets locally, and the Upload
-screen picks a local video or image and validates it. An Inno Setup
-installer ships the app. Identity, media processing, publishing and
-scheduling land in later phases.
+screen picks a local video or image and processes it with a bundled FFmpeg.
+An Inno Setup installer ships the app. Identity, captions, upload, publishing
+and scheduling land in later phases.
 
 Windows 10 1809+ / Windows 11, x64 only.
 
@@ -19,6 +19,22 @@ Windows 10 1809+ / Windows 11, x64 only.
 | Inno Setup | 6 (`%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`) |
 
 `pubspec.lock` pins package versions.
+
+## FFmpeg
+
+Media processing needs the bundled FFmpeg build. Fetch it once before running
+the media tests or packaging the installer:
+
+```powershell
+tool\fetch_ffmpeg.ps1
+```
+
+The script downloads the pinned LGPL build, verifies its SHA-256, keeps only
+the files that ship, and refuses a build that is GPL or carries `libx264`.
+The result lands in `third_party\ffmpeg\bin` (gitignored); the installer
+packages it as `{app}\ffmpeg\bin`, and the app resolves it next to its own
+executable. `FLOWPOST_FFMPEG_DIR` overrides the lookup for development and
+fixture tests.
 
 ## Configure
 
@@ -51,7 +67,24 @@ flutter test
 flutter test integration_test -d windows --dart-define-from-file=config/dev.json
 ```
 
+The media tests under `test\features\media\ffmpeg` run the real FFmpeg
+against the committed fixtures and fail with a setup message when the build
+is missing. They need `tool\fetch_ffmpeg.ps1` to have run.
+
+`integration_test\app_test.dart` drives the real app on Windows: it launches
+the shell, runs the pipeline over a fixture with the real FFmpeg, and cancels a
+second job to prove no FFmpeg process outlives it. It lives in one file on
+purpose — the shell takes a single-instance lock, so a second launch in the
+same run would hand off and exit. Point it at the build explicitly:
+
+```powershell
+$env:FLOWPOST_FFMPEG_DIR = "$PWD\third_party\ffmpeg\bin"
+flutter test integration_test -d windows --dart-define-from-file=config/dev.json
+```
+
 Quit the tray app before a build: Windows locks `cnativeapi.dll` while it runs.
+Do not run `flutter test` and `flutter build` at the same time — they share
+`build\unit_test_assets` and race over the compiled shaders.
 
 ## Build
 
@@ -89,6 +122,7 @@ v1 is **unsigned**. Windows SmartScreen shows "Windows protected your PC"; use
 - Log: `%APPDATA%\com.flowpost\FlowPost\logs\app.log` (rotates to `app.log.1` at 1 MB)
 - Media workspace: `%LOCALAPPDATA%\com.flowpost\FlowPost\media\jobs\<job-id>`
   (one folder per picked file; removed at startup and when the file is replaced)
+- Media jobs are logged by id only; a path would leak the user's folders.
 - Tokens, OAuth codes/states, and keys are redacted before writing.
 
 The old Pake app uses a different data root and is not migrated.
@@ -124,10 +158,10 @@ Download button that opens the URL in the system browser.
 
 In: shell, tray, single instance, deep links, installer, logging, update check,
 local Accounts screen with six platform cards and persisted connect/disconnect,
-Upload screen with a native file picker, extension/size validation, and a
-per-job temporary workspace.
+Upload screen with a native file picker, extension/size/duration validation,
+and local media processing (probe, normalize to MP4, thumbnail, caption frames,
+transcription audio) through the bundled FFmpeg.
 
-Out: identity, real platform OAuth/token exchange, media processing (probe,
-transcode, thumbnails, captions, upload), publishing, scheduling,
-offline data, workflows, insights, admin, silent updates, MSIX, code signing,
-macOS/Linux/mobile.
+Out: identity, real platform OAuth/token exchange, caption generation, upload,
+publishing, scheduling, offline data, workflows, insights, admin, silent
+updates, MSIX, code signing, macOS/Linux/mobile.
