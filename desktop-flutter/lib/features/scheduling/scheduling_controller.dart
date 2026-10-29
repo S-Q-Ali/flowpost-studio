@@ -192,6 +192,11 @@ class QueueController extends AsyncNotifier<QueueData> {
         ref.read(queuePlatformProvider) != platform) {
       return;
     }
+    // The page belongs in the cache too, or a restart shows only the first
+    // page of a list the admin had already scrolled through.
+    await ref
+        .read(postsCacheProvider)
+        .merge(page.posts, readAt: DateTime.now());
     state = AsyncData(
       QueueData(
         posts: [...current.posts, ...page.posts],

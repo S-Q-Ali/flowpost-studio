@@ -179,6 +179,21 @@ void main() {
     expect(cache.merges.single.posts.map((row) => row.id), ['post-1', 'p2']);
   });
 
+  test('a page loaded later is written to the cache too', () async {
+    final repository = FakeScheduledPostsRepository()
+      ..pages[0] = ScheduledPostsPage(posts: [post()], hasMore: true)
+      ..pages[1] = ScheduledPostsPage(posts: [post(id: 'p2')], hasMore: false);
+    final cache = FakePostsCache();
+    final container = _container(repository, cache: cache);
+    await container.read(queueControllerProvider.future);
+
+    await container.read(queueControllerProvider.notifier).loadMore();
+
+    // A restart must show the list the admin had scrolled through, not only
+    // the first page.
+    expect(cache.merges.last.posts.map((row) => row.id), ['p2']);
+  });
+
   test(
     'a connection failure shows the cached rows and their read time',
     () async {
