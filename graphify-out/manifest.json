@@ -462,10 +462,10 @@
     "semantic_hash": "61203f3adb9582947129c48b40564ab2"
   },
   "supabase/functions/_shared/rate-limit.ts": {
-    "mtime": 1785991227.0664058,
-    "seen": 1789020917.2984962,
-    "ast_hash": "3d57eef7d5b1baeec369fc5eff3ab562",
-    "semantic_hash": "3d57eef7d5b1baeec369fc5eff3ab562"
+    "mtime": 1793308478.2389512,
+    "seen": 1793309918.0429888,
+    "ast_hash": "7f362e73829a871846bf5cfa0df23432",
+    "semantic_hash": ""
   },
   "supabase/functions/_shared/sheet-status.ts": {
     "mtime": 1789033764.69539,
@@ -486,9 +486,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/facebook-upload/index.ts": {
-    "mtime": 1789033764.67538,
-    "seen": 1789034083.8067226,
-    "ast_hash": "8aff2ba11eadebab25dcabac628cf43a",
+    "mtime": 1793308427.5215871,
+    "seen": 1793309918.044213,
+    "ast_hash": "8cdf2976410768dd308938ba77b1c6ee",
     "semantic_hash": ""
   },
   "supabase/functions/fetch-facebook-insights/deno.json": {
@@ -516,9 +516,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/generate-ai-captions/index.ts": {
-    "mtime": 1789029039.4420972,
-    "seen": 1789029300.4983394,
-    "ast_hash": "679b0e23224aed5b05ef206cab235a42",
+    "mtime": 1793308477.997972,
+    "seen": 1793309918.0451868,
+    "ast_hash": "ac550288bf9616a1892a511f0e5e6149",
     "semantic_hash": ""
   },
   "supabase/functions/generate-ai-captions/prompt-templates.ts": {
@@ -558,9 +558,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/instagram-upload/index.ts": {
-    "mtime": 1789032793.2257383,
-    "seen": 1789033053.8029778,
-    "ast_hash": "22240d36922a5e1b6a0c96d4e8ff647b",
+    "mtime": 1793308426.4342444,
+    "seen": 1793309918.0466568,
+    "ast_hash": "19b1b310b5af474ecb06b45184b227d2",
     "semantic_hash": ""
   },
   "supabase/functions/linkedin-auth/index.ts": {
@@ -570,9 +570,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/linkedin-upload/index.ts": {
-    "mtime": 1789032770.7325113,
-    "seen": 1789033053.8029778,
-    "ast_hash": "1ac0b5e4697b7f2956e1e64d82d70eb7",
+    "mtime": 1793308428.7635567,
+    "seen": 1793309918.0468981,
+    "ast_hash": "dc8a8959cc08439270bc9e25f4ea28e2",
     "semantic_hash": ""
   },
   "supabase/functions/mega-auth/index.ts": {
@@ -582,16 +582,16 @@
     "semantic_hash": ""
   },
   "supabase/functions/post-story/index.ts": {
-    "mtime": 1789032911.840211,
-    "seen": 1789033053.8029778,
-    "ast_hash": "a2824b6380b69c723188b1460aa553d4",
+    "mtime": 1793308456.1661086,
+    "seen": 1793309918.0471787,
+    "ast_hash": "1f0a6842bd660047ff490768e88671d4",
     "semantic_hash": ""
   },
   "supabase/functions/process-scheduled-posts/index.ts": {
-    "mtime": 1785263032.4143107,
-    "seen": 1789020917.2984962,
-    "ast_hash": "2f8136b76b8add8d5134f9f9f89dcf5d",
-    "semantic_hash": "2f8136b76b8add8d5134f9f9f89dcf5d"
+    "mtime": 1793308501.529356,
+    "seen": 1793309918.0471911,
+    "ast_hash": "32d61fa20664e2cc48f9ae7a02f1a78e",
+    "semantic_hash": ""
   },
   "supabase/functions/process-workflow/index.ts": {
     "mtime": 1789029233.0241919,
@@ -606,9 +606,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/tiktok-upload/index.ts": {
-    "mtime": 1789032809.429058,
-    "seen": 1789033053.8029778,
-    "ast_hash": "0b4650c2363879cffd5d847620efe154",
+    "mtime": 1793308428.185149,
+    "seen": 1793309918.0477543,
+    "ast_hash": "830cc707b5af1e2d1072adcd600cde33",
     "semantic_hash": ""
   },
   "supabase/functions/transfer-ticket/index.ts": {
@@ -648,9 +648,9 @@
     "semantic_hash": "5612f8c860166436f46e1aa491ab01f4"
   },
   "supabase/functions/youtube-upload/index.ts": {
-    "mtime": 1789033899.232938,
-    "seen": 1789034083.8067226,
-    "ast_hash": "f72698b583d05bc0a32f0c8d94b718da",
+    "mtime": 1793308426.9482055,
+    "seen": 1793309918.049692,
+    "ast_hash": "b9da86931ec8999ab8ecb8c788d5ea4a",
     "semantic_hash": ""
   },
   "tailwind.config.ts": {
@@ -2964,9 +2964,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/core/config/app_config.dart": {
-    "mtime": 1793304722.8614554,
-    "seen": 1793304846.4896822,
-    "ast_hash": "ae31ed2fb483b3d61e4cdf454c5c9b7c",
+    "mtime": 1793309266.7009673,
+    "seen": 1793309917.9650927,
+    "ast_hash": "fda477f1267fa847ae2d0a7d5503d098",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/core/logging/app_logger.dart": {
@@ -3024,9 +3024,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/core/app_config_test.dart": {
-    "mtime": 1793109864.0856526,
-    "seen": 1793148811.959774,
-    "ast_hash": "58a74828e7c301269d144075e874efc5",
+    "mtime": 1793309326.612111,
+    "seen": 1793309917.9885848,
+    "ast_hash": "d0b53a274049d609d0b92c005c6ac06f",
     "semantic_hash": ""
   },
   "desktop-flutter/test/core/app_logger_test.dart": {
@@ -3192,9 +3192,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/core/update/update_checker.dart": {
-    "mtime": 1793110759.6698256,
-    "seen": 1793148811.9597664,
-    "ast_hash": "12cec2975e822fa1ca2957d87429c7c1",
+    "mtime": 1793309028.497359,
+    "seen": 1793309917.973952,
+    "ast_hash": "4d879bab346e065eac24b0bf1d49582e",
     "semantic_hash": ""
   },
   "desktop-flutter/test/core/deep_link_dispatcher_test.dart": {
@@ -3222,9 +3222,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/core/update_checker_test.dart": {
-    "mtime": 1793110759.7048204,
-    "seen": 1793148811.9597926,
-    "ast_hash": "afbea55327edb468cca4dada31c1eff2",
+    "mtime": 1793309067.5972211,
+    "seen": 1793309917.9956434,
+    "ast_hash": "5f91a5e29e86a088480705634f35e8f1",
     "semantic_hash": ""
   },
   "tasks/archive/plan-pake-2026-10-23.md": {
@@ -3402,9 +3402,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/media/presentation/media_page.dart": {
-    "mtime": 1793278475.068867,
-    "seen": 1793290391.717821,
-    "ast_hash": "aaf5408bc6bcba60a92a6892673f1c24",
+    "mtime": 1793309250.3386793,
+    "seen": 1793309917.9816394,
+    "ast_hash": "96c38d5e359602738210d81754669bcb",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/media/media_controller_test.dart": {
@@ -3414,9 +3414,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/media/media_page_test.dart": {
-    "mtime": 1793303753.0818527,
-    "seen": 1793304846.53153,
-    "ast_hash": "2b38b87a40f00a043e6d85f89f4aa9e6",
+    "mtime": 1793309397.1250267,
+    "seen": 1793309917.9991448,
+    "ast_hash": "1336f6c4da34cbfc40d0869832523e05",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/media/media_validation_test.dart": {
@@ -3468,9 +3468,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/media/captions/data/captions_client.dart": {
-    "mtime": 1793259067.7094684,
-    "seen": 1793290391.7177746,
-    "ast_hash": "8cda1f6263875b6981331314eba48e26",
+    "mtime": 1793309039.2025034,
+    "seen": 1793309917.9764545,
+    "ast_hash": "9b9977ae21f86bf9d7f69e113908785e",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/media/captions/domain/caption_processing.dart": {
@@ -3552,9 +3552,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/media/upload/data/upload_client.dart": {
-    "mtime": 1793262211.1306336,
-    "seen": 1793290391.7178228,
-    "ast_hash": "1595b0b4061543eb898a1c90fbd61646",
+    "mtime": 1793309067.5755424,
+    "seen": 1793309917.981642,
+    "ast_hash": "1addffe6a68362113bd3561cd4a22f69",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/media/upload/domain/upload_processing.dart": {
@@ -3576,15 +3576,15 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/offline/data/cache_store.dart": {
-    "mtime": 1793293024.4242218,
-    "seen": 1793293731.1832457,
-    "ast_hash": "8cd62975f7961d95303d53c66d83aeea",
+    "mtime": 1793309295.198011,
+    "seen": 1793309917.982458,
+    "ast_hash": "4dd9011b432e1f4b2d6c64f10cd0962b",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/offline/data/drafts_repository.dart": {
-    "mtime": 1793293030.1179447,
-    "seen": 1793293731.1832538,
-    "ast_hash": "eacf4e5782bb176ea16b2f4d2fe18f21",
+    "mtime": 1793308702.6367846,
+    "seen": 1793309917.9826982,
+    "ast_hash": "4a6573fa9d3594e9cab708bc5e0d89ae",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/offline/data/local_database.dart": {
@@ -3594,21 +3594,21 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/offline/data/posts_cache.dart": {
-    "mtime": 1793291816.1364021,
-    "seen": 1793292533.8795679,
-    "ast_hash": "68fb842d00768afca6c2b1cb37c99f23",
+    "mtime": 1793309299.4784682,
+    "seen": 1793309917.982934,
+    "ast_hash": "9db71e3e89a81f53fd67456b6aab5691",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/offline/drafts/compose_draft.dart": {
-    "mtime": 1793288189.134681,
-    "seen": 1793290391.717837,
-    "ast_hash": "1aadc14be2eac9566d5a55667d7de424",
+    "mtime": 1793308699.2057073,
+    "seen": 1793309917.9829364,
+    "ast_hash": "1eaceab92eaba6f99fb387409b1fe154",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/offline/drafts/draft_store.dart": {
-    "mtime": 1793288488.2545955,
-    "seen": 1793290391.7178385,
-    "ast_hash": "d83bdffa261b26718cfb4200f9e9bf6e",
+    "mtime": 1793308684.4101844,
+    "seen": 1793309917.9829385,
+    "ast_hash": "9aa4ed753e6b5128138f254413fba43b",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/offline/offline_providers.dart": {
@@ -3624,9 +3624,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/publishing/data/posts_repository.dart": {
-    "mtime": 1793289463.7380562,
-    "seen": 1793290391.7178438,
-    "ast_hash": "dda377f631e31a27dae732ebc47e8d0d",
+    "mtime": 1793308547.1302543,
+    "seen": 1793309917.9834926,
+    "ast_hash": "5c62e2166af0a3fa23f52dc531f69e9f",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/publishing/data/publish_client.dart": {
@@ -3660,21 +3660,21 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/publishing/presentation/publish_page.dart": {
-    "mtime": 1793296219.4565659,
-    "seen": 1793296402.0490363,
-    "ast_hash": "7ee35d8c81e5a350403960a62f97baf7",
+    "mtime": 1793308745.0072467,
+    "seen": 1793309917.9847775,
+    "ast_hash": "2d5314fc8ff644283955d7a3b8e612f4",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/publishing/publishing_controller.dart": {
-    "mtime": 1793289296.333487,
-    "seen": 1793290391.7178552,
-    "ast_hash": "c194fb0a42f57eb04bc708593363976c",
+    "mtime": 1793309402.8968196,
+    "seen": 1793309917.9847798,
+    "ast_hash": "1269132fd00425bc8c2951118225641e",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/publishing/publishing_providers.dart": {
-    "mtime": 1793288979.1412766,
-    "seen": 1793290391.717857,
-    "ast_hash": "6db46b8124514a9878424415862af957",
+    "mtime": 1793308732.329309,
+    "seen": 1793309917.9847815,
+    "ast_hash": "8978d4fe86601fc67f4e3798aa089758",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/scheduling/data/scheduled_posts_repository.dart": {
@@ -3690,15 +3690,15 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/scheduling/domain/post_edit.dart": {
-    "mtime": 1793287454.1825166,
-    "seen": 1793290391.717862,
-    "ast_hash": "877963ab7709073a2684e514eb8f4f50",
+    "mtime": 1793308598.4363847,
+    "seen": 1793309917.9853554,
+    "ast_hash": "cd828207d16f6a8f5cd0bbdfdef851f4",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/scheduling/domain/scheduled_post.dart": {
-    "mtime": 1793285112.9050157,
-    "seen": 1793290391.7178638,
-    "ast_hash": "990553d5c88b90d51ea5d67b11364416",
+    "mtime": 1793308598.2016478,
+    "seen": 1793309917.9853578,
+    "ast_hash": "465ca9b2fd03f4471506ed4880877d5a",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/scheduling/presentation/calendar_page.dart": {
@@ -3708,9 +3708,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/scheduling/presentation/post_actions.dart": {
-    "mtime": 1793295044.6771746,
-    "seen": 1793296402.0516677,
-    "ast_hash": "b18f054c80bdb2bbe9e559fa95b4f33a",
+    "mtime": 1793309299.6382964,
+    "seen": 1793309917.985625,
+    "ast_hash": "87acea46f31d1033508f12119b008987",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/scheduling/presentation/queue_page.dart": {
@@ -3720,9 +3720,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/scheduling/scheduling_controller.dart": {
-    "mtime": 1793289009.7508147,
-    "seen": 1793290391.7178698,
-    "ast_hash": "a28c5fccc27d720530f10cd90501f506",
+    "mtime": 1793309260.5982692,
+    "seen": 1793309917.9861412,
+    "ast_hash": "eecd6de60d51d6a5c8f21a2c192bf886",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/scheduling/scheduling_providers.dart": {
@@ -3756,9 +3756,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/media/captions/captions_client_test.dart": {
-    "mtime": 1793259067.9262316,
-    "seen": 1793290391.721485,
-    "ast_hash": "4d39b67f749362de486c3bdd0e1f2354",
+    "mtime": 1793309207.4837008,
+    "seen": 1793309917.997382,
+    "ast_hash": "7e334039582fab6b63ba985919fde02a",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/media/ffmpeg/ffmpeg_pipeline_test.dart": {
@@ -3804,9 +3804,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/media/upload/upload_client_test.dart": {
-    "mtime": 1793262233.699341,
-    "seen": 1793290391.7218273,
-    "ast_hash": "ac371776a8a5479e5a97a21dae08dbef",
+    "mtime": 1793309067.6235926,
+    "seen": 1793309918.0002582,
+    "ast_hash": "19d6f235e0f91bb89671bb1e1fca4c60",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/media/upload/upload_controller_test.dart": {
@@ -3816,9 +3816,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/offline/cache_store_test.dart": {
-    "mtime": 1793289464.029402,
-    "seen": 1793290391.721834,
-    "ast_hash": "f7a6bfa3c9fa4a55f3a1751918ecd7e2",
+    "mtime": 1793309312.405037,
+    "seen": 1793309918.0006108,
+    "ast_hash": "cd4d284185f7099f659eb1ee0811663a",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/offline/connectivity_test.dart": {
@@ -3828,15 +3828,15 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/offline/draft_store_test.dart": {
-    "mtime": 1793288488.549984,
-    "seen": 1793290391.7218635,
-    "ast_hash": "bc20ddc325adf2b66147a5941e0a5649",
+    "mtime": 1793308804.0041764,
+    "seen": 1793309918.000993,
+    "ast_hash": "960a9261c05190238ec4f0d416a853bf",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/offline/drafts_repository_test.dart": {
-    "mtime": 1793293043.260843,
-    "seen": 1793293731.2021115,
-    "ast_hash": "0906c84562a8efb0bb4214184def15a9",
+    "mtime": 1793308779.156064,
+    "seen": 1793309918.0009966,
+    "ast_hash": "e5042536bc1bea1548e43f4955f1820b",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/offline/local_database_test.dart": {
@@ -3852,9 +3852,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/publishing/posts_repository_test.dart": {
-    "mtime": 1793289464.0584323,
-    "seen": 1793290391.7218747,
-    "ast_hash": "b3aeaf6af24ae95d4e394a1e3a38768e",
+    "mtime": 1793308572.945767,
+    "seen": 1793309918.0017793,
+    "ast_hash": "f2a8dd08e056e3293a76a8862fb57d0c",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/publishing/publish_client_test.dart": {
@@ -3864,15 +3864,15 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/publishing/publish_controller_test.dart": {
-    "mtime": 1793289464.0884545,
-    "seen": 1793290391.7218783,
-    "ast_hash": "608ac61dd7ac30797c3cf3149c392128",
+    "mtime": 1793309403.238772,
+    "seen": 1793309918.0021455,
+    "ast_hash": "b382a56efe18dd4cdfe3f0ff10bf6ec1",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/publishing/publish_page_test.dart": {
-    "mtime": 1793303753.0838635,
-    "seen": 1793304846.5377645,
-    "ast_hash": "89964d8089fe9f86d4c16a52b8d6668a",
+    "mtime": 1793308793.4627404,
+    "seen": 1793309918.0021498,
+    "ast_hash": "b24d196e9bcf2738f5e7dad48981a990",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/publishing/publish_target_test.dart": {
@@ -3906,15 +3906,15 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/scheduling/post_edit_test.dart": {
-    "mtime": 1793287424.9041884,
-    "seen": 1793290391.7218897,
-    "ast_hash": "a5d52f37c62310abe57d622c8b438f16",
+    "mtime": 1793308598.9859726,
+    "seen": 1793309918.0044594,
+    "ast_hash": "4098cf4ce5d9ece66e608621975d5f51",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/scheduling/queue_controller_test.dart": {
-    "mtime": 1793289464.143328,
-    "seen": 1793290391.7218914,
-    "ast_hash": "8a533be91ac140478a7088722ce574b6",
+    "mtime": 1793309347.661076,
+    "seen": 1793309918.0044637,
+    "ast_hash": "891da6e1bcf8adf511a1d4a083d78019",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/scheduling/queue_page_test.dart": {
@@ -3930,15 +3930,15 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/support/fake_drafts.dart": {
-    "mtime": 1793293032.545648,
-    "seen": 1793293731.2056236,
-    "ast_hash": "e15b55b525e452bca550dcb98cd7105f",
+    "mtime": 1793308748.3549542,
+    "seen": 1793309918.0069933,
+    "ast_hash": "5e39607f1c0de0d700df522c348928b0",
     "semantic_hash": ""
   },
   "desktop-flutter/test/support/fake_posts_cache.dart": {
-    "mtime": 1793291819.6714377,
-    "seen": 1793292533.89931,
-    "ast_hash": "e3bed4b33a5ab5d79910ad36309cece0",
+    "mtime": 1793309307.2946563,
+    "seen": 1793309918.0069976,
+    "ast_hash": "31a3fcbf77fe462315c4aa3bc833ec5d",
     "semantic_hash": ""
   },
   "desktop-flutter/test/support/fake_scheduled_posts.dart": {
@@ -4014,9 +4014,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/settings/settings_providers.dart": {
-    "mtime": 1793304016.9294794,
-    "seen": 1793304846.5186758,
-    "ast_hash": "898981123d2366f45cdb32a41aeecb50",
+    "mtime": 1793309776.1933079,
+    "seen": 1793309917.9872499,
+    "ast_hash": "5f4a14a2839016d3f175fea7ba2d0ba4",
     "semantic_hash": ""
   },
   "desktop-flutter/test/core/access_token_test.dart": {
@@ -4044,9 +4044,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/settings/settings_providers_test.dart": {
-    "mtime": 1793293556.8770068,
-    "seen": 1793293731.2054098,
-    "ast_hash": "6d8a4a34d59bf03baabfcb2adb100565",
+    "mtime": 1793309667.3476992,
+    "seen": 1793309918.0055828,
+    "ast_hash": "e01fc38ff0814e49559c9ce4d3bb5021",
     "semantic_hash": ""
   },
   "docs/spec/SPEC-settings.md": {
@@ -4164,9 +4164,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/settings/data/connection_check.dart": {
-    "mtime": 1793304572.7728226,
-    "seen": 1793304846.5186632,
-    "ast_hash": "836c50f3ba3625bda1b68dc174005193",
+    "mtime": 1793309024.3584335,
+    "seen": 1793309917.9865057,
+    "ast_hash": "af906ea837985c55ee3772bde5e883db",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/settings/presentation/credentials_form.dart": {
@@ -4194,9 +4194,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/settings/connection_check_test.dart": {
-    "mtime": 1793304356.4052067,
-    "seen": 1793304846.5409157,
-    "ast_hash": "8727ce92e5250bb525bfaff527264bd7",
+    "mtime": 1793309067.6060667,
+    "seen": 1793309918.0052106,
+    "ast_hash": "747bf3d55125c6f3c7304ba013cbdebd",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/setup/setup_page_test.dart": {
@@ -4221,6 +4221,24 @@
     "mtime": 1793304566.111083,
     "seen": 1793304846.7061083,
     "ast_hash": "6c06eba604b1f74655fdab805e1b115e",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/post-access.test.ts": {
+    "mtime": 1793308417.2761035,
+    "seen": 1793309918.0429811,
+    "ast_hash": "8f472b89ba1bd304ee6add82957952cb",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/post-access.ts": {
+    "mtime": 1793308416.9583356,
+    "seen": 1793309918.0429842,
+    "ast_hash": "7089eaec3cce63b77984ad36bada4eb7",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/rate-limit.test.ts": {
+    "mtime": 1793308484.970174,
+    "seen": 1793309918.042986,
+    "ast_hash": "1b3694cc416b4df4b98b36a7f5a399fc",
     "semantic_hash": ""
   }
 }
