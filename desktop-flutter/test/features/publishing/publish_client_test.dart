@@ -285,6 +285,32 @@ void main() {
     expect(failure.message, isNot(contains('\n')));
   });
 
+  test('a path in the sentence of the platform is removed', () async {
+    final transport = _FakeTransport()
+      ..reply = const PublishReply(
+        statusCode: 502,
+        body: {'error': r'Upload failed for C:\Users\Jane Doe\clip.mp4'},
+      );
+
+    final failure = await _failureOf(transport);
+
+    expect(failure.message, isNot(contains('Jane Doe')));
+    expect(failure.message, isNot(contains('clip.mp4')));
+  });
+
+  test('a network path in the sentence of the platform is removed', () async {
+    final transport = _FakeTransport()
+      ..reply = const PublishReply(
+        statusCode: 502,
+        body: {'error': r'Upload failed for \\server\share\clip.mp4'},
+      );
+
+    final failure = await _failureOf(transport);
+
+    expect(failure.message, isNot(contains('server')));
+    expect(failure.message, isNot(contains('clip.mp4')));
+  });
+
   test('an empty answer says the publish failed', () async {
     final transport = _FakeTransport()
       ..reply = const PublishReply(statusCode: 500, body: {});

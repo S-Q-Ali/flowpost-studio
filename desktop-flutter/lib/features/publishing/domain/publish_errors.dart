@@ -128,14 +128,15 @@ bool _mentionsTheMedia(String lower) =>
 
 /// Makes a sentence from the service safe to show.
 ///
-/// Control bytes and links go: a service can echo the media link back, and a
-/// long answer would fill the screen.
+/// Control bytes, links and paths go: a service can echo the media link
+/// back, and a long answer would fill the screen.
 String cleanFailureText(String? text) {
   if (text == null) return '';
   var cleaned = text.replaceAll(
     RegExp(r'https?://\S+', caseSensitive: false),
     '',
   );
+  cleaned = maskPaths(cleaned);
   cleaned = stripControlCharacters(cleaned);
   cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   if (cleaned.length > 240) cleaned = '${cleaned.substring(0, 240)}…';

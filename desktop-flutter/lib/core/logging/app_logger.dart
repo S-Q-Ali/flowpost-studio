@@ -60,6 +60,24 @@ String stripControlCharacters(String text, {bool keepNewlines = false}) {
   return text.replaceAll(pattern, ' ');
 }
 
+/// A Windows path, spaces included: the match runs on to the next colon, so
+/// `C:\Users\Jane Doe\clip.mp4` is masked whole instead of up to its first
+/// space.
+final RegExp _windowsPathPattern = RegExp(
+  r'[A-Za-z]:\\(?:[^\n:*?"<>|]*\\)*[^\n:*?"<>|]*',
+);
+
+/// A UNC path such as `\\server\share\clip.mp4`.
+final RegExp _uncPathPattern = RegExp(r'\\\\[^\n:*?"<>|]+');
+
+/// Masks the file paths in [text].
+///
+/// A path names a file on someone's disk, so it never reaches the screen or
+/// the log. The media pipeline gives FFmpeg's stderr the same treatment.
+String maskPaths(String text) => text
+    .replaceAll(_windowsPathPattern, 'the file')
+    .replaceAll(_uncPathPattern, 'the file');
+
 /// Renames [log] to `<log>.1` once it exceeds [maxBytes]; the next append
 /// recreates it. Keeps `%APPDATA%\com.flowpost\FlowPost\logs\app.log` bounded.
 Future<void> rotateLogIfNeeded(File log, {int maxBytes = 1 << 20}) async {

@@ -1,3 +1,5 @@
+import '../../../core/logging/app_logger.dart';
+
 /// Turns FFmpeg's stderr into a short reason a user can act on.
 ///
 /// FFmpeg stderr carries library prefixes, absolute paths and whatever the
@@ -22,16 +24,6 @@ String ffmpegErrorReason(String stderr, {String? sourcePath}) {
 
 final RegExp _prefixPattern = RegExp(r'^\[[^\]]*\]\s*');
 
-/// A Windows path, spaces included: the match runs on to the next colon, so
-/// `C:\Users\Jane Doe\clip.mp4` is masked whole instead of up to its first
-/// space.
-final RegExp _windowsPathPattern = RegExp(
-  r'[A-Za-z]:\\(?:[^\n:*?"<>|]*\\)*[^\n:*?"<>|]*',
-);
-
-/// A UNC path such as `\\server\share\clip.mp4`.
-final RegExp _uncPathPattern = RegExp(r'\\\\[^\n:*?"<>|]+');
-
 final RegExp _controlPattern = RegExp(r'[\x00-\x1f\x7f]');
 
 String _stripPrefix(String line) => line.replaceFirst(_prefixPattern, '');
@@ -41,8 +33,7 @@ String _mask(String line, String? sourcePath) {
   for (final path in _knownPaths(sourcePath)) {
     value = value.replaceAll(path, 'the file');
   }
-  value = value.replaceAll(_windowsPathPattern, 'the file');
-  value = value.replaceAll(_uncPathPattern, 'the file');
+  value = maskPaths(value);
   value = value.replaceAll(_controlPattern, ' ');
   return value.trim();
 }
