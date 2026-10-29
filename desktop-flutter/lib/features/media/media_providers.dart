@@ -183,11 +183,17 @@ class MediaController extends Notifier<MediaState> {
       // The folder stays so the action can be retried.
       state = MediaFailed(error.message);
       _log.warning('Media job ${job.id} failed: ${error.message}');
-    } catch (_) {
+    } catch (error, stackTrace) {
       state = const MediaFailed(
         'Something went wrong while processing the file.',
       );
-      _log.severe('Media job ${job.id} failed unexpectedly.');
+      // The type and the stack trace are logged, never the message: a
+      // message can carry the path of the user's file.
+      _log.severe(
+        'Media job ${job.id} failed unexpectedly (${error.runtimeType}).',
+        null,
+        stackTrace,
+      );
     } finally {
       _processor = null;
     }

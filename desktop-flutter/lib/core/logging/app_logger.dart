@@ -20,6 +20,11 @@ final Set<String> redactedKeys = {
   'state',
 };
 
+/// Keys whose bare form is only redacted after an `=`. `Error code: 1` and
+/// `state: MediaIdle` are ordinary words, not secrets, and the OAuth query
+/// form is already handled by the first pass.
+const Set<String> bareEqualsOnlyKeys = {'code', 'state'};
+
 String redactSecrets(String message) {
   // OAuth callbacks put code/state in the query (or fragment). Redact them
   // before the generic key pass so a one-word key like `code` stays precise.
@@ -34,8 +39,12 @@ String redactSecrets(String message) {
       RegExp('"($key)"\\s*:\\s*"[^"]*"', caseSensitive: false),
       (m) => '"${m.group(1)}":"[redacted]"',
     );
+    final separator = bareEqualsOnlyKeys.contains(key) ? '=' : '[=:]';
     redacted = redacted.replaceAllMapped(
-      RegExp('\\b($key)\\b\\s*[=:]\\s*"?[^&\\s,}"]+', caseSensitive: false),
+      RegExp(
+        '\\b($key)\\b\\s*$separator\\s*"?[^&\\s,}"]+',
+        caseSensitive: false,
+      ),
       (m) => '${m.group(1)}=[redacted]',
     );
   }

@@ -32,6 +32,12 @@ void main() {
     );
   });
 
+  test('keeps ordinary words that look like a secret key', () {
+    expect(redactSecrets('Error code: 1'), 'Error code: 1');
+    expect(redactSecrets('state: MediaIdle'), 'state: MediaIdle');
+    expect(redactSecrets('ffmpeg exit code=1'), 'ffmpeg exit code=[redacted]');
+  });
+
   test('keeps the original key casing when redacting', () {
     expect(
       redactSecrets('GET /auth?ACCESS_TOKEN=supersecret&x=1'),
