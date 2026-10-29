@@ -44,6 +44,16 @@ class _FakeWorkspace extends MediaWorkspace {
   }
 }
 
+/// A workspace whose folder cannot be created, as on a full disk.
+class _FailingWorkspace extends MediaWorkspace {
+  _FailingWorkspace() : super(root: Directory('unused'));
+
+  @override
+  Future<Directory> createJob() async {
+    throw const FileSystemException('No space left on device.');
+  }
+}
+
 /// A processor that never finishes on its own, so the test can drive it.
 class _FakeProcessor implements MediaProcessor {
   final Completer<void> started = Completer();
@@ -84,7 +94,7 @@ Future<MediaValidation> _fakeValidator(FileSystemEntity file) async {
 }
 
 ProviderContainer _container(
-  _FakeWorkspace workspace,
+  MediaWorkspace workspace,
   MediaFilePicker picker,
   MediaProcessorFactory factory,
 ) {
@@ -226,6 +236,24 @@ void main() {
       final state = container.read(mediaControllerProvider);
       expect(state, isA<MediaFailed>());
       expect(workspace.deleted, isEmpty);
+    },
+  );
+
+  test(
+    'a workspace that cannot create a folder fails instead of hanging',
+    () async {
+      final container = _container(
+        _FailingWorkspace(),
+        _FakePicker([File('C:\\clips\\first.mp4')]),
+        (job) async => _FakeProcessor(),
+      );
+      addTearDown(container.dispose);
+
+      await container.read(mediaControllerProvider.notifier).pickFile();
+
+      final state = container.read(mediaControllerProvider);
+      expect(state, isA<MediaFailed>());
+      expect((state as MediaFailed).message, contains('working folder'));
     },
   );
 

@@ -121,8 +121,22 @@ class MediaController extends Notifier<MediaState> {
     }
     // The workspace is created only once the file passes validation, so a
     // rejected file never leaves a folder behind.
-    final workspace = await ref.read(mediaWorkspaceProvider.future);
-    final job = await workspace.createJob();
+    final MediaWorkspace workspace;
+    final Directory job;
+    try {
+      workspace = await ref.read(mediaWorkspaceProvider.future);
+      job = await workspace.createJob();
+    } on Object catch (error) {
+      // The screen must not be left on a spinner with no way out.
+      state = const MediaFailed(
+        'Could not create a working folder. Check free space and try again.',
+      );
+      // Only the error type is logged: a message can carry a path.
+      _log.warning(
+        'Could not create the media workspace (${error.runtimeType}).',
+      );
+      return;
+    }
     final previous = _job;
     _job = job;
     // A second pick replaces the first file, so its folder goes away too.
