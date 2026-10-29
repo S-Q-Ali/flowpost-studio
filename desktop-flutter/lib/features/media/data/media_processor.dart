@@ -34,13 +34,27 @@ abstract interface class MediaProcessor {
 /// Runs the pipeline with the bundled FFmpeg: probe, limits, normalize,
 /// thumbnail, caption frames and audio.
 class FfmpegMediaProcessor implements MediaProcessor {
-  FfmpegMediaProcessor({required this.executor, required this.paths, this.log});
+  FfmpegMediaProcessor({
+    required this.executor,
+    required this.paths,
+    this.log,
+    this.jobTimeout = defaultJobTimeout,
+  });
 
   final FfmpegExecutor executor;
   final FfmpegPaths paths;
   final Logger? log;
 
+  /// The wall-clock time the whole job may take.
+  ///
+  /// The runner's timeout applies to one process and a job runs six of them,
+  /// so without a job budget a stuck job could run for an hour.
+  final Duration jobTimeout;
+
+  static const Duration defaultJobTimeout = Duration(minutes: 15);
   static const Duration _probeTimeout = Duration(seconds: 30);
+  static const String _tooLongMessage =
+      'Processing took too long and was stopped.';
 
   bool _cancelled = false;
 
@@ -56,11 +70,12 @@ class FfmpegMediaProcessor implements MediaProcessor {
     MediaProgressCallback? onProgress,
   }) async {
     final progress = _Progress(onProgress);
+    final budget = _Budget(jobTimeout);
 
     _throwIfCancelled();
     progress.stage(MediaStage.probing, 0.02, 'Reading the file...');
 
-    final probe = await _probe(job.sourcePath);
+    final probe = await _probe(job.sourcePath, budget);
     _throwIfCancelled();
 
     final limitError = checkMediaLimits(probe, kind: job.kind);
@@ -73,6 +88,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
       probe,
       Directory(job.workspacePath),
       progress,
+      budget,
     );
 
     progress.stage(MediaStage.ready, 1.0, 'Ready.');
@@ -83,11 +99,15 @@ class FfmpegMediaProcessor implements MediaProcessor {
     );
   }
 
-  Future<MediaProbe> _probe(String sourcePath) async {
+  Future<MediaProbe> _probe(String sourcePath, _Budget budget) async {
+    final remaining = budget.remaining;
+    if (remaining <= Duration.zero) {
+      throw const MediaProcessingException(_tooLongMessage);
+    }
     final run = await executor.run(
       executable: paths.ffprobe,
       arguments: probeArguments(sourcePath),
-      timeout: _probeTimeout,
+      timeout: remaining < _probeTimeout ? remaining : _probeTimeout,
     );
     if (run.cancelled) throw const MediaCancelled();
     if (!run.isSuccess) {
@@ -107,10 +127,11 @@ class FfmpegMediaProcessor implements MediaProcessor {
     MediaProbe probe,
     Directory directory,
     _Progress progress,
+    _Budget budget,
   ) async {
     File? normalized;
     if (job.kind == MediaKind.video) {
-      normalized = await _normalize(job, probe, directory, progress);
+      normalized = await _normalize(job, probe, directory, progress, budget);
     }
 
     progress.stage(MediaStage.processing, 0.7, 'Creating the thumbnail...');
@@ -125,6 +146,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
       ),
       thumbnail,
       progress,
+      budget,
     );
 
     progress.stage(MediaStage.processing, 0.8, 'Extracting caption frames...');
@@ -140,6 +162,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
         ),
         frame,
         progress,
+        budget,
       );
       frames.add(frame);
     }
@@ -152,6 +175,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
         audioArguments(sourcePath: job.sourcePath, outputPath: audio.path),
         audio,
         progress,
+        budget,
       );
     }
 
@@ -170,6 +194,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
     MediaProbe probe,
     Directory directory,
     _Progress progress,
+    _Budget budget,
   ) async {
     final output = File(p.join(directory.path, 'normalized.mp4'));
 
@@ -180,6 +205,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
         from: 0.05,
         to: 0.7,
         progress: progress,
+        budget: budget,
       );
       if (run.isSuccess) {
         await _requireOutput(output);
@@ -195,6 +221,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
       from: 0.05,
       to: 0.7,
       progress: progress,
+      budget: budget,
     );
     if (!run.isSuccess) {
       throw MediaProcessingException(ffmpegErrorReason(run.stderr));
@@ -208,6 +235,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
     List<String> arguments,
     File expected,
     _Progress progress,
+    _Budget budget,
   ) async {
     final run = await _execute(
       arguments,
@@ -215,6 +243,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
       from: 0,
       to: 0,
       progress: progress,
+      budget: budget,
     );
     if (!run.isSuccess) {
       throw MediaProcessingException(ffmpegErrorReason(run.stderr));
@@ -228,11 +257,17 @@ class FfmpegMediaProcessor implements MediaProcessor {
     required double from,
     required double to,
     required _Progress progress,
+    required _Budget budget,
   }) async {
     _throwIfCancelled();
+    final remaining = budget.remaining;
+    if (remaining <= Duration.zero) {
+      throw const MediaProcessingException(_tooLongMessage);
+    }
     final run = await executor.run(
       executable: paths.ffmpeg,
       arguments: arguments,
+      timeout: remaining,
       onProgress: (outTime) {
         if (total == null || total <= Duration.zero) return;
         final fraction = outTime.inMicroseconds / total.inMicroseconds;
@@ -242,9 +277,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
     _throwIfCancelled();
     if (run.cancelled) throw const MediaCancelled();
     if (run.timedOut) {
-      throw const MediaProcessingException(
-        'Processing took too long and was stopped.',
-      );
+      throw const MediaProcessingException(_tooLongMessage);
     }
     return run;
   }
@@ -259,6 +292,19 @@ class FfmpegMediaProcessor implements MediaProcessor {
 
   void _throwIfCancelled() {
     if (_cancelled) throw const MediaCancelled();
+  }
+}
+
+/// The job's wall-clock budget. Every step gets what is left of it.
+class _Budget {
+  _Budget(this.limit) : _stopwatch = Stopwatch()..start();
+
+  final Duration limit;
+  final Stopwatch _stopwatch;
+
+  Duration get remaining {
+    final left = limit - _stopwatch.elapsed;
+    return left.isNegative ? Duration.zero : left;
   }
 }
 

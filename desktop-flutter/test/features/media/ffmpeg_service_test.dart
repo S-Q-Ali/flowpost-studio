@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flowpost_desktop/features/media/data/ffmpeg_paths.dart';
@@ -72,8 +73,9 @@ class _FakeCall {
 class _FakeExecutor implements FfmpegExecutor {
   _FakeExecutor(this.handler);
 
-  final FfmpegRun Function(_FakeCall call) handler;
+  final FutureOr<FfmpegRun> Function(_FakeCall call) handler;
   final List<_FakeCall> calls = [];
+  final List<Duration?> timeouts = [];
   List<Duration> progressTimes = const [];
   int cancelCalls = 0;
 
@@ -95,10 +97,11 @@ class _FakeExecutor implements FfmpegExecutor {
   }) async {
     final call = _FakeCall(executable, arguments);
     calls.add(call);
+    timeouts.add(timeout);
     for (final time in progressTimes) {
       onProgress?.call(time);
     }
-    return handler(call);
+    return await handler(call);
   }
 
   @override
@@ -408,6 +411,53 @@ void main() {
     await expectLater(
       FfmpegMediaProcessor(executor: executor, paths: _paths).process(job()),
       throwsA(isA<MediaProcessingException>()),
+    );
+  });
+
+  test('every step runs inside the job budget', () async {
+    final executor = _workingExecutor();
+
+    await FfmpegMediaProcessor(
+      executor: executor,
+      paths: _paths,
+      jobTimeout: const Duration(minutes: 5),
+    ).process(job());
+
+    expect(executor.timeouts, isNotEmpty);
+    for (final timeout in executor.timeouts) {
+      expect(timeout, isNotNull);
+      expect(timeout!, lessThanOrEqualTo(const Duration(minutes: 5)));
+      expect(timeout, greaterThan(Duration.zero));
+    }
+  });
+
+  test('a job that outruns its budget is stopped', () async {
+    final executor = _FakeExecutor((call) async {
+      if (call.executable == 'ffprobe') {
+        return const FfmpegRun(
+          exitCode: 0,
+          stdout: _videoProbeJson,
+          stderr: '',
+        );
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      _writeOutput(call.outputPath);
+      return const FfmpegRun(exitCode: 0, stdout: '', stderr: '');
+    });
+
+    await expectLater(
+      FfmpegMediaProcessor(
+        executor: executor,
+        paths: _paths,
+        jobTimeout: const Duration(milliseconds: 100),
+      ).process(job()),
+      throwsA(
+        isA<MediaProcessingException>().having(
+          (error) => error.message,
+          'message',
+          'Processing took too long and was stopped.',
+        ),
+      ),
     );
   });
 }

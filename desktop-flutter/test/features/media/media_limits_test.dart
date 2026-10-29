@@ -69,6 +69,39 @@ void main() {
       expect(error.message, 'No video track found.');
     });
 
+    test('rejects a frame with more pixels than the decoder allows', () {
+      // A crafted PNG declares its size in a few bytes; decoding it would
+      // allocate gigabytes before the first pixel is touched.
+      final error = checkMediaLimits(
+        _probe(width: 46340, height: 46340),
+        kind: MediaKind.image,
+      );
+
+      expect(error, isNotNull);
+      expect(error!.reason, MediaLimitRejection.tooLarge);
+      expect(error.message, "This file's resolution is too large to process.");
+    });
+
+    test('accepts a 4K frame', () {
+      expect(
+        checkMediaLimits(
+          _probe(width: 3840, height: 2160),
+          kind: MediaKind.video,
+        ),
+        isNull,
+      );
+    });
+
+    test('rejects a frame at the pixel limit', () {
+      expect(
+        checkMediaLimits(
+          _probe(width: mediaMaxPixels + 1, height: 1),
+          kind: MediaKind.video,
+        ),
+        isNotNull,
+      );
+    });
+
     test('an image has no duration limit', () {
       expect(
         checkMediaLimits(

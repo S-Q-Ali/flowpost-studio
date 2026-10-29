@@ -42,14 +42,15 @@ Out:
 
 | Kind | Extensions (case-insensitive) | Limits |
 |---|---|---|
-| Video | `.mp4`, `.m4v`, `.mov`, `.webm`, `.mkv` | ≤100 MB, >0 s and ≤180 s, one decodable video stream |
-| Image | `.jpg`, `.jpeg`, `.png`, `.webp` | ≤100 MB, decodable, ≥1×1 px |
+| Video | `.mp4`, `.m4v`, `.mov`, `.webm`, `.mkv` | ≤100 MB, >0 s and ≤180 s, one decodable video stream, ≤33.2 MP per frame |
+| Image | `.jpg`, `.jpeg`, `.png`, `.webp` | ≤100 MB, decodable, ≥1×1 px, ≤33.2 MP per frame |
 
 - The extension list is a fast filter; `ffprobe` is authoritative. A wrong extension still works if FFmpeg can decode it; a supported extension with no decodable stream is rejected.
 - Decoders available in the bundled LGPL build include H.264, HEVC, VP9, AV1, MPEG-4, AAC, MP3, Opus, and PCM. HEIC/AVIF and DRM-protected files are not supported in v1.
 - Audio is optional. A silent video still produces a thumbnail and caption frames; the transcript is empty.
 - The 100 MB and 180 s caps are deliberately below the web's 200 MB input gate: `upload-local-file` buffers the whole multipart body in a 256 MB worker. Raising them requires the presigned direct-to-R2 path described under **Upload contract**.
 - A 180 s video normalized at 4 Mbps is ~90 MB, which stays under the upload ceiling.
+- The 33.2 MP pixel cap (8K) bounds what the decoder allocates. A crafted image declares its resolution in a few bytes and the decoder allocates the whole frame before touching a pixel, so the size of a file is not a bound on its memory cost.
 
 ## Model
 
@@ -154,7 +155,7 @@ ffmpeg -hide_banner -nostdin -y -protocol_whitelist file -i <source> \
 
 **Progress** — parse `out_time_us` from `-progress pipe:1`, clamp to duration, emit at most 4 updates per second. `progress=end` sets 100%. Thumbnail/audio/frame steps are short and may report only start/finish.
 
-**Cancel/timeout** — `kill()` the FFmpeg process and wait up to 2 s; a job is abandoned after 10 minutes per FFmpeg operation. Cancellation deletes the workspace. No orphan process may remain.
+**Cancel/timeout** — `kill()` the FFmpeg process and wait up to 2 s; a job is abandoned after 10 minutes per FFmpeg operation and after 15 minutes for the whole job. Cancellation deletes the workspace. No orphan process may remain.
 
 ## Workspace and cleanup
 
@@ -266,6 +267,7 @@ Response:
 | Duration 0 or >180 s | "Videos must be 3 minutes or shorter." |
 | Corrupt / unreadable / fake extension | "This file can't be read. It may be damaged." |
 | No video stream | "No video track found." |
+| Resolution over 33.2 MP | "This file's resolution is too large to process." |
 | No audio stream | Continue; note captions use visuals only |
 | Disk full / permission denied | "Couldn't write temporary files. Check free space and try again." |
 | FFmpeg non-zero exit | Short sanitized reason + **Try again** |
