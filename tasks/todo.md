@@ -110,7 +110,11 @@
   - [x] Fixtures generated; `expected.json` verified with the pinned build
   - [x] `libopenh264` encode + decode round-trip verified; probe JSON, frames, audio, corrupt-file rejection verified
   - [ ] Human review/approval of the FFmpeg and licensing decision
-- [ ] **3.2** File picker, validation, temp workspace
+- [x] **3.2** File picker, validation, temp workspace
+  - [x] `MediaValidation`: extension allowlist, 100 MB cap, empty/unreadable rejection
+  - [x] `MediaWorkspace`: per-job folders, guarded deletion, stale-job sweep at startup
+  - [x] Native Windows picker (`file_selector`) behind an injectable seam
+  - [x] Upload screen: empty / checking / failed / picked states
 - [ ] **3.3** FFmpeg probe/transcode/thumbnail/audio/frame extraction
 - [ ] **3.4** Caption generation through existing edge function
 - [ ] **3.5** R2 upload with progress and cleanup
@@ -132,6 +136,16 @@
 - **Encoder check:** 1080×1920 `libopenh264` encode exits 0 (Constrained Baseline, level 4.0, 997.6 KB for 2 s); full decode round-trip exits 0.
 - **Gitignore:** `third_party/ffmpeg/` and `third_party/cache/` are ignored; binaries are fetched, fixtures are committed.
 - **Deferred/blocked:** live caption and upload calls need identity; duplicate-free upload retry needs the `idempotency_key` change in `upload-local-file`; public-distribution H.264 patent position needs an owner decision (internal distribution accepted for the MVP).
+
+### Phase 3.2 evidence (2026-10-29)
+
+- **Validation** (`lib/features/media/domain/media_validation.dart`): MP4/M4V/MOV/WEBM/MKV and JPG/PNG/WEBP allowlist, 100 MB cap, empty-file and unreadable-file rejection with user-facing messages. Extension match is case-insensitive.
+- **Workspace** (`lib/features/media/data/media_workspace.dart`): one folder per job under `%LOCALAPPDATA%\com.flowpost\FlowPost\media\jobs`, named by an internally generated id (`yyyyMMddTHHmmss-<6 hex>`) — no user-supplied text becomes a path. Deletion resolves symlinks, requires the target to sit inside the jobs root, and refuses the root itself. Leftover folders are swept at startup; a failed sweep logs the job id only, never a full path.
+- **Picker** (`lib/features/media/data/media_file_picker.dart`): native Windows Open dialog with the "FlowPost media" filter, behind an injectable `MediaFilePicker` seam so the controller is testable.
+- **Upload screen** (`lib/features/media/presentation/media_page.dart`): empty / checking / failed / picked states, size formatting, `Choose another file` releases the job folder.
+- **Audit fix:** picking a second file orphaned the first job folder; the controller now deletes the previous job after the new one is created (covered by a failing-first test).
+- **Gate:** `flutter analyze` no issues; `dart format --set-exit-if-changed lib test integration_test` clean; `flutter test` 104 passed; `flutter test integration_test -d windows --dart-define-from-file=config/dev.json` 1 passed (now also asserts the Upload screen opens from the nav rail); release build succeeded.
+- **Live run (release build):** Upload screen renders; "Choose file" opens the native Open dialog with the "FlowPost media" filter; selecting `sample.png` showed "sample.png — Image — 213.2 KB" and created job `20261029T064638-a9dd11`; "Choose another file" returned to the empty state and removed the job folder (jobs root empty afterwards).
 
 ---
 
@@ -205,7 +219,7 @@ flutter pub get
 flutter analyze
 dart format --set-exit-if-changed lib test
 flutter test
-flutter test integration_test -d windows
+flutter test integration_test -d windows --dart-define-from-file=config/dev.json
 flutter build windows --release --dart-define-from-file=config/prod.json
 iscc installer/flowpost.iss
 ```

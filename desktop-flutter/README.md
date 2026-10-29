@@ -1,9 +1,11 @@
 # FlowPost Studio — Native Windows Shell
 
-Flutter Windows client for FlowPost Studio. Phase 0 is the shell: window, tray,
-single instance, `flowpost://` links, logging, config, theme, a placeholder home
-screen, and an Inno Setup installer. Product modules (identity, accounts, media,
-publishing, scheduling) land in later phases.
+Flutter Windows client for FlowPost Studio. The shell provides the window,
+tray, single instance, `flowpost://` links, logging, config and theme; the
+Accounts screen manages the six publish targets locally, and the Upload
+screen picks a local video or image and validates it. An Inno Setup
+installer ships the app. Identity, media processing, publishing and
+scheduling land in later phases.
 
 Windows 10 1809+ / Windows 11, x64 only.
 
@@ -85,6 +87,8 @@ v1 is **unsigned**. Windows SmartScreen shows "Windows protected your PC"; use
 - Data root: `%APPDATA%\com.flowpost\FlowPost`
 - Local account state: `accounts.json` (platform, placeholder name, status only)
 - Log: `%APPDATA%\com.flowpost\FlowPost\logs\app.log` (rotates to `app.log.1` at 1 MB)
+- Media workspace: `%LOCALAPPDATA%\com.flowpost\FlowPost\media\jobs\<job-id>`
+  (one folder per picked file; removed at startup and when the file is replaced)
 - Tokens, OAuth codes/states, and keys are redacted before writing.
 
 The old Pake app uses a different data root and is not migrated.
@@ -119,8 +123,11 @@ Download button that opens the URL in the system browser.
 ## Scope
 
 In: shell, tray, single instance, deep links, installer, logging, update check,
-local Accounts screen with six platform cards and persisted connect/disconnect.
+local Accounts screen with six platform cards and persisted connect/disconnect,
+Upload screen with a native file picker, extension/size validation, and a
+per-job temporary workspace.
 
-Out: identity, real platform OAuth/token exchange, media, publishing, scheduling,
+Out: identity, real platform OAuth/token exchange, media processing (probe,
+transcode, thumbnails, captions, upload), publishing, scheduling,
 offline data, workflows, insights, admin, silent updates, MSIX, code signing,
 macOS/Linux/mobile.

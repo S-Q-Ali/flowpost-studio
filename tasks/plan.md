@@ -86,7 +86,7 @@ The gate is not optional. Run it in this order:
 
 1. **TDD check** — every new branch has a test; tests fail if the behavior is removed.
 2. **Commands** — `flutter pub get`, `flutter analyze`, format check, `flutter test`.
-3. **Windows integration** — `flutter test integration_test -d windows` for touched shell/auth flows.
+3. **Windows integration** — `flutter test integration_test -d windows --dart-define-from-file=config/dev.json` for touched shell/auth flows.
 4. **Build** — `flutter build windows --release --dart-define-from-file=config/prod.json`.
 5. **Security** — `security-and-hardening` checklist for trust boundaries touched in the phase.
 6. **Performance** — `performance-optimization` check for startup, media, upload, or list paths.
@@ -138,7 +138,7 @@ If any command fails, the phase stays open. Do not move to the next phase with a
 
 ### Task 0.4 — Add shell tests
 **Acceptance:** Guard, tray failure, quit, hand-off, and deep-link restore have tests; the Windows integration test launches and exits cleanly.
-**Verify:** `flutter test`, `flutter test integration_test -d windows`.
+**Verify:** `flutter test`, `flutter test integration_test -d windows --dart-define-from-file=config/dev.json`.
 **Depends:** 0.2, 0.3.
 **Files:** `desktop-flutter/test/core/`, `desktop-flutter/integration_test/shell_test.dart`.
 **Scope:** M.
