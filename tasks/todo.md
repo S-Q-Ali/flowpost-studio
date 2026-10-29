@@ -451,14 +451,14 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - The offline gate on Publish needs the connectivity state, so it lands in 5.5 and is verified in 5.6
 - [x] **5.5** Connectivity banner; cached reads; reconnect refresh
   - [x] The offline gate on the Publish button, with the reason
-- [ ] **5.6** Phase 5 gate
+- [x] **5.6** Phase 5 gate
   - [x] Timezone/DST tests
   - [x] Cache migration and corruption tests
   - [x] Draft round-trip and restart
   - [x] Offline cannot publish
   - [x] Data-loss review
   - [x] Scoped `ponytail-audit` no Must-fix
-  - [ ] Human approval
+  - [x] Human approval (2026-10-29): gate accepted, Phase 5 closed
 
 ### Phase 5.1 evidence (2026-10-29)
 
