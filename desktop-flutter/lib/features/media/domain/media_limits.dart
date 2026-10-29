@@ -20,7 +20,6 @@ class MediaLimitError {
   final String message;
 }
 
-const String _unreadableMessage = "This file can't be read. It may be damaged.";
 const String _tooLongMessage = 'Videos must be 3 minutes or shorter.';
 const String _noVideoTrackMessage = 'No video track found.';
 const String _tooLargeMessage =
@@ -41,7 +40,7 @@ MediaLimitError? checkMediaLimits(
     if (probe.duration <= Duration.zero) {
       return const MediaLimitError(
         reason: MediaLimitRejection.unreadable,
-        message: _unreadableMessage,
+        message: mediaUnreadableMessage,
       );
     }
     if (probe.duration.inSeconds > maxDurationSeconds) {

@@ -17,7 +17,10 @@ const Set<String> imageMediaExtensions = {'.jpg', '.jpeg', '.png', '.webp'};
 /// v1 keeps the input under the edge function's 256 MB multipart budget.
 const int mediaMaxBytes = 100 * 1024 * 1024;
 
-const String _unreadableMessage = "This file can't be read. It may be damaged.";
+/// Shown when the file cannot be read, wherever that is noticed.
+const String mediaUnreadableMessage =
+    "This file can't be read. It may be damaged.";
+
 const String _emptyMessage = 'This file is empty.';
 const String _unsupportedTypeMessage =
     'Unsupported file type. Use MP4, M4V, MOV, WEBM, MKV, JPG, PNG or WEBP.';
@@ -68,11 +71,11 @@ Future<MediaValidation> validateMediaFile(
 }) async {
   try {
     if (!await file.exists()) {
-      return _invalid(MediaRejection.unreadable, _unreadableMessage);
+      return _invalid(MediaRejection.unreadable, mediaUnreadableMessage);
     }
     final stat = await file.stat();
     if (stat.type != FileSystemEntityType.file) {
-      return _invalid(MediaRejection.unreadable, _unreadableMessage);
+      return _invalid(MediaRejection.unreadable, mediaUnreadableMessage);
     }
     if (stat.size == 0) {
       return _invalid(MediaRejection.empty, _emptyMessage);
@@ -94,7 +97,7 @@ Future<MediaValidation> validateMediaFile(
     }
     return MediaValidation.valid(kind: kind, bytes: stat.size);
   } on FileSystemException {
-    return _invalid(MediaRejection.unreadable, _unreadableMessage);
+    return _invalid(MediaRejection.unreadable, mediaUnreadableMessage);
   }
 }
 

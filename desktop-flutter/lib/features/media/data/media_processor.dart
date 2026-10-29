@@ -125,9 +125,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
       throw const MediaProcessingException(_tooLongMessage);
     }
     if (!run.isSuccess) {
-      throw const MediaProcessingException(
-        "This file can't be read. It may be damaged.",
-      );
+      throw const MediaProcessingException(mediaUnreadableMessage);
     }
     try {
       return parseProbeJson(run.stdout);
