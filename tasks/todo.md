@@ -609,6 +609,15 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Tests:** 38 new — report 11, writer 5, collector 9, drafts repository 3, Settings providers 5, Settings page 5.
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (146 files), `flutter analyze lib test` no issues, `flutter test` **633 passed** (was 595), LF-only bytes on every changed Dart file.
 
+### Phase 6.2c evidence (2026-10-29)
+
+- **A failing subtree no longer paints a red box in release.** `ErrorWidget.builder` becomes `calmErrorPanel` (`lib/core/logging/calm_error_panel.dart`) when `calmPanel` is true, which `installErrorHandlers` defaults to `kReleaseMode`; a debug build keeps the framework box that names the widget. The panel is built from primitives — no theme, no `Directionality`, no `Material` ancestor — because the failure may have taken those with it. The error itself still reaches the log through `FlutterError.onError`, so the panel does not log it twice.
+- **A start that dies before the window gets a message box.** `shell.prepareGuard()`, `acquireSingleInstance()` and `startWindowAndTray()` now run in a try block in `main.dart`; a failure goes to `reportStartupFailure` (`lib/core/logging/startup_failure.dart`), which logs the error, resolves the log folder, shows a Windows message box naming it (win32 `MessageBoxW`, error icon) and exits with code 1. Invalid configuration still shows `ConfigErrorApp` instead (Decision 8).
+- **Nothing in the failure path may throw.** A log folder that cannot be resolved falls back to "the FlowPost app data folder"; a message box that cannot be shown is logged as a warning. Both are tested, because the step after either is `exit(1)`.
+- **Tests:** 8 new — calm panel 2 (text, and a throwing sibling subtree that still shows its neighbour), handler install 2 (release swaps, debug keeps), startup failure 4 (message names the folder, logged and shown, missing folder, message box that fails).
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (150 files), `flutter analyze lib test` no issues, `flutter test` **641 passed** (was 633), `flutter build windows --release` succeeds, LF-only bytes on every changed Dart file.
+- **Not exercised by a test:** the message box itself blocks on a real desktop, so the thin `showStartupMessageBox` call is covered only by the release build compiling and linking.
+
 ---
 
 ## Phase 6 — Production Hardening
@@ -619,12 +628,12 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] One version provider shared with Home; the manual update check
   - [x] Sign out: clear the session, wipe `cache.db`, keep `drafts.db`
   - [x] The log folder and **Open folder**
-- [ ] **6.2** Global error handlers, rotation, diagnostics export, crash recovery
+- [x] **6.2** Global error handlers, rotation, diagnostics export, crash recovery
   - [x] Approve `docs/spec/SPEC-diagnostics.md` (8 decisions)
   - [x] Diagnostics snapshot, report text and the `.tmp` then rename writer
   - [x] Diagnostics section: log folder, saved file, local data, files kept aside
   - [x] Drafts salvage: ask first, keep the old file, start fresh
-  - [ ] Calm error panel and the startup failure message
+  - [x] Calm error panel and the startup failure message
 - [ ] **6.3** Accessibility: keyboard, focus, labels, contrast, 200% scaling
 - [ ] **6.4** Performance: cold start, media, lists, memory, size
 - [ ] **6.5** Security: secrets, tokens, deep links, FFmpeg args, dependencies, RLS notes

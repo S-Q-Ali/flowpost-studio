@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flowpost_desktop/core/logging/calm_error_panel.dart';
 import 'package:flowpost_desktop/core/logging/error_handlers.dart';
 import 'package:logging/logging.dart';
 
@@ -13,6 +15,7 @@ void main() {
   late StreamSubscription<LogRecord> subscription;
   late FlutterExceptionHandler? originalFlutter;
   late ErrorCallback? originalPlatform;
+  late ErrorWidgetBuilder originalErrorWidget;
 
   setUp(() {
     records = [];
@@ -20,10 +23,12 @@ void main() {
     subscription = Logger.root.onRecord.listen(records.add);
     originalFlutter = FlutterError.onError;
     originalPlatform = PlatformDispatcher.instance.onError;
+    originalErrorWidget = ErrorWidget.builder;
   });
   tearDown(() async {
     FlutterError.onError = originalFlutter;
     PlatformDispatcher.instance.onError = originalPlatform;
+    ErrorWidget.builder = originalErrorWidget;
     await subscription.cancel();
   });
 
@@ -59,5 +64,27 @@ void main() {
       isTrue,
     );
     expect(records.any((record) => record.error is StateError), isTrue);
+  });
+
+  test('a release build swaps the red box for the calm panel', () {
+    installErrorHandlers(
+      Logger('error-test'),
+      presentError: (_) {},
+      calmPanel: true,
+    );
+
+    expect(ErrorWidget.builder, same(calmErrorPanel));
+  });
+
+  test('a debug build keeps the framework box', () {
+    final before = ErrorWidget.builder;
+
+    installErrorHandlers(
+      Logger('error-test'),
+      presentError: (_) {},
+      calmPanel: false,
+    );
+
+    expect(ErrorWidget.builder, same(before));
   });
 }

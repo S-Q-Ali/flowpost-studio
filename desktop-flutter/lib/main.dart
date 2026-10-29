@@ -11,6 +11,7 @@ import 'app.dart';
 import 'core/config/app_config.dart';
 import 'core/logging/app_logger.dart';
 import 'core/logging/error_handlers.dart';
+import 'core/logging/startup_failure.dart';
 import 'core/providers/app_providers.dart';
 import 'core/router/app_router.dart' show deepLinkAllowlist;
 import 'core/router/deep_link_dispatcher.dart';
@@ -45,12 +46,26 @@ Future<void> main({MediaFilePicker? picker}) async {
         trayIconPath:
             '${File(Platform.resolvedExecutable).parent.path}${Platform.pathSeparator}resources${Platform.pathSeparator}tray.ico',
       );
-      await shell.prepareGuard();
-      if (!await shell.acquireSingleInstance(initialLink)) {
+      // Before the window exists there is nowhere to show an error, so a
+      // failed start names the log folder in a message box and exits.
+      try {
+        await shell.prepareGuard();
+        if (!await shell.acquireSingleInstance(initialLink)) {
+          await flushLogging();
+          exit(0);
+        }
+        await shell.startWindowAndTray();
+      } on Object catch (error, stackTrace) {
+        await reportStartupFailure(
+          error: error,
+          stackTrace: stackTrace,
+          log: log,
+          logs: logsDirectory,
+          showMessage: showStartupMessageBox,
+        );
         await flushLogging();
-        exit(0);
+        exit(1);
       }
-      await shell.startWindowAndTray();
 
       final pendingLink = ValueNotifier<String?>(null);
       final dispatcher = DeepLinkDispatcher(
