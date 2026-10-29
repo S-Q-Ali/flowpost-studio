@@ -204,35 +204,25 @@ class PublishController extends Notifier<PublishState> {
         ),
       );
     }
-    final String postId;
-    try {
-      postId = await ref
-          .read(postsRepositoryProvider)
-          .insert(_draft(target, selection, videoId, when: clock.instant!));
-    } on PostsException catch (error) {
-      _log.warning('The queue refused the ${target.platform.name} post.');
+    final draft = _draft(
+      target,
+      selection,
+      videoId,
+      id: newPostId(),
+      when: clock.instant!,
+    );
+    final inserted = await _insert(draft);
+    if (!inserted.queued) {
       return PublishTargetStatus(
         target: target,
         phase: PublishPhase.failed,
-        message: error.message,
-      );
-    } on Object catch (error, stackTrace) {
-      _log.severe(
-        'The ${target.platform.name} post could not be queued '
-        '(${error.runtimeType}).',
-        null,
-        stackTrace,
-      );
-      return PublishTargetStatus(
-        target: target,
-        phase: PublishPhase.failed,
-        message: 'The post could not be prepared.',
+        message: inserted.message,
       );
     }
     return PublishTargetStatus(
       target: target,
       phase: PublishPhase.scheduled,
-      postId: postId,
+      postId: inserted.id,
       scheduledAt: wall,
     );
   }
@@ -243,34 +233,55 @@ class PublishController extends Notifier<PublishState> {
     PublishSelection selection,
     String videoId,
   ) async {
-    final String postId;
-    try {
-      postId = await ref
-          .read(postsRepositoryProvider)
-          .insert(_draft(target, selection, videoId));
-    } on PostsException catch (error) {
-      _log.warning('The queue refused the ${target.platform.name} post.');
+    final draft = _draft(target, selection, videoId, id: newPostId());
+    final inserted = await _insert(draft);
+    if (!inserted.queued) {
       return PublishTargetStatus(
         target: target,
         phase: PublishPhase.failed,
-        message: error.message,
+        message: inserted.message,
       );
+    }
+    return _publishRow(target, inserted.id);
+  }
+
+  /// Writes the row and says whether it is in the queue.
+  ///
+  /// An insert whose answer was lost may still have landed, so the row is
+  /// asked for by the id the client chose. Without this the next try would
+  /// write a second row, and a scheduled post would go out twice.
+  Future<({bool queued, String id, String message})> _insert(
+    PostDraft draft,
+  ) async {
+    try {
+      final id = await ref.read(postsRepositoryProvider).insert(draft);
+      return (queued: true, id: id, message: '');
+    } on PostsException catch (error) {
+      final landed = await _readRow(draft.id);
+      if (landed != null) {
+        return (queued: true, id: draft.id, message: '');
+      }
+      _log.warning('The queue refused the ${draft.platform} post.');
+      return (queued: false, id: draft.id, message: error.message);
     } on Object catch (error, stackTrace) {
+      final landed = await _readRow(draft.id);
+      if (landed != null) {
+        return (queued: true, id: draft.id, message: '');
+      }
       // The type and the stack trace are logged, never the message: a
       // message can carry the path of the user's file.
       _log.severe(
-        'The ${target.platform.name} post could not be queued '
+        'The ${draft.platform} post could not be queued '
         '(${error.runtimeType}).',
         null,
         stackTrace,
       );
-      return PublishTargetStatus(
-        target: target,
-        phase: PublishPhase.failed,
-        message: 'The publish failed. Try again.',
+      return (
+        queued: false,
+        id: draft.id,
+        message: 'The post could not be prepared.',
       );
     }
-    return _publishRow(target, postId);
   }
 
   /// Calls the function for one row and reads the row back.
@@ -527,11 +538,13 @@ class PublishController extends Notifier<PublishState> {
     PublishTarget target,
     PublishSelection selection,
     String videoId, {
+    required String id,
     DateTime? when,
   }) {
     final caption = (selection.captions[target.id] ?? '').trim();
     final title = selection.youtubeTitle.trim();
     return PostDraft(
+      id: id,
       videoId: videoId,
       platform: target.platform.name,
       accountId: target.accountId,

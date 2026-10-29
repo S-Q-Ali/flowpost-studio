@@ -49,6 +49,7 @@ PostgrestPostsRepository _repository(
 }
 
 final _draft = PostDraft(
+  id: '5c1f0a3e-7f5b-4a0e-9a4e-2f7c1d8b0a11',
   videoId: 'video-1',
   platform: 'instagram',
   accountId: 'ig-1',
@@ -100,7 +101,19 @@ void main() {
     expect(row['scheduled_at'], endsWith('Z'));
   });
 
-  test('the id of the row comes back', () async {
+  test('the row carries the id the client picked', () async {
+    final transport = _FakeTransport()
+      ..rows = [
+        {'id': 'post-42'},
+      ];
+
+    await _repository(transport, token: _token('user-1')).insert(_draft);
+
+    final row = jsonDecode(transport.bodies.single!) as Map<String, dynamic>;
+    expect(row['id'], _draft.id);
+  });
+
+  test('the id the client picked comes back', () async {
     final transport = _FakeTransport()
       ..rows = [
         {'id': 'post-42'},
@@ -111,7 +124,22 @@ void main() {
       token: _token('user-1'),
     ).insert(_draft);
 
-    expect(id, 'post-42');
+    expect(id, _draft.id);
+  });
+
+  test('a new post id is a v4 uuid', () {
+    expect(
+      newPostId(),
+      matches(
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ),
+      ),
+    );
+  });
+
+  test('two new post ids differ', () {
+    expect(newPostId(), isNot(newPostId()));
   });
 
   test('a table that answers nothing is a refused post', () async {

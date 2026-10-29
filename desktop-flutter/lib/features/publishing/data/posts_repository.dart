@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import '../../../core/auth/access_token.dart';
 
@@ -26,6 +27,7 @@ enum PostStatus {
 /// The row the client writes for one platform.
 class PostDraft {
   const PostDraft({
+    required this.id,
     required this.videoId,
     required this.platform,
     required this.accountId,
@@ -38,6 +40,12 @@ class PostDraft {
     this.containsAlteredContent = false,
     this.metadata,
   });
+
+  /// The id the client picked.
+  ///
+  /// Picked here, not by the table, so an insert whose answer was lost can be
+  /// checked by this id instead of written a second time.
+  final String id;
 
   final String videoId;
   final String platform;
@@ -62,6 +70,7 @@ class PostDraft {
 
   /// The row as the table wants it.
   Map<String, Object?> toRow(String userId) => {
+    'id': id,
     'user_id': userId,
     'video_id': videoId,
     'platform': platform,
@@ -108,6 +117,17 @@ class PostsException implements Exception {
 
   @override
   String toString() => 'PostsException: $message';
+}
+
+/// A v4 UUID for a row the client is about to write.
+String newPostId() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
 }
 
 /// Reads and writes the posts table.
@@ -175,11 +195,7 @@ class PostgrestPostsRepository implements PostsRepository {
     if (rows.isEmpty) {
       throw const PostsException('The post could not be prepared.');
     }
-    final id = rows.first['id'];
-    if (id is! String || id.isEmpty) {
-      throw const PostsException('The post could not be prepared.');
-    }
-    return id;
+    return draft.id;
   }
 
   @override

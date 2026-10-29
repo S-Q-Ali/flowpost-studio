@@ -286,6 +286,59 @@ void main() {
     expect(state.statuses.single.message, 'The queue did not accept the post.');
   });
 
+  test('an insert that landed despite the error is published once', () async {
+    final repository = _FakeRepository()
+      ..failure = const PostsException(
+        'The queue did not answer. Try again.',
+        kind: PostsErrorKind.timeout,
+      )
+      ..answers = const [
+        PostRow(
+          id: 'post-1',
+          platform: 'instagram',
+          status: PostStatus.published,
+        ),
+      ];
+    final client = _FakeClient();
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.published);
+    expect(client.postIds.single, state.statuses.single.postId);
+  });
+
+  test('an insert that left no row fails without a call', () async {
+    final repository = _FakeRepository()
+      ..failure = const PostsException(
+        'The queue did not answer. Try again.',
+        kind: PostsErrorKind.timeout,
+      );
+    final client = _FakeClient();
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.failed);
+    expect(client.postIds, isEmpty);
+  });
+
   test('the state is running while the call is in flight', () async {
     final repository = _FakeRepository();
     final client = _FakeClient();
