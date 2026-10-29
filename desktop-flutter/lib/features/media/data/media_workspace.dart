@@ -9,7 +9,8 @@ import 'package:path_provider/path_provider.dart';
 /// cleanup"). Nothing user-supplied becomes a path: job folders are named by
 /// an internally generated id.
 class MediaWorkspace {
-  MediaWorkspace({required this.root, this.log});
+  MediaWorkspace({required this.root, this.log, String Function()? idFactory})
+    : _idFactory = idFactory ?? newJobId;
 
   /// The jobs root under the app cache:
   /// `%LOCALAPPDATA%\com.flowpost\FlowPost\media\jobs`.
@@ -23,12 +24,26 @@ class MediaWorkspace {
 
   final Directory root;
   final Logger? log;
+  final String Function() _idFactory;
 
   /// Creates `<root>/<jobId>` and returns it.
+  ///
+  /// A folder that is already there belongs to another job, so the id is
+  /// drawn again instead of sharing the folder.
   Future<Directory> createJob() async {
-    final job = Directory(p.join(root.path, newJobId()));
-    await job.create(recursive: true);
-    return job;
+    if (!await root.exists()) {
+      await root.create(recursive: true);
+    }
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final job = Directory(p.join(root.path, _idFactory()));
+      if (await job.exists()) continue;
+      await job.create();
+      return job;
+    }
+    throw FileSystemException(
+      'Could not create a job folder.',
+      root.path,
+    );
   }
 
   /// Deletes [job] when it is a job folder the app created and resolves

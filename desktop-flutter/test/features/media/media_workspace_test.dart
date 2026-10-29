@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flowpost_desktop/features/media/data/media_workspace.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   group('MediaWorkspace', () {
@@ -44,6 +45,27 @@ void main() {
 
       expect(await jobsRoot.exists(), isTrue);
       expect(await job.exists(), isTrue);
+    });
+
+    test('createJob never reuses a folder that is already taken', () async {
+      await jobsRoot.create(recursive: true);
+      final taken = Directory(
+        '${jobsRoot.path}${Platform.pathSeparator}20261029T140503-aaaaaa',
+      );
+      await taken.create();
+
+      var attempts = 0;
+      final workspace = MediaWorkspace(
+        root: jobsRoot,
+        idFactory: () => attempts++ == 0
+            ? '20261029T140503-aaaaaa'
+            : '20261029T140503-bbbbbb',
+      );
+
+      final job = await workspace.createJob();
+
+      expect(p.basename(job.path), '20261029T140503-bbbbbb');
+      expect(await taken.exists(), isTrue);
     });
 
     test('deleteJob removes the job folder', () async {
