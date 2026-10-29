@@ -197,6 +197,25 @@ void main() {
     expect(button.onPressed, isNull);
   });
 
+  testWidgets('a caption over the limit is shown once, under its field', (
+    tester,
+  ) async {
+    await _pump(tester);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('caption-instagram:ig-1:feed')),
+      'x' * 2201,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('The Instagram caption is 2201 characters. The limit is 2200.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('a YouTube post asks for a title', (tester) async {
     await _pump(tester, targets: const [_youtube]);
 
@@ -216,7 +235,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Instagram: Published'), findsOneWidget);
-    expect(find.text('Post id: ig-99'), findsOneWidget);
+    expect(find.text('Platform id: ig-99'), findsOneWidget);
   });
 
   testWidgets('a failure shows the sentence of the service', (tester) async {

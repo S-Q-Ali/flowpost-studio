@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/format/media_format.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/publish_selection.dart';
 import '../domain/publish_target.dart';
@@ -119,18 +120,21 @@ List<Widget> _issueLines(BuildContext context, PublishValidation validation) {
   if (validation.isValid) return const [];
   final scheme = Theme.of(context).colorScheme;
   return [
+    // An issue of a target is already shown under that target's field, so
+    // only the issues of the form itself are listed here.
     for (final issue in validation.issues)
-      Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.error_outline, size: 18, color: scheme.error),
-            const SizedBox(width: 8),
-            Expanded(child: Text(issue.message)),
-          ],
+      if (issue.targetId == null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.error_outline, size: 18, color: scheme.error),
+              const SizedBox(width: 8),
+              Expanded(child: Text(issue.message)),
+            ],
+          ),
         ),
-      ),
   ];
 }
 
@@ -168,7 +172,7 @@ class _MediaSummary extends StatelessWidget {
       children: [
         Text(fileName, style: theme.textTheme.titleMedium),
         const SizedBox(height: 2),
-        Text('${_megabytes(size)} MB', style: theme.textTheme.bodySmall),
+        Text(formatMediaBytes(size), style: theme.textTheme.bodySmall),
       ],
     );
   }
@@ -415,7 +419,7 @@ class _StatusRow extends ConsumerWidget {
         ),
         if (status.platformId != null)
           Text(
-            'Post id: ${status.platformId}',
+            'Platform id: ${status.platformId}',
             style: theme.textTheme.bodySmall,
           ),
         if (status.scheduledAt != null)
@@ -449,5 +453,3 @@ class _StatusRow extends ConsumerWidget {
     );
   }
 }
-
-String _megabytes(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(1);
