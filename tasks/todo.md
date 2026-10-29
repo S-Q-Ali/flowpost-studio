@@ -439,8 +439,10 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] The read model and the queue list
   - [x] The calendar: month, week and list
   - [x] Editing a scheduled post and cancelling one
-- [ ] **5.3** SQLite cache with schema version and migration
+- [x] **5.3** SQLite cache with schema version and migration
   - [x] The spike: the engine works in the test runner and in the Windows build (ADR 0003)
+  - [x] The cache database: the posts snapshot, the version inside it, the migration runner
+  - [x] A file that will not open is renamed; a newer file is left alone
 - [ ] **5.4** Local drafts: autosave, restore, delete, no offline publish
 - [ ] **5.5** Connectivity banner; cached reads; reconnect refresh
 - [ ] **5.6** Phase 5 gate
@@ -517,6 +519,19 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **A row this build cannot parse stays out of the calendar too.** `_shownPosts` is now the one mapping the queue and the range read share, so the two reads drop the same broken rows.
 - **Tests:** 29 new — domain 13 (`post_edit_test.dart`: the three platform caption limits, an unreadable date, the skipped hour, the repeated hour resolving to 05:30Z, an ordinary time, a changed past time refused, an unchanged past time accepted, `toRow`, three confirmation sentences), repository 6 (both bounds, the range rows, the token gate for the range, the PATCH's filter and body, the compare-and-set answer, the DELETE), range 1 (`longTimeLabel`), page 9 (details and both actions, cancel asking first and deleting on a yes, keeping changing nothing, a published row's delete-only wording, an already-gone row keeping the dialog and saying so, an edit saving caption and instant, a skipped-hour edit refused, a moved-on edit not written, a calendar chip opening the dialog).
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (114 files), `flutter analyze lib test` no issues, `flutter test` **500 passed** (was 471).
+
+### Phase 5.3 evidence (2026-10-29)
+
+- **The version is inside the file, and each step is its own transaction.** `applyMigrations` (`lib/features/offline/data/local_database.dart`) reads the version from the `meta` row, runs only the steps past it, writes the new version in the same transaction, and rolls back on a throw — so a step that fails leaves the database at the version before it. The runner owns the `meta` table, so the drafts database in 5.4 gets the same version home without repeating it.
+- **A file that will not open is renamed, never deleted.** `CacheStore.open()` (`data/cache_store.dart`) catches a failure to open or to read the version, renames the file to `cache.corrupt-20261029-1432.db`, and reports what happened. A second break in the same minute becomes `…-1432-2.db`, so neither file is lost. A file whose version is **higher** than this build's is closed untouched and reported as `newerVersion` — a downgrade destroys nothing.
+- **The snapshot is the read, not the row set.** `savePosts` replaces the table inside one transaction, so it is called only after a read that succeeded and a failed read can never empty the cache. A read that legitimately found nothing is still a snapshot, with its own `last_read_at`; a cache that was never written returns null, so the screen can tell "no posts" from "nothing saved yet".
+- **Instants are integers, not ISO strings.** `scheduled_at`, `published_at` and `fetched_at` are microseconds since the epoch. Postgres hands out microsecond precision, and an ISO string sorts wrongly the moment one row carries microseconds and another does not (`….000123Z` sorts before `….000Z`). An integer sorts correctly by construction, and the row's precision survives the round trip.
+- **The bound is the queue's own order.** The cache keeps the first 500 rows in `scheduled_at ASC NULLS LAST, id` order — the rows the queue shows first — rather than the 500 most recently created, which would drop exactly the upcoming posts the screen opens on. `savePost` (after a write) re-applies the bound; `removePost` drops a deleted row. The snapshot's `last_read_at` is left alone by both: it is the time the list was read from the server.
+- **A row the cache cannot read is skipped, not guessed.** The same rule as the server read: a row without an `id` or with a status outside the five allowed ones is left out, an unknown platform reads as unknown. The cache cannot render a row the app would not have shown.
+- **What is not in the cache yet, and why.** The approved spec lists `accounts`, `videos` and `profile` tables. The desktop reads accounts from its local store (`accounts.json`), not the server, so an accounts table would be a table with no writer; the profile has no read at all until Settings (6.1); and the media fields the queue and calendar show (`title`, `thumbnail_url`) travel with the post row, so a separate `videos` table would only normalise 500 rows. Those tables land as migration 2+ when their reads do — that is what the migration path is for. Recorded here as a decision, not an omission.
+- **The engine calls are synchronous.** `package:sqlite3` is synchronous and the dataset is bounded at 500 rows, so the store has no futures and no fake: the tests open a real file in a temp directory, which is the seam the ADR names.
+- **Tests:** 19 — store 14 (`cache_store_test.dart`: first open and version, the full-field round trip across a close and a reopen, the 500-row bound, nulls last, replace, an empty read as a snapshot, a never-written cache as none, a newer file untouched, a broken file renamed with its stamp, two broken files in a minute, a row added after the read, a write past the bound, a delete, an unreadable row skipped), migrations 4 (`local_database_test.dart`: ordered steps and the version, already-applied steps skipped, a throwing step rolled back, version zero with no meta table) plus the engine spike.
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (117 files), `flutter analyze lib test` no issues, `flutter test` **518 passed** (was 500).
 
 ---
 
