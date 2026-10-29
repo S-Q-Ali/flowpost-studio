@@ -25,6 +25,12 @@ extension PublishPlatformLabel on PublishPlatform {
 /// What kind of post the target takes.
 enum PostType { feed, story }
 
+/// How many characters a YouTube title may have.
+///
+/// YouTube's own limit is 100. The function does not cut the title, so a
+/// longer one is refused by the platform with an opaque error.
+const int youtubeTitleLimit = 100;
+
 /// One account the admin can publish to, on one platform.
 class PublishTarget {
   const PublishTarget({

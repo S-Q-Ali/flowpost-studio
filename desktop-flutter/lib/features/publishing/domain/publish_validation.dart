@@ -7,6 +7,7 @@ enum PublishRejection {
   mediaNotSupported,
   captionTooLong,
   titleMissing,
+  titleTooLong,
   scheduleIncomplete,
   scheduleInvalid,
   scheduleInPast,
@@ -100,6 +101,17 @@ PublishValidation validatePublish({
       const PublishIssue(
         reason: PublishRejection.titleMissing,
         message: 'A YouTube title is required.',
+      ),
+    );
+  }
+  final title = youtubeTitle.trim();
+  if (wantsYouTube && title.length > youtubeTitleLimit) {
+    issues.add(
+      PublishIssue(
+        reason: PublishRejection.titleTooLong,
+        message:
+            'The YouTube title is ${title.length} characters. '
+            'The limit is $youtubeTitleLimit.',
       ),
     );
   }

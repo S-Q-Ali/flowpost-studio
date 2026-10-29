@@ -141,6 +141,27 @@ void main() {
     expect(validation.isValid, isTrue);
   });
 
+  test('a YouTube title over the limit is refused with the limit named', () {
+    final validation = _validate(
+      targets: const [_youtube],
+      captions: {_youtube.id: 'A caption'},
+      youtubeTitle: 'x' * (youtubeTitleLimit + 1),
+    );
+
+    expect(validation.issues.single.reason, PublishRejection.titleTooLong);
+    expect(validation.issues.single.message, contains('$youtubeTitleLimit'));
+  });
+
+  test('a YouTube title of exactly the limit is ready', () {
+    final validation = _validate(
+      targets: const [_youtube],
+      captions: {_youtube.id: 'A caption'},
+      youtubeTitle: 'x' * youtubeTitleLimit,
+    );
+
+    expect(validation.isValid, isTrue);
+  });
+
   test('a schedule without a date is not ready', () {
     final validation = _validate(schedule: true, scheduleTime: '10:00');
 
