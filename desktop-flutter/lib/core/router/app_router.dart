@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/presentation/accounts_page.dart';
 import '../../features/home/home_page.dart';
+import '../../features/media/presentation/media_page.dart';
 import '../shell/app_shell.dart';
 
 const String homeRoute = '/';
@@ -38,8 +39,7 @@ GoRouter buildRouter({
           ),
           GoRoute(
             path: uploadRoute,
-            builder: (context, state) =>
-                const _PendingModulePage(name: 'Upload'),
+            builder: (context, state) => const MediaPage(),
           ),
           GoRoute(
             path: calendarRoute,
