@@ -14,6 +14,22 @@ class FakeDraftsRepository implements DraftsRepository {
   int loads = 0;
   int saves = 0;
 
+  /// Set false to stand for a drafts file the store refused.
+  bool availableNow = true;
+
+  int salvageRuns = 0;
+
+  @override
+  Future<bool> available() async => availableNow;
+
+  @override
+  Future<bool> startFresh() async {
+    salvageRuns++;
+    availableNow = true;
+    drafts.clear();
+    return true;
+  }
+
   @override
   Future<ComposeDraft?> load(String videoId) async {
     loads++;

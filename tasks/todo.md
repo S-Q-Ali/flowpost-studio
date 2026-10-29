@@ -597,6 +597,18 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Tests:** 27 new — session 3, token helpers 5 (`emailFromAccessToken` incl. a token without the claim), cache wipe 2, version provider 2, update/sign-out providers 6 (incl. a failing wipe that still clears the session), Settings page 9 (sections, email, sign-out confirm and keep, no update source, up to date, update available, failed check, open folder, missing folder).
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (139 files), `flutter analyze lib test` no issues, `flutter test` **595 passed** (was 568), LF-only bytes on every changed Dart file.
 
+### Phase 6.2 evidence (2026-10-29, 6.2a + 6.2b)
+
+- **SPEC-diagnostics approved (8 decisions)** before any code: one plain-text file, sanitized twice, written `.tmp` then renamed, rotation unchanged, corrupt files listed but never deleted, salvage behind a confirmation, a calm panel per subtree, a Windows message box for a start that fails before the window.
+- **The report is built from a snapshot, not from the app.** `DiagnosticsFacts` (`lib/core/diagnostics/diagnostics_report.dart`) is plain data; `buildDiagnosticsReport` turns it into the text and owns the 200-line log bound its own header promises; `sanitizeDiagnostics` runs `maskPaths(redactSecrets(...))` over the whole finished file, so a token or a path cannot slip in through a field the builder forgot. `gatherDiagnostics` (`diagnostics_collector.dart`) reads `cache.db`, `drafts.db`, `app.log`, `app.log.1` and lists `*.corrupt-*` files newest first — it never writes, renames or deletes anything.
+- **A failed save leaves nothing behind.** `exportDiagnostics` (`diagnostics_export.dart`) writes `flowpost-diagnostics-YYYYMMDD-HHmm.txt.tmp`, renames it, and on a `FileSystemException` deletes the temp file and answers null; the UI says "The diagnostics file could not be saved."
+- **The export is a seam.** `runDiagnosticsExport({pick, report, now})`, `exportFolderPickerProvider` and `diagnosticsExporterProvider` (`lib/features/settings/settings_providers.dart`) let the widget test drive a save without real I/O; the real writer is covered by unit and provider tests. A cancelled picker keeps the last save name and is not a failure.
+- **Corrupt files get one naming rule.** `setAsideCorruptFile` (`lib/features/offline/data/corrupt_file.dart`) is now shared by the cache and the drafts store (`cache_store.dart` delegates to it) — same `name.corrupt-YYYYMMDD-HHmm.db`, same `-2` suffix for a same-minute collision.
+- **The drafts store can be asked, and started over.** `DraftsRepository.available()` opens the file (and does not create it when there is none); `startFresh()` closes the store, renames the unreadable file aside and opens a new one. Nothing is deleted — the old drafts stay on the machine, and the UI says so before the admin confirms (`settings-salvage-drafts` → dialog → snackbar).
+- **Settings shows the local data.** The Diagnostics section lists the log folder, the last saved file with its time, `cache.db` / `drafts.db` with size and state, and **Files kept aside** with sizes; the salvage button appears only when the drafts file will not open.
+- **Tests:** 38 new — report 11, writer 5, collector 9, drafts repository 3, Settings providers 5, Settings page 5.
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (146 files), `flutter analyze lib test` no issues, `flutter test` **633 passed** (was 595), LF-only bytes on every changed Dart file.
+
 ---
 
 ## Phase 6 — Production Hardening
@@ -608,6 +620,11 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] Sign out: clear the session, wipe `cache.db`, keep `drafts.db`
   - [x] The log folder and **Open folder**
 - [ ] **6.2** Global error handlers, rotation, diagnostics export, crash recovery
+  - [x] Approve `docs/spec/SPEC-diagnostics.md` (8 decisions)
+  - [x] Diagnostics snapshot, report text and the `.tmp` then rename writer
+  - [x] Diagnostics section: log folder, saved file, local data, files kept aside
+  - [x] Drafts salvage: ask first, keep the old file, start fresh
+  - [ ] Calm error panel and the startup failure message
 - [ ] **6.3** Accessibility: keyboard, focus, labels, contrast, 200% scaling
 - [ ] **6.4** Performance: cold start, media, lists, memory, size
 - [ ] **6.5** Security: secrets, tokens, deep links, FFmpeg args, dependencies, RLS notes

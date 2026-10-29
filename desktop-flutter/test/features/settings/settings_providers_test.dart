@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flowpost_desktop/core/config/app_config.dart';
+import 'package:flowpost_desktop/core/diagnostics/diagnostics_report.dart';
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/core/session/session.dart';
 import 'package:flowpost_desktop/core/update/app_version.dart';
@@ -10,6 +11,7 @@ import 'package:flowpost_desktop/features/settings/settings_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/fake_drafts.dart';
 import '../../support/fake_posts_cache.dart';
 
 AppConfig config({String manifest = 'https://flowpost.test/update.json'}) {
@@ -175,7 +177,131 @@ void main() {
       expect(container.read(sessionProvider), isNull);
     });
   });
+
+  group('saving diagnostics', () {
+    late Directory folder;
+
+    setUp(() async {
+      folder = await Directory.systemTemp.createTemp(
+        'flowpost_export_provider',
+      );
+    });
+
+    tearDown(() async {
+      if (await folder.exists()) await folder.delete(recursive: true);
+    });
+
+    test('the file is written into the folder the admin picked', () async {
+      final container = ProviderContainer(
+        overrides: [
+          diagnosticsFactsProvider.overrideWith((ref) async => facts()),
+          exportFolderPickerProvider.overrideWithValue(() async => folder),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final outcome = await container.read(diagnosticsExporterProvider)();
+
+      expect(outcome.failed, isFalse);
+      final file = outcome.file!;
+      expect(file.parent.path, folder.path);
+      expect(file.path, endsWith('.txt'));
+      final text = file.readAsStringSync();
+      expect(text, contains('FlowPost Studio diagnostics'));
+      expect(text, contains('1.2.3 (7)'));
+      expect(folder.listSync(), hasLength(1));
+    });
+
+    test('a cancelled picker writes nothing and is not a failure', () async {
+      final container = ProviderContainer(
+        overrides: [
+          diagnosticsFactsProvider.overrideWith((ref) async => facts()),
+          exportFolderPickerProvider.overrideWithValue(() async => null),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final outcome = await container.read(diagnosticsExporterProvider)();
+
+      expect(outcome.file, isNull);
+      expect(outcome.failed, isFalse);
+      expect(folder.listSync(), isEmpty);
+    });
+
+    test('a report that cannot be built is a failed save', () async {
+      final outcome = await runDiagnosticsExport(
+        pick: () async => folder,
+        report: () async => throw StateError('no facts'),
+      );
+
+      expect(outcome.failed, isTrue);
+      expect(folder.listSync(), isEmpty);
+    });
+
+    test('the row keeps the last save when the dialog is cancelled', () async {
+      Directory? picked = folder;
+      final container = ProviderContainer(
+        overrides: [
+          diagnosticsFactsProvider.overrideWith((ref) async => facts()),
+          exportFolderPickerProvider.overrideWithValue(() async => picked),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(diagnosticsExportProvider.notifier).save();
+      final first = container.read(diagnosticsExportProvider).savedName;
+      expect(first, isNotNull);
+
+      picked = null;
+      await container.read(diagnosticsExportProvider.notifier).save();
+
+      final state = container.read(diagnosticsExportProvider);
+      expect(state.savedName, first);
+      expect(state.failed, isFalse);
+      expect(folder.listSync(), hasLength(1));
+    });
+  });
+
+  group('the drafts salvage', () {
+    test('the repository starts fresh and the facts are read again', () async {
+      final drafts = FakeDraftsRepository()..availableNow = false;
+      var reads = 0;
+      final container = ProviderContainer(
+        overrides: [
+          draftsRepositoryProvider.overrideWithValue(drafts),
+          diagnosticsFactsProvider.overrideWith((ref) async {
+            reads++;
+            return facts();
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(diagnosticsFactsProvider, (_, _) {});
+      await container.read(diagnosticsFactsProvider.future);
+
+      final done = await container.read(draftsSalvageProvider)();
+
+      expect(done, isTrue);
+      expect(drafts.salvageRuns, 1);
+      await container.read(diagnosticsFactsProvider.future);
+      expect(reads, 2);
+    });
+  });
 }
+
+DiagnosticsFacts facts() => DiagnosticsFacts(
+  generatedAt: DateTime.utc(2026, 10, 29, 14, 30, 12),
+  version: const AppVersionInfo(version: '1.2.3', buildNumber: '7'),
+  osVersion: 'Windows 10.0.26300',
+  locale: 'en-US',
+  zoneName: 'Asia/Karachi',
+  utcOffset: const Duration(hours: 5),
+  signedIn: false,
+  files: const [],
+  brokenFiles: const [],
+  logLines: const [],
+  logsRead: true,
+);
 
 class _FailingWipe extends FakePostsCache {
   @override

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flowpost_desktop/core/config/app_config.dart';
+import 'package:flowpost_desktop/core/diagnostics/diagnostics_report.dart';
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/core/session/session.dart';
 import 'package:flowpost_desktop/core/update/app_version.dart';
@@ -13,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/fake_drafts.dart';
 import '../../support/fake_posts_cache.dart';
 
 const AppVersionInfo _version = AppVersionInfo(
@@ -36,16 +38,60 @@ class _SignedIn extends SessionController {
   Session? build() => session;
 }
 
+DiagnosticsFacts testFacts({
+  bool draftsAvailable = true,
+  List<LocalFileFact> broken = const [],
+}) => DiagnosticsFacts(
+  generatedAt: DateTime.utc(2026, 10, 29, 14, 30, 12),
+  version: _version,
+  osVersion: 'Windows 10.0.26300',
+  locale: 'en-US',
+  zoneName: 'Asia/Karachi',
+  utcOffset: const Duration(hours: 5),
+  signedIn: false,
+  files: [
+    LocalFileFact(
+      name: 'cache.db',
+      state: LocalFileState.ok,
+      bytes: 421888,
+      modifiedAt: DateTime.utc(2026, 10, 29, 14, 12),
+    ),
+    LocalFileFact(
+      name: 'drafts.db',
+      state: draftsAvailable ? LocalFileState.ok : LocalFileState.unreadable,
+      bytes: 16384,
+      modifiedAt: DateTime.utc(2026, 10, 29, 13, 58),
+    ),
+  ],
+  brokenFiles: broken,
+  logLines: const ['a line'],
+  logsRead: true,
+);
+
+/// The Settings screen scrolls; a control low on the card must be brought
+/// into the viewport before the tap lands on it.
+Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
 Future<ProviderContainer> _pump(
   WidgetTester tester, {
   Session? session,
   String manifest = 'https://flowpost.test/update.json',
   FakePostsCache? cache,
+  FakeDraftsRepository? drafts,
   Directory? logs,
   bool logsMissing = false,
   List<Directory>? opened,
   UpdateFetcher? fetcher,
+  Future<Directory?> Function()? folderPicker,
+  Future<DiagnosticsExportOutcome> Function()? exporter,
+  List<LocalFileFact> broken = const [],
 }) async {
+  final draftsRepository = drafts ?? FakeDraftsRepository();
   final overrides = [
     appConfigProvider.overrideWithValue(
       AppConfig.fromValues(
@@ -56,6 +102,18 @@ Future<ProviderContainer> _pump(
     ),
     appVersionProvider.overrideWith((ref) async => _version),
     postsCacheProvider.overrideWithValue(cache ?? FakePostsCache()),
+    draftsRepositoryProvider.overrideWithValue(draftsRepository),
+    diagnosticsFactsProvider.overrideWith(
+      (ref) async => testFacts(
+        draftsAvailable: draftsRepository.availableNow,
+        broken: broken,
+      ),
+    ),
+    exportFolderPickerProvider.overrideWithValue(
+      folderPicker ?? () async => null,
+    ),
+    if (exporter != null)
+      diagnosticsExporterProvider.overrideWithValue(exporter),
     logsFolderProvider.overrideWith(
       (ref) async => logsMissing ? null : logs ?? Directory.systemTemp,
     ),
@@ -84,23 +142,27 @@ Future<ProviderContainer> _pump(
 }
 
 void main() {
-  testWidgets('the screen shows the account, the version, the log and about', (
-    tester,
-  ) async {
-    await _pump(tester);
+  testWidgets(
+    'the screen shows the account, the version, diagnostics and about',
+    (tester) async {
+      await _pump(tester);
 
-    expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Not signed in'), findsOneWidget);
-    expect(
-      find.text('Sign-in arrives with the production build.'),
-      findsOneWidget,
-    );
-    expect(find.text('Version 1.2.3 (7)'), findsOneWidget);
-    expect(find.text('Log file'), findsOneWidget);
-    expect(find.text(Directory.systemTemp.path), findsOneWidget);
-    expect(find.text('FlowPost Studio'), findsOneWidget);
-    expect(find.byKey(const Key('settings-sign-out')), findsNothing);
-  });
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('Not signed in'), findsOneWidget);
+      expect(
+        find.text('Sign-in arrives with the production build.'),
+        findsOneWidget,
+      );
+      expect(find.text('Version 1.2.3 (7)'), findsOneWidget);
+      expect(find.text('Diagnostics'), findsOneWidget);
+      expect(find.text('Log file'), findsOneWidget);
+      expect(find.text(Directory.systemTemp.path), findsOneWidget);
+      expect(find.text('cache.db: 412 KB, ok'), findsOneWidget);
+      expect(find.text('drafts.db: 16 KB, ok'), findsOneWidget);
+      expect(find.text('FlowPost Studio'), findsOneWidget);
+      expect(find.byKey(const Key('settings-sign-out')), findsNothing);
+    },
+  );
 
   testWidgets('a session shows the email and signs out after asking', (
     tester,
@@ -238,5 +300,116 @@ void main() {
 
     expect(find.text('The log folder is not available yet.'), findsOneWidget);
     expect(find.byKey(const Key('settings-open-logs')), findsNothing);
+  });
+
+  testWidgets('files kept aside are named with their size', (tester) async {
+    await _pump(
+      tester,
+      broken: [
+        LocalFileFact(
+          name: 'cache.corrupt-20261029-1432.db',
+          state: LocalFileState.unreadable,
+          bytes: 421888,
+          modifiedAt: DateTime.utc(2026, 10, 29, 14, 32),
+        ),
+      ],
+    );
+
+    expect(find.text('Files kept aside'), findsOneWidget);
+    expect(
+      find.text('cache.corrupt-20261029-1432.db (412 KB)'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a save names the file it wrote', (tester) async {
+    await _pump(
+      tester,
+      exporter: () async => DiagnosticsExportOutcome.saved(
+        File(
+          '${Directory.systemTemp.path}${Platform.pathSeparator}'
+          'flowpost-diagnostics-20261029-1430.txt',
+        ),
+      ),
+    );
+
+    await _tapVisible(
+      tester,
+      find.byKey(const Key('settings-save-diagnostics')),
+    );
+
+    expect(
+      find.textContaining('Saved flowpost-diagnostics-20261029-1430.txt at '),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a cancelled picker leaves the last save alone', (tester) async {
+    await _pump(tester);
+
+    await _tapVisible(
+      tester,
+      find.byKey(const Key('settings-save-diagnostics')),
+    );
+
+    expect(find.text('No diagnostics file saved yet.'), findsOneWidget);
+    expect(find.text('The diagnostics file could not be saved.'), findsNothing);
+  });
+
+  testWidgets('a save that cannot be written says so', (tester) async {
+    await _pump(
+      tester,
+      exporter: () async => const DiagnosticsExportOutcome.failed(),
+    );
+
+    await _tapVisible(
+      tester,
+      find.byKey(const Key('settings-save-diagnostics')),
+    );
+
+    expect(
+      find.text('The diagnostics file could not be saved.'),
+      findsOneWidget,
+    );
+    expect(find.text('No diagnostics file saved yet.'), findsOneWidget);
+  });
+
+  testWidgets('a drafts file that will not open offers the salvage', (
+    tester,
+  ) async {
+    final drafts = FakeDraftsRepository()..availableNow = false;
+    await _pump(tester, drafts: drafts);
+
+    expect(find.text('drafts.db: 16 KB, cannot be opened'), findsOneWidget);
+    expect(
+      find.text(
+        'The saved drafts could not be opened. The old file stays on '
+        'this machine.',
+      ),
+      findsOneWidget,
+    );
+
+    await _tapVisible(tester, find.byKey(const Key('settings-salvage-drafts')));
+    await tester.tap(find.byKey(const Key('confirm-salvage-drafts-cancel')));
+    await tester.pumpAndSettle();
+
+    expect(drafts.salvageRuns, 0);
+
+    await _tapVisible(tester, find.byKey(const Key('settings-salvage-drafts')));
+    await tester.tap(find.byKey(const Key('confirm-salvage-drafts')));
+    await tester.pumpAndSettle();
+
+    expect(drafts.salvageRuns, 1);
+    expect(find.text('drafts.db: 16 KB, ok'), findsOneWidget);
+    expect(
+      find.text('The old drafts file was kept and a new one is ready.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a drafts file that opens offers no salvage', (tester) async {
+    await _pump(tester);
+
+    expect(find.byKey(const Key('settings-salvage-drafts')), findsNothing);
   });
 }

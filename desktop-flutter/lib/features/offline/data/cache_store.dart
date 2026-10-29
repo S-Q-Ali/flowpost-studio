@@ -1,11 +1,11 @@
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
 import '../../publishing/data/posts_repository.dart';
 import '../../publishing/domain/publish_target.dart';
 import '../../scheduling/domain/scheduled_post.dart';
+import 'corrupt_file.dart';
 import 'local_database.dart';
 
 /// The version this build writes and reads (SPEC-offline "The schema and the
@@ -213,19 +213,8 @@ class CacheStore {
   /// The file is moved aside with the time it was found, so two broken files
   /// in the same minute both survive.
   CacheOpenResult _renameCorrupt() {
-    final at = _clock();
-    final stem =
-        '${p.basenameWithoutExtension(file.path)}.corrupt-'
-        '${at.year}${_two(at.month)}${_two(at.day)}-'
-        '${_two(at.hour)}${_two(at.minute)}';
-    final extension = p.extension(file.path);
-    var target = File(p.join(file.parent.path, '$stem$extension'));
-    for (var n = 2; target.existsSync(); n++) {
-      target = File(p.join(file.parent.path, '$stem-$n$extension'));
-    }
-    try {
-      file.renameSync(target.path);
-    } on FileSystemException {
+    final target = setAsideCorruptFile(file, _clock());
+    if (target == null) {
       return const CacheOpenResult.unavailable(CacheUnavailable.corruptFile);
     }
     return CacheOpenResult.unavailable(
@@ -297,5 +286,3 @@ String? _text(Object? value) {
   if (value is! String || value.isEmpty) return null;
   return value;
 }
-
-String _two(int value) => value.toString().padLeft(2, '0');

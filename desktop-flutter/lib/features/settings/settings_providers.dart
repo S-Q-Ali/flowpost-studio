@@ -1,7 +1,13 @@
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart' show getDirectoryPath;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
+import '../../core/diagnostics/diagnostics_collector.dart';
+import '../../core/diagnostics/diagnostics_export.dart';
+import '../../core/diagnostics/diagnostics_report.dart';
 import '../../core/logging/app_logger.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/session/session.dart';
@@ -92,6 +98,152 @@ class UpdateCheckController extends Notifier<UpdateCheckState> {
 }
 
 final signOutProvider = Provider<SignOut>(SignOut.new);
+
+/// The machine's facts for the evidence file, as Settings sees them.
+final diagnosticsFactsProvider = FutureProvider<DiagnosticsFacts>((ref) async {
+  final signedIn = ref.watch(sessionProvider) != null;
+  final support = await getApplicationSupportDirectory();
+  final logs = await ref.watch(logsFolderProvider.future);
+  final version = await ref.watch(appVersionProvider.future);
+  final draftsAvailable = await ref.watch(draftsRepositoryProvider).available();
+  final now = DateTime.now();
+  return gatherDiagnostics(
+    support: support,
+    logs: logs,
+    version: version,
+    signedIn: signedIn,
+    draftsAvailable: draftsAvailable,
+    now: now,
+    osVersion: Platform.operatingSystemVersion,
+    locale: Platform.localeName,
+    zoneName: now.timeZoneName,
+    utcOffset: now.timeZoneOffset,
+  );
+});
+
+/// The folder the admin picks for the evidence file, or null when they
+/// cancelled. A seam, so the tests answer without a dialog.
+final exportFolderPickerProvider = Provider<Future<Directory?> Function()>(
+  (ref) => pickExportFolder,
+);
+
+Future<Directory?> pickExportFolder() async {
+  final path = await getDirectoryPath();
+  return path == null ? null : Directory(path);
+}
+
+/// What one save attempt produced.
+class DiagnosticsExportOutcome {
+  const DiagnosticsExportOutcome.cancelled() : file = null, failed = false;
+
+  const DiagnosticsExportOutcome.failed() : file = null, failed = true;
+
+  const DiagnosticsExportOutcome.saved(File this.file) : failed = false;
+
+  final File? file;
+  final bool failed;
+}
+
+final diagnosticsExporterProvider =
+    Provider<Future<DiagnosticsExportOutcome> Function()>((ref) {
+      return () => runDiagnosticsExport(
+        pick: () => ref.read(exportFolderPickerProvider)(),
+        report: () async => buildDiagnosticsReport(
+          await ref.read(diagnosticsFactsProvider.future),
+        ),
+      );
+    });
+
+/// One save attempt: ask for a folder, build the report, write it.
+///
+/// Both halves are passed in so the failure paths — a cancelled dialog, a
+/// report that cannot be built, a folder that cannot be written — are the
+/// same code the app runs.
+Future<DiagnosticsExportOutcome> runDiagnosticsExport({
+  required Future<Directory?> Function() pick,
+  required Future<String> Function() report,
+  DateTime Function() now = DateTime.now,
+}) async {
+  final folder = await pick();
+  if (folder == null) return const DiagnosticsExportOutcome.cancelled();
+  try {
+    final text = await report();
+    final file = await exportDiagnostics(
+      folder: folder,
+      report: text,
+      at: now(),
+    );
+    return file == null
+        ? const DiagnosticsExportOutcome.failed()
+        : DiagnosticsExportOutcome.saved(file);
+  } on Object {
+    return const DiagnosticsExportOutcome.failed();
+  }
+}
+
+class DiagnosticsExportState {
+  const DiagnosticsExportState({
+    this.saving = false,
+    this.savedName,
+    this.savedAt,
+    this.failed = false,
+  });
+
+  final bool saving;
+  final String? savedName;
+  final DateTime? savedAt;
+  final bool failed;
+}
+
+final diagnosticsExportProvider =
+    NotifierProvider<DiagnosticsExportController, DiagnosticsExportState>(
+      DiagnosticsExportController.new,
+    );
+
+class DiagnosticsExportController extends Notifier<DiagnosticsExportState> {
+  @override
+  DiagnosticsExportState build() => const DiagnosticsExportState();
+
+  Future<void> save() async {
+    if (state.saving) return;
+    final previous = DiagnosticsExportState(
+      savedName: state.savedName,
+      savedAt: state.savedAt,
+    );
+    state = DiagnosticsExportState(
+      saving: true,
+      savedName: previous.savedName,
+      savedAt: previous.savedAt,
+    );
+    final outcome = await ref.read(diagnosticsExporterProvider)();
+    if (!ref.mounted) return;
+    final file = outcome.file;
+    if (file == null) {
+      // A cancelled dialog is not a failure: the last save stands.
+      state = outcome.failed
+          ? DiagnosticsExportState(
+              savedName: previous.savedName,
+              savedAt: previous.savedAt,
+              failed: true,
+            )
+          : previous;
+      return;
+    }
+    state = DiagnosticsExportState(
+      savedName: p.basename(file.path),
+      savedAt: DateTime.now(),
+    );
+  }
+}
+
+/// Sets a drafts file that will not open aside and starts a fresh one.
+final draftsSalvageProvider = Provider<Future<bool> Function()>((ref) {
+  return () async {
+    final done = await ref.read(draftsRepositoryProvider).startFresh();
+    if (done) ref.invalidate(diagnosticsFactsProvider);
+    return done;
+  };
+});
 
 /// What a sign-out does, in the order that leaves nothing behind.
 class SignOut {

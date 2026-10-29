@@ -6,12 +6,22 @@ import 'package:path_provider/path_provider.dart';
 
 import '../drafts/compose_draft.dart';
 import '../drafts/draft_store.dart';
+import 'corrupt_file.dart';
 
 /// The compose drafts the admin has not published yet.
 abstract class DraftsRepository {
   Future<ComposeDraft?> load(String videoId);
   Future<void> save(ComposeDraft draft);
   Future<void> delete(String videoId);
+
+  /// Whether the drafts can be read. A machine with no drafts file answers
+  /// true: there is nothing to salvage.
+  Future<bool> available();
+
+  /// Sets a drafts file that will not open aside and starts a fresh one
+  /// (SPEC-diagnostics Decision 6). The old file is renamed, never deleted.
+  /// True when a fresh database is ready.
+  Future<bool> startFresh();
 }
 
 /// The drafts in `drafts.db`, in the app's support folder.
@@ -76,6 +86,38 @@ class LocalDraftsRepository implements DraftsRepository {
       (await _open())?.delete(videoId);
     } on Object catch (error) {
       _log.warning('A draft could not be deleted (${error.runtimeType}).');
+    }
+  }
+
+  @override
+  Future<bool> available() async {
+    try {
+      final file = await _file();
+      // No file yet is not a broken file: nothing is lost and the first save
+      // will create it.
+      if (!await file.exists()) return true;
+      return await _open() != null;
+    } on Object {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> startFresh() async {
+    try {
+      final store = _store;
+      _store = null;
+      if (store != null) (await store)?.close();
+      final file = await _file();
+      if (await file.exists()) {
+        if (setAsideCorruptFile(file, DateTime.now()) == null) return false;
+      }
+      return await _open() != null;
+    } on Object catch (error) {
+      _log.warning(
+        'The saved drafts could not be set aside (${error.runtimeType}).',
+      );
+      return false;
     }
   }
 }

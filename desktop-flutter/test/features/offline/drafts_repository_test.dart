@@ -68,4 +68,43 @@ void main() {
       expect(file.existsSync(), isTrue);
     },
   );
+
+  test('no drafts file yet is available, not broken', () async {
+    final repository = LocalDraftsRepository(
+      file: () async => File(p.join(dir.path, 'drafts.db')),
+    );
+    addTearDown(repository.close);
+
+    expect(await repository.available(), isTrue);
+    expect(
+      File(p.join(dir.path, 'drafts.db')).existsSync(),
+      isFalse,
+      reason: 'reading availability must not create the file',
+    );
+  });
+
+  test('a drafts file that will not open is not available', () async {
+    final file = File(p.join(dir.path, 'drafts.db'));
+    await file.writeAsBytes(Uint8List.fromList(List.filled(64, 7)));
+    final repository = LocalDraftsRepository(file: () async => file);
+    addTearDown(repository.close);
+
+    expect(await repository.available(), isFalse);
+  });
+
+  test('starting fresh keeps the broken file under a stamped name', () async {
+    final file = File(p.join(dir.path, 'drafts.db'));
+    await file.writeAsBytes(Uint8List.fromList(List.filled(64, 7)));
+    final repository = LocalDraftsRepository(file: () async => file);
+    addTearDown(repository.close);
+
+    expect(await repository.startFresh(), isTrue);
+    expect(await repository.available(), isTrue);
+    expect(await repository.load('video-1'), isNull);
+
+    final kept = dir.listSync().whereType<File>().where(
+      (entry) => p.basename(entry.path).startsWith('drafts.corrupt-'),
+    );
+    expect(kept.single.readAsBytesSync(), List.filled(64, 7));
+  });
 }
