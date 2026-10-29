@@ -582,13 +582,19 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **One accepted window.** Draft autosave waits 800 ms, so leaving the media within that window loses the last keystrokes — the same window a crash has, which is the approved debounce and not a gate defect. Recorded so it is a decision, not a surprise.
 - **Scoped `ponytail-audit`, no Must-fix left.** The one dead API (`PostsCache.save`/`remove`) is now used. The two controllers share the same fallback shape (load cache, filter, mark `savedAt`) and the same reconnect listener; with two call sites an extraction would hide the async fallback behind a helper for no reader gain, so it stays. `LocalPostsCache` deliberately mirrors `LocalDraftsRepository` (open once, swallow, log the type only), which is how the codebase already does it. No unused import, provider or test helper was left behind.
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (130 files), `flutter analyze lib test` no issues, `flutter test` **568 passed** (was 564), `flutter build windows --release` succeeds, LF-only bytes on every changed Dart file.
-- **Not closed by this gate:** the owner's approval (the only unticked line), the cache wipe on sign-out (needs the sign-out action from 6.1), the `accounts`, `videos` and `profile` tables (migration 2+), and the Home numbers that wait on them.
+- **Owner approval: given 2026-10-29.** The gate is closed and Phase 5 is complete.
+- **Still open, by design:** the cache wipe on sign-out (needs the sign-out action from 6.1), the `accounts`, `videos` and `profile` tables (migration 2+), and the Home numbers that wait on them.
 
 ---
 
 ## Phase 6 — Production Hardening
 
 - [ ] **6.1** Settings: account, logout, version, update, log location, about
+  - [ ] Approve `docs/spec/SPEC-settings.md` (7 decisions)
+  - [ ] The screen at `/settings`: account, session, updates, diagnostics, about
+  - [ ] One version provider shared with Home; the manual update check
+  - [ ] Sign out: clear the session, wipe `cache.db`, keep `drafts.db`
+  - [ ] The log folder and **Open folder**
 - [ ] **6.2** Global error handlers, rotation, diagnostics export, crash recovery
 - [ ] **6.3** Accessibility: keyboard, focus, labels, contrast, 200% scaling
 - [ ] **6.4** Performance: cold start, media, lists, memory, size
