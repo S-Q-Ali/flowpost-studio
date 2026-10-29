@@ -133,7 +133,7 @@
   - [x] Temp files cleaned
   - [x] `performance-optimization` review
   - [x] `security-and-hardening` review
-  - [ ] Scoped `ponytail-audit` no Must-fix
+  - [x] Scoped `ponytail-audit` no Must-fix
   - [ ] Human approval
 
 ### Phase 3.1 evidence (2026-10-28)
@@ -169,8 +169,8 @@
 - **Security fix:** the probe did not carry the `file` protocol allowlist even though the test claimed it did; `probeArguments` now passes `-protocol_whitelist file`, so a playlist-shaped input cannot reach the network. The test asserts the flag.
 - **Live run (real app on Windows, real FFmpeg):** `integration_test/app_test.dart` launches the shipped app, opens Upload, and processes `portrait_2s_1080x1920_h264.mp4` end to end. The ready state shows "Dimensions: 1080 x 1920", "Duration: 0:02", "Video codec: h264", and the outputs `normalized.mp4`, `thumb.jpg`, `audio.mp3`; "Generate captions" and "Upload" are disabled with the sign-in hint. A second job was cancelled while FFmpeg was running: the app returned to the empty state, the jobs folder was empty afterwards, and the `ffmpeg.exe` process count returned to its pre-test value — no orphan process. The log shows only job ids (`Media job 20261029T083656-3709d5 started/ready/cancelled`), never a path.
 - **Integration test shape:** the shell and the media pipeline share one file on purpose — the shell takes a single-instance lock, so a second `app.main()` in the same run hands off to the first and exits. `main()` takes an optional `MediaFilePicker` so the test can feed a fixture instead of opening the native dialog.
-- **Gate:** `flutter analyze` no issues; `dart format --set-exit-if-changed lib test integration_test` clean; `flutter test` **183 passed** (media suite 110, of which **19 run against the real FFmpeg binary** and compare against `test/fixtures/media/expected.json`); `flutter test integration_test -d windows` **1 passed** against the real app; release build succeeded.
-- **Open:** the `ponytail-audit` review and the human approval of the Phase 3.6 gate remain.
+- **Gate:** `flutter analyze` no issues; `dart format --set-exit-if-changed lib test integration_test` clean; `flutter test` **210 passed** (media suite 110, of which **19 run against the real FFmpeg binary** and compare against `test/fixtures/media/expected.json`); `flutter test integration_test -d windows` **1 passed** against the real app; release build succeeded.
+- **Open:** the human approval of the Phase 3.6 gate remains.
 
 ### Phase 3.6 gate review (2026-10-29)
 
@@ -212,6 +212,25 @@
 - **Correct output:** the 4K source was scaled to 1920×1080 H.264 Constrained Baseline `yuv420p`, 15.000 s.
 - **Temp files cleaned:** a job folder left behind by a hard kill was gone after the next launch — the startup sweep removes it.
 - The harness is deleted; it was a measurement, not a test.
+
+**Scoped `ponytail-audit` (2026-10-29) — findings and resolutions**
+
+The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked against the code and `docs/spec/SPEC-media.md` before acting; two were rejected.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| A workspace that cannot create its folder threw straight through the controller, so the Upload tab stayed on "Checking the file..." with no way out | Must-fix | `MediaController.pickFile` catches the failure and lands on `MediaFailed` with "Could not create a working folder. Check free space and try again." Only the error type is logged. Covered by a failing-first test. |
+| A missing FFmpeg and a probe that hit its timeout were both reported as "This file can't be read", which sent the user looking for a corrupt file | Must-fix | `FfmpegRun.failedToStart` marks a process that never started; the probe maps it to "FFmpeg could not start. Reinstall the app." and a timeout to "Processing took too long and was stopped." |
+| The pipeline took the media kind from the file extension, so a long video renamed to `.png` skipped the 180 s limit and produced one frame instead of three | Should-fix | `kindFromProbe` decides the kind from the codec ffprobe reports, and the job is updated with it. Two failing-first tests. |
+| The file dialog carried its own extension list, which could drift from the validator's | Should-fix | Both read `videoMediaExtensions` and `imageMediaExtensions`. |
+| The unreadable-file sentence existed in three files and could change in one copy only | Should-fix | One `mediaUnreadableMessage` constant. |
+| An unexpected media failure logged the error message, which can carry the path of the user's file | Should-fix | The error type and stack trace are logged; the message never is. |
+| The redaction pass turned "Error code: 1" and "state: MediaIdle" into `[redacted]`, so log lines could not be read | Should-fix | `code` and `state` are redacted only after an `=`; the OAuth query form is still handled by the first pass. |
+| `createJob` drew a new id when the folder existed, but nothing proved it gives up after five tries | Nice-to-have | Covered by a test that pins the give-up. |
+| The runner had no test for a timeout, a cancel, or a missing executable | Nice-to-have | Three tests against a real child process. |
+| The unused `MediaStage` values and the test-only `AudioProbe` | Rejected | The stage values are named in `SPEC-media.md`'s Model section; moving `AudioProbe` to `test/` would either grow the production API or duplicate the parser in the test. |
+
+**Gate:** `flutter analyze` no issues; `dart format --set-exit-if-changed lib test integration_test` clean; `flutter test` **210 passed**.
 
 **Deferred to the owner**
 
