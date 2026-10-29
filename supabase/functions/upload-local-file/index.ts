@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { buildUploadObjectKey, isValidIdempotencyKey, uploadExtension } from "../_shared/upload.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -71,10 +72,17 @@ Deno.serve(async (req) => {
   }
 
   const file = formData.get("file") as File | null;
+  const rawKey = formData.get("idempotency_key");
+  const idempotencyKey =
+    typeof rawKey === "string" && rawKey.length > 0 ? rawKey : null;
   const userId = auth.kind === "session" ? auth.userId : null;
 
   if (!file || !userId) {
     return json({ error: "File and user required" }, 400);
+  }
+
+  if (idempotencyKey && !isValidIdempotencyKey(idempotencyKey)) {
+    return json({ error: "Invalid idempotency key" }, 400);
   }
 
   try {
@@ -83,8 +91,32 @@ Deno.serve(async (req) => {
       return json({ error: "R2 configuration missing" }, 500);
     }
 
-    const fileExt = file.name.split(".").pop()?.toLowerCase() || "bin";
-    const key = `${userId}/${crypto.randomUUID()}.${fileExt}`;
+    const extension = uploadExtension(file.name);
+    const objectName = idempotencyKey ?? crypto.randomUUID();
+    const key = buildUploadObjectKey(userId, objectName, extension);
+    const r2Url = `https://${R2_PUBLIC_URL}/${key}`;
+
+    // A retry after an ambiguous failure must not create a second object:
+    // the same key points at the same place, and the row of the first
+    // attempt is returned instead of a new one.
+    if (idempotencyKey) {
+      const { data: existing } = await supabase
+        .from("videos")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("file_url", r2Url)
+        .limit(1)
+        .maybeSingle();
+      if (existing) {
+        return json({
+          success: true,
+          videoId: existing.id,
+          url: r2Url,
+          filename: file.name,
+          size: file.size,
+        });
+      }
+    }
 
     const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand({
       Bucket: R2_BUCKET,
@@ -103,8 +135,6 @@ Deno.serve(async (req) => {
     if (!putRes.ok) {
       throw new Error(`R2 upload failed: ${putRes.status}`);
     }
-
-    const r2Url = `https://${R2_PUBLIC_URL}/${key}`;
 
     // Insert video record
     const { data: video, error: videoError } = await supabase
