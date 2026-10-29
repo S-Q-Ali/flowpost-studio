@@ -140,6 +140,7 @@ class _PostDetailsState extends ConsumerState<_PostDetails> {
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(
               backgroundColor: FlowPostColors.destructive,
+              foregroundColor: Colors.white,
             ),
             child: const Text('Delete'),
           ),

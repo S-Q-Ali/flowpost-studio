@@ -634,7 +634,7 @@ void main() {
   testWidgets('grows with large text at the minimum window size', (
     tester,
   ) async {
-    tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+    tester.platformDispatcher.textScaleFactorTestValue = 2.0;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
     await pumpUploadPage(

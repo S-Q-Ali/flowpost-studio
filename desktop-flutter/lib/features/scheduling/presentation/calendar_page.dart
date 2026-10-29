@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../offline/presentation/offline_banner.dart';
 import '../../publishing/data/posts_repository.dart';
 import '../domain/calendar_range.dart';
 import '../domain/scheduled_post.dart';
 import '../scheduling_controller.dart';
 import 'post_actions.dart';
+import 'post_status_color.dart';
 
 /// The admin's posts by day (SPEC-scheduling "The calendar").
 class CalendarPage extends ConsumerWidget {
@@ -222,41 +222,51 @@ class _DayCell extends StatelessWidget {
     }
     final theme = Theme.of(context);
     final hidden = posts.length - 3;
-    return Container(
-      key: Key('calendar-day-${_dateKey(day)}'),
-      decoration: BoxDecoration(border: border),
-      padding: const EdgeInsets.all(4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            named
-                ? '${_weekdayShort[day.weekday % 7]} ${day.day}'
-                : '${day.day}',
-            style: theme.textTheme.labelSmall,
-          ),
-          const SizedBox(height: 2),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final post in posts.take(3)) _PostChip(post: post),
-                  if (hidden > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 2, top: 2),
-                      child: Text(
-                        '+$hidden more',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                ],
+    final count = posts.length == 1 ? '1 post' : '${posts.length} posts';
+    return Semantics(
+      container: true,
+      label: '${dayLabel(day)}, $count',
+      child: Container(
+        key: Key('calendar-day-${_dateKey(day)}'),
+        decoration: BoxDecoration(border: border),
+        padding: const EdgeInsets.all(4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: ExcludeSemantics(
+                child: Text(
+                  named
+                      ? '${_weekdayShort[day.weekday % 7]} ${day.day}'
+                      : '${day.day}',
+                  style: theme.textTheme.labelSmall,
+                ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 2),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final post in posts.take(3)) _PostChip(post: post),
+                    if (hidden > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 2, top: 2),
+                        child: Text(
+                          '+$hidden more',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -271,33 +281,42 @@ class _PostChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = _statusColor(post.status, theme.colorScheme);
-    return GestureDetector(
-      onTap: () => showScheduledPost(context, post),
-      child: Container(
+    final color = postStatusColor(post.status, theme.colorScheme);
+    final title = post.videoTitle ?? 'Untitled media';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: InkWell(
         key: Key('calendar-post-${post.id}'),
-        margin: const EdgeInsets.only(bottom: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Row(
-          children: [
-            Text(
-              clockLabel(post.scheduledAt),
-              style: theme.textTheme.labelSmall?.copyWith(color: color),
+        onTap: () => showScheduledPost(context, post),
+        borderRadius: BorderRadius.circular(4),
+        child: Semantics(
+          label:
+              '${clockLabel(post.scheduledAt)}, $title, ${post.status.label}',
+          excludeSemantics: true,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(4),
             ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                post.videoTitle ?? 'Untitled media',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall,
-              ),
+            child: Row(
+              children: [
+                Text(
+                  clockLabel(post.scheduledAt),
+                  style: theme.textTheme.labelSmall?.copyWith(color: color),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -372,7 +391,7 @@ class _ListedPost extends StatelessWidget {
               Text(
                 post.status.label,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: _statusColor(post.status, theme.colorScheme),
+                  color: postStatusColor(post.status, theme.colorScheme),
                 ),
               ),
             ],
@@ -382,12 +401,6 @@ class _ListedPost extends StatelessWidget {
     );
   }
 }
-
-Color _statusColor(PostStatus status, ColorScheme scheme) => switch (status) {
-  PostStatus.published => Colors.green.shade700,
-  PostStatus.failed => FlowPostColors.destructive,
-  _ => scheme.primary,
-};
 
 /// The date as the widget keys spell it.
 String _dateKey(DateTime day) =>

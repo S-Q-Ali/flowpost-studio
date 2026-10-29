@@ -208,4 +208,27 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('grows with large text at the minimum window size', (
+    tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    tester.view.physicalSize = const Size(1024, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final repository = FakeScheduledPostsRepository()
+      ..rangePosts = [
+        post(
+          scheduledAt: DateTime(2026, 10, 29, 14, 30),
+          videoTitle: 'A video',
+        ),
+      ];
+
+    await _pump(tester, repository);
+
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('calendar-post-post-1')), findsOneWidget);
+    expect(find.byKey(const Key('calendar-new')), findsOneWidget);
+  });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flowpost_desktop/app.dart';
 import 'package:flowpost_desktop/core/config/app_config.dart';
@@ -31,4 +32,28 @@ void main() {
     expect(find.text('FlowPost could not start'), findsOneWidget);
     expect(find.textContaining('SUPABASE_URL'), findsOneWidget);
   });
+
+  testWidgets(
+    'the shell and Home grow with large text at the smallest window',
+    (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      tester.view.physicalSize = const Size(1024, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [appConfigProvider.overrideWithValue(testConfig)],
+          child: const FlowPostApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('FlowPost Studio'), findsOneWidget);
+    },
+  );
 }

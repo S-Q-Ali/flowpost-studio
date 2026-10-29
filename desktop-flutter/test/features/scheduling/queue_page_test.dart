@@ -503,4 +503,29 @@ void main() {
     expect(find.byKey(const Key('offline-banner')), findsNothing);
     expect(find.text('Fresh video'), findsOneWidget);
   });
+
+  testWidgets('grows with large text at the minimum window size', (
+    tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    tester.view.physicalSize = const Size(1024, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final repository = FakeScheduledPostsRepository()
+      ..pages[0] = ScheduledPostsPage(
+        posts: [
+          post(
+            scheduledAt: DateTime.utc(2026, 10, 29, 14, 30),
+            caption: 'A caption long enough to take a second line at this size',
+          ),
+        ],
+        hasMore: false,
+      );
+
+    await _pump(tester, repository);
+
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('queue-post-post-1')), findsOneWidget);
+  });
 }

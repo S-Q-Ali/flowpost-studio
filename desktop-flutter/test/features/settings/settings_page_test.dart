@@ -412,4 +412,19 @@ void main() {
 
     expect(find.byKey(const Key('settings-salvage-drafts')), findsNothing);
   });
+
+  testWidgets('grows with large text at the minimum window size', (
+    tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    tester.view.physicalSize = const Size(1024, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await _pump(tester);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Settings'), findsOneWidget);
+  });
 }

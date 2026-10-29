@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../offline/presentation/offline_banner.dart';
 import '../../publishing/data/posts_repository.dart';
 import '../../publishing/domain/publish_target.dart';
 import '../domain/scheduled_post.dart';
 import '../scheduling_controller.dart';
 import 'post_actions.dart';
+import 'post_status_color.dart';
 
 /// The admin's posts, ordered by when they go out (SPEC-scheduling "The
 /// queue").
@@ -306,12 +306,7 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final color = switch (status) {
-      PostStatus.published => Colors.green.shade700,
-      PostStatus.failed => FlowPostColors.destructive,
-      _ => scheme.primary,
-    };
+    final color = postStatusColor(status, theme.colorScheme);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(

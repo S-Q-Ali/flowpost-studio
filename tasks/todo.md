@@ -618,6 +618,19 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (150 files), `flutter analyze lib test` no issues, `flutter test` **641 passed** (was 633), `flutter build windows --release` succeeds, LF-only bytes on every changed Dart file.
 - **Not exercised by a test:** the message box itself blocks on a real desktop, so the thin `showStartupMessageBox` call is covered only by the release build compiling and linking.
 
+### Phase 6.3 evidence (2026-10-29)
+
+- **SPEC-accessibility approved (10 decisions)** after a measured audit: six contrast failures, one keyboard dead end, two semantic gaps, and 200% text untested.
+- **The palette now passes AA where it is used as text.** `onPrimary` is the deep plum `#3D152B` (5.27:1), `primaryText` `#A83C74` carries primary text and icons (≥4.84:1 on every surface), `error` is `#B3261E` (≥5.36:1) with white on its fill, the published tone is `green.shade900` (6.46:1 on a card), and `outline` is `#8A6E7C` (≥3.7:1) so text-field borders meet 3:1.
+- **The contrast is pinned by a test.** `test/core/theme/contrast_test.dart` computes the ratios from `flowPostLightTheme()` and the tokens, and also pins the shared status mapping, so a future palette edit fails the build instead of the eyes.
+- **One status mapping for the queue and the calendar.** `postStatusColor` (`lib/features/scheduling/presentation/post_status_color.dart`) replaces the two copies; the publish screen uses the same tones for its phase labels.
+- **The calendar chip is a button.** It is an `InkWell` now: Tab reaches it, Enter and Space open the post, and its semantic label reads "14:30, A video, Scheduled" — the status that used to be colour-only. A day cell announces "Thursday, 29 October 2026, 1 post" and the visible day number is excluded from the label so it is not read twice.
+- **Focus is visible on light surfaces** through `ThemeData.focusColor` (foreground at 12%).
+- **200% text is now tested on every page** — Home and the rail, Upload, Compose, Accounts, Queue, Calendar, Settings — at the 1024×640 minimum window. The three older tests that used 1.6 now use 2.0, and no page needed a layout change: the toolbar rows and filter wraps already grow.
+- **Tests:** 15 new — contrast 7, calendar keyboard/semantics 4, scale 4; 3 existing scale tests raised to 2.0.
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (153 files), `flutter analyze lib test` no issues, `flutter test` **656 passed** (was 641), LF-only bytes on every changed Dart file.
+- **Not verified visually:** the palette change (plum button labels, darker borders and error red) was checked by measured contrast, not by eye on a running window; a live pass is left for the Phase 6.7 gate.
+
 ---
 
 ## Phase 6 — Production Hardening
@@ -634,7 +647,11 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] Diagnostics section: log folder, saved file, local data, files kept aside
   - [x] Drafts salvage: ask first, keep the old file, start fresh
   - [x] Calm error panel and the startup failure message
-- [ ] **6.3** Accessibility: keyboard, focus, labels, contrast, 200% scaling
+- [x] **6.3** Accessibility: keyboard, focus, labels, contrast, 200% scaling
+  - [x] Approve `docs/spec/SPEC-accessibility.md` (10 decisions)
+  - [x] Contrast tokens (onPrimary, primaryText, error, published, outline)
+  - [x] Calendar chip keyboard, day-cell and chip labels, focus colour
+  - [x] 200% text on every page at the minimum window
 - [ ] **6.4** Performance: cold start, media, lists, memory, size
 - [ ] **6.5** Security: secrets, tokens, deep links, FFmpeg args, dependencies, RLS notes
 - [ ] **6.6** README, ADRs, runbook, release checklist, rollback notes
