@@ -101,3 +101,55 @@ export async function resetRateLimit(
     .delete()
     .eq("key", key);
 }
+
+/**
+ * Counts one request against a fixed window per subject.
+ *
+ * The read and the write are separate, so a burst can go slightly over the
+ * limit; the point is a ceiling per user, not exact accounting.
+ */
+export async function consumeQuota(
+  supabase: any,
+  namespace: string,
+  subject: string,
+  limit: number,
+  windowMinutes: number,
+): Promise<{ allowed: boolean; resetAt?: string }> {
+  const key = `${namespace}:${subject}`;
+  const now = new Date();
+  const { data, error } = await supabase
+    .from("rate_limits")
+    .select("attempts, reset_at")
+    .eq("key", key)
+    .maybeSingle();
+
+  if (error && error.code !== "PGRST116") {
+    console.error("Quota check error:", error);
+    return { allowed: true };
+  }
+
+  if (!data || new Date(data.reset_at) <= now) {
+    const resetAt = new Date(now.getTime() + windowMinutes * 60 * 1000).toISOString();
+    if (data) {
+      await supabase
+        .from("rate_limits")
+        .update({ attempts: 1, reset_at: resetAt })
+        .eq("key", key);
+    } else {
+      await supabase
+        .from("rate_limits")
+        .insert({ key, attempts: 1, reset_at: resetAt });
+    }
+    return { allowed: true, resetAt };
+  }
+
+  if (data.attempts >= limit) {
+    return { allowed: false, resetAt: data.reset_at };
+  }
+
+  await supabase
+    .from("rate_limits")
+    .update({ attempts: data.attempts + 1 })
+    .eq("key", key);
+  return { allowed: true, resetAt: data.reset_at };
+}

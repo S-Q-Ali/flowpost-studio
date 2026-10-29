@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { checkPostAccess } from "../_shared/post-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -74,6 +75,9 @@ Deno.serve(async (req) => {
     if (postError || !post) {
       return json({ error: "Post not found" }, 404);
     }
+
+    const access = checkPostAccess(auth, post);
+    if (!access.ok) return json({ error: access.error }, access.status);
 
     if (post.platform !== "linkedin") {
       return json({ error: "Post is not for LinkedIn" }, 400);

@@ -3,6 +3,7 @@ import { File } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { checkPostAccess } from "../_shared/post-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -121,13 +122,16 @@ Deno.serve(async (req) => {
   try {
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, account_id, caption, video_id, metadata, platform, user_id")
+      .select("id, account_id, caption, video_id, metadata, platform, user_id, status")
       .eq("id", postId)
       .single();
 
     if (postError || !post) {
       return json({ error: "Post not found" }, 404);
     }
+
+    const access = checkPostAccess(auth, post);
+    if (!access.ok) return json({ error: access.error }, access.status);
 
     if (post.platform !== "tiktok") {
       return json({ error: "Post is not for TikTok" }, 400);

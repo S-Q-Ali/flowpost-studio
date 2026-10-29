@@ -1,7 +1,9 @@
 ﻿import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { decrypt } from "../_shared/crypto.ts";
-import { createSessionLookup, isRequestAuthorized } from "../_shared/auth.ts";
+import { createSessionLookup, isRequestAuthorized, resolveSessionOwner } from "../_shared/auth.ts";
+import type { AuthResult } from "../_shared/auth.ts";
 import { sanitizeChatOptions } from "../_shared/groq.ts";
+import { consumeQuota } from "../_shared/rate-limit.ts";
 import { getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
 import { PROMPT_TEMPLATES, getDefaultMasterPrompt } from "./prompt-templates.ts";
 
@@ -41,6 +43,25 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+/// Counts a proxy call against the caller's hourly quota.
+///
+/// Only sessions are counted: the workflow path uses the service role and is
+/// already bounded by the workflow itself.
+async function chatQuota(
+  auth: AuthResult,
+  namespace: string,
+  limit: number,
+): Promise<{ allowed: true } | { allowed: false; error: string }> {
+  const userId = auth.kind === "session" ? auth.userId : null;
+  if (!userId) return { allowed: true };
+  const quota = await consumeQuota(supabase, namespace, userId, limit, 60);
+  if (quota.allowed) return { allowed: true };
+  return {
+    allowed: false,
+    error: "The caption quota for this hour is used up. Try again later.",
+  };
 }
 
 async function transcribeAudio(audioUrl: string, mimeType: string, driveToken: string): Promise<string> {
@@ -187,6 +208,8 @@ Deno.serve(async (req) => {
     if (!GROQ_API_KEY) {
       return json({ error: "Groq API key not configured" }, 500);
     }
+    const quota = await chatQuota(authResult, "captions-transcribe", 20);
+    if (!quota.allowed) return json({ error: quota.error }, 429);
     const audioBase64 = body.audio_base64 as string | undefined;
     const filename = (body.filename as string) || "audio.webm";
     if (!audioBase64) {
@@ -220,6 +243,8 @@ Deno.serve(async (req) => {
     if (!GROQ_API_KEY) {
       return json({ error: "Groq API key not configured" }, 500);
     }
+    const quota = await chatQuota(authResult, "captions-chat", 60);
+    if (!quota.allowed) return json({ error: quota.error }, 429);
     const sanitized = sanitizeChatOptions(body);
     if (!sanitized.ok) {
       return json({ error: sanitized.reason }, 400);
@@ -277,6 +302,11 @@ Deno.serve(async (req) => {
         return json({ error: "Workflow not found" }, 404);
       }
 
+      const owner = resolveSessionOwner(authResult, workflow.user_id);
+      if (owner.denied) {
+        return json({ error: "Workflow belongs to another user" }, 403);
+      }
+
       const driveToken = await getDriveToken(workflow.user_id, workflow.drive_account_id, driveTokenCtx);
       if (!driveToken) {
         return json({ error: "No Google Drive token available" }, 400);
@@ -319,6 +349,11 @@ Deno.serve(async (req) => {
 
     if (wfError || !workflow) {
       return json({ error: "Workflow not found" }, 404);
+    }
+
+    const owner = resolveSessionOwner(authResult, workflow.user_id);
+    if (owner.denied) {
+      return json({ error: "Workflow belongs to another user" }, 403);
     }
 
     let masterPrompt: Record<string, unknown> = { ...getDefaultMasterPrompt() };
