@@ -192,3 +192,22 @@ final publishValidationProvider = Provider<PublishValidation>((ref) {
     scheduleTime: selection.scheduleTime,
   );
 });
+
+/// How long the client waits for a row to settle after an unknown outcome.
+class PublishPollPolicy {
+  const PublishPollPolicy({
+    this.interval = const Duration(seconds: 5),
+    this.attempts = 12,
+  });
+
+  /// The gap between two reads of the row.
+  final Duration interval;
+
+  /// How many times the row is read before the client gives up on it.
+  final int attempts;
+}
+
+/// The wait after a publish call that never came back.
+final publishPollPolicyProvider = Provider<PublishPollPolicy>(
+  (ref) => const PublishPollPolicy(),
+);

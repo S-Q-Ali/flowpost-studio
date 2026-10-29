@@ -398,6 +398,12 @@ class _StatusRow extends StatelessWidget {
       PublishPhase.publishing => ('Publishing...', theme.colorScheme.primary),
       PublishPhase.published => ('Published', Colors.green.shade700),
       PublishPhase.failed => ('Failed', FlowPostColors.destructive),
+      PublishPhase.unconfirmed => ('Not confirmed', theme.colorScheme.tertiary),
+    };
+    final messageColor = switch (status.phase) {
+      PublishPhase.failed => theme.colorScheme.error,
+      PublishPhase.unconfirmed => theme.colorScheme.tertiary,
+      _ => theme.colorScheme.onSurfaceVariant,
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -414,9 +420,7 @@ class _StatusRow extends StatelessWidget {
         if (status.message != null)
           Text(
             status.message!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.error,
-            ),
+            style: theme.textTheme.bodySmall?.copyWith(color: messageColor),
           ),
       ],
     );

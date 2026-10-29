@@ -91,6 +91,9 @@ Future<void> _pump(
         ],
         postsRepositoryProvider.overrideWithValue(_FakeRepository()),
         publishClientProvider.overrideWithValue(client ?? _FakeClient()),
+        publishPollPolicyProvider.overrideWithValue(
+          const PublishPollPolicy(interval: Duration.zero, attempts: 1),
+        ),
       ],
       child: const FlowPostApp(initialDeepLink: '/publish'),
     ),
@@ -193,6 +196,22 @@ void main() {
 
     expect(find.text('Instagram: Failed'), findsOneWidget);
     expect(find.text('Instagram said no.'), findsOneWidget);
+  });
+
+  testWidgets('a publish that never came back is not confirmed', (
+    tester,
+  ) async {
+    final client = _FakeClient()
+      ..failure = const PublishException(publishTimeoutFailure);
+    await _pump(tester, client: client);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Instagram: Not confirmed'), findsOneWidget);
+    expect(find.textContaining('The publish timed out'), findsOneWidget);
   });
 
   testWidgets('the schedule shows the instant that is stored', (tester) async {

@@ -3,12 +3,13 @@ import 'package:logging/logging.dart';
 
 import 'data/posts_repository.dart';
 import 'data/publish_client.dart';
+import 'domain/publish_errors.dart';
 import 'domain/publish_selection.dart';
 import 'domain/publish_target.dart';
 import 'publishing_providers.dart';
 
 /// What one platform's attempt is doing.
-enum PublishPhase { waiting, publishing, published, failed }
+enum PublishPhase { waiting, publishing, published, failed, unconfirmed }
 
 /// The state of one platform's attempt.
 class PublishTargetStatus {
@@ -107,51 +108,178 @@ class PublishController extends Notifier<PublishState> {
         phase: PublishPhase.publishing,
       );
       state = PublishRunning([...statuses]);
-      try {
-        final postId = await ref
-            .read(postsRepositoryProvider)
-            .insert(_draft(target, selection, videoId));
-        statuses[index] = statuses[index].copyWith(postId: postId);
-        final result = await ref
-            .read(publishClientProvider)
-            .publish(target: target, postId: postId);
-        statuses[index] = statuses[index].copyWith(
-          phase: PublishPhase.published,
-          platformId: result.platformId,
-        );
-      } on PublishException catch (error) {
-        statuses[index] = statuses[index].copyWith(
-          phase: PublishPhase.failed,
-          message: error.failure.message,
-        );
-        _log.warning(
-          'The publish to ${target.platform.name} failed '
-          '(${error.failure.code.name}).',
-        );
-      } on PostsException catch (error) {
-        statuses[index] = statuses[index].copyWith(
-          phase: PublishPhase.failed,
-          message: error.message,
-        );
-        _log.warning('The queue refused the ${target.platform.name} post.');
-      } on Object catch (error, stackTrace) {
-        statuses[index] = statuses[index].copyWith(
-          phase: PublishPhase.failed,
-          message: 'The publish failed. Try again.',
-        );
-        // The type and the stack trace are logged, never the message: a
-        // message can carry the path of the user's file.
-        _log.severe(
-          'The publish to ${target.platform.name} failed unexpectedly '
-          '(${error.runtimeType}).',
-          null,
-          stackTrace,
-        );
-      }
+      statuses[index] = await _attempt(target, selection, videoId);
+      if (run != _run) return;
       state = PublishRunning([...statuses]);
     }
     if (run != _run) return;
     state = PublishDone(statuses);
+  }
+
+  /// Writes the row of one target and sends it out.
+  Future<PublishTargetStatus> _attempt(
+    PublishTarget target,
+    PublishSelection selection,
+    String videoId,
+  ) async {
+    final String postId;
+    try {
+      postId = await ref
+          .read(postsRepositoryProvider)
+          .insert(_draft(target, selection, videoId));
+    } on PostsException catch (error) {
+      _log.warning('The queue refused the ${target.platform.name} post.');
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.failed,
+        message: error.message,
+      );
+    } on Object catch (error, stackTrace) {
+      // The type and the stack trace are logged, never the message: a
+      // message can carry the path of the user's file.
+      _log.severe(
+        'The ${target.platform.name} post could not be queued '
+        '(${error.runtimeType}).',
+        null,
+        stackTrace,
+      );
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.failed,
+        message: 'The publish failed. Try again.',
+      );
+    }
+    return _publishRow(target, postId);
+  }
+
+  /// Calls the function for one row and reads the row back.
+  ///
+  /// The row is the truth: the function writes `published` or `failed`
+  /// itself, and the client cannot tell what happened to the platform when
+  /// the call never came back.
+  Future<PublishTargetStatus> _publishRow(
+    PublishTarget target,
+    String postId,
+  ) async {
+    PublishResult? result;
+    PublishFailure? failure;
+    try {
+      result = await ref
+          .read(publishClientProvider)
+          .publish(target: target, postId: postId);
+    } on PublishException catch (error) {
+      failure = error.failure;
+      _log.warning(
+        'The publish to ${target.platform.name} failed '
+        '(${error.failure.code.name}).',
+      );
+    }
+
+    final row = await _readRow(postId);
+    final phase = _phaseOf(row);
+
+    if (phase == PublishPhase.published) {
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.published,
+        postId: postId,
+        platformId: result?.platformId,
+      );
+    }
+    if (failure == null) {
+      // The function answered with the platform's own id: the post went out.
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.published,
+        postId: postId,
+        platformId: result?.platformId,
+      );
+    }
+    if (failure.code == PublishErrorCode.uploadSucceeded) {
+      // The platform took the post and the row could not be written, so the
+      // row's own "failed" is stale and a retry would post twice.
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.unconfirmed,
+        postId: postId,
+        message: failure.message,
+      );
+    }
+    if (!failure.code.isUnknownOutcome || phase == PublishPhase.failed) {
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.failed,
+        postId: postId,
+        message: failure.message,
+      );
+    }
+
+    // The call never came back: the platform may have taken the post, so the
+    // row is asked until it settles.
+    final settled = await _settle(postId);
+    final settledPhase = settled == null ? null : _phaseOf(settled);
+    if (settledPhase == PublishPhase.published) {
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.published,
+        postId: postId,
+        platformId: result?.platformId,
+      );
+    }
+    if (settledPhase == PublishPhase.failed) {
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.failed,
+        postId: postId,
+        message: failure.message,
+      );
+    }
+    return PublishTargetStatus(
+      target: target,
+      phase: PublishPhase.unconfirmed,
+      postId: postId,
+      message: failure.message,
+    );
+  }
+
+  /// What the row says about the post's fate.
+  ///
+  /// A row with a published time went out even when its status says
+  /// otherwise: the functions write the time when the platform takes the
+  /// post, and a later failure does not clear it.
+  PublishPhase? _phaseOf(PostRow? row) {
+    if (row == null) return null;
+    if (row.publishedAt != null || row.status == PostStatus.published) {
+      return PublishPhase.published;
+    }
+    if (row.status == PostStatus.failed) return PublishPhase.failed;
+    return null;
+  }
+
+  /// The row as it is now. Null when the row is gone or the queue did not
+  /// answer.
+  Future<PostRow?> _readRow(String postId) async {
+    try {
+      return await ref.read(postsRepositoryProvider).read(postId);
+    } on PostsException {
+      _log.warning('The queue did not answer about the row.');
+      return null;
+    }
+  }
+
+  /// Waits for the row to settle after an unknown outcome.
+  ///
+  /// The wait is bounded: the function is still working, and the admin must
+  /// not watch a spinner forever.
+  Future<PostRow?> _settle(String postId) async {
+    final policy = ref.read(publishPollPolicyProvider);
+    for (var attempt = 0; attempt < policy.attempts; attempt++) {
+      await Future<void>.delayed(policy.interval);
+      final row = await _readRow(postId);
+      if (row == null) continue;
+      if (_phaseOf(row) != null) return row;
+    }
+    return null;
   }
 
   /// Forgets the last attempt.

@@ -25,6 +25,12 @@ class _FakeRepository implements PostsRepository {
   final List<PostDraft> drafts = [];
   Object? failure;
 
+  /// The rows the read answers with, in order. The last one repeats.
+  List<PostRow?> answers = [];
+
+  /// The ids the client read back.
+  final List<String> reads = [];
+
   @override
   Future<String> insert(PostDraft draft) async {
     if (failure != null) throw failure!;
@@ -33,7 +39,12 @@ class _FakeRepository implements PostsRepository {
   }
 
   @override
-  Future<PostRow?> read(String postId) async => null;
+  Future<PostRow?> read(String postId) async {
+    reads.add(postId);
+    if (answers.isEmpty) return null;
+    final index = reads.length - 1;
+    return index < answers.length ? answers[index] : answers.last;
+  }
 
   @override
   Future<bool> rescheduleFailed(String postId, DateTime scheduledAt) async =>
@@ -61,11 +72,16 @@ class _FakeClient implements PublishApi {
 ProviderContainer _container({
   required _FakeRepository repository,
   required _FakeClient client,
+  PublishPollPolicy policy = const PublishPollPolicy(
+    interval: Duration.zero,
+    attempts: 3,
+  ),
 }) {
   return ProviderContainer(
     overrides: [
       postsRepositoryProvider.overrideWithValue(repository),
       publishClientProvider.overrideWithValue(client),
+      publishPollPolicyProvider.overrideWithValue(policy),
     ],
   );
 }
@@ -272,5 +288,231 @@ void main() {
     controller.reset();
 
     expect(container.read(publishControllerProvider), isA<PublishIdle>());
+  });
+
+  test('the row is read back after the attempt', () async {
+    final repository = _FakeRepository();
+    final client = _FakeClient();
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    expect(repository.reads, ['post-1']);
+  });
+
+  test('a timeout waits for the row to settle', () async {
+    final repository = _FakeRepository()
+      ..answers = const [
+        PostRow(
+          id: 'post-1',
+          platform: 'instagram',
+          status: PostStatus.processing,
+        ),
+        PostRow(
+          id: 'post-1',
+          platform: 'instagram',
+          status: PostStatus.published,
+        ),
+      ];
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(publishTimeoutFailure);
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.published);
+    expect(repository.reads, hasLength(2));
+  });
+
+  test('a timeout that never settles leaves the outcome unknown', () async {
+    final repository = _FakeRepository()
+      ..answers = const [
+        PostRow(
+          id: 'post-1',
+          platform: 'instagram',
+          status: PostStatus.processing,
+        ),
+      ];
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(publishTimeoutFailure);
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.unconfirmed);
+    expect(
+      state.statuses.single.message,
+      'The publish timed out. Check the Queue before trying again.',
+    );
+    // The wait is bounded: one read for the refresh and one per attempt.
+    expect(repository.reads, hasLength(4));
+  });
+
+  test('a published row after a timeout is published', () async {
+    final repository = _FakeRepository()
+      ..answers = const [
+        PostRow(
+          id: 'post-1',
+          platform: 'instagram',
+          status: PostStatus.published,
+        ),
+      ];
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(publishTimeoutFailure);
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.published);
+    // The row already said it, so nothing had to be waited for.
+    expect(repository.reads, hasLength(1));
+  });
+
+  test('a failed row after a timeout is failed', () async {
+    final repository = _FakeRepository()
+      ..answers = const [
+        PostRow(id: 'post-1', platform: 'instagram', status: PostStatus.failed),
+      ];
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(publishTimeoutFailure);
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.failed);
+    expect(repository.reads, hasLength(1));
+  });
+
+  test(
+    'a row with a published time went out even when it says failed',
+    () async {
+      final repository = _FakeRepository()
+        ..answers = [
+          PostRow(
+            id: 'post-1',
+            platform: 'instagram',
+            status: PostStatus.failed,
+            publishedAt: DateTime.utc(2026, 10, 29),
+          ),
+        ];
+      final client = _FakeClient()
+        ..failures[_instagram.id] = const PublishException(
+          publishTimeoutFailure,
+        );
+      final container = _container(repository: repository, client: client);
+      addTearDown(container.dispose);
+
+      await container
+          .read(publishControllerProvider.notifier)
+          .publish(
+            selection: const PublishSelection(
+              targetIds: {'instagram:ig-1:feed'},
+            ),
+            targets: const [_instagram],
+            videoId: 'video-1',
+          );
+
+      final state = container.read(publishControllerProvider) as PublishDone;
+      expect(state.statuses.single.phase, PublishPhase.published);
+    },
+  );
+
+  test('a plain failure does not wait for the row', () async {
+    final repository = _FakeRepository()
+      ..answers = const [
+        PostRow(
+          id: 'post-1',
+          platform: 'instagram',
+          status: PostStatus.processing,
+        ),
+      ];
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(
+        PublishFailure(PublishErrorCode.platformRejected, 'Instagram said no.'),
+      );
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.failed);
+    expect(repository.reads, hasLength(1));
+  });
+
+  test('an upload that worked but the row did not is not confirmed', () async {
+    final repository = _FakeRepository()
+      ..answers = const [
+        PostRow(id: 'post-1', platform: 'instagram', status: PostStatus.failed),
+      ];
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(
+        PublishFailure(
+          PublishErrorCode.uploadSucceeded,
+          'The post may have gone out. Check the Queue before trying again.',
+        ),
+      );
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.unconfirmed);
+    expect(
+      state.statuses.single.message,
+      'The post may have gone out. Check the Queue before trying again.',
+    );
   });
 }

@@ -308,7 +308,12 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] `publish_page.dart`: the compose screen, the per-platform status, the action off without a sign-in
   - [x] The `/publish` route and the Publish button after the upload
   - [x] 63 tests
-- [ ] **4.3** Publish-now flow with status polling
+- [x] **4.3** Publish-now flow with status polling
+  - [x] `publish_client.dart`: the call budget, the timeout and the dropped connection as their own failures
+  - [x] `publish_errors.dart`: the outcome that is unknown, the code for an upload that worked while the row did not
+  - [x] `publishing_controller.dart`: the row read back after every attempt, the bounded wait for a row that is still running
+  - [x] `publish_page.dart`: the phase that is not confirmed
+  - [x] 13 tests
 - [ ] **4.4** Schedule + retry guard: refresh status before retry
 - [ ] **4.5** Phase 4 gate
   - [ ] State-machine tests for timeout/already-published
@@ -343,6 +348,17 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Deviation from the spec's UI:** the spec puts the media on the left and the form on the right; the screen is one column, because the media block is only the file name and the size and a second column would stay empty.
 - **Tests:** 63 new (validation, the client contract, the queue contract, the controller, the compose screen) — 350 in the suite; `flutter analyze` and the format check are clean.
 - **Deferred to 4.3 and 4.4:** the read-back of the row after the call, the polling of a running status, the scheduled row, the Retry button and its compare-and-set.
+
+### Phase 4.3 evidence (2026-10-29)
+
+- **The row is the truth** (`publishing_controller.dart`): after every attempt the row is read back, because the function writes `published` or `failed` itself (`youtube-upload/index.ts:307-310` and the same shape in the other five). A row that carries a `published_at` counts as published even when its status says otherwise — the functions only write that time when the platform took the post, and a later failure does not clear it (`youtube-upload/index.ts:320-325` sets `failed` over a row that was already published).
+- **The call budget** (`publish_client.dart`): 180 s for the whole call. The Instagram function waits on the platform for about two minutes before it answers (`instagram-upload/index.ts:232-233`: 10 attempts, 12 s apart), so a client that gave up earlier would call a finished publish a timeout.
+- **A call that never came back** leaves the outcome unknown: the row is asked again, five seconds apart, twelve times at most. The wait only happens for a timeout or a dropped connection — a plain failure settles the row itself, and waiting for it would burn a minute for nothing.
+- **The new phase `unconfirmed`** ("Not confirmed"): the call timed out and the row never settled. The client cannot say the post went out and cannot say it did not, so it says so — and offers no retry, because the platform may have taken it. This is the spec's success criterion 3.
+- **A thirteenth error code**, `uploadSucceeded` ("The post may have gone out. Check the Queue before trying again."): the functions answer "Upload succeeded but status update failed" with a 500 (`youtube-upload/index.ts:314`, `tiktok-upload/index.ts:412`, `facebook-upload/index.ts:216`, `linkedin-upload/index.ts:218`) — the platform took the post and the row could not be written. The row's own `failed` is stale there, so the client keeps that outcome unconfirmed instead of offering a retry that would post twice. The spec's error table has twelve codes; this one is added for that sentence alone.
+- **The queue call is bounded too** (`posts_repository.dart`): 30 s per call, so the read-back and the wait can never hang the window.
+- **Tests:** 13 new (the timeout and the dropped connection against a real local server, the mapping of the unknown outcome, the read-back, the wait, the row that settles, the row that never settles, the published time over a failed status, the unconfirmed phase on the screen) — 363 in the suite; `flutter analyze` and the format check are clean.
+- **Deferred to 4.4:** the scheduled row and its status, the Retry button, the compare-and-set that moves a row back into the queue, and the rule that the button stays disabled until the row has been refreshed.
 
 ---
 

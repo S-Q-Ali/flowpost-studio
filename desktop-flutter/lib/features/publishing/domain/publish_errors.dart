@@ -10,10 +10,30 @@ enum PublishErrorCode {
   mediaMissing,
   wrongPlatform,
   platformRejected,
+  uploadSucceeded,
   timeout,
   network,
   unknown,
 }
+
+extension PublishErrorOutcome on PublishErrorCode {
+  /// The call never came back, so the row is the only thing that can say
+  /// whether the post went out.
+  bool get isUnknownOutcome =>
+      this == PublishErrorCode.timeout || this == PublishErrorCode.network;
+}
+
+/// The failure of a call that ran out of time.
+const PublishFailure publishTimeoutFailure = PublishFailure(
+  PublishErrorCode.timeout,
+  'The publish timed out. Check the Queue before trying again.',
+);
+
+/// The failure of a call that could not reach the server.
+const PublishFailure publishNetworkFailure = PublishFailure(
+  PublishErrorCode.network,
+  'No connection to the server.',
+);
 
 /// A failure with the sentence the screen shows.
 class PublishFailure {
@@ -64,6 +84,14 @@ PublishFailure mapPublishFailure({required int statusCode, String? text}) {
     return const PublishFailure(
       PublishErrorCode.mediaMissing,
       'The media for this post is missing. Upload it again.',
+    );
+  }
+  if (lower.contains('upload succeeded but status update failed')) {
+    // The platform took the post and the row could not be written, so the
+    // row's own "failed" is stale and a retry would post twice.
+    return const PublishFailure(
+      PublishErrorCode.uploadSucceeded,
+      'The post may have gone out. Check the Queue before trying again.',
     );
   }
   if (statusCode == 400 || statusCode == 405) {

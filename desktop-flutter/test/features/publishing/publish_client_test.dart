@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flowpost_desktop/features/publishing/data/publish_client.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_errors.dart';
@@ -292,6 +293,88 @@ void main() {
 
     expect(failure.code, PublishErrorCode.unknown);
     expect(failure.message, 'The publish failed. Try again.');
+  });
+
+  test(
+    'an upload that worked but the row did not is not a plain failure',
+    () async {
+      final transport = _FakeTransport()
+        ..reply = const PublishReply(
+          statusCode: 500,
+          body: {'error': 'Upload succeeded but status update failed'},
+        );
+
+      final failure = await _failureOf(transport);
+
+      expect(failure.code, PublishErrorCode.uploadSucceeded);
+      expect(
+        failure.message,
+        'The post may have gone out. Check the Queue before trying again.',
+      );
+    },
+  );
+
+  test(
+    'a call that never reached the service fails with its own reason',
+    () async {
+      final transport = _FakeTransport()
+        ..reply = const PublishReply(
+          statusCode: 0,
+          body: {},
+          failure: publishTimeoutFailure,
+        );
+
+      final failure = await _failureOf(transport);
+
+      expect(failure.code, PublishErrorCode.timeout);
+      expect(
+        failure.message,
+        'The publish timed out. Check the Queue before trying again.',
+      );
+    },
+  );
+
+  group('the http transport', () {
+    test('a call that runs out of time is a timeout', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      // The server takes the body and never answers.
+      server.listen((request) async {
+        await request.drain<void>();
+      });
+
+      final reply =
+          await HttpPublishTransport(
+            timeout: const Duration(milliseconds: 200),
+          ).send(
+            url: Uri.parse(
+              'http://127.0.0.1:${server.port}/functions/v1/instagram-upload',
+            ),
+            body: '{"postId":"post-1"}',
+            token: 'session',
+          );
+
+      expect(reply.failure?.code, PublishErrorCode.timeout);
+      expect(
+        reply.failure?.message,
+        'The publish timed out. Check the Queue before trying again.',
+      );
+    });
+
+    test('a server that cannot be reached is a network failure', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final port = server.port;
+      await server.close(force: true);
+
+      final reply = await HttpPublishTransport().send(
+        url: Uri.parse('http://127.0.0.1:$port/functions/v1/instagram-upload'),
+        body: '{"postId":"post-1"}',
+        token: 'session',
+      );
+
+      expect(reply.failure?.code, PublishErrorCode.network);
+      expect(reply.failure?.message, 'No connection to the server.');
+    });
   });
 }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -225,9 +226,18 @@ class PostgrestPostsRepository implements PostsRepository {
 
 /// The real transport: PostgREST over `dart:io`.
 class HttpPostsTransport implements PostsTransport {
-  HttpPostsTransport({required this.anonKey});
+  HttpPostsTransport({
+    required this.anonKey,
+    this.timeout = const Duration(seconds: 30),
+  });
 
   final String anonKey;
+
+  /// How long one call may take.
+  ///
+  /// The queue is asked again and again while a publish settles, and a call
+  /// that never comes back would freeze the screen.
+  final Duration timeout;
 
   @override
   Future<List<Map<String, Object?>>> send({
@@ -250,14 +260,19 @@ class HttpPostsTransport implements PostsTransport {
         request.headers.contentType = ContentType.json;
         request.write(body);
       }
-      final response = await request.close();
-      final text = await response.transform(utf8.decoder).join();
+      final response = await request.close().timeout(timeout);
+      final text = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw PostsException(
           'The queue did not accept the post (${response.statusCode}).',
         );
       }
       return _rowsOf(text);
+    } on TimeoutException {
+      throw const PostsException('The queue did not answer. Try again.');
     } finally {
       client.close(force: true);
     }

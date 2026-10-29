@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,12 +7,20 @@ import '../domain/publish_target.dart';
 
 /// What the publish service answered.
 class PublishReply {
-  const PublishReply({required this.statusCode, required this.body});
+  const PublishReply({
+    required this.statusCode,
+    required this.body,
+    this.failure,
+  });
 
   final int statusCode;
 
   /// The parsed JSON body. Empty when the answer was not JSON.
   final Map<String, dynamic> body;
+
+  /// The failure of a call that never reached the service. Null when the
+  /// service answered.
+  final PublishFailure? failure;
 }
 
 /// What a successful publish call left behind.
@@ -99,6 +108,10 @@ class PublishClient implements PublishApi {
       body: jsonEncode({'postId': postId}),
       token: token,
     );
+    final failure = reply.failure;
+    if (failure != null) {
+      throw PublishException(failure);
+    }
     if (reply.statusCode < 200 || reply.statusCode >= 300) {
       final error = reply.body['error'];
       throw PublishException(
@@ -120,6 +133,15 @@ class PublishClient implements PublishApi {
 
 /// The real transport: one JSON call with the session token.
 class HttpPublishTransport implements PublishTransport {
+  HttpPublishTransport({this.timeout = defaultPublishTimeout});
+
+  /// The whole call gets this long.
+  ///
+  /// The Instagram function waits on the platform for about two minutes
+  /// before it answers, so the client has to outlast it: a client that gave
+  /// up earlier would call a finished publish a timeout.
+  final Duration timeout;
+
   @override
   Future<PublishReply> send({
     required Uri url,
@@ -134,8 +156,11 @@ class HttpPublishTransport implements PublishTransport {
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
       }
       request.write(body);
-      final response = await request.close();
-      final text = await response.transform(utf8.decoder).join();
+      final response = await request.close().timeout(timeout);
+      final text = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(timeout);
       Object? decoded;
       try {
         decoded = text.isEmpty ? null : jsonDecode(text);
@@ -146,8 +171,19 @@ class HttpPublishTransport implements PublishTransport {
         statusCode: response.statusCode,
         body: decoded is Map ? Map<String, dynamic>.from(decoded) : const {},
       );
+    } on TimeoutException {
+      return _noAnswer(publishTimeoutFailure);
+    } on IOException {
+      return _noAnswer(publishNetworkFailure);
     } finally {
       client.close(force: true);
     }
   }
+
+  /// The call never reached the service.
+  PublishReply _noAnswer(PublishFailure failure) =>
+      PublishReply(statusCode: 0, body: const {}, failure: failure);
 }
+
+/// How long a publish call may take before the client gives up on it.
+const Duration defaultPublishTimeout = Duration(seconds: 180);
