@@ -39,6 +39,15 @@ abstract interface class FfmpegExecutor {
   void cancel();
 }
 
+/// Decodes FFmpeg output into lines.
+///
+/// FFmpeg can echo bytes that are not valid UTF-8 (a file name in a legacy
+/// code page), and a decoder error would take the whole job down, so the
+/// malformed bytes are replaced instead of thrown.
+Stream<String> decodeOutputLines(Stream<List<int>> bytes) => bytes
+    .transform(const Utf8Decoder(allowMalformed: true))
+    .transform(const LineSplitter());
+
 /// Runs the bundled FFmpeg as a separate process.
 ///
 /// Arguments are always passed as a list, never through a shell, so a path
@@ -77,20 +86,14 @@ class FfmpegRunner implements FfmpegExecutor {
     _active = process;
     if (_cancelRequested) process.kill();
 
-    final outDone = process.stdout
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen((line) {
-          if (stdoutBuffer.length < _maxStdoutChars) stdoutBuffer.writeln(line);
-          final outTime = parseProgressOutTime(line);
-          if (outTime != null) onProgress?.call(outTime);
-        });
-    final errDone = process.stderr
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen((line) {
-          if (stderrBuffer.length < _maxStderrChars) stderrBuffer.writeln(line);
-        });
+    final outDone = decodeOutputLines(process.stdout).listen((line) {
+      if (stdoutBuffer.length < _maxStdoutChars) stdoutBuffer.writeln(line);
+      final outTime = parseProgressOutTime(line);
+      if (outTime != null) onProgress?.call(outTime);
+    });
+    final errDone = decodeOutputLines(process.stderr).listen((line) {
+      if (stderrBuffer.length < _maxStderrChars) stderrBuffer.writeln(line);
+    });
 
     var timedOut = false;
     int exitCode;

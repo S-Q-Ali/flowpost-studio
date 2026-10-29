@@ -403,6 +403,28 @@ void main() {
     }
   });
 
+  test('a failed run never leaks the source folder', () async {
+    final executor = _workingExecutor(
+      onFfmpeg: (call) => const FfmpegRun(
+        exitCode: 1,
+        stdout: '',
+        stderr: '[mov,mp4] Error opening input: C:\\Users\\Jane Doe\\clips\\bad.mp4',
+      ),
+    );
+
+    try {
+      await FfmpegMediaProcessor(
+        executor: executor,
+        paths: _paths,
+      ).process(job(sourcePath: r'C:\Users\Jane Doe\clips\bad.mp4'));
+      fail('the pipeline should have failed');
+    } on MediaProcessingException catch (error) {
+      expect(error.message, isNot(contains('Jane')));
+      expect(error.message, isNot(contains('Doe')));
+      expect(error.message, isNotEmpty);
+    }
+  });
+
   test('an operation that produces no file fails the step', () async {
     final executor = _workingExecutor(
       onFfmpeg: (call) => const FfmpegRun(exitCode: 0, stdout: '', stderr: ''),

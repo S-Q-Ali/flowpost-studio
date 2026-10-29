@@ -42,6 +42,15 @@ String redactSecrets(String message) {
   return redacted;
 }
 
+/// Drops the control characters that could forge a log record: a name that
+/// carries a newline must not be able to write a second line into the log.
+String stripControlCharacters(String text, {bool keepNewlines = false}) {
+  final pattern = keepNewlines
+      ? RegExp(r'[\x00-\x09\x0b-\x1f\x7f]')
+      : RegExp(r'[\x00-\x1f\x7f]');
+  return text.replaceAll(pattern, ' ');
+}
+
 /// Renames [log] to `<log>.1` once it exceeds [maxBytes]; the next append
 /// recreates it. Keeps `%APPDATA%\com.flowpost\FlowPost\logs\app.log` bounded.
 Future<void> rotateLogIfNeeded(File log, {int maxBytes = 1 << 20}) async {
@@ -78,13 +87,19 @@ Future<Logger> initLogging() async {
         await rotateLogIfNeeded(file);
         final line = StringBuffer(
           '${record.time.toIso8601String()} ${record.level.name} '
-          '${record.loggerName}: ${redactSecrets(record.message)}',
+          '${record.loggerName}: '
+          '${stripControlCharacters(redactSecrets(record.message))}',
         );
         if (record.error != null) {
-          line.write(' | error=${redactSecrets('${record.error}')}');
+          line.write(
+            ' | error='
+            '${stripControlCharacters(redactSecrets('${record.error}'))}',
+          );
         }
         if (record.stackTrace != null) {
-          line.write('\n${redactSecrets('${record.stackTrace}')}');
+          line.write(
+            '\n${stripControlCharacters(redactSecrets('${record.stackTrace}'), keepNewlines: true)}',
+          );
         }
         line.write('\n');
         await file.writeAsString(line.toString(), mode: FileMode.append);

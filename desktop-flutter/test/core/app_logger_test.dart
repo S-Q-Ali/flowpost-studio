@@ -48,6 +48,17 @@ void main() {
     expect(redactSecrets(safe), safe);
   });
 
+  test('strips the control characters that could forge a log line', () {
+    expect(
+      stripControlCharacters('job 1\r\nINFO forged'),
+      'job 1  INFO forged',
+    );
+  });
+
+  test('keeps the newlines of a stack trace', () {
+    expect(stripControlCharacters('a\nb', keepNewlines: true), 'a\nb');
+  });
+
   group('flushLogging', () {
     // In widget tests path_provider has no implementation, so every queued
     // write fails inside the chain — exactly the failure that must not

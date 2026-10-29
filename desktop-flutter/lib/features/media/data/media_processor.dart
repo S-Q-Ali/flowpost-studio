@@ -147,6 +147,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
       thumbnail,
       progress,
       budget,
+      job.sourcePath,
     );
 
     progress.stage(MediaStage.processing, 0.8, 'Extracting caption frames...');
@@ -163,6 +164,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
         frame,
         progress,
         budget,
+        job.sourcePath,
       );
       frames.add(frame);
     }
@@ -176,6 +178,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
         audio,
         progress,
         budget,
+        job.sourcePath,
       );
     }
 
@@ -224,7 +227,9 @@ class FfmpegMediaProcessor implements MediaProcessor {
       budget: budget,
     );
     if (!run.isSuccess) {
-      throw MediaProcessingException(ffmpegErrorReason(run.stderr));
+      throw MediaProcessingException(
+        ffmpegErrorReason(run.stderr, sourcePath: job.sourcePath),
+      );
     }
     await _requireOutput(output);
     return output;
@@ -236,6 +241,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
     File expected,
     _Progress progress,
     _Budget budget,
+    String sourcePath,
   ) async {
     final run = await _execute(
       arguments,
@@ -246,7 +252,9 @@ class FfmpegMediaProcessor implements MediaProcessor {
       budget: budget,
     );
     if (!run.isSuccess) {
-      throw MediaProcessingException(ffmpegErrorReason(run.stderr));
+      throw MediaProcessingException(
+        ffmpegErrorReason(run.stderr, sourcePath: sourcePath),
+      );
     }
     await _requireOutput(expected);
   }
