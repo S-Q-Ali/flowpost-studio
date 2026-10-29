@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -232,5 +233,53 @@ void main() {
     ).rescheduleFailed('post-1', DateTime.utc(2026, 10, 29, 12));
 
     expect(moved, isFalse);
+  });
+
+  group('the http transport', () {
+    test('a dropped connection is a refused answer', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final port = server.port;
+      await server.close(force: true);
+
+      await expectLater(
+        HttpPostsTransport(anonKey: 'anon').send(
+          method: 'GET',
+          url: Uri.parse('http://127.0.0.1:$port/rest/v1/posts'),
+        ),
+        throwsA(
+          isA<PostsException>().having(
+            (error) => error.message,
+            'message',
+            'The queue did not answer. Try again.',
+          ),
+        ),
+      );
+    });
+
+    test('a call that runs out of time is a refused answer', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      // The server takes the request and never answers.
+      server.listen((request) async {
+        await request.drain<void>();
+      });
+
+      await expectLater(
+        HttpPostsTransport(
+          anonKey: 'anon',
+          timeout: const Duration(milliseconds: 200),
+        ).send(
+          method: 'GET',
+          url: Uri.parse('http://127.0.0.1:${server.port}/rest/v1/posts'),
+        ),
+        throwsA(
+          isA<PostsException>().having(
+            (error) => error.message,
+            'message',
+            'The queue did not answer. Try again.',
+          ),
+        ),
+      );
+    });
   });
 }

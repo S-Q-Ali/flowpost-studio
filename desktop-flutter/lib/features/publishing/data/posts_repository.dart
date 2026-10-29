@@ -249,8 +249,12 @@ class HttpPostsTransport implements PostsTransport {
     // A client per call: the table is asked a few times per publish, and a
     // client that is kept open holds a socket for the life of the app.
     final client = HttpClient();
+    // One budget for the whole call: the connection, the answer and the
+    // body. Two timeouts would make the budget twice as long as it says.
+    final clock = Stopwatch()..start();
+    Duration left() => timeout - clock.elapsed;
     try {
-      final request = await client.openUrl(method, url);
+      final request = await client.openUrl(method, url).timeout(left());
       request.headers.set('apikey', anonKey);
       request.headers.set('Prefer', 'return=representation');
       if (token != null) {
@@ -260,11 +264,11 @@ class HttpPostsTransport implements PostsTransport {
         request.headers.contentType = ContentType.json;
         request.write(body);
       }
-      final response = await request.close().timeout(timeout);
+      final response = await request.close().timeout(left());
       final text = await response
           .transform(utf8.decoder)
           .join()
-          .timeout(timeout);
+          .timeout(left());
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw PostsException(
           'The queue did not accept the post (${response.statusCode}).',
@@ -272,6 +276,11 @@ class HttpPostsTransport implements PostsTransport {
       }
       return _rowsOf(text);
     } on TimeoutException {
+      throw const PostsException('The queue did not answer. Try again.');
+    } on IOException {
+      // The connection was dropped or never opened. Without this the
+      // exception would escape the publish and leave the screen stuck on
+      // "Publishing..." with nothing to show.
       throw const PostsException('The queue did not answer. Try again.');
     } finally {
       client.close(force: true);

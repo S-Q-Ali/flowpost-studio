@@ -149,18 +149,22 @@ class HttpPublishTransport implements PublishTransport {
     String? token,
   }) async {
     final client = HttpClient();
+    // One budget for the whole call: the connection, the answer and the
+    // body. Two timeouts would make the budget twice as long as it says.
+    final clock = Stopwatch()..start();
+    Duration left() => timeout - clock.elapsed;
     try {
-      final request = await client.postUrl(url);
+      final request = await client.postUrl(url).timeout(left());
       request.headers.contentType = ContentType.json;
       if (token != null) {
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
       }
       request.write(body);
-      final response = await request.close().timeout(timeout);
+      final response = await request.close().timeout(left());
       final text = await response
           .transform(utf8.decoder)
           .join()
-          .timeout(timeout);
+          .timeout(left());
       Object? decoded;
       try {
         decoded = text.isEmpty ? null : jsonDecode(text);
