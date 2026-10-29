@@ -46,6 +46,9 @@ dependencies:
   # copy already resolved via window_manager/tray_manager, so no new package enters the tree.
   win32: ^6.4.0
   ffi: ^2.2.0
+  # The local cache and the local drafts. The build hook compiles SQLite from
+  # source, so the app carries its own library (ADR 0003).
+  sqlite3: ^3.8.0
 
 dev_dependencies:
   flutter_test:

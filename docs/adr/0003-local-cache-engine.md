@@ -29,7 +29,7 @@ The question this ADR answers: **which SQLite engine, and is SQLite the right to
 
 `package:sqlite3` 3.x binds SQLite over `dart:ffi` and obtains the library through **Dart build hooks (native assets)**: the package's own dependencies are `hooks`, `code_assets` and `native_toolchain_c`, and its published platform list is Android, iOS, Linux, macOS, Windows and Web. The SQLite amalgamation is compiled from source at build time and bundled into the app.
 
-**No `sqlite3.dll` is shipped and no installer change is needed.** That was the deciding fact: the usual objection to SQLite on Windows — a native binary next to the executable — does not apply here.
+**No installer change is needed, and no system SQLite is needed.** The spike on 2026-10-29 settled where the compiled library lands: the build hook writes `build/native_assets/windows/sqlite3.dll`, and the Flutter build copies it next to the executable. So a `sqlite3.dll` of 1.7 MB **does** sit beside `flowpost.exe` — the usual objection to SQLite on Windows is true in shape. It does not matter in practice: the installer already copies the whole `Release` folder (`installer/flowpost.iss`), so the DLL ships without a line changing, and the app carries its own SQLite rather than depending on one the machine may or may not have. This is the same shape as every Flutter Windows plugin DLL the app already ships.
 
 - **Version floor:** the package needs Dart `>= 3.10.0 < 4.0.0`; the project is on Dart 3.13.7 / Flutter 3.47.8. Build hooks need Dart ≥ 3.10.0 or Flutter ≥ 3.38.0, and both the Dart VM and the Flutter tool run the package's hook.
 - **No new build requirement:** the hook compiles through `native_toolchain_c`, which uses the system C compiler. A Flutter Windows build already needs the Visual Studio C++ toolchain, so nothing new is asked of the build machine.
@@ -88,7 +88,7 @@ The newest 500 posts and 500 videos. The server keeps the rest, and the calendar
 
 - **One new dependency**, `sqlite3` (3.8.0), plus its own chain (`ffi`, `hooks`, `code_assets`, `native_toolchain_c`). No database *framework* is added, so the Dart-side surface stays small.
 - **The build compiles SQLite from source.** The first build on a machine is slower, and the build needs the C compiler the Flutter Windows build already needs.
-- **The app gains a native asset.** The installer grows by roughly 1–2 MB.
+- **The app gains a native asset.** `sqlite3.dll`, 1.7 MB, measured by the spike. The installer grows by that much and needs no change.
 - **The SQL surface is small and hand-written.** Five tables, a handful of statements, every value a bound parameter.
 - **The tests need a temporary file.** The store's tests open a real database in a temp directory; the seam is the interface, not an in-memory fake.
 - **The cache is not encrypted.** It holds the admin's own captions, titles and file URLs on the admin's own machine, in the app's own support folder — the same posture as the existing `accounts.json`. Recorded in `SPEC-offline.md` so it is a decision and not an accident.
@@ -98,6 +98,18 @@ The newest 500 posts and 500 videos. The server keeps the rest, and the calendar
 
 - **Spike, before 5.3.** Add `sqlite3` to `desktop-flutter/pubspec.yaml`, open a database in a temp directory, create a table, write a row, read it back, close it, reopen it — under `flutter test` and under `flutter build windows`. The risk this closes: the build hook has to run in the test runner on Windows, and that is the one thing the sources do not settle.
 - **The spike must also show** that the compiled asset is inside the built app and that no `sqlite3.dll` sits next to the executable.
+
+### Spike result (2026-10-29) — done, and it corrected the ADR
+
+| Check | Result |
+|---|---|
+| `flutter test` opens a database in a temp dir, writes a row, reads it back, closes and reopens | **Pass.** The hook runs in the test runner on Windows; the row was still there after the reopen |
+| `flutter build windows --release` | **Pass** (exit 0) |
+| Where the compiled library lands | `build/native_assets/windows/sqlite3.dll`, copied to `build/windows/x64/runner/Release/sqlite3.dll` (1.7 MB) and recorded in `native_assets.json` under `package:sqlite3/src/ffi/libsqlite3.g.dart` |
+| No `sqlite3.dll` next to the executable | **Fail, and the ADR was wrong about this.** The DLL is next to `flowpost.exe`. The conclusion survives anyway: `installer/flowpost.iss` copies the whole `Release` folder, so the DLL ships with no change to the installer, and the app needs no system SQLite |
+| The package pulls in anything else | `sqlite3` 3.8.0 and its own chain only; `flutter pub add sqlite3` added one direct dependency |
+
+The spike test is kept at `desktop-flutter/test/features/offline/local_database_test.dart`.
 - **Then**, the schema, the migrations and the corruption rules are covered by the tests named in `SPEC-offline.md`.
 
 ## Open questions
