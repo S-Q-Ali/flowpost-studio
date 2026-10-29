@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/app_providers.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../offline/offline_providers.dart';
 import '../../publishing/data/posts_repository.dart';
 import '../../publishing/domain/publish_validation.dart';
 import '../domain/post_edit.dart';
@@ -151,9 +152,11 @@ class _PostDetailsState extends ConsumerState<_PostDetails> {
       _error = null;
     });
     try {
+      // The status the dialog saw is the guard: a scheduled row the publisher
+      // claimed while the confirmation was open must not be deleted.
       final deleted = await ref
           .read(scheduledPostsRepositoryProvider)
-          .delete(_post.id);
+          .delete(_post.id, onlyIf: _post.status);
       if (!mounted) return;
       if (!deleted) {
         setState(() {
@@ -162,6 +165,8 @@ class _PostDetailsState extends ConsumerState<_PostDetails> {
         });
         return;
       }
+      await ref.read(postsCacheProvider).remove(_post.id);
+      if (!mounted) return;
       ref.invalidate(queueControllerProvider);
       ref.invalidate(calendarControllerProvider);
       Navigator.of(context).pop();
@@ -324,17 +329,15 @@ class _EditPostFormState extends ConsumerState<_EditPostForm> {
       _error = null;
     });
     try {
+      final edit = PostEdit(
+        caption: _emptyAsNull(_caption.text),
+        hashtags: _emptyAsNull(_hashtags.text),
+        containsAlteredContent: _altered,
+        scheduledAt: check.instant!,
+      );
       final saved = await ref
           .read(scheduledPostsRepositoryProvider)
-          .updateScheduled(
-            post.id,
-            PostEdit(
-              caption: _emptyAsNull(_caption.text),
-              hashtags: _emptyAsNull(_hashtags.text),
-              containsAlteredContent: _altered,
-              scheduledAt: check.instant!,
-            ),
-          );
+          .updateScheduled(post.id, edit);
       if (!mounted) return;
       if (!saved) {
         setState(() {
@@ -343,6 +346,29 @@ class _EditPostFormState extends ConsumerState<_EditPostForm> {
         });
         return;
       }
+      // The server took the row, so the cache is updated now rather than at
+      // the next read: if the connection drops first, the screen must not show
+      // the caption the admin just replaced (SPEC-offline "The cache").
+      await ref
+          .read(postsCacheProvider)
+          .save(
+            ScheduledPost(
+              id: post.id,
+              status: post.status,
+              platform: post.platform,
+              postType: post.postType,
+              accountName: post.accountName,
+              caption: edit.caption,
+              hashtags: edit.hashtags,
+              scheduledAt: edit.scheduledAt,
+              publishedAt: post.publishedAt,
+              videoTitle: post.videoTitle,
+              thumbnailUrl: post.thumbnailUrl,
+              containsAlteredContent: edit.containsAlteredContent,
+            ),
+            readAt: DateTime.now(),
+          );
+      if (!mounted) return;
       Navigator.of(context).pop(true);
     } on PostsException catch (error) {
       if (!mounted) return;

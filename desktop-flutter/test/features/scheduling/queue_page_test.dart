@@ -244,6 +244,7 @@ void main() {
 
       expect(repository.changes.single.id, 'post-1');
       expect(repository.changes.single.edit, isNull);
+      expect(repository.changes.single.onlyIf, PostStatus.scheduled);
       expect(find.byType(AlertDialog), findsNothing);
     });
 
@@ -335,6 +336,72 @@ void main() {
       expect(edit.caption, 'New caption');
       expect(edit.scheduledAt, at.toUtc());
       expect(find.byType(AlertDialog), findsNothing);
+    });
+
+    testWidgets('an edit also writes the row into the cache', (tester) async {
+      final at = DateTime(2026, 10, 30, 10);
+      final repository = FakeScheduledPostsRepository()
+        ..pages[0] = ScheduledPostsPage(
+          posts: [post(scheduledAt: at)],
+          hasMore: false,
+        );
+      final cache = FakePostsCache();
+      await _pump(tester, repository, cache: cache);
+      await open(tester);
+
+      await tester.tap(find.byKey(const Key('post-edit')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('edit-caption')),
+        'New caption',
+      );
+      await tester.tap(find.byKey(const Key('edit-save')));
+      await tester.pumpAndSettle();
+
+      final saved = cache.saved.single;
+      expect(saved.id, 'post-1');
+      expect(saved.caption, 'New caption');
+      expect(saved.scheduledAt, at.toUtc());
+      expect(saved.status, PostStatus.scheduled);
+    });
+
+    testWidgets('a cancel drops the row from the cache', (tester) async {
+      final repository = FakeScheduledPostsRepository()
+        ..pages[0] = ScheduledPostsPage(
+          posts: [post(scheduledAt: DateTime(2026, 10, 29, 10))],
+          hasMore: false,
+        );
+      final cache = FakePostsCache();
+      await _pump(tester, repository, cache: cache);
+      await open(tester);
+
+      await tester.tap(find.byKey(const Key('post-cancel')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-delete')));
+      await tester.pumpAndSettle();
+
+      expect(cache.removed, ['post-1']);
+    });
+
+    testWidgets('a delete that was already gone leaves the cache alone', (
+      tester,
+    ) async {
+      final repository = FakeScheduledPostsRepository()
+        ..changeSucceeds = false
+        ..pages[0] = ScheduledPostsPage(
+          posts: [post(scheduledAt: DateTime(2026, 10, 29, 10))],
+          hasMore: false,
+        );
+      final cache = FakePostsCache();
+      await _pump(tester, repository, cache: cache);
+      await open(tester);
+
+      await tester.tap(find.byKey(const Key('post-cancel')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-delete')));
+      await tester.pumpAndSettle();
+
+      expect(cache.removed, isEmpty);
     });
 
     testWidgets('an edit onto a time the clock skips is refused', (

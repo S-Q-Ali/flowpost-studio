@@ -23,7 +23,7 @@ class FakeScheduledPostsRepository implements ScheduledPostsRepository {
   List<ScheduledPost> rangePosts = [];
 
   /// Every edit and delete, in call order. An edit is null for a delete.
-  final List<({String id, PostEdit? edit})> changes = [];
+  final List<({String id, PostEdit? edit, PostStatus? onlyIf})> changes = [];
 
   /// What an edit or a delete answers.
   bool changeSucceeds = true;
@@ -67,16 +67,16 @@ class FakeScheduledPostsRepository implements ScheduledPostsRepository {
     await _maybeWait();
     final error = this.error;
     if (error != null) throw error;
-    changes.add((id: postId, edit: edit));
+    changes.add((id: postId, edit: edit, onlyIf: null));
     return changeSucceeds;
   }
 
   @override
-  Future<bool> delete(String postId) async {
+  Future<bool> delete(String postId, {PostStatus? onlyIf}) async {
     await _maybeWait();
     final error = this.error;
     if (error != null) throw error;
-    changes.add((id: postId, edit: null));
+    changes.add((id: postId, edit: null, onlyIf: onlyIf));
     return changeSucceeds;
   }
 

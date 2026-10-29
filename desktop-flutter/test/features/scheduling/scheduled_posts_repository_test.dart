@@ -408,6 +408,20 @@ void main() {
       expect(transport.urls.single.queryParameters['id'], 'eq.post-1');
     });
 
+    test('a delete names the status the row was in', () async {
+      final transport = _FakeTransport()
+        ..answers.add([
+          {'id': 'post-1'},
+        ]);
+
+      final deleted = await _repository(transport)
+          .delete('post-1', onlyIf: PostStatus.scheduled);
+
+      expect(deleted, isTrue);
+      expect(transport.urls.single.queryParameters['id'], 'eq.post-1');
+      expect(transport.urls.single.queryParameters['status'], 'eq.scheduled');
+    });
+
     test('a delete of a row that is already gone says so', () async {
       final deleted = await _repository(_FakeTransport()).delete('post-1');
 

@@ -452,12 +452,12 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - [x] **5.5** Connectivity banner; cached reads; reconnect refresh
   - [x] The offline gate on the Publish button, with the reason
 - [ ] **5.6** Phase 5 gate
-  - [ ] Timezone/DST tests
-  - [ ] Cache migration and corruption tests
-  - [ ] Draft round-trip and restart
-  - [ ] Offline cannot publish
-  - [ ] Data-loss review
-  - [ ] Scoped `ponytail-audit` no Must-fix
+  - [x] Timezone/DST tests
+  - [x] Cache migration and corruption tests
+  - [x] Draft round-trip and restart
+  - [x] Offline cannot publish
+  - [x] Data-loss review
+  - [x] Scoped `ponytail-audit` no Must-fix
   - [ ] Human approval
 
 ### Phase 5.1 evidence (2026-10-29)
@@ -565,9 +565,24 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Coming back online reads again.** Both controllers `ref.listen` the connectivity state and `invalidateSelf` on the offline → online edge when the screen is showing saved rows and not already loading, so the banner and the rows are replaced by a fresh read. A provider that is still loading is left alone, so a reconnect cannot cut a read short.
 - **The Publish button is off offline, and says why.** `canPublishProvider` (`lib/features/publishing/publishing_providers.dart`) also requires `connectivityProvider != offline`; the blocked line reads "A connection is needed to publish." instead of "Sign in required to publish." (`publish_page.dart`), so the reason matches the cause. The controller still refuses on its own, so the gate cannot be bypassed by the form.
 - **Riverpod 3 pauses a provider's listeners when nothing listens to the provider.** The reconnect tests kept seeing the cached rows until they held the controller open with `container.listen(queueControllerProvider, (_, _) {})`. That is a property of the framework, not of the code, and it is now written into the tests so the next reconnect test does not lose a day to it.
-- **What this slice does not do, on purpose.** An edit or a delete does not write the cache yet; the next successful read merges it, and a delete leaves one stale row until then. The `accounts`, `videos` and `profile` tables remain deferred to migration 2+ (decided in 5.3), so the cache holds the posts snapshot only. The wipe-on-sign-out (Decision 8) has no sign-out action to hang on until 6.1. The "Home" numbers are still read live, for the same missing tables.
+- **What this slice does not do, on purpose.** An edit or a delete did not write the cache yet when this slice landed; the Phase 5.6 gate found that the spec asks for it, and the write path now updates the cache (below). The `accounts`, `videos` and `profile` tables remain deferred to migration 2+ (decided in 5.3), so the cache holds the posts snapshot only. The wipe-on-sign-out (Decision 8) has no sign-out action to hang on until 6.1. The "Home" numbers are still read live, for the same missing tables.
 - **Tests:** 26 new — transport 2 (a timeout means the server was reached; an error status is not offline), connectivity 5 (`connectivity_test.dart`: start, reached, connection, timeout, error), cache 1 net (`mergePosts` keeps rows it did not name and replaces the ones it did), cache wrapper 3 (`posts_cache_test.dart`: round trip, never written, corrupt file renamed with its bytes kept), queue controller 4 (merged read, cached fallback with `savedAt`, cached rows follow filter and platform, reconnect reads again), calendar controller 4 (merged month, cached month without September or no-time rows, timeout keeps the reason, reconnect reads again), queue page 2 (banner and rows, Try again), calendar page 1 (cached month), publish controller 2 (network failure goes offline, a refused platform stays online), publish page 1 (offline disables Publish and says why).
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (130 files), `flutter analyze lib test` no issues, `flutter test` **564 passed** (was 538), LF-only bytes checked on all 25 changed Dart files.
+
+### Phase 5.6 gate evidence (2026-10-29)
+
+- **Timezone/DST.** `test/core/time/time_zone_test.dart` (8 tests): a skipped hour refused with the jump named, a repeated hour resolved to the first, an ordinary time, a zone without daylight saving, one wall clock in two zones, a resolve that round-trips, the machine's zone, and the offset label. The scheduling screens pin the same rules through the seam (`post_edit_test.dart`, `publish_page_test.dart`), so the gate does not depend on the machine's zone.
+- **Cache migration and corruption.** `local_database_test.dart` (5): ordered steps and the version, applied steps skipped, a throwing step rolled back, no `meta` table means version zero, and a row that survives a reopen. `cache_store_test.dart` (14): the version inside the file, the full-field round trip across a reopen, the 500-row bound and nulls last, merge semantics, a newer file left untouched, a broken file renamed with its bytes kept, and two breaks in one minute.
+- **Draft round-trip and restart.** `draft_store_test.dart` reads the whole draft back after a close and a reopen, and `publish_page_test.dart` restores it when the screen opens, including the moved-time question and the skipped-hour refusal. `drafts_repository_test.dart` covers a missing support folder and a file that is not a database, in both cases without losing the file.
+- **Offline cannot publish.** `canPublishProvider` needs the connection as well as both tokens, the screen shows "A connection is needed to publish." (`publish_page_test.dart`), and the controller refuses on its own — a publish attempt offline fails with `network` and never writes a row.
+- **Data-loss review found two gaps, both fixed.**
+  - **The cache did not follow a write.** SPEC-offline "The cache" says a row the client wrote is updated in the cache immediately, but `PostsCache.save`/`remove` had no caller. An edit now writes the row it just saved, a delete drops it, and a delete the server refused leaves the cache alone (`post_actions.dart`, 3 widget tests).
+  - **A cancel could delete a row the publisher had claimed.** `delete` named only the id, so a scheduled row that moved to `processing` while the confirmation was open would still be deleted — a post that may already be going out. `delete` now takes `onlyIf`, the dialog passes the status it showed, and the repository filters on it as the edit path already did (1 repository test, 1 widget assertion).
+- **Data-loss review, the rest.** A draft is deleted only when every target wrote its row, and kept on any failure; **Discard** is the only other delete and it is explicit. A corrupt cache file is renamed, a newer one is untouched, and the 500-row bound only drops rows the server still has. The edit is a compare-and-set, so a form open over a moved row cannot overwrite it.
+- **One accepted window.** Draft autosave waits 800 ms, so leaving the media within that window loses the last keystrokes — the same window a crash has, which is the approved debounce and not a gate defect. Recorded so it is a decision, not a surprise.
+- **Scoped `ponytail-audit`, no Must-fix left.** The one dead API (`PostsCache.save`/`remove`) is now used. The two controllers share the same fallback shape (load cache, filter, mark `savedAt`) and the same reconnect listener; with two call sites an extraction would hide the async fallback behind a helper for no reader gain, so it stays. `LocalPostsCache` deliberately mirrors `LocalDraftsRepository` (open once, swallow, log the type only), which is how the codebase already does it. No unused import, provider or test helper was left behind.
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (130 files), `flutter analyze lib test` no issues, `flutter test` **568 passed** (was 564), `flutter build windows --release` succeeds, LF-only bytes on every changed Dart file.
+- **Not closed by this gate:** the owner's approval (the only unticked line), the cache wipe on sign-out (needs the sign-out action from 6.1), the `accounts`, `videos` and `profile` tables (migration 2+), and the Home numbers that wait on them.
 
 ---
 

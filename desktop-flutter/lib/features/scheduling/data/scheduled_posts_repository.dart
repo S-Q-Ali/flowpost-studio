@@ -51,7 +51,11 @@ abstract class ScheduledPostsRepository {
   Future<bool> updateScheduled(String postId, PostEdit edit);
 
   /// Deletes a row. Returns false when it was already gone.
-  Future<bool> delete(String postId);
+  ///
+  /// [onlyIf] is the status the row had when the admin decided to delete it.
+  /// A row that moved on since — a scheduled post the publisher has claimed —
+  /// is left alone, because the platform may already have it.
+  Future<bool> delete(String postId, {PostStatus? onlyIf});
 }
 
 /// Reads the queue through PostgREST.
@@ -165,7 +169,7 @@ class PostgrestScheduledPostsRepository implements ScheduledPostsRepository {
   }
 
   @override
-  Future<bool> delete(String postId) async {
+  Future<bool> delete(String postId, {PostStatus? onlyIf}) async {
     final token = this.token;
     if (token == null || token.isEmpty) {
       throw const PostsException('Sign in required to delete a post.');
@@ -173,7 +177,11 @@ class PostgrestScheduledPostsRepository implements ScheduledPostsRepository {
     final rows = await _transport.send(
       method: 'DELETE',
       url: _posts.replace(
-        queryParameters: {'id': 'eq.$postId', 'select': 'id'},
+        queryParameters: {
+          'id': 'eq.$postId',
+          if (onlyIf != null) 'status': 'eq.${onlyIf.name}',
+          'select': 'id',
+        },
       ),
       token: token,
     );
