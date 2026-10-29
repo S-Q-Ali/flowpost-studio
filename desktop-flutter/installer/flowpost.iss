@@ -1,6 +1,7 @@
 ; FlowPost Studio — per-user Windows installer (unsigned in v1).
 ; Build: ISCC.exe installer\flowpost.iss
 ; Requires: flutter build windows --release --dart-define-from-file=config/prod.json
+;           tool\fetch_ffmpeg.ps1  (the installer packages third_party\ffmpeg\bin)
 
 #define MyAppName "FlowPost Studio"
 #define MyAppVersion "1.0.0"
@@ -37,6 +38,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; The bundled FFmpeg build. Run tool\fetch_ffmpeg.ps1 before packaging.
+Source: "..\third_party\ffmpeg\bin\*"; DestDir: "{app}\ffmpeg\bin"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

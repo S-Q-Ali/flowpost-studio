@@ -19,11 +19,15 @@ Constraints:
 ## Decision
 
 1. **Bundle BtbN FFmpeg 8.1 LGPL shared for win64.**
-   `ffmpeg-n8.1-latest-win64-lgpl-shared-8.1.zip`, pinned by SHA-256
-   `092B5E24B2247A93AAC5307507FEEE412C7DC8548D6AA94E8CCAAEF3A3B1ADB5`
-   (81,640,498 bytes, downloaded 2026-10-28). The fetch script rejects a mismatch.
+   `ffmpeg-n8.1.3-25-g611cec792a-win64-lgpl-shared-8.1.zip` from the immutable
+   release tag `autobuild-2026-10-28-19-47`, pinned by SHA-256
+   `0448C3F3B9BDC724CC0189D5CE6E6BFA5B8937E7EC408E1E97FB08719BDB3B92`
+   (81,649,021 bytes, downloaded 2026-10-29). The fetch script rejects a
+   mismatch. An earlier pin used BtbN's rolling `latest` asset; that URL
+   rotated within a day and the hash no longer matched, so the version-specific
+   asset under a fixed tag is pinned instead.
 2. **Ship only what runs:** `ffmpeg.exe`, `ffprobe.exe`, seven runtime DLLs, and
-   `LICENSE.txt` — 161.2 MB uncompressed, 9 files. Exclude `ffplay.exe`, headers,
+   `LICENSE.txt` — 162.0 MB uncompressed, 10 files. Exclude `ffplay.exe`, headers,
    import libraries, and presets.
 3. **Install path:** `{app}\ffmpeg\bin\`. Runtime resolves it relative to the running
    executable. `FLOWPOST_FFMPEG_DIR` overrides it for development and fixture tests only.
@@ -59,9 +63,8 @@ Constraints:
 
 | Item | Size |
 |---|---|
-| Upstream zip | 77.9 MB (81,640,498 bytes) |
-| `bin/` without `ffplay.exe` | 161.2 MB, 9 files |
-| `bin/` with `ffplay.exe` | 179.0 MB, 10 files |
+| Upstream zip | 78.0 MB (81,649,021 bytes) |
+| `bin/` without `ffplay.exe` | 162.0 MB, 10 files |
 | Installer growth | to be measured in 3.3; expected 55–75 MB compressed |
 
 ## Alternatives rejected
@@ -78,28 +81,33 @@ Constraints:
 
 ## Consequences
 
-- Installed footprint grows by ~161 MB; installer grows by roughly 60–80 MB.
+- Installed footprint grows by ~162 MB; installer grows by roughly 60–80 MB.
 - Encoding is CPU-bound. A 3-minute 1080p clip can take minutes; progress and
   cancellation are mandatory.
 - A bundled `ffmpeg.exe` launched from `%LOCALAPPDATA%` may attract antivirus heuristics;
   signing is deferred with the rest of release hardening.
 - FFmpeg updates are deliberate: bump the URL, update the hash, re-run fixtures, and
   re-check the license.
-- BtbN's `latest` URL is rolling and an old build can age out. Keep a local copy of the
-  pinned zip (hash-named) in `third_party/cache/` so builds stay reproducible after an
+- BtbN's `latest` URL is rolling and an old build can age out. The pin therefore
+  names an immutable release tag and a version-specific asset; keep a local copy of
+  the pinned zip in `third_party/cache/` so builds stay reproducible after an
   upstream rotation; the cache is gitignored.
 - Paths with spaces or non-ASCII characters must keep working; fixtures include both.
 
-## Verification (2026-10-28)
+## Verification (2026-10-29)
 
-- `ffmpeg -version`: `n8.1.3-24-g92611900bb-20261027`, `--enable-version3 --enable-shared`,
+- `ffmpeg -version`: `n8.1.3-25-g611cec792a-20261028`, `--enable-version3 --enable-shared`,
   no `--enable-gpl`, `--disable-libx264 --disable-libx265`.
+- SHA-256 of the pinned zip matches `0448C3F3…`; the fetch script refuses a build
+  that is GPL, not LGPL v3, not shared, or that carries `libx264`.
 - `libopenh264` encode of `portrait_2s_1080x1920_h264.mp4`: exit 0; output H.264
   Constrained Baseline level 4.0, 1080×1920, `yuv420p`, 2.005 s, 997.6 KB; full decode
   round-trip exit 0.
 - `ffprobe` JSON produced the expected metadata for every fixture; `corrupt.mp4` exits 1.
 - Frame extraction at 2 s / 3 s / 4 s on the 6 s fixture produced three distinct JPEGs.
 - Audio extraction to 16 kHz mono MP3 and 640×360 JPEG thumbnails both succeed.
+- The integration suite (`desktop-flutter/test/features/media/ffmpeg`) runs the real
+  binary over every fixture and compares the result with `expected.json`.
 - The LGPL build has no `libx264`; fixture generation uses the system GPL build or
   `libopenh264`.
 

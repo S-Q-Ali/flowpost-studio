@@ -69,3 +69,7 @@ Desktop.ini
 # Graphify internal cache/state
 graphify-out/cache/
 graphify-out/.graphify_*
+
+# Bundled FFmpeg build (fetched by desktop-flutter/tool/fetch_ffmpeg.ps1)
+desktop-flutter/third_party/ffmpeg/
+desktop-flutter/third_party/cache/
