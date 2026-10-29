@@ -1,3 +1,5 @@
+import 'package:flowpost_desktop/features/offline/data/cache_store.dart';
+import 'package:flowpost_desktop/features/offline/offline_providers.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/scheduling/presentation/calendar_page.dart';
 import 'package:flowpost_desktop/features/scheduling/scheduling_controller.dart';
@@ -6,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/fake_posts_cache.dart';
 import '../../support/fake_scheduled_posts.dart';
 
 /// The app stands on Thursday 29 October 2026 in these tests.
@@ -13,12 +16,14 @@ final DateTime _today = DateTime(2026, 10, 29);
 
 Future<void> _pump(
   WidgetTester tester,
-  FakeScheduledPostsRepository repository,
-) async {
+  FakeScheduledPostsRepository repository, {
+  FakePostsCache? cache,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         scheduledPostsRepositoryProvider.overrideWithValue(repository),
+        postsCacheProvider.overrideWithValue(cache ?? FakePostsCache()),
         todayProvider.overrideWithValue(_today),
       ],
       child: const MaterialApp(home: CalendarPage()),
@@ -174,5 +179,33 @@ void main() {
 
     expect(find.byKey(const Key('post-cancel')), findsOneWidget);
     expect(find.byKey(const Key('post-edit')), findsOneWidget);
+  });
+
+  testWidgets('no connection shows the cached rows of the month', (
+    tester,
+  ) async {
+    final repository = FakeScheduledPostsRepository()
+      ..error = const PostsException(
+        'The calendar did not answer. Try again.',
+        kind: PostsErrorKind.connection,
+      );
+    final cache = FakePostsCache(
+      CachedPosts(
+        posts: [post(id: 'saved', scheduledAt: DateTime(2026, 10, 15, 9, 15))],
+        readAt: DateTime(2026, 10, 29, 14, 32),
+      ),
+    );
+
+    await _pump(tester, repository, cache: cache);
+
+    expect(find.byKey(const Key('offline-banner')), findsOneWidget);
+    expect(find.textContaining('last read at 14:32'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('calendar-day-2026-10-15')),
+        matching: find.byKey(const Key('calendar-post-saved')),
+      ),
+      findsOneWidget,
+    );
   });
 }

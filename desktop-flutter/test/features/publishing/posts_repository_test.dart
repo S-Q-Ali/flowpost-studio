@@ -247,10 +247,61 @@ void main() {
           url: Uri.parse('http://127.0.0.1:$port/rest/v1/posts'),
         ),
         throwsA(
+          isA<PostsException>()
+              .having(
+                (error) => error.message,
+                'message',
+                'The queue did not answer. Try again.',
+              )
+              .having((error) => error.kind, 'kind', PostsErrorKind.connection),
+        ),
+      );
+    });
+
+    test('a call that runs out of time did reach the server', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        await request.drain<void>();
+      });
+
+      await expectLater(
+        HttpPostsTransport(
+          anonKey: 'anon',
+          timeout: const Duration(milliseconds: 200),
+        ).send(
+          method: 'GET',
+          url: Uri.parse('http://127.0.0.1:${server.port}/rest/v1/posts'),
+        ),
+        throwsA(
           isA<PostsException>().having(
-            (error) => error.message,
-            'message',
-            'The queue did not answer. Try again.',
+            (error) => error.kind,
+            'kind',
+            PostsErrorKind.timeout,
+          ),
+        ),
+      );
+    });
+
+    test('an answer with an error status is a server failure', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        await request.drain<void>();
+        request.response.statusCode = 500;
+        await request.response.close();
+      });
+
+      await expectLater(
+        HttpPostsTransport(anonKey: 'anon').send(
+          method: 'GET',
+          url: Uri.parse('http://127.0.0.1:${server.port}/rest/v1/posts'),
+        ),
+        throwsA(
+          isA<PostsException>().having(
+            (error) => error.kind,
+            'kind',
+            PostsErrorKind.server,
           ),
         ),
       );

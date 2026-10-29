@@ -1,6 +1,10 @@
 import 'dart:async';
 
+import 'package:flowpost_desktop/features/offline/connectivity.dart';
+import 'package:flowpost_desktop/features/offline/data/cache_store.dart';
+import 'package:flowpost_desktop/features/offline/offline_providers.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
+import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
 import 'package:flowpost_desktop/features/scheduling/data/scheduled_posts_repository.dart';
 import 'package:flowpost_desktop/features/scheduling/domain/scheduled_post.dart';
 import 'package:flowpost_desktop/features/scheduling/scheduling_controller.dart';
@@ -8,11 +12,18 @@ import 'package:flowpost_desktop/features/scheduling/scheduling_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/fake_posts_cache.dart';
 import '../../support/fake_scheduled_posts.dart';
 
-ProviderContainer _container(FakeScheduledPostsRepository repository) {
+ProviderContainer _container(
+  FakeScheduledPostsRepository repository, {
+  FakePostsCache? cache,
+}) {
   final container = ProviderContainer(
-    overrides: [scheduledPostsRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      scheduledPostsRepositoryProvider.overrideWithValue(repository),
+      postsCacheProvider.overrideWithValue(cache ?? FakePostsCache()),
+    ],
   );
   addTearDown(container.dispose);
   return container;
@@ -148,5 +159,134 @@ void main() {
 
     final data = container.read(queueControllerProvider);
     expect(data.value!.posts.map((post) => post.id), ['post-1']);
+  });
+
+  test('a read that succeeds is written to the cache', () async {
+    final repository = FakeScheduledPostsRepository()
+      ..pages[0] = ScheduledPostsPage(
+        posts: [
+          post(),
+          post(id: 'p2'),
+        ],
+        hasMore: false,
+      );
+    final cache = FakePostsCache();
+    final container = _container(repository, cache: cache);
+
+    await container.read(queueControllerProvider.future);
+
+    expect(cache.merges, hasLength(1));
+    expect(cache.merges.single.posts.map((row) => row.id), ['post-1', 'p2']);
+  });
+
+  test(
+    'a connection failure shows the cached rows and their read time',
+    () async {
+      final readAt = DateTime.utc(2026, 10, 29, 14, 32);
+      final repository = FakeScheduledPostsRepository()
+        ..error = const PostsException(
+          'The queue did not answer. Try again.',
+          kind: PostsErrorKind.connection,
+        );
+      final cache = FakePostsCache(
+        CachedPosts(
+          posts: [post(id: 'cached')],
+          readAt: readAt,
+        ),
+      );
+      final container = _container(repository, cache: cache);
+
+      final data = await container.read(queueControllerProvider.future);
+
+      expect(data.posts.map((row) => row.id), ['cached']);
+      expect(data.savedAt, readAt);
+      expect(data.hasMore, isFalse);
+    },
+  );
+
+  test('the cached rows follow the filter the admin picked', () async {
+    final repository = FakeScheduledPostsRepository()
+      ..error = const PostsException(
+        'The queue did not answer. Try again.',
+        kind: PostsErrorKind.connection,
+      );
+    final cache = FakePostsCache(
+      CachedPosts(
+        posts: [
+          post(id: 'scheduled'),
+          post(id: 'failed', status: PostStatus.failed),
+          post(
+            id: 'youtube',
+            status: PostStatus.failed,
+            platform: PublishPlatform.youtube,
+          ),
+        ],
+        readAt: DateTime.utc(2026, 10, 29, 14, 32),
+      ),
+    );
+    final container = _container(repository, cache: cache);
+    container.read(queueFilterProvider.notifier).select(QueueFilter.failed);
+    container
+        .read(queuePlatformProvider.notifier)
+        .select(PublishPlatform.youtube);
+
+    final data = await container.read(queueControllerProvider.future);
+
+    expect(data.posts.map((row) => row.id), ['youtube']);
+  });
+
+  test('a timeout shows the reason, not the cache', () async {
+    final repository = FakeScheduledPostsRepository()
+      ..error = const PostsException(
+        'The queue did not answer. Try again.',
+        kind: PostsErrorKind.timeout,
+      );
+    final cache = FakePostsCache(
+      CachedPosts(
+        posts: [post(id: 'cached')],
+        readAt: DateTime.utc(2026, 10, 29, 14, 32),
+      ),
+    );
+    final container = _container(repository, cache: cache);
+
+    container.read(queueControllerProvider);
+    await pumpEventQueue();
+
+    expect(container.read(queueControllerProvider).hasError, isTrue);
+  });
+
+  test('when the connection comes back the queue reads again', () async {
+    final repository = FakeScheduledPostsRepository()
+      ..error = const PostsException(
+        'The queue did not answer. Try again.',
+        kind: PostsErrorKind.connection,
+      );
+    final container = _container(
+      repository,
+      cache: FakePostsCache(
+        CachedPosts(
+          posts: [post(id: 'cached')],
+          readAt: DateTime.utc(2026, 10, 29, 14, 32),
+        ),
+      ),
+    );
+    // The queue screen watches the provider, which keeps its listener alive.
+    addTearDown(container.listen(queueControllerProvider, (_, _) {}).close);
+    await container.read(queueControllerProvider.future);
+    repository.error = null;
+    repository.pages[0] = ScheduledPostsPage(
+      posts: [post(id: 'fresh')],
+      hasMore: false,
+    );
+
+    // The call that failed is what put the app offline.
+    container.read(connectivityProvider.notifier).lost();
+    await pumpEventQueue();
+    container.read(connectivityProvider.notifier).reached();
+    await pumpEventQueue();
+
+    final data = container.read(queueControllerProvider).value!;
+    expect(data.posts.map((row) => row.id), ['fresh']);
+    expect(data.savedAt, isNull);
   });
 }

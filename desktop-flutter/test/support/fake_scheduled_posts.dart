@@ -94,6 +94,7 @@ ScheduledPost post({
   String? accountName = 'FlowPost',
   String? caption = 'A caption',
   DateTime? scheduledAt,
+  bool noTime = false,
   DateTime? publishedAt,
   String? videoTitle = 'A video',
 }) {
@@ -103,7 +104,9 @@ ScheduledPost post({
     platform: platform,
     accountName: accountName,
     caption: caption,
-    scheduledAt: scheduledAt ?? DateTime.utc(2026, 10, 29, 14, 30),
+    scheduledAt: noTime
+        ? null
+        : scheduledAt ?? DateTime.utc(2026, 10, 29, 14, 30),
     publishedAt: publishedAt,
     videoTitle: videoTitle,
   );

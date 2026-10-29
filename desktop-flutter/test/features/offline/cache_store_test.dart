@@ -69,7 +69,7 @@ void main() {
     final store = CacheStore(file: file);
     final readAt = DateTime.utc(2026, 10, 29, 9, 32);
     store.open();
-    store.savePosts([
+    store.mergePosts([
       post(
         id: 'post-1',
         status: PostStatus.published,
@@ -118,7 +118,7 @@ void main() {
     final store = CacheStore(file: file);
     addTearDown(store.close);
     store.open();
-    store.savePosts([
+    store.mergePosts([
       for (var i = 0; i < 501; i++)
         post(
           id: 'post-$i',
@@ -136,7 +136,7 @@ void main() {
     final store = CacheStore(file: file);
     addTearDown(store.close);
     store.open();
-    store.savePosts([
+    store.mergePosts([
       post(id: 'no-time', noTime: true),
       post(id: 'later', scheduledAt: DateTime.utc(2026, 11, 2)),
       post(id: 'sooner', scheduledAt: DateTime.utc(2026, 10, 30)),
@@ -149,26 +149,47 @@ void main() {
     ]);
   });
 
-  test('saving a snapshot replaces the one before it', () {
+  test('a read adds its rows and keeps the ones it did not name', () {
     final store = CacheStore(file: file);
     addTearDown(store.close);
     store.open();
-    store.savePosts([
-      post(id: 'old'),
-      post(id: 'older'),
+    store.mergePosts([
+      post(id: 'old', scheduledAt: DateTime.utc(2026, 10, 30, 10)),
+      post(id: 'older', scheduledAt: DateTime.utc(2026, 10, 30, 11)),
     ], readAt: DateTime.utc(2026, 10, 29, 9));
-    store.savePosts([post(id: 'new')], readAt: DateTime.utc(2026, 10, 29, 10));
+    // A filtered queue page or one month of the calendar names a part of the
+    // rows, not all of them.
+    store.mergePosts([
+      post(id: 'new', scheduledAt: DateTime.utc(2026, 10, 31)),
+    ], readAt: DateTime.utc(2026, 10, 29, 10));
 
     final cached = store.loadPosts()!;
-    expect(cached.posts.map((row) => row.id), ['new']);
+    expect(cached.posts.map((row) => row.id), ['old', 'older', 'new']);
     expect(cached.readAt, DateTime.utc(2026, 10, 29, 10));
+  });
+
+  test('a read replaces a row it names', () {
+    final store = CacheStore(file: file);
+    addTearDown(store.close);
+    store.open();
+    store.mergePosts([
+      post(id: 'post-1', caption: 'Before'),
+    ], readAt: DateTime.utc(2026, 10, 29, 9));
+    store.mergePosts([
+      post(id: 'post-1', caption: 'After', status: PostStatus.published),
+    ], readAt: DateTime.utc(2026, 10, 29, 10));
+
+    final posts = store.loadPosts()!.posts;
+    expect(posts, hasLength(1));
+    expect(posts.single.caption, 'After');
+    expect(posts.single.status, PostStatus.published);
   });
 
   test('a read of nothing is still a snapshot', () {
     final store = CacheStore(file: file);
     addTearDown(store.close);
     store.open();
-    store.savePosts(const [], readAt: DateTime.utc(2026, 10, 29, 9));
+    store.mergePosts(const [], readAt: DateTime.utc(2026, 10, 29, 9));
 
     final cached = store.loadPosts()!;
     expect(cached.posts, isEmpty);
@@ -262,7 +283,7 @@ void main() {
     final store = CacheStore(file: file);
     addTearDown(store.close);
     store.open();
-    store.savePosts([
+    store.mergePosts([
       post(id: 'a', scheduledAt: DateTime.utc(2026, 10, 30)),
       post(id: 'c', scheduledAt: DateTime.utc(2026, 11, 1)),
     ], readAt: DateTime.utc(2026, 10, 29, 9));
@@ -278,7 +299,7 @@ void main() {
     final store = CacheStore(file: file);
     addTearDown(store.close);
     store.open();
-    store.savePosts([
+    store.mergePosts([
       for (var i = 0; i < 500; i++)
         post(
           id: 'post-$i',
@@ -300,7 +321,7 @@ void main() {
     final store = CacheStore(file: file);
     addTearDown(store.close);
     store.open();
-    store.savePosts([
+    store.mergePosts([
       post(id: 'gone'),
       post(id: 'kept'),
     ], readAt: DateTime.utc(2026, 10, 29, 9));
@@ -312,7 +333,7 @@ void main() {
   test('a row the cache cannot read is skipped', () {
     final store = CacheStore(file: file);
     store.open();
-    store.savePosts(const [], readAt: DateTime.utc(2026, 10, 29, 9));
+    store.mergePosts(const [], readAt: DateTime.utc(2026, 10, 29, 9));
     store.close();
 
     final raw = sqlite3.open(file.path);

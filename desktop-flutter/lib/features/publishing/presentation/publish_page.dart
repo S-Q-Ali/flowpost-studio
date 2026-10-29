@@ -5,6 +5,7 @@ import '../../../core/format/media_format.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/time_zone.dart';
+import '../../offline/connectivity.dart';
 import '../domain/publish_selection.dart';
 import '../domain/publish_target.dart';
 import '../domain/publish_validation.dart';
@@ -25,6 +26,7 @@ class PublishPage extends ConsumerWidget {
     final state = ref.watch(publishControllerProvider);
     final canPublish = ref.watch(canPublishProvider);
     final restore = ref.watch(draftRestoreProvider);
+    final offline = ref.watch(connectivityProvider) == ConnectionStatus.offline;
     final running = state is PublishRunning;
 
     return Scaffold(
@@ -107,9 +109,14 @@ class PublishPage extends ConsumerWidget {
                   ],
                 ),
                 if (!canPublish)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text('Sign in required to publish.'),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      offline
+                          ? 'A connection is needed to publish.'
+                          : 'Sign in required to publish.',
+                      key: const Key('publish-blocked'),
+                    ),
                   ),
               ],
               const SizedBox(height: 24),

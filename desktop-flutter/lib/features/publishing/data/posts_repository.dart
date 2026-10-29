@@ -92,11 +92,19 @@ class PostRow {
   final DateTime? publishedAt;
 }
 
+/// What kind of failure a call to the posts table hit.
+///
+/// Only [connection] means the machine is offline: a timeout and an error
+/// answer both say the server was reached (SPEC-offline "What the app knows
+/// about the connection").
+enum PostsErrorKind { connection, timeout, server }
+
 /// A failure of the posts table.
 class PostsException implements Exception {
-  const PostsException(this.message);
+  const PostsException(this.message, {this.kind = PostsErrorKind.server});
 
   final String message;
+  final PostsErrorKind kind;
 
   @override
   String toString() => 'PostsException: $message';
@@ -276,12 +284,18 @@ class HttpPostsTransport implements PostsTransport {
       }
       return _rowsOf(text);
     } on TimeoutException {
-      throw const PostsException('The queue did not answer. Try again.');
+      throw const PostsException(
+        'The queue did not answer. Try again.',
+        kind: PostsErrorKind.timeout,
+      );
     } on IOException {
       // The connection was dropped or never opened. Without this the
       // exception would escape the publish and leave the screen stuck on
       // "Publishing..." with nothing to show.
-      throw const PostsException('The queue did not answer. Try again.');
+      throw const PostsException(
+        'The queue did not answer. Try again.',
+        kind: PostsErrorKind.connection,
+      );
     } finally {
       client.close(force: true);
     }

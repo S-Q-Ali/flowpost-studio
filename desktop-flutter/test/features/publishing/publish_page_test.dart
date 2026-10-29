@@ -3,6 +3,7 @@ import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/core/time/time_zone.dart';
 import 'package:flowpost_desktop/features/media/domain/media_validation.dart';
+import 'package:flowpost_desktop/features/offline/connectivity.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/data/publish_client.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_errors.dart';
@@ -100,11 +101,22 @@ class _FakeClient implements PublishApi {
   return (date: date, time: time);
 }
 
+/// A connection state the test picks.
+class _Connectivity extends ConnectivityController {
+  _Connectivity(this.start);
+
+  final ConnectionStatus start;
+
+  @override
+  ConnectionStatus build() => start;
+}
+
 Future<void> _pump(
   WidgetTester tester, {
   List<PublishTarget> targets = const [_instagram],
   bool signedIn = true,
   bool withMedia = true,
+  bool offline = false,
   Size size = const Size(1280, 800),
   _FakeClient? client,
   _FakeRepository? repository,
@@ -145,6 +157,10 @@ Future<void> _pump(
           drafts ?? FakeDraftsRepository(),
         ),
         timeZoneProvider.overrideWithValue(zone),
+        if (offline)
+          connectivityProvider.overrideWith(
+            () => _Connectivity(ConnectionStatus.offline),
+          ),
       ],
       child: const FlowPostApp(initialDeepLink: '/publish'),
     ),
@@ -176,6 +192,18 @@ void main() {
     );
     expect(button.onPressed, isNull);
     expect(find.textContaining('Sign in required'), findsOneWidget);
+  });
+
+  testWidgets('offline, the publish action is off and says why', (
+    tester,
+  ) async {
+    await _pump(tester, offline: true);
+
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Publish now'),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.text('A connection is needed to publish.'), findsOneWidget);
   });
 
   testWidgets('picking a platform shows its caption field', (tester) async {

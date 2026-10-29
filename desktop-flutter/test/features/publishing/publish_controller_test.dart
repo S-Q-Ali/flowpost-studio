@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/core/time/time_zone.dart';
+import 'package:flowpost_desktop/features/offline/connectivity.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/data/publish_client.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_errors.dart';
@@ -320,6 +321,55 @@ void main() {
         );
 
     expect(repository.reads, ['post-1']);
+  });
+
+  test('a call that never reached the server puts the app offline', () async {
+    final repository = _FakeRepository()
+      ..answers = const [
+        PostRow(id: 'post-1', platform: 'instagram', status: PostStatus.failed),
+      ];
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(publishNetworkFailure);
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+    expect(container.read(connectivityProvider), ConnectionStatus.online);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    expect(container.read(connectivityProvider), ConnectionStatus.offline);
+  });
+
+  test('a platform that refused the post leaves the app online', () async {
+    final repository = _FakeRepository()
+      ..answers = const [
+        PostRow(id: 'post-1', platform: 'instagram', status: PostStatus.failed),
+      ];
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(
+        PublishFailure(
+          PublishErrorCode.platformRejected,
+          'The platform refused it.',
+        ),
+      );
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+    container.read(connectivityProvider.notifier).lost();
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    expect(container.read(connectivityProvider), ConnectionStatus.online);
   });
 
   test('a timeout waits for the row to settle', () async {

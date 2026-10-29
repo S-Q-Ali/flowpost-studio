@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/app_providers.dart';
+import '../offline/offline_providers.dart';
 import 'data/scheduled_posts_repository.dart';
 
 /// The queue's reads.
@@ -15,5 +16,6 @@ final scheduledPostsRepositoryProvider = Provider<ScheduledPostsRepository>((
     supabaseUrl: config.supabaseUrl,
     anonKey: config.supabaseAnonKey,
     token: ref.watch(authAccessTokenProvider),
+    transport: ref.watch(postsTransportProvider),
   );
 });

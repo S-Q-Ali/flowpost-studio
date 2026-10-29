@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../offline/presentation/offline_banner.dart';
 import '../../publishing/data/posts_repository.dart';
 import '../../publishing/domain/publish_target.dart';
 import '../domain/scheduled_post.dart';
@@ -19,6 +20,7 @@ class QueuePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final state = ref.watch(queueControllerProvider);
+    final savedAt = state.value?.savedAt;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -34,6 +36,13 @@ class QueuePage extends ConsumerWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
+              if (savedAt != null) ...[
+                OfflineBanner(
+                  readAt: savedAt,
+                  onRetry: () => ref.invalidate(queueControllerProvider),
+                ),
+                const SizedBox(height: 12),
+              ],
               const Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -46,7 +55,11 @@ class QueuePage extends ConsumerWidget {
               Expanded(
                 child: state.when(
                   data: (data) => data.posts.isEmpty
-                      ? _EmptyQueue(filter: ref.watch(queueFilterProvider))
+                      ? data.savedAt == null
+                            ? _EmptyQueue(
+                                filter: ref.watch(queueFilterProvider),
+                              )
+                            : const _NothingCached()
                       : _PostList(data: data),
                   loading: () => const _Skeleton(),
                   error: (error, stackTrace) => _QueueError(
@@ -308,6 +321,22 @@ class _StatusChip extends StatelessWidget {
       child: Text(
         status.label,
         style: theme.textTheme.labelSmall?.copyWith(color: color),
+      ),
+    );
+  }
+}
+
+/// The machine has nothing to show while there is no connection.
+class _NothingCached extends StatelessWidget {
+  const _NothingCached();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        'Nothing was saved on this machine yet.',
+        key: const Key('queue-nothing-cached'),
+        style: Theme.of(context).textTheme.bodyMedium,
       ),
     );
   }

@@ -1,5 +1,7 @@
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/core/time/time_zone.dart';
+import 'package:flowpost_desktop/features/offline/data/cache_store.dart';
+import 'package:flowpost_desktop/features/offline/offline_providers.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
 import 'package:flowpost_desktop/features/scheduling/data/scheduled_posts_repository.dart';
@@ -10,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/fake_posts_cache.dart';
 import '../../support/fake_scheduled_posts.dart';
 import '../../support/fake_time_zone.dart';
 
@@ -17,11 +20,13 @@ Future<void> _pump(
   WidgetTester tester,
   FakeScheduledPostsRepository repository, {
   TimeZone? zone,
+  FakePostsCache? cache,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         scheduledPostsRepositoryProvider.overrideWithValue(repository),
+        postsCacheProvider.overrideWithValue(cache ?? FakePostsCache()),
         if (zone != null) timeZoneProvider.overrideWithValue(zone),
       ],
       child: const MaterialApp(home: QueuePage()),
@@ -377,5 +382,58 @@ void main() {
         findsOneWidget,
       );
     });
+  });
+
+  testWidgets('no connection shows the cached rows and when they were read', (
+    tester,
+  ) async {
+    final repository = FakeScheduledPostsRepository()
+      ..error = const PostsException(
+        'The queue did not answer. Try again.',
+        kind: PostsErrorKind.connection,
+      );
+    final cache = FakePostsCache(
+      CachedPosts(
+        posts: [post(id: 'cached', videoTitle: 'Old video')],
+        readAt: DateTime(2026, 10, 29, 14, 32),
+      ),
+    );
+
+    await _pump(tester, repository, cache: cache);
+
+    expect(find.byKey(const Key('offline-banner')), findsOneWidget);
+    expect(find.textContaining('last read at 14:32'), findsOneWidget);
+    expect(find.text('Old video'), findsOneWidget);
+  });
+
+  testWidgets('Try again reads the queue again and the banner goes', (
+    tester,
+  ) async {
+    final repository = FakeScheduledPostsRepository()
+      ..error = const PostsException(
+        'The queue did not answer. Try again.',
+        kind: PostsErrorKind.connection,
+      );
+    await _pump(
+      tester,
+      repository,
+      cache: FakePostsCache(
+        CachedPosts(
+          posts: [post(id: 'cached', videoTitle: 'Old video')],
+          readAt: DateTime(2026, 10, 29, 14, 32),
+        ),
+      ),
+    );
+    repository.error = null;
+    repository.pages[0] = ScheduledPostsPage(
+      posts: [post(id: 'fresh', videoTitle: 'Fresh video')],
+      hasMore: false,
+    );
+
+    await tester.tap(find.byKey(const Key('offline-retry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('offline-banner')), findsNothing);
+    expect(find.text('Fresh video'), findsOneWidget);
   });
 }

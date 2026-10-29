@@ -141,21 +141,26 @@ class CacheStore {
     return CachedPosts(posts: posts, readAt: readAt);
   }
 
-  /// Replaces the snapshot with a read from the server.
+  /// Adds a read to the snapshot.
   ///
-  /// Only a read that succeeded gets here, so a failed read never empties the
-  /// cache. [posts] is kept in the order given — the queue's order — and the
-  /// first [cachePostLimit] rows are kept, so the rows that fall out are the
-  /// ones furthest down the list.
-  void savePosts(Iterable<ScheduledPost> posts, {required DateTime readAt}) {
+  /// A read names only a part of the rows: the queue reads one page, the
+  /// calendar one month. The rows it names are replaced, the rows it does not
+  /// name stay, and the read time moves. A read that succeeded therefore
+  /// never shrinks the cache into an empty account (SPEC-offline "A stale read
+  /// never replaces a fresh one").
+  void mergePosts(Iterable<ScheduledPost> posts, {required DateTime readAt}) {
     final db = _requireOpen();
-    final kept = posts.take(cachePostLimit).toList();
     final stamp = _micros(readAt)!;
     _transaction(db, () {
-      db.execute('DELETE FROM posts');
-      for (final post in kept) {
+      for (final post in posts) {
         _insert(db, post, stamp);
       }
+      db.execute(
+        'DELETE FROM posts WHERE id NOT IN ('
+        'SELECT id FROM posts '
+        'ORDER BY scheduled_at IS NULL, scheduled_at ASC, id ASC LIMIT ?)',
+        [cachePostLimit],
+      );
       db.execute(
         'INSERT INTO meta (id, schema_version, last_read_at) '
         'VALUES (1, ?, ?) '

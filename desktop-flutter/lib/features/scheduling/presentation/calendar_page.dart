@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../offline/presentation/offline_banner.dart';
 import '../../publishing/data/posts_repository.dart';
 import '../domain/calendar_range.dart';
 import '../domain/scheduled_post.dart';
@@ -20,6 +21,7 @@ class CalendarPage extends ConsumerWidget {
     final view = ref.watch(calendarViewProvider);
     final anchor = ref.watch(calendarAnchorProvider);
     final state = ref.watch(calendarControllerProvider);
+    final savedAt = state.value?.savedAt;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -34,18 +36,27 @@ class CalendarPage extends ConsumerWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
+              if (savedAt != null) ...[
+                OfflineBanner(
+                  readAt: savedAt,
+                  onRetry: () => ref.invalidate(calendarControllerProvider),
+                ),
+                const SizedBox(height: 12),
+              ],
               _Toolbar(view: view, anchor: anchor),
               const SizedBox(height: 16),
               Expanded(
                 child: state.when(
-                  data: (posts) => posts.isEmpty
-                      ? _EmptyCalendar(view: view)
+                  data: (data) => data.posts.isEmpty
+                      ? data.savedAt == null
+                            ? _EmptyCalendar(view: view)
+                            : const _NothingCached()
                       : switch (view) {
-                          CalendarView.list => _DayList(posts: posts),
+                          CalendarView.list => _DayList(posts: data.posts),
                           _ => _CalendarGrid(
                             view: view,
                             anchor: anchor,
-                            posts: posts,
+                            posts: data.posts,
                           ),
                         },
                   loading: () => const _Skeleton(),
@@ -383,6 +394,23 @@ String _dateKey(DateTime day) =>
     '${day.year}-${_two(day.month)}-${_two(day.day)}';
 
 String _two(int value) => value.toString().padLeft(2, '0');
+
+/// The machine has nothing to show for these days while there is no
+/// connection.
+class _NothingCached extends StatelessWidget {
+  const _NothingCached();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        'Nothing was saved on this machine for these days.',
+        key: const Key('calendar-nothing-cached'),
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+    );
+  }
+}
 
 /// A month or a week with nothing on it.
 class _EmptyCalendar extends StatelessWidget {

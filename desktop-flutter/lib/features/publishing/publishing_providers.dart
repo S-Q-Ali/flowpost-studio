@@ -7,6 +7,7 @@ import '../../core/time/time_zone.dart';
 import '../media/captions/captions_providers.dart';
 import '../media/domain/media_validation.dart';
 import '../media/upload/upload_providers.dart';
+import '../offline/connectivity.dart';
 import '../offline/drafts/compose_draft.dart';
 import '../offline/offline_providers.dart';
 import 'data/posts_repository.dart';
@@ -35,17 +36,20 @@ final postsRepositoryProvider = Provider<PostsRepository>((ref) {
     supabaseUrl: config.supabaseUrl,
     anonKey: config.supabaseAnonKey,
     token: ref.watch(authAccessTokenProvider),
+    transport: ref.watch(postsTransportProvider),
   );
 });
 
 /// Whether the client can publish at all.
 ///
 /// The functions need the session token and the posts table needs the Auth
-/// token, so both have to be there.
+/// token, so both have to be there. A machine with no connection cannot
+/// publish either: the row lives on the server (SPEC-offline).
 final canPublishProvider = Provider<bool>(
   (ref) =>
       ref.watch(sessionTokenProvider) != null &&
-      ref.watch(authAccessTokenProvider) != null,
+      ref.watch(authAccessTokenProvider) != null &&
+      ref.watch(connectivityProvider) != ConnectionStatus.offline,
 );
 
 /// The media that was uploaded and can be published.

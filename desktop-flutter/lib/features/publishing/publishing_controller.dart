@@ -3,6 +3,7 @@ import 'package:logging/logging.dart';
 
 import '../../core/providers/app_providers.dart';
 import '../../core/time/time_zone.dart';
+import '../offline/connectivity.dart';
 import 'data/posts_repository.dart';
 import 'data/publish_client.dart';
 import 'domain/publish_errors.dart';
@@ -293,6 +294,15 @@ class PublishController extends Notifier<PublishState> {
         'The publish to ${target.platform.name} failed '
         '(${error.failure.code.name}).',
       );
+    }
+
+    // The app learns the state of the connection from the calls it makes.
+    // A call that never reached the server is offline; an answer, even a
+    // refusal, is not (SPEC-offline Decision 2).
+    if (failure?.code == PublishErrorCode.network) {
+      ref.read(connectivityProvider.notifier).lost();
+    } else {
+      ref.read(connectivityProvider.notifier).reached();
     }
 
     final row = await _readRow(postId);
