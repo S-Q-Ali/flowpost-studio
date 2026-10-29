@@ -37,7 +37,9 @@ class _PostDetailsState extends ConsumerState<_PostDetails> {
   /// Rows that stopped moving can still be removed; a row that is being
   /// published cannot, because the platform may already have it.
   bool get _canDelete =>
-      _post.status == PostStatus.failed || _post.status == PostStatus.published;
+      _post.status == PostStatus.failed ||
+      _post.status == PostStatus.published ||
+      _post.isStaleProcessing();
 
   @override
   Widget build(BuildContext context) {
