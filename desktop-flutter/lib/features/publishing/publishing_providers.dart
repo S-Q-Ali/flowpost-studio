@@ -151,11 +151,6 @@ class PublishComposer extends Notifier<PublishSelection> {
     state = state.copyWith(scheduleTime: time);
   }
 
-  /// Throws the selection away.
-  void reset() {
-    state = const PublishSelection();
-  }
-
   String _aiCaption(PublishTarget target) {
     final state = ref.read(captionControllerProvider);
     if (state is! CaptionReady) return '';

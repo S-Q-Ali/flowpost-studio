@@ -100,10 +100,6 @@ final publishControllerProvider =
 class PublishController extends Notifier<PublishState> {
   static final Logger _log = Logger('publish');
 
-  /// The run that owns the state. A newer run takes over, and the run that
-  /// lost it writes nothing.
-  int _run = 0;
-
   /// The run that is working right now.
   ///
   /// A second click while it works does nothing: the first one has already
@@ -136,28 +132,24 @@ class PublishController extends Notifier<PublishState> {
     required List<PublishTarget> targets,
     required String videoId,
   }) async {
-    final run = ++_run;
     final statuses = [
       for (final target in targets)
         PublishTargetStatus(target: target, phase: PublishPhase.waiting),
     ];
     state = PublishRunning(statuses);
     for (var index = 0; index < targets.length; index++) {
-      if (run != _run) return;
       final target = targets[index];
-      statuses[index] = statuses[index].copyWith(
-        phase: selection.isScheduled
-            ? PublishPhase.waiting
-            : PublishPhase.publishing,
-      );
+      if (!selection.isScheduled) {
+        statuses[index] = statuses[index].copyWith(
+          phase: PublishPhase.publishing,
+        );
+      }
       state = PublishRunning([...statuses]);
       statuses[index] = selection.isScheduled
           ? await _schedule(target, selection, videoId)
           : await _attempt(target, selection, videoId);
-      if (run != _run) return;
       state = PublishRunning([...statuses]);
     }
-    if (run != _run) return;
     state = PublishDone(statuses);
   }
 
@@ -388,17 +380,18 @@ class PublishController extends Notifier<PublishState> {
     final policy = ref.read(publishPollPolicyProvider);
     for (var attempt = 0; attempt < policy.attempts; attempt++) {
       await Future<void>.delayed(policy.interval);
-      final row = await _readRow(postId);
+      final PostRow? row;
+      try {
+        row = await ref.read(postsRepositoryProvider).read(postId);
+      } on PostsException {
+        // The queue is not answering, so the row will not settle either.
+        // Waiting longer would only keep the admin in front of a spinner.
+        return null;
+      }
       if (row == null) continue;
       if (_phaseOf(row) != null) return row;
     }
     return null;
-  }
-
-  /// Forgets the last attempt.
-  void reset() {
-    _run++;
-    state = const PublishIdle();
   }
 
   /// Puts a failed row back into the queue.
@@ -411,9 +404,24 @@ class PublishController extends Notifier<PublishState> {
     final postId = status.postId;
     if (postId == null || !status.canRetry) return;
     final when = DateTime.now().add(const Duration(seconds: 60));
-    final changed = await ref
-        .read(postsRepositoryProvider)
-        .rescheduleFailed(postId, when);
+    final bool changed;
+    try {
+      changed = await ref
+          .read(postsRepositoryProvider)
+          .rescheduleFailed(postId, when);
+    } on PostsException catch (error) {
+      _log.warning('The queue refused to move the failed post back.');
+      _replace(
+        PublishTargetStatus(
+          target: status.target,
+          phase: PublishPhase.failed,
+          postId: postId,
+          message: error.message,
+          canRetry: true,
+        ),
+      );
+      return;
+    }
     if (changed) {
       _replace(
         PublishTargetStatus(

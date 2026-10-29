@@ -28,6 +28,12 @@ class _FakeRepository implements PostsRepository {
   final List<PostDraft> drafts = [];
   Object? failure;
 
+  /// The failure a read answers with.
+  Object? readFailure;
+
+  /// The failure a retry answers with.
+  Object? retryFailure;
+
   /// The rows the read answers with, in order. The last one repeats.
   List<PostRow?> answers = [];
 
@@ -50,6 +56,8 @@ class _FakeRepository implements PostsRepository {
   @override
   Future<PostRow?> read(String postId) async {
     reads.add(postId);
+    final failure = readFailure;
+    if (failure != null) throw failure;
     if (answers.isEmpty) return null;
     final index = reads.length - 1;
     return index < answers.length ? answers[index] : answers.last;
@@ -58,6 +66,8 @@ class _FakeRepository implements PostsRepository {
   @override
   Future<bool> rescheduleFailed(String postId, DateTime scheduledAt) async {
     rescheduled.add(postId);
+    final failure = retryFailure;
+    if (failure != null) throw failure;
     return movesOnRetry;
   }
 }
@@ -287,23 +297,6 @@ void main() {
 
     expect(states.whereType<PublishRunning>(), isNotEmpty);
     expect(states.last, isA<PublishDone>());
-  });
-
-  test('reset throws the last attempt away', () async {
-    final repository = _FakeRepository();
-    final client = _FakeClient();
-    final container = _container(repository: repository, client: client);
-    addTearDown(container.dispose);
-    final controller = container.read(publishControllerProvider.notifier);
-
-    await controller.publish(
-      selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
-      targets: const [_instagram],
-      videoId: 'video-1',
-    );
-    controller.reset();
-
-    expect(container.read(publishControllerProvider), isA<PublishIdle>());
   });
 
   test('the row is read back after the attempt', () async {
@@ -732,5 +725,66 @@ void main() {
 
     expect(repository.drafts, hasLength(1));
     expect(client.postIds, hasLength(1));
+  });
+
+  test('a queue that stops answering ends the wait', () async {
+    final repository = _FakeRepository()
+      ..readFailure = const PostsException(
+        'The queue did not answer. Try again.',
+      );
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(publishTimeoutFailure);
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.unconfirmed);
+    // The refresh and one poll, and then the wait is over: a queue that does
+    // not answer will not answer the next time either.
+    expect(repository.reads, hasLength(2));
+  });
+
+  test('a retry the queue refuses keeps the failure on the screen', () async {
+    final repository = _FakeRepository()
+      ..answers = const [
+        PostRow(id: 'post-1', platform: 'instagram', status: PostStatus.failed),
+      ]
+      ..retryFailure = const PostsException(
+        'The queue did not answer. Try again.',
+      );
+    final client = _FakeClient()
+      ..failures[_instagram.id] = const PublishException(
+        PublishFailure(PublishErrorCode.platformRejected, 'Instagram said no.'),
+      );
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+    final controller = container.read(publishControllerProvider.notifier);
+
+    await controller.publish(
+      selection: const PublishSelection(targetIds: {'instagram:ig-1:feed'}),
+      targets: const [_instagram],
+      videoId: 'video-1',
+    );
+    final failed = (container.read(
+      publishControllerProvider,
+    ) as PublishDone).statuses.single;
+
+    await controller.retry(failed);
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.failed);
+    expect(
+      state.statuses.single.message,
+      'The queue did not answer. Try again.',
+    );
+    expect(state.statuses.single.canRetry, isTrue);
   });
 }
