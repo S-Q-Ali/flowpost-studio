@@ -91,7 +91,7 @@ class MediaJob {
 
 1. **Pick** — `file_selector` with the extension filter above. Empty selection is a no-op.
 2. **Pre-check** — exists, regular file, readable, non-zero, ≤100 MB, allowed extension.
-3. **Probe** — `ffprobe -v error -print_format json -show_format -show_streams <source>` with a 30 s timeout. Parse strings and rationals defensively; reject missing or zero duration/dimensions.
+3. **Probe** — `ffprobe -v error -print_format json -show_format -show_streams -protocol_whitelist file -- <source>` with a 30 s timeout. Parse strings and rationals defensively; reject missing or zero duration/dimensions.
 4. **Workspace** — create the per-job folder only after validation passes.
 5. **Normalize** — video only (see below). Images pass through unchanged.
 6. **Outputs** — thumbnail, caption frames, audio.
@@ -105,7 +105,7 @@ Compliant source (MP4/MOV/M4V, H.264 video, no audio or AAC, `yuv420p`, both dim
 
 ```
 ffmpeg -hide_banner -nostdin -y -protocol_whitelist file -i <source> \
-  -map 0:v:0 -map 0:a:0? -c copy -movflags +faststart -map_metadata -1 <out>
+  -map 0:v:0 -map 0:a:0? -c copy -movflags +faststart -map_metadata -1 -map_chapters -1 <out>
 ```
 
 Anything else is encoded:
@@ -116,7 +116,7 @@ ffmpeg -hide_banner -nostdin -y -protocol_whitelist file -i <source> \
   -vf "scale=w='min(1920,iw)':h='min(1920,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2" \
   -c:v libopenh264 -b:v 4M -maxrate 5M -bufsize 8M -pix_fmt yuv420p -g 60 \
   -c:a aac -b:a 128k -ar 48000 \
-  -movflags +faststart -map_metadata -1 -progress pipe:1 -nostats <out>
+  -movflags +faststart -map_metadata -1 -map_chapters -1 -progress pipe:1 -nostats <out>
 ```
 
 - No upscaling; aspect ratio preserved; output dimensions forced even.
@@ -135,7 +135,7 @@ ffmpeg -hide_banner -nostdin -y -protocol_whitelist file -i <source> \
 ffmpeg -hide_banner -nostdin -y -protocol_whitelist file -ss <t> -i <source> \
   -frames:v 1 \
   -vf "scale=640:360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2:color=black" \
-  -q:v 6 <thumb.jpg>
+  -q:v 6 -map_metadata -1 -map_chapters -1 <thumb.jpg>
 ```
 
 **Caption frames** — timestamps match the web (`src/lib/captions.ts`): `min(2, d/2)`, `d/2`, `max(d-2, d/2)`. For a 2 s clip all three land at 1 s (same as web). Images produce one frame. Longest side is 640 px, aspect preserved; this intentionally avoids the web's 640×360 stretch that distorts portrait video.
@@ -143,14 +143,15 @@ ffmpeg -hide_banner -nostdin -y -protocol_whitelist file -ss <t> -i <source> \
 ```
 ffmpeg -hide_banner -nostdin -y -protocol_whitelist file -ss <t> -i <source> \
   -frames:v 1 -vf "scale=640:640:force_original_aspect_ratio=decrease:force_divisible_by=2" \
-  -q:v 6 <frame_n.jpg>
+  -q:v 6 -map_metadata -1 -map_chapters -1 <frame_n.jpg>
 ```
 
 **Audio** — only when an audio stream exists; 32 kbps MP3, 16 kHz, mono (3 minutes ≈ 720 KB, ≈960 KB base64):
 
 ```
 ffmpeg -hide_banner -nostdin -y -protocol_whitelist file -i <source> \
-  -map 0:a:0 -vn -c:a libmp3lame -b:a 32k -ar 16000 -ac 1 <audio.mp3>
+  -map 0:a:0 -vn -c:a libmp3lame -b:a 32k -ar 16000 -ac 1 \
+  -map_metadata -1 -map_chapters -1 <audio.mp3>
 ```
 
 **Progress** — parse `out_time_us` from `-progress pipe:1`, clamp to duration, emit at most 4 updates per second. `progress=end` sets 100%. Thumbnail/audio/frame steps are short and may report only start/finish.
@@ -279,6 +280,8 @@ Response:
 ## Security and privacy
 
 - Fixed argument lists, `-protocol_whitelist file`, no shell, no user-controlled filters or output paths.
+- The outputs carry no metadata and no chapters from the source, so nothing about the picked file travels into the upload.
+- The bundled FFmpeg keeps the ISO-BMFF external-track option off, so a demuxer chosen by the content cannot read a file outside the picked one (ADR 0002).
 - Picker paths are only passed as arguments; logs contain job id, stage, byte counts, duration, dimensions, exit code, and sanitized error code — never the full path or media content.
 - Temp files live under the user's `%LOCALAPPDATA%` and inherit its ACL.
 - Cleanup is confined to the jobs root.

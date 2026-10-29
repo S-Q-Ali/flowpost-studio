@@ -106,6 +106,12 @@ Constraints:
 - `ffprobe` JSON produced the expected metadata for every fixture; `corrupt.mp4` exits 1.
 - Frame extraction at 2 s / 3 s / 4 s on the 6 s fixture produced three distinct JPEGs.
 - Audio extraction to 16 kHz mono MP3 and 640×360 JPEG thumbnails both succeed.
+- The pinned build keeps the ISO-BMFF `enable_drefs` option **off** (`ffmpeg -h full`
+  reports `(default false)`), so a demuxer chosen by the content cannot follow a
+  track outside the file. The option only exists in the mov demuxer, so passing
+  `-enable_drefs 0` explicitly makes every other demuxer fail with
+  `Option enable_drefs not found`; the default is relied on instead, and the
+  integration suite fails if a rebuild ever changes it.
 - The integration suite (`desktop-flutter/test/features/media/ffmpeg`) runs the real
   binary over every fixture and compares the result with `expected.json`.
 - The LGPL build has no `libx264`; fixture generation uses the system GPL build or

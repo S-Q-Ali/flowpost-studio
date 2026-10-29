@@ -298,5 +298,45 @@ void main() {
       expect(command, containsAllInOrder(['-protocol_whitelist', 'file']));
       expect(command.last, r'C:\clips\a.mp4');
     });
+
+    test('the probe ends its options before the path', () {
+      final command = probeArguments(r'C:\clips\a.mp4');
+
+      // A path that looks like an option must not be read as one.
+      expect(command[command.length - 2], '--');
+      expect(command.last, r'C:\clips\a.mp4');
+    });
+
+    test('no output carries the metadata or the chapters of the source', () {
+      final commands = [
+        remuxArguments(
+          sourcePath: r'C:\clips\a.mp4',
+          outputPath: r'C:\jobs\1\normalized.mp4',
+        ),
+        encodeArguments(
+          sourcePath: r'C:\clips\a.webm',
+          outputPath: r'C:\jobs\1\normalized.mp4',
+        ),
+        thumbnailArguments(
+          sourcePath: r'C:\clips\a.mp4',
+          outputPath: r'C:\jobs\1\thumb.jpg',
+          at: const Duration(seconds: 1),
+        ),
+        frameArguments(
+          sourcePath: r'C:\clips\a.mp4',
+          outputPath: r'C:\jobs\1\frame_1.jpg',
+          at: const Duration(seconds: 1),
+        ),
+        audioArguments(
+          sourcePath: r'C:\clips\a.mp4',
+          outputPath: r'C:\jobs\1\audio.mp3',
+        ),
+      ];
+
+      for (final command in commands) {
+        expect(command, containsAllInOrder(['-map_metadata', '-1']));
+        expect(command, containsAllInOrder(['-map_chapters', '-1']));
+      }
+    });
   });
 }

@@ -254,6 +254,22 @@ void main() {
     }
   });
 
+  test(
+    'the bundled FFmpeg does not follow external tracks by default',
+    () async {
+      // The demuxer is chosen by the content, so a hostile file could point it
+      // at a track outside the file. The pinned build keeps that off, and this
+      // test fails if a rebuild ever changes it.
+      final run = await runner.run(
+        executable: paths.ffprobe,
+        arguments: ['-hide_banner', '-h', 'full'],
+      );
+
+      expect(run.stdout, contains('enable_drefs'));
+      expect(run.stdout, contains('(default false)'));
+    },
+  );
+
   test('a unicode path is processed like any other', () async {
     final result = await runPipeline('still ünicode space.png');
 

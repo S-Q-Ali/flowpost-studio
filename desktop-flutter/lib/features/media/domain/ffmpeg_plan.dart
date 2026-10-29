@@ -36,6 +36,9 @@ List<String> probeArguments(String sourcePath) => [
   '-show_streams',
   '-protocol_whitelist',
   _protocolAllowlist,
+  // The source is the last argument, and `--` keeps a path that looks like
+  // an option from being read as one.
+  '--',
   sourcePath,
 ];
 
@@ -53,6 +56,8 @@ List<String> remuxArguments({
   '-movflags',
   '+faststart',
   '-map_metadata',
+  '-1',
+  '-map_chapters',
   '-1',
   ..._progressArguments,
   outputPath,
@@ -92,6 +97,8 @@ List<String> encodeArguments({
   '+faststart',
   '-map_metadata',
   '-1',
+  '-map_chapters',
+  '-1',
   ..._progressArguments,
   outputPath,
 ];
@@ -113,6 +120,10 @@ List<String> thumbnailArguments({
       'pad=640:360:(ow-iw)/2:(oh-ih)/2:color=black',
   '-q:v',
   '6',
+  '-map_metadata',
+  '-1',
+  '-map_chapters',
+  '-1',
   outputPath,
 ];
 
@@ -131,6 +142,10 @@ List<String> frameArguments({
   'scale=640:640:force_original_aspect_ratio=decrease:force_divisible_by=2',
   '-q:v',
   '6',
+  '-map_metadata',
+  '-1',
+  '-map_chapters',
+  '-1',
   outputPath,
 ];
 
@@ -150,6 +165,10 @@ List<String> audioArguments({
   '16000',
   '-ac',
   '1',
+  '-map_metadata',
+  '-1',
+  '-map_chapters',
+  '-1',
   outputPath,
 ];
 
