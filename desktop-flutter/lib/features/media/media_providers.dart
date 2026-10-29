@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
+import 'captions/captions_providers.dart';
 import 'data/ffmpeg_paths.dart';
 import 'data/ffmpeg_runner.dart';
 import 'data/media_file_picker.dart';
@@ -119,6 +120,8 @@ class MediaController extends Notifier<MediaState> {
       state = MediaFailed(validation.error!.message);
       return;
     }
+    // The captions belong to the previous file, so they go away with it.
+    ref.read(captionControllerProvider.notifier).reset();
     // The workspace is created only once the file passes validation, so a
     // rejected file never leaves a folder behind.
     final MediaWorkspace workspace;
@@ -207,6 +210,7 @@ class MediaController extends Notifier<MediaState> {
   /// Abandons the current file and removes its workspace.
   Future<void> chooseAnother() async {
     _processor?.cancel();
+    ref.read(captionControllerProvider.notifier).reset();
     await _deleteJob();
     state = const MediaIdle();
   }

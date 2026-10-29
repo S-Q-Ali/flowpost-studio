@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/theme/app_theme.dart';
+import '../captions/captions_providers.dart';
+import '../captions/domain/caption_prompt.dart';
 import '../domain/media_job.dart';
 import '../domain/media_validation.dart';
 import '../media_providers.dart';
@@ -180,6 +182,8 @@ class _ReadyState extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final probe = job.probe;
     final outputs = job.outputs;
+    final captionState = ref.watch(captionControllerProvider);
+    final canGenerate = ref.watch(captionTokenProvider) != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -229,7 +233,11 @@ class _ReadyState extends ConsumerWidget {
           runSpacing: 8,
           children: [
             FilledButton.icon(
-              onPressed: null,
+              onPressed: canGenerate
+                  ? () => ref
+                        .read(captionControllerProvider.notifier)
+                        .generate(job)
+                  : null,
               icon: const Icon(Icons.auto_awesome),
               label: const Text('Generate captions'),
             ),
@@ -246,9 +254,90 @@ class _ReadyState extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        const Text('Sign in required to generate captions or upload.'),
+        if (!canGenerate) ...[
+          const SizedBox(height: 8),
+          const Text('Sign in required to generate captions or upload.'),
+        ],
+        const SizedBox(height: 16),
+        ..._captionSection(context, ref, captionState),
       ],
+    );
+  }
+}
+
+/// The caption progress, the captions themselves, or the failure.
+List<Widget> _captionSection(
+  BuildContext context,
+  WidgetRef ref,
+  CaptionState state,
+) {
+  switch (state) {
+    case CaptionIdle():
+      return const [];
+    case CaptionRunning(progress: final progress):
+      return [
+        LinearProgressIndicator(value: progress.fraction),
+        const SizedBox(height: 8),
+        Text(progress.message),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () =>
+              ref.read(captionControllerProvider.notifier).cancel(),
+          icon: const Icon(Icons.stop_circle_outlined),
+          label: const Text('Cancel'),
+        ),
+      ];
+    case CaptionReady(result: final result):
+      return [
+        Text('Captions', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        for (final entry in result.captions.entries)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _CaptionField(
+              label: captionKeyLabels[entry.key] ?? entry.key,
+              captionKey: entry.key,
+              value: entry.value,
+            ),
+          ),
+      ];
+    case CaptionFailed(message: final message):
+      return [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.error_outline, color: FlowPostColors.destructive),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+      ];
+  }
+}
+
+/// One caption, editable before it is published.
+class _CaptionField extends ConsumerWidget {
+  const _CaptionField({
+    required this.label,
+    required this.captionKey,
+    required this.value,
+  });
+
+  final String label;
+  final String captionKey;
+  final String value;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return TextFormField(
+      initialValue: value,
+      maxLines: null,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+      ),
+      onChanged: (text) =>
+          ref.read(captionControllerProvider.notifier).edit(captionKey, text),
     );
   }
 }

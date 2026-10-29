@@ -4,6 +4,10 @@ import 'dart:io';
 import 'package:flowpost_desktop/app.dart';
 import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
+import 'package:flowpost_desktop/features/media/captions/captions_providers.dart';
+import 'package:flowpost_desktop/features/media/captions/data/caption_generator.dart';
+import 'package:flowpost_desktop/features/media/captions/data/captions_client.dart';
+import 'package:flowpost_desktop/features/media/captions/domain/caption_processing.dart';
 import 'package:flowpost_desktop/features/media/data/media_file_picker.dart';
 import 'package:flowpost_desktop/features/media/data/media_processor.dart';
 import 'package:flowpost_desktop/features/media/data/media_workspace.dart';
@@ -13,6 +17,7 @@ import 'package:flowpost_desktop/features/media/domain/media_probe.dart';
 import 'package:flowpost_desktop/features/media/domain/media_processing.dart';
 import 'package:flowpost_desktop/features/media/domain/media_validation.dart';
 import 'package:flowpost_desktop/features/media/media_providers.dart';
+import 'package:flowpost_desktop/features/media/presentation/media_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -116,6 +121,79 @@ class _PendingProcessor implements MediaProcessor {
   void cancel() {}
 }
 
+/// The generator is faked, so the caption service must never be reached.
+class _UnusedApi implements CaptionsApi {
+  @override
+  Future<String> transcribe({
+    required String audioBase64,
+    required String filename,
+  }) => throw StateError('The caption service must not be called.');
+
+  @override
+  Future<String> describeFrames({required List<String> frames}) =>
+      throw StateError('The caption service must not be called.');
+
+  @override
+  Future<Map<String, String>> generateCaptions({
+    required String systemPrompt,
+    required String userMessage,
+    List<String> platforms = const [],
+  }) => throw StateError('The caption service must not be called.');
+
+  @override
+  void cancel() {}
+}
+
+/// A generator that answers from memory, without touching the disk.
+class _FakeGenerator extends CaptionGenerator {
+  _FakeGenerator() : super(api: _UnusedApi());
+
+  Object? failure;
+  CaptionResult result = const CaptionResult(
+    captions: {'tiktok_caption': 'A caption'},
+    transcript: 'the words',
+    visualDescription: 'the picture',
+  );
+
+  @override
+  Future<CaptionResult> generate({
+    required MediaJob job,
+    List<String> platforms = const [],
+    CaptionProgressCallback? onProgress,
+  }) async {
+    onProgress?.call(
+      const CaptionProgress(
+        stage: CaptionStage.generatingCaptions,
+        fraction: 0.8,
+        message: 'Creating captions...',
+      ),
+    );
+    if (failure != null) throw failure!;
+    return result;
+  }
+}
+
+/// A generator that never finishes, so the test can cancel the run.
+class _PendingGenerator extends CaptionGenerator {
+  _PendingGenerator() : super(api: _UnusedApi());
+
+  @override
+  Future<CaptionResult> generate({
+    required MediaJob job,
+    List<String> platforms = const [],
+    CaptionProgressCallback? onProgress,
+  }) {
+    onProgress?.call(
+      const CaptionProgress(
+        stage: CaptionStage.transcribing,
+        fraction: 0.2,
+        message: 'Transcribing audio...',
+      ),
+    );
+    return Completer<CaptionResult>().future;
+  }
+}
+
 Future<MediaValidation> _fakeValidator(FileSystemEntity file) async {
   final kind = mediaKindForPath(file.path);
   if (kind == null) {
@@ -143,6 +221,8 @@ void main() {
     MediaFilePicker picker, {
     Size size = const Size(1280, 800),
     MediaProcessor? processor,
+    String? captionToken,
+    CaptionGenerator? captionGenerator,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -158,6 +238,10 @@ void main() {
           mediaProcessorFactoryProvider.overrideWithValue(
             (job) async => processor ?? _FakeProcessor(),
           ),
+          if (captionToken != null)
+            captionTokenProvider.overrideWithValue(captionToken),
+          if (captionGenerator != null)
+            captionGeneratorProvider.overrideWithValue(captionGenerator),
         ],
         child: const FlowPostApp(initialDeepLink: '/upload'),
       ),
@@ -292,6 +376,106 @@ void main() {
     expect(find.textContaining("can't be read"), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
     expect(find.text('Choose another file'), findsOneWidget);
+  });
+
+  testWidgets('the caption action is off without a session token', (
+    tester,
+  ) async {
+    await pumpUploadPage(tester, _FakePicker([File('C:\\clips\\clip.mp4')]));
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+
+    final generate = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Generate captions'),
+    );
+    expect(generate.onPressed, isNull);
+    expect(find.textContaining('Sign in required'), findsOneWidget);
+  });
+
+  testWidgets('the caption action runs when a session token exists', (
+    tester,
+  ) async {
+    await pumpUploadPage(
+      tester,
+      _FakePicker([File('C:\\clips\\clip.mp4')]),
+      captionToken: 'session-token',
+      captionGenerator: _FakeGenerator(),
+    );
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Generate captions'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Captions'), findsOneWidget);
+    expect(find.text('TikTok caption'), findsOneWidget);
+    expect(find.text('A caption'), findsOneWidget);
+    expect(find.textContaining('Sign in required'), findsNothing);
+  });
+
+  testWidgets('a failed caption run shows a readable error', (tester) async {
+    await pumpUploadPage(
+      tester,
+      _FakePicker([File('C:\\clips\\clip.mp4')]),
+      captionToken: 'session-token',
+      captionGenerator: _FakeGenerator()
+        ..failure = const CaptionException('The caption service said no.'),
+    );
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Generate captions'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('The caption service said no.'), findsOneWidget);
+    expect(find.text('Captions'), findsNothing);
+  });
+
+  testWidgets('a caption can be edited', (tester) async {
+    await pumpUploadPage(
+      tester,
+      _FakePicker([File('C:\\clips\\clip.mp4')]),
+      captionToken: 'session-token',
+      captionGenerator: _FakeGenerator(),
+    );
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Generate captions'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).first, 'My own words');
+    await tester.pump();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MediaPage)),
+      listen: false,
+    );
+    final state = container.read(captionControllerProvider) as CaptionReady;
+    expect(state.result.captions['tiktok_caption'], 'My own words');
+  });
+
+  testWidgets('the caption run can be cancelled', (tester) async {
+    await pumpUploadPage(
+      tester,
+      _FakePicker([File('C:\\clips\\clip.mp4')]),
+      captionToken: 'session-token',
+      captionGenerator: _PendingGenerator(),
+    );
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Generate captions'));
+    await tester.pump();
+
+    expect(find.text('Transcribing audio...'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Transcribing audio...'), findsNothing);
+    expect(find.text('Captions'), findsNothing);
   });
 
   testWidgets('grows with large text at the minimum window size', (
