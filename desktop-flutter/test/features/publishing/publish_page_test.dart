@@ -117,6 +117,7 @@ Future<void> _pump(
   List<PublishTarget> targets = const [_instagram],
   bool signedIn = true,
   bool withMedia = true,
+  bool realMedia = false,
   bool offline = false,
   Size size = const Size(1280, 800),
   _FakeClient? client,
@@ -133,16 +134,17 @@ Future<void> _pump(
       overrides: [
         seededConfig(_config),
         publishTargetsProvider.overrideWithValue(targets),
-        publishedMediaProvider.overrideWithValue(
-          withMedia
-              ? const PublishedMedia(
-                  videoId: 'video-1',
-                  fileName: 'clip.mp4',
-                  size: 2 * 1024 * 1024,
-                  kind: MediaKind.video,
-                )
-              : null,
-        ),
+        if (!realMedia)
+          publishedMediaProvider.overrideWithValue(
+            withMedia
+                ? const PublishedMedia(
+                    videoId: 'video-1',
+                    fileName: 'clip.mp4',
+                    size: 2 * 1024 * 1024,
+                    kind: MediaKind.video,
+                  )
+                : null,
+          ),
         if (signedIn) ...[
           sessionTokenProvider.overrideWithValue('session-token'),
           authAccessTokenProvider.overrideWithValue('auth-token'),
@@ -517,6 +519,64 @@ void main() {
         find.byKey(const Key('caption-instagram:ig-1:feed')),
         findsOneWidget,
       );
+    });
+
+    testWidgets('kept by a restart is listed and opens without an upload', (
+      tester,
+    ) async {
+      final drafts = FakeDraftsRepository({
+        'video-1': ComposeDraft(
+          videoId: 'video-1',
+          savedAt: DateTime(2026, 10, 29, 14, 32),
+          targetIds: const {'instagram:ig-1:feed'},
+          captions: const {'instagram:ig-1:feed': 'Saved caption'},
+          fileName: 'clip.mp4',
+          size: 2048,
+          mediaKind: 'video',
+        ),
+      });
+
+      await _pump(tester, withMedia: false, realMedia: true, drafts: drafts);
+
+      expect(find.text('Saved drafts'), findsOneWidget);
+      expect(find.text('clip.mp4'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('draft-open-video-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Saved caption'), findsOneWidget);
+      expect(find.byKey(const Key('draft-restored')), findsOneWidget);
+      expect(find.text('Saved drafts'), findsNothing);
+    });
+
+    testWidgets('a saved draft can be deleted from the list', (tester) async {
+      final drafts = FakeDraftsRepository({
+        'video-1': ComposeDraft(
+          videoId: 'video-1',
+          savedAt: DateTime(2026, 10, 29, 14, 32),
+          targetIds: const {'instagram:ig-1:feed'},
+          fileName: 'clip.mp4',
+        ),
+      });
+
+      await _pump(tester, withMedia: false, realMedia: true, drafts: drafts);
+
+      await tester.tap(find.byKey(const Key('draft-delete-video-1')));
+      await tester.pumpAndSettle();
+
+      expect(drafts.deleted, ['video-1']);
+      expect(find.text('Saved drafts'), findsNothing);
+    });
+
+    testWidgets('a draft that could not be saved says so', (tester) async {
+      final drafts = FakeDraftsRepository()..savesNow = false;
+      await _pump(tester, drafts: drafts);
+
+      await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+      await tester.pump(const Duration(milliseconds: 900));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('draft-save-warning')), findsOneWidget);
     });
 
     testWidgets('is written 800 ms after the last change, not on every key', (

@@ -19,6 +19,9 @@ class ComposeDraft {
     this.scheduleTime = '',
     this.resolvedAt,
     this.offsetMinutes,
+    this.fileName,
+    this.size,
+    this.mediaKind,
   });
 
   factory ComposeDraft.fromSelection(
@@ -27,6 +30,9 @@ class ComposeDraft {
     required DateTime savedAt,
     DateTime? resolvedAt,
     int? offsetMinutes,
+    String? fileName,
+    int? size,
+    String? mediaKind,
   }) {
     return ComposeDraft(
       videoId: videoId,
@@ -40,11 +46,23 @@ class ComposeDraft {
       scheduleTime: selection.scheduleTime,
       resolvedAt: resolvedAt,
       offsetMinutes: offsetMinutes,
+      fileName: fileName,
+      size: size,
+      mediaKind: mediaKind,
     );
   }
 
   /// The media the form was opened for.
   final String videoId;
+
+  /// Enough of the media to show the draft after a restart, when the upload
+  /// that made it is no longer in memory.
+  final String? fileName;
+  final int? size;
+
+  /// The name of the `MediaKind`, so the offline side keeps no dependency on
+  /// the media domain.
+  final String? mediaKind;
 
   /// When the draft was last written.
   final DateTime savedAt;

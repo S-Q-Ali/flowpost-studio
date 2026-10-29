@@ -14,6 +14,9 @@ class FakeDraftsRepository implements DraftsRepository {
   int loads = 0;
   int saves = 0;
 
+  /// False stands for a store that refuses the write.
+  bool savesNow = true;
+
   /// Set false to stand for a drafts file the store refused.
   bool availableNow = true;
 
@@ -31,15 +34,24 @@ class FakeDraftsRepository implements DraftsRepository {
   }
 
   @override
+  Future<List<ComposeDraft>> all() async {
+    final all = drafts.values.toList()
+      ..sort((a, b) => b.savedAt.compareTo(a.savedAt));
+    return all;
+  }
+
+  @override
   Future<ComposeDraft?> load(String videoId) async {
     loads++;
     return drafts[videoId];
   }
 
   @override
-  Future<void> save(ComposeDraft draft) async {
+  Future<bool> save(ComposeDraft draft) async {
     saves++;
+    if (!savesNow) return false;
     drafts[draft.videoId] = draft;
+    return true;
   }
 
   @override

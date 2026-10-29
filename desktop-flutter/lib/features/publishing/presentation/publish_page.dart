@@ -6,6 +6,7 @@ import '../../../core/providers/app_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/time_zone.dart';
 import '../../offline/connectivity.dart';
+import '../../offline/offline_providers.dart';
 import '../domain/publish_selection.dart';
 import '../domain/publish_target.dart';
 import '../domain/publish_validation.dart';
@@ -43,10 +44,23 @@ class PublishPage extends ConsumerWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
-              if (media == null)
-                const Text('Upload a file first, then publish it from here.')
-              else ...[
+              if (media == null) ...[
+                const Text('Upload a file first, then publish it from here.'),
+                const _SavedDrafts(),
+              ] else ...[
                 _MediaSummary(fileName: media.fileName, size: media.size),
+                if (ref.watch(draftSaveWarningProvider))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'The draft could not be saved. The form stays here, '
+                      'but it will not come back after a restart.',
+                      key: const Key('draft-save-warning'),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ),
                 if (restore != null) ...[
                   const SizedBox(height: 8),
                   _DraftBanner(restore: restore),
@@ -191,6 +205,72 @@ class _MediaSummary extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The drafts a restart kept, so a form written yesterday is not lost with
+/// the upload that made it.
+class _SavedDrafts extends ConsumerWidget {
+  const _SavedDrafts();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final drafts = ref.watch(savedDraftsProvider);
+    return drafts.maybeWhen(
+      data: (drafts) {
+        if (drafts.isEmpty) return const SizedBox.shrink();
+        final theme = Theme.of(context);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 24),
+            Text('Saved drafts', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              'A draft keeps the form and its media. Open one to carry on.',
+              style: theme.textTheme.bodySmall,
+            ),
+            for (final draft in drafts)
+              ListTile(
+                key: Key('draft-${draft.videoId}'),
+                contentPadding: EdgeInsets.zero,
+                title: Text(draft.fileName ?? 'Draft'),
+                subtitle: Text(_savedLabel(draft.savedAt)),
+                trailing: Wrap(
+                  children: [
+                    TextButton(
+                      key: Key('draft-open-${draft.videoId}'),
+                      onPressed: () => ref
+                          .read(publishSelectionProvider.notifier)
+                          .openDraft(draft),
+                      child: const Text('Open'),
+                    ),
+                    IconButton(
+                      key: Key('draft-delete-${draft.videoId}'),
+                      tooltip: 'Delete draft',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () async {
+                        await ref
+                            .read(draftsRepositoryProvider)
+                            .delete(draft.videoId);
+                        ref.invalidate(savedDraftsProvider);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+String _savedLabel(DateTime savedAt) {
+  final local = savedAt.toLocal();
+  String two(int value) => value.toString().padLeft(2, '0');
+  return 'Saved ${local.year}-${two(local.month)}-${two(local.day)} '
+      '${two(local.hour)}:${two(local.minute)}';
 }
 
 /// What came back from the machine, and whether its time still means what it

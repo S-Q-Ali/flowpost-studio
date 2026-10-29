@@ -6,9 +6,13 @@ import 'package:flowpost_desktop/features/offline/drafts/compose_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
-ComposeDraft _draft(String caption) => ComposeDraft(
-  videoId: 'video-1',
-  savedAt: DateTime.utc(2026, 10, 29, 14, 32),
+ComposeDraft _draft(
+  String caption, {
+  String videoId = 'video-1',
+  DateTime? savedAt,
+}) => ComposeDraft(
+  videoId: videoId,
+  savedAt: savedAt ?? DateTime.utc(2026, 10, 29, 14, 32),
   targetIds: const {'instagram:ig-1:feed'},
   captions: {'instagram:ig-1:feed': caption},
 );
@@ -40,6 +44,34 @@ void main() {
     );
     await repository.delete('video-1');
     expect(await repository.load('video-1'), isNull);
+  });
+
+  test('the repository lists every draft, newest first', () async {
+    final repository = LocalDraftsRepository(
+      file: () async => File(p.join(dir.path, 'drafts.db')),
+    );
+    addTearDown(repository.close);
+
+    await repository.save(
+      _draft('Old', savedAt: DateTime.utc(2026, 10, 28, 9)),
+    );
+    await repository.save(
+      _draft('New', videoId: 'video-2', savedAt: DateTime.utc(2026, 10, 30, 9)),
+    );
+
+    expect(
+      [for (final draft in await repository.all()) draft.videoId],
+      ['video-2', 'video-1'],
+    );
+  });
+
+  test('a save that cannot be written says so', () async {
+    final repository = LocalDraftsRepository(
+      file: () async => throw const FileSystemException('no support folder'),
+    );
+
+    expect(await repository.save(_draft('Hello')), isFalse);
+    expect(await repository.all(), isEmpty);
   });
 
   test(

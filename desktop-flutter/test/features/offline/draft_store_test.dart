@@ -19,6 +19,9 @@ ComposeDraft draft({
   String scheduleTime = '',
   DateTime? resolvedAt,
   int? offsetMinutes,
+  String? fileName,
+  int? size,
+  String? mediaKind,
 }) {
   return ComposeDraft(
     videoId: videoId,
@@ -32,6 +35,9 @@ ComposeDraft draft({
     scheduleTime: scheduleTime,
     resolvedAt: resolvedAt,
     offsetMinutes: offsetMinutes,
+    fileName: fileName,
+    size: size,
+    mediaKind: mediaKind,
   );
 }
 
@@ -132,6 +138,52 @@ void main() {
     store.open();
 
     expect(store.load('video-9'), isNull);
+  });
+
+  test('the media of a draft survives a close and a reopen', () {
+    final store = DraftStore(file: file);
+    addTearDown(store.close);
+    expect(store.open(), isTrue);
+    expect(
+      store.save(draft(fileName: 'clip.mp4', size: 2048, mediaKind: 'video')),
+      isTrue,
+    );
+
+    final reopened = DraftStore(file: file);
+    addTearDown(reopened.close);
+    expect(reopened.open(), isTrue);
+    final loaded = reopened.load('video-1')!;
+
+    expect(loaded.fileName, 'clip.mp4');
+    expect(loaded.size, 2048);
+    expect(loaded.mediaKind, 'video');
+  });
+
+  test('every draft is listed newest first', () {
+    final store = DraftStore(file: file);
+    addTearDown(store.close);
+    store.open();
+    store.save(
+      draft(videoId: 'video-1', savedAt: DateTime.utc(2026, 10, 28, 9)),
+    );
+    store.save(
+      draft(videoId: 'video-2', savedAt: DateTime.utc(2026, 10, 30, 9)),
+    );
+    store.save(
+      draft(videoId: 'video-3', savedAt: DateTime.utc(2026, 10, 29, 9)),
+    );
+
+    expect(
+      [for (final saved in store.all()) saved.videoId],
+      ['video-2', 'video-3', 'video-1'],
+    );
+  });
+
+  test('a store that is not open saves nothing and says so', () {
+    final store = DraftStore(file: file);
+
+    expect(store.save(draft()), isFalse);
+    expect(store.all(), isEmpty);
   });
 
   test(

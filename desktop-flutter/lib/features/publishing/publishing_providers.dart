@@ -75,15 +75,57 @@ class PublishedMedia {
 /// uploaded yet.
 final publishedMediaProvider = Provider<PublishedMedia?>((ref) {
   final state = ref.watch(uploadControllerProvider);
-  if (state is! UploadDone) return null;
-  final result = state.result;
-  return PublishedMedia(
-    videoId: result.videoId,
-    fileName: result.filename,
-    size: result.size,
-    kind: mediaKindForPath(result.filename),
-  );
+  if (state is UploadDone) {
+    final result = state.result;
+    return PublishedMedia(
+      videoId: result.videoId,
+      fileName: result.filename,
+      size: result.size,
+      kind: mediaKindForPath(result.filename),
+    );
+  }
+  // A draft that was opened after a restart holds its media on its own,
+  // because the upload that made it is no longer in memory.
+  return ref.watch(restoredDraftMediaProvider);
 });
+
+/// The media of the draft that was opened after a restart.
+final restoredDraftMediaProvider =
+    NotifierProvider<RestoredDraftMediaController, PublishedMedia?>(
+      RestoredDraftMediaController.new,
+    );
+
+class RestoredDraftMediaController extends Notifier<PublishedMedia?> {
+  @override
+  PublishedMedia? build() => null;
+
+  void set(PublishedMedia? media) => state = media;
+}
+
+/// The drafts on the machine that can be opened again, newest first.
+final savedDraftsProvider = FutureProvider<List<ComposeDraft>>((ref) async {
+  final drafts = await ref.watch(draftsRepositoryProvider).all();
+  // A draft from before the media was stored cannot be opened: the form has
+  // no file to show.
+  return [
+    for (final draft in drafts)
+      if (draft.fileName != null) draft,
+  ];
+});
+
+/// Whether the last draft write failed, so the admin knows the form is not
+/// being kept.
+final draftSaveWarningProvider =
+    NotifierProvider<DraftSaveWarningController, bool>(
+      DraftSaveWarningController.new,
+    );
+
+class DraftSaveWarningController extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool failed) => state = failed;
+}
 
 /// A draft that came back, and what its time means in the zone the machine
 /// is in now (SPEC-offline "The conflict rule").
@@ -204,6 +246,12 @@ class PublishComposer extends Notifier<PublishSelection> {
     );
   }
 
+  /// Opens a draft whose upload is no longer in memory.
+  void openDraft(ComposeDraft draft) {
+    ref.read(uploadControllerProvider.notifier).reset();
+    ref.read(restoredDraftMediaProvider.notifier).set(_mediaOfDraft(draft));
+  }
+
   /// Picks a target, or drops it.
   ///
   /// A picked target starts with the caption the AI wrote for that platform.
@@ -294,9 +342,12 @@ class PublishComposer extends Notifier<PublishSelection> {
     _saveTimer?.cancel();
     _loads++;
     ref.read(draftRestoreProvider.notifier).set(null);
+    ref.read(restoredDraftMediaProvider.notifier).set(null);
+    ref.read(draftSaveWarningProvider.notifier).set(false);
     state = const PublishSelection();
     if (videoId == null) return;
     await ref.read(draftsRepositoryProvider).delete(videoId);
+    ref.invalidate(savedDraftsProvider);
   }
 
   /// The post was written, so the draft has done its job (SPEC-offline "The
@@ -304,7 +355,9 @@ class PublishComposer extends Notifier<PublishSelection> {
   Future<void> draftPublished(String videoId) async {
     _saveTimer?.cancel();
     ref.read(draftRestoreProvider.notifier).set(null);
+    ref.read(restoredDraftMediaProvider.notifier).set(null);
     await ref.read(draftsRepositoryProvider).delete(videoId);
+    ref.invalidate(savedDraftsProvider);
   }
 
   void _update(PublishSelection next) {
@@ -336,19 +389,28 @@ class PublishComposer extends Notifier<PublishSelection> {
         resolved = resolveWallClock(wall: wall, zone: zone).instant;
       }
     }
+    final media = ref.read(publishedMediaProvider);
+    final ownMedia = media?.videoId == videoId ? media : null;
     final draft = ComposeDraft.fromSelection(
       selection,
       videoId: videoId,
       savedAt: DateTime.now(),
       resolvedAt: resolved,
       offsetMinutes: offset,
+      fileName: ownMedia?.fileName,
+      size: ownMedia?.size,
+      mediaKind: ownMedia?.kind?.name,
     );
     final drafts = ref.read(draftsRepositoryProvider);
     if (draft.isEmpty) {
       await drafts.delete(videoId);
+      ref.read(draftSaveWarningProvider.notifier).set(false);
+      ref.invalidate(savedDraftsProvider);
       return;
     }
-    await drafts.save(draft);
+    final saved = await drafts.save(draft);
+    ref.read(draftSaveWarningProvider.notifier).set(!saved);
+    ref.invalidate(savedDraftsProvider);
   }
 
   String _aiCaption(PublishTarget target) {
@@ -407,3 +469,20 @@ class PublishPollPolicy {
 final publishPollPolicyProvider = Provider<PublishPollPolicy>(
   (ref) => const PublishPollPolicy(),
 );
+
+/// The media a stored draft was written for, or null for a draft from before
+/// the media was stored.
+PublishedMedia? _mediaOfDraft(ComposeDraft draft) {
+  final fileName = draft.fileName;
+  if (fileName == null) return null;
+  return PublishedMedia(
+    videoId: draft.videoId,
+    fileName: fileName,
+    size: draft.size ?? 0,
+    kind: switch (draft.mediaKind) {
+      'video' => MediaKind.video,
+      'image' => MediaKind.image,
+      _ => null,
+    },
+  );
+}

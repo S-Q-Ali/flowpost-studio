@@ -11,7 +11,12 @@ import 'corrupt_file.dart';
 /// The compose drafts the admin has not published yet.
 abstract class DraftsRepository {
   Future<ComposeDraft?> load(String videoId);
-  Future<void> save(ComposeDraft draft);
+
+  /// Every draft on the machine, newest first.
+  Future<List<ComposeDraft>> all();
+
+  /// True when the draft was written.
+  Future<bool> save(ComposeDraft draft);
   Future<void> delete(String videoId);
 
   /// Whether the drafts can be read. A machine with no drafts file answers
@@ -72,11 +77,22 @@ class LocalDraftsRepository implements DraftsRepository {
   }
 
   @override
-  Future<void> save(ComposeDraft draft) async {
+  Future<List<ComposeDraft>> all() async {
     try {
-      (await _open())?.save(draft);
+      return (await _open())?.all() ?? const [];
+    } on Object catch (error) {
+      _log.warning('The drafts could not be listed (${error.runtimeType}).');
+      return const [];
+    }
+  }
+
+  @override
+  Future<bool> save(ComposeDraft draft) async {
+    try {
+      return (await _open())?.save(draft) ?? false;
     } on Object catch (error) {
       _log.warning('A draft could not be saved (${error.runtimeType}).');
+      return false;
     }
   }
 

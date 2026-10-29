@@ -8,7 +8,7 @@ import '../data/local_database.dart';
 import 'compose_draft.dart';
 
 /// The version this build writes and reads for the drafts.
-const int draftsSchemaVersion = 1;
+const int draftsSchemaVersion = 2;
 
 /// The drafts schema, one numbered step at a time.
 const List<LocalMigration> draftsMigrations = [
@@ -25,6 +25,13 @@ const List<LocalMigration> draftsMigrations = [
         'resolved_at INTEGER, '
         'offset_minutes INTEGER, '
         'saved_at INTEGER NOT NULL)',
+  ]),
+  // A draft outlives the upload that made it, so it carries enough of the
+  // media to be opened again after a restart.
+  LocalMigration(2, [
+    'ALTER TABLE drafts ADD COLUMN file_name TEXT',
+    'ALTER TABLE drafts ADD COLUMN size INTEGER',
+    'ALTER TABLE drafts ADD COLUMN media_kind TEXT',
   ]),
 ];
 
@@ -88,15 +95,25 @@ class DraftStore {
     return _draft(rows.first);
   }
 
-  /// Writes the draft of one media, replacing the one before it.
-  void save(ComposeDraft draft) {
+  /// Every draft the machine holds, newest first.
+  List<ComposeDraft> all() {
     final db = _database;
-    if (db == null) return;
+    if (db == null) return const [];
+    final rows = db.select('SELECT * FROM drafts ORDER BY saved_at DESC');
+    return [for (final row in rows) _draft(row)];
+  }
+
+  /// Writes the draft of one media, replacing the one before it. False when
+  /// the store is not open, so the caller can tell the admin nothing was kept.
+  bool save(ComposeDraft draft) {
+    final db = _database;
+    if (db == null) return false;
     db.execute(
       'INSERT OR REPLACE INTO drafts ('
       'video_id, target_ids, captions, ai_captions, youtube_title, mode, '
-      'schedule_date, schedule_time, resolved_at, offset_minutes, saved_at) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'schedule_date, schedule_time, resolved_at, offset_minutes, saved_at, '
+      'file_name, size, media_kind) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         draft.videoId,
         jsonEncode(draft.targetIds.toList()),
@@ -109,8 +126,12 @@ class DraftStore {
         draft.resolvedAt?.toUtc().microsecondsSinceEpoch,
         draft.offsetMinutes,
         draft.savedAt.toUtc().microsecondsSinceEpoch,
+        draft.fileName,
+        draft.size,
+        draft.mediaKind,
       ],
     );
+    return true;
   }
 
   void delete(String videoId) {
@@ -137,6 +158,9 @@ ComposeDraft _draft(Row row) {
     offsetMinutes: row['offset_minutes'] is int
         ? row['offset_minutes'] as int
         : null,
+    fileName: row['file_name'] as String?,
+    size: row['size'] is int ? row['size'] as int : null,
+    mediaKind: row['media_kind'] as String?,
   );
 }
 
