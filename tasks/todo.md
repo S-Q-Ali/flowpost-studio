@@ -132,7 +132,12 @@
   - [x] `captions_providers.dart`: controller with idle / running / ready / failed states
   - [x] Upload screen: caption progress, editable captions, readable failures
   - [x] The action stays off until a session token exists
-- [ ] **3.5** R2 upload with progress and cleanup
+- [x] **3.5** R2 upload with progress and cleanup
+  - [x] `idempotency_key` read by `upload-local-file`; the object is named after it
+  - [x] `upload_client.dart`: multipart body by hand, typed client, injectable transport
+  - [x] `upload_providers.dart`: idle / running / done / failed / cancelled, run counter, cancel
+  - [x] Upload screen: progress with percent, Cancel, stored file, readable failure
+  - [x] The action stays off until a session token exists
 - [ ] **3.6** Phase 3 gate
   - [x] Fixture integration tests
   - [x] Large-file run: no UI freeze, memory bounded
@@ -188,6 +193,32 @@
 - **Identity (why the action is off today):** `isRequestAuthorized` in `supabase/functions/_shared/auth.ts` rejects the anon key by design (`reason: "anon-key"`), and `FRONTEND_API_KEY` is a rotated secret that no client holds — so the desktop app cannot call the function without a session token. `captionTokenProvider` is null until the identity module exists, and the action stays disabled with the hint "Sign in required to generate captions or upload." The app itself is not gated, per the owner's decision to add the login guard only when the app is production-ready.
 - **Tests:** 45 new — prompt 11, client 11, generator 8, controller 10, Upload screen 5 (the action is off without a token, the run works with one, a failure reads clearly, a caption can be edited, the run can be cancelled).
 - **Gate:** `flutter analyze` no issues; `dart format --set-exit-if-changed lib test integration_test` clean; `flutter test` **255 passed**; release build succeeded.
+
+### Phase 3.5 evidence (2026-10-29)
+
+- **Contract** (`lib/features/media/upload/domain/upload_processing.dart`): `UploadStage` (`preparing`, `uploading`), `UploadProgress` (stage, fraction, message), `UploadResult` (videoId, url, filename, size) and `UploadException` — a failure the user can act on.
+- **Body and client** (`lib/features/media/upload/data/upload_client.dart`): `MultipartBody` builds the request by hand — one `file` part and one `idempotency_key` text field, a random boundary, a known `contentLength`, and `openRead(onProgress:)` that counts the bytes on the way. The file name goes into a header line, so quotes, line breaks and control bytes become `_`. `HttpUploadTransport` speaks `dart:io` `HttpClient`, so no dependency was added; `cancel()` closes the client with `force: true` and makes a fresh one. `UploadClient` sits over an injectable `UploadTransport`: a non-2xx answer becomes a readable message, an answer without `videoId`/`url` is "The upload service returned an unexpected answer.", and no token means nothing is sent.
+- **Progress:** the client reports at most every 250 ms and always reports the last one, so the bar ends at full instead of rebuilding the screen once per disk chunk.
+- **Controller** (`lib/features/media/upload/upload_providers.dart`): `UploadIdle | UploadRunning | UploadDone | UploadFailed | UploadCancelled`. A run counter keeps a cancelled or superseded run from writing over the newer state, and the request in flight can be aborted. The job id is the idempotency key, so a retry after an ambiguous failure lands on the same object instead of a second one.
+- **Upload screen** (`lib/features/media/presentation/media_page.dart`): the progress bar with a percent and a Cancel button, the stored file name and size, the failure message under the buttons. The Upload button is off while a token is missing, while the upload runs, and after it succeeded.
+- **Identity (why the action is off today):** `sessionTokenProvider` in `lib/core/providers/app_providers.dart` is null until the identity module exists, so the Upload button stays disabled with the hint "Sign in required to generate captions or upload." The app itself is not gated, per the owner's decision to add the login guard only when the app is production-ready.
+- **Backend** (`supabase/functions/upload-local-file/index.ts`): the function already reads `idempotency_key` and names the object after it, so a retry reuses the object; the desktop client now sends the same key. The catch block no longer hands the internal error text to the client — the detail stays in the log and the client gets "The upload failed. Please try again."
+
+**Gate review (`code-review-and-quality`) — findings and resolutions**
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| An upload that answered after the user had moved to another file deleted the new job's folder and reset the screen | Critical (data loss) | `reset()` invalidates the run and aborts the request, and `completeJob(jobId)` only clears the job it belongs to. Covered by a failing-first test that was red before the fix. |
+| A slow cleanup turned a finished upload into an error | Required | The cleanup runs outside the upload's try block and only logs its own failure. |
+| The progress was reported per disk chunk, rebuilding the screen a thousand times for a large file | Required | The client throttles to 250 ms. |
+| The edge function returned the internal Postgres/AWS error text to the client | Required (information disclosure) | A fixed message for the client, the detail in the log. |
+| Every video was stored as "normalized.mp4", so the library showed the same name for every video | Required | The user's file name is kept, with the truthful `.mp4` extension for a normalized video. |
+| Aborting a live request had no test | Required | A test against a local server that never answers. |
+| The generated job id had to satisfy the server's idempotency rule | Required | A test pins the id to `/^[A-Za-z0-9_-]{1,128}$/`. |
+
+- **Tests:** 31 new — client 13, controller 14, Upload screen 4, job id 1.
+- **Gate:** `flutter analyze` no issues; `dart format --set-exit-if-changed lib test integration_test` clean; `flutter test` **287 passed**; `npx vitest run` **101 passed**; release build succeeded.
+- **Deferred:** the manual real upload needs a session token (Phase 1), so the transport was proven against a local HTTP server instead; images go up as the untouched original, so their EXIF/GPS travels into R2; `media_providers.dart` and `upload_providers.dart` import each other.
 
 ### Phase 3.6 gate review (2026-10-29)
 
