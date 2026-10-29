@@ -68,6 +68,24 @@ void main() {
       expect(await taken.exists(), isTrue);
     });
 
+    test('createJob gives up when every id is taken', () async {
+      await jobsRoot.create(recursive: true);
+      final taken = Directory(
+        '${jobsRoot.path}${Platform.pathSeparator}20261029T140503-aaaaaa',
+      );
+      await taken.create();
+
+      final workspace = MediaWorkspace(
+        root: jobsRoot,
+        idFactory: () => '20261029T140503-aaaaaa',
+      );
+
+      await expectLater(
+        workspace.createJob(),
+        throwsA(isA<FileSystemException>()),
+      );
+    });
+
     test('deleteJob removes the job folder', () async {
       final workspace = buildWorkspace();
       final job = await workspace.createJob();

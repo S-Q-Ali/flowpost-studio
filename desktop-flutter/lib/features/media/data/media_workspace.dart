@@ -40,10 +40,7 @@ class MediaWorkspace {
       await job.create();
       return job;
     }
-    throw FileSystemException(
-      'Could not create a job folder.',
-      root.path,
-    );
+    throw FileSystemException('Could not create a job folder.', root.path);
   }
 
   /// Deletes [job] when it is a job folder the app created and resolves
