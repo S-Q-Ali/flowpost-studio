@@ -15,6 +15,7 @@ import 'core/providers/app_providers.dart';
 import 'core/router/app_router.dart' show deepLinkAllowlist;
 import 'core/router/deep_link_dispatcher.dart';
 import 'core/shell/flowpost_shell.dart';
+import 'features/media/data/media_workspace.dart';
 
 final AppLinks _appLinks = AppLinks();
 
@@ -35,6 +36,7 @@ Future<void> main() async {
       }
 
       final initialLink = await _getInitialLink();
+      await _removeStaleMediaJobs(log);
       final shell = FlowPostShell(
         trayIconPath:
             '${File(Platform.resolvedExecutable).parent.path}${Platform.pathSeparator}resources${Platform.pathSeparator}tray.ico',
@@ -86,6 +88,17 @@ Future<String?> _getInitialLink() async {
     return await _appLinks.getInitialLinkString();
   } on PlatformException {
     return null;
+  }
+}
+
+/// v1 never resumes a media job, so anything left in the jobs root is dead
+/// weight from a crash or a hard kill.
+Future<void> _removeStaleMediaJobs(Logger log) async {
+  try {
+    final workspace = await MediaWorkspace.forApplication(log: log);
+    await workspace.deleteAllJobs();
+  } on Object catch (error) {
+    log.warning('Stale media cleanup failed: $error');
   }
 }
 
