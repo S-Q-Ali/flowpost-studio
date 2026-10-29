@@ -585,16 +585,28 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Owner approval: given 2026-10-29.** The gate is closed and Phase 5 is complete.
 - **Still open, by design:** the cache wipe on sign-out (needs the sign-out action from 6.1), the `accounts`, `videos` and `profile` tables (migration 2+), and the Home numbers that wait on them.
 
+### Phase 6.1 evidence (2026-10-29)
+
+- **The session is a seam, not a screen.** `Session` / `sessionProvider` (`lib/core/session/session.dart`) holds the two tokens; `sessionTokenProvider` and `authAccessTokenProvider` (`lib/core/providers/app_providers.dart`) now derive from it, so every existing caller keeps its shape and the app has one place to sign in. Nothing sets a session yet — sign-in stays out until the production gate (SPEC-settings Decision 1), and the screen says so.
+- **No sign-in UI, and no guard.** `/settings` shows **Not signed in** with "Sign-in arrives with the production build.", and no route depends on a session. The auth guard the owner asked for lands with production, not before.
+- **Sign out names the trade before doing it.** With a session, **Sign out** asks first: "Signing out removes the saved posts from this machine. Your drafts are kept." Confirming clears the session, invalidates the queue and calendar controllers so no stale row survives, and wipes `cache.db`; **Keep me signed in** changes nothing (`settings_page_test.dart`, 2 tests).
+- **The wipe reaches the store.** `PostsCache.wipe()` (`lib/features/offline/data/posts_cache.dart`) closes the open store and deletes the file, swallowing and logging the type on failure the way `load` and `merge` do — a cache that will not go does not keep the admin signed in. `drafts.db` is never touched (Decision 3).
+- **One version, two screens.** `appVersionProvider` (`lib/core/update/app_version.dart`) reads `package_info_plus` once and answers null instead of throwing; Home and Settings both watch it, so the two cannot disagree (Decision 4). Home no longer calls `PackageInfo.fromPlatform` itself and keeps its automatic check (Decision 7).
+- **The update check is on demand, and says why it cannot run.** `updateCheckProvider` (`lib/features/settings/settings_providers.dart`) refuses to start when `UPDATE_MANIFEST_URL` is empty or a check is already running; the button is disabled and the section reads "This build has no update source." A check that finds a newer build offers **Download** through `url_launcher`; a failure shows the reason and re-enables the button.
+- **The log folder is the app's own.** `logsDirectory()` (`lib/core/logging/app_logger.dart`) is public so Settings reveals the same path the logger writes to, and **Open folder** hands it to `explorer.exe` detached. A folder that cannot be resolved says "The log folder is not available yet." rather than showing an empty button.
+- **Tests:** 27 new — session 3, token helpers 5 (`emailFromAccessToken` incl. a token without the claim), cache wipe 2, version provider 2, update/sign-out providers 6 (incl. a failing wipe that still clears the session), Settings page 9 (sections, email, sign-out confirm and keep, no update source, up to date, update available, failed check, open folder, missing folder).
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (139 files), `flutter analyze lib test` no issues, `flutter test` **595 passed** (was 568), LF-only bytes on every changed Dart file.
+
 ---
 
 ## Phase 6 — Production Hardening
 
-- [ ] **6.1** Settings: account, logout, version, update, log location, about
-  - [ ] Approve `docs/spec/SPEC-settings.md` (7 decisions)
-  - [ ] The screen at `/settings`: account, session, updates, diagnostics, about
-  - [ ] One version provider shared with Home; the manual update check
-  - [ ] Sign out: clear the session, wipe `cache.db`, keep `drafts.db`
-  - [ ] The log folder and **Open folder**
+- [x] **6.1** Settings: account, logout, version, update, log location, about
+  - [x] Approve `docs/spec/SPEC-settings.md` (7 decisions)
+  - [x] The screen at `/settings`: account, session, updates, diagnostics, about
+  - [x] One version provider shared with Home; the manual update check
+  - [x] Sign out: clear the session, wipe `cache.db`, keep `drafts.db`
+  - [x] The log folder and **Open folder**
 - [ ] **6.2** Global error handlers, rotation, diagnostics export, crash recovery
 - [ ] **6.3** Accessibility: keyboard, focus, labels, contrast, 200% scaling
 - [ ] **6.4** Performance: cold start, media, lists, memory, size

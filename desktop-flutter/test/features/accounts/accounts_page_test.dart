@@ -194,7 +194,7 @@ void main() {
 
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
-    expect(find.text('Settings'), findsWidgets);
-    expect(find.text('Coming soon in the next module.'), findsOneWidget);
+    expect(find.text('Not signed in'), findsOneWidget);
+    expect(find.text('This build has no update source.'), findsOneWidget);
   });
 }

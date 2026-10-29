@@ -109,7 +109,7 @@ Future<Logger> initLogging() async {
   Logger.root.onRecord.listen((record) {
     _lastWrite = _lastWrite.then((_) async {
       try {
-        final dir = await _logsDirectory();
+        final dir = await logsDirectory();
         final file = File('${dir.path}${Platform.pathSeparator}app.log');
         await rotateLogIfNeeded(file);
         final line = StringBuffer(
@@ -140,7 +140,10 @@ Future<Logger> initLogging() async {
   return Logger.root;
 }
 
-Future<Directory> _logsDirectory() async {
+/// The folder the log file lives in, created on first use.
+///
+/// Public so Settings can reveal it without duplicating the path rule.
+Future<Directory> logsDirectory() async {
   final support = await getApplicationSupportDirectory();
   final dir = Directory('${support.path}${Platform.pathSeparator}logs');
   if (!await dir.exists()) {

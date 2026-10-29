@@ -50,6 +50,35 @@ void main() {
     expect(await cache.load(), isNull);
   });
 
+  test(
+    'a wipe leaves nothing behind and the next write starts fresh',
+    () async {
+      final cache = LocalPostsCache(file: () async => file);
+      addTearDown(cache.close);
+      await cache.merge([post('post-1')], readAt: DateTime.utc(2026, 10, 29));
+      expect(file.existsSync(), isTrue);
+
+      await cache.wipe();
+
+      expect(file.existsSync(), isFalse);
+      expect(await cache.load(), isNull);
+
+      await cache.merge([post('post-2')], readAt: DateTime.utc(2026, 10, 30));
+      final cached = await cache.load();
+      expect(cached!.posts.single.id, 'post-2');
+    },
+  );
+
+  test('a wipe before anything was written is not a failure', () async {
+    final cache = LocalPostsCache(file: () async => file);
+    addTearDown(cache.close);
+
+    await cache.wipe();
+
+    expect(file.existsSync(), isFalse);
+    expect(await cache.load(), isNull);
+  });
+
   test('a file that will not open is renamed, not deleted', () async {
     file.writeAsStringSync('not a database');
     final cache = LocalPostsCache(file: () async => file);

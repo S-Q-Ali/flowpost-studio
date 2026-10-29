@@ -20,6 +20,13 @@ abstract class PostsCache {
 
   /// Drops one row the client deleted.
   Future<void> remove(String postId);
+
+  /// Removes the whole cache, for a sign-out (SPEC-offline Decision 8).
+  ///
+  /// The next call opens a fresh file. A wipe that fails leaves the admin
+  /// signed out all the same; the file stays on disk for the diagnostics
+  /// screen.
+  Future<void> wipe();
 }
 
 /// The cache in `cache.db`, in the app's support folder.
@@ -99,6 +106,21 @@ class LocalPostsCache implements PostsCache {
       (await _open())?.removePost(postId);
     } on Object catch (error) {
       _log.warning('The cache could not be written (${error.runtimeType}).');
+    }
+  }
+
+  @override
+  Future<void> wipe() async {
+    try {
+      final store = _store;
+      // The next read must not find the closed handle, so the future is
+      // dropped before the file is removed.
+      _store = null;
+      if (store != null) (await store)?.close();
+      final file = await _file();
+      if (await file.exists()) await file.delete();
+    } on Object catch (error) {
+      _log.warning('The cache could not be wiped (${error.runtimeType}).');
     }
   }
 }

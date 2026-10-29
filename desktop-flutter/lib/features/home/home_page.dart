@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers/app_providers.dart';
+import '../../core/update/app_version.dart';
 import '../../core/update/update_banner.dart';
 import '../../core/update/update_checker.dart';
 
@@ -15,7 +15,6 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
-  String _version = '1.0.0';
   UpdateResult? _update;
   bool _checking = false;
 
@@ -27,19 +26,14 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   Future<void> _load() async {
     final config = ref.read(appConfigProvider);
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (mounted) setState(() => _version = info.version);
-    } on Object {
-      // The placeholder still renders if the platform channel is unavailable.
-    }
     if (config.updateManifestUrl.isEmpty) return;
-    if (!mounted) return;
+    final version = await ref.read(appVersionProvider.future);
+    if (!mounted || version == null) return;
     setState(() => _checking = true);
 
     final result = await checkForUpdate(
       manifestUrl: Uri.parse(config.updateManifestUrl),
-      currentVersion: _version,
+      currentVersion: version.version,
     );
     if (!mounted) return;
     setState(() {
@@ -63,6 +57,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final update = _update;
+    final version = ref.watch(appVersionProvider).value;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -80,10 +75,11 @@ class _HomePageState extends ConsumerState<HomePage> {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 12),
-          Text(
-            'Version $_version',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          if (version != null)
+            Text(
+              'Version ${version.version}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           if (_checking)
             const Padding(
               padding: EdgeInsets.only(top: 16),

@@ -18,6 +18,9 @@ class FakePostsCache implements PostsCache {
   /// Every id that was dropped.
   final List<String> removed = [];
 
+  /// How many times the whole cache was wiped.
+  int wipes = 0;
+
   @override
   Future<CachedPosts?> load() async => cached;
 
@@ -37,5 +40,11 @@ class FakePostsCache implements PostsCache {
   @override
   Future<void> remove(String postId) async {
     removed.add(postId);
+  }
+
+  @override
+  Future<void> wipe() async {
+    wipes++;
+    cached = null;
   }
 }

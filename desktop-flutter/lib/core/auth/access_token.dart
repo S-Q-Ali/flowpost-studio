@@ -26,3 +26,12 @@ String? userIdFromAccessToken(String token) {
   final subject = jwtPayload(token)?['sub'];
   return subject is String && subject.isNotEmpty ? subject : null;
 }
+
+/// The email the access token was issued to, for the account section.
+///
+/// Null when the claim is missing, so the screen shows what it knows rather
+/// than an empty line.
+String? emailFromAccessToken(String token) {
+  final email = jwtPayload(token)?['email'];
+  return email is String && email.isNotEmpty ? email : null;
+}

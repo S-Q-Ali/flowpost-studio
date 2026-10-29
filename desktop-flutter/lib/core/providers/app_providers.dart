@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
+import '../session/session.dart';
 import '../time/time_zone.dart';
 
 /// Config is provided as an instance by `main.dart` after parsing; the app
@@ -19,15 +20,17 @@ final Provider<TimeZone> timeZoneProvider = Provider<TimeZone>(
 
 /// The session token the backend calls are made with.
 ///
-/// Null until the identity module exists, so the actions that need one stay
-/// disabled with the sign-in hint.
-final Provider<String?> sessionTokenProvider = Provider<String?>((ref) => null);
+/// Null until the identity module signs someone in, so the actions that need
+/// one stay disabled with the sign-in hint.
+final Provider<String?> sessionTokenProvider = Provider<String?>(
+  (ref) => ref.watch(sessionProvider)?.sessionToken,
+);
 
 /// The Supabase Auth access token, for the table reads and writes.
 ///
 /// The posts table only lets a user write their own rows, so the rows need
-/// this one and not the session token. Null until the identity module
-/// exists.
+/// this one and not the session token. Null until the identity module signs
+/// someone in.
 final Provider<String?> authAccessTokenProvider = Provider<String?>(
-  (ref) => null,
+  (ref) => ref.watch(sessionProvider)?.accessToken,
 );
