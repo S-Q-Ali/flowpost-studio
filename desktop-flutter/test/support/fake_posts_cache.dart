@@ -33,7 +33,7 @@ class FakePostsCache implements PostsCache {
   }
 
   @override
-  Future<void> save(ScheduledPost post, {required DateTime readAt}) async {
+  Future<void> save(ScheduledPost post) async {
     saved.add(post);
   }
 

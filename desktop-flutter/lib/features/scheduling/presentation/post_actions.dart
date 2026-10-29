@@ -369,7 +369,6 @@ class _EditPostFormState extends ConsumerState<_EditPostForm> {
               thumbnailUrl: post.thumbnailUrl,
               containsAlteredContent: edit.containsAlteredContent,
             ),
-            readAt: DateTime.now(),
           );
       if (!mounted) return;
       Navigator.of(context).pop(true);

@@ -16,7 +16,7 @@ abstract class PostsCache {
   Future<void> merge(Iterable<ScheduledPost> posts, {required DateTime readAt});
 
   /// Writes one row the client changed.
-  Future<void> save(ScheduledPost post, {required DateTime readAt});
+  Future<void> save(ScheduledPost post);
 
   /// Drops one row the client deleted.
   Future<void> remove(String postId);
@@ -92,9 +92,9 @@ class LocalPostsCache implements PostsCache {
   }
 
   @override
-  Future<void> save(ScheduledPost post, {required DateTime readAt}) async {
+  Future<void> save(ScheduledPost post) async {
     try {
-      (await _open())?.savePost(post, readAt: readAt);
+      (await _open())?.savePost(post);
     } on Object catch (error) {
       _log.warning('The cache could not be written (${error.runtimeType}).');
     }

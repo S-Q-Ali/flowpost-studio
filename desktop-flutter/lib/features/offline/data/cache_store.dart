@@ -10,7 +10,7 @@ import 'local_database.dart';
 
 /// The version this build writes and reads (SPEC-offline "The schema and the
 /// migrations").
-const int cacheSchemaVersion = 1;
+const int cacheSchemaVersion = 2;
 
 /// How many posts the cache keeps (SPEC-offline "How much", Decision 6).
 const int cachePostLimit = 500;
@@ -35,6 +35,9 @@ const List<LocalMigration> cacheMigrations = [
         'contains_altered_content INTEGER NOT NULL DEFAULT 0, '
         'fetched_at INTEGER NOT NULL)',
   ]),
+  // No read ever used the per-row time: the snapshot's read time lives in
+  // `meta`, and a row's own time would only drift from it.
+  LocalMigration(2, ['ALTER TABLE posts DROP COLUMN fetched_at']),
 ];
 
 /// Why the app has no cache.
@@ -153,7 +156,7 @@ class CacheStore {
     final stamp = _micros(readAt)!;
     _transaction(db, () {
       for (final post in posts) {
-        _insert(db, post, stamp);
+        _insert(db, post);
       }
       db.execute(
         'DELETE FROM posts WHERE id NOT IN ('
@@ -175,10 +178,10 @@ class CacheStore {
   ///
   /// The snapshot's read time is left alone: it is the time the list was read
   /// from the server.
-  void savePost(ScheduledPost post, {required DateTime readAt}) {
+  void savePost(ScheduledPost post) {
     final db = _requireOpen();
     _transaction(db, () {
-      _insert(db, post, _micros(readAt)!);
+      _insert(db, post);
       db.execute(
         'DELETE FROM posts WHERE id NOT IN ('
         'SELECT id FROM posts '
@@ -224,13 +227,13 @@ class CacheStore {
   }
 }
 
-void _insert(Database db, ScheduledPost post, int stamp) {
+void _insert(Database db, ScheduledPost post) {
   db.execute(
     'INSERT OR REPLACE INTO posts ('
     'id, status, platform, post_type, account_name, caption, hashtags, '
     'scheduled_at, published_at, video_title, thumbnail_url, '
-    'contains_altered_content, fetched_at) '
-    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'contains_altered_content) '
+    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       post.id,
       post.status.name,
@@ -244,7 +247,6 @@ void _insert(Database db, ScheduledPost post, int stamp) {
       post.videoTitle,
       post.thumbnailUrl,
       post.containsAlteredContent ? 1 : 0,
-      stamp,
     ],
   );
 }

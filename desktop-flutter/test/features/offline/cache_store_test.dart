@@ -65,6 +65,53 @@ void main() {
     expect(file.existsSync(), isTrue);
   });
 
+  test('a cache from the first schema keeps its rows and drops fetched_at', () {
+    final raw = sqlite3.open(file.path);
+    raw.execute(
+      'CREATE TABLE meta (id INTEGER PRIMARY KEY CHECK (id = 1), '
+      'schema_version INTEGER NOT NULL, last_read_at INTEGER)',
+    );
+    raw.execute(
+      'INSERT INTO meta (id, schema_version, last_read_at) VALUES (1, 1, 0)',
+    );
+    raw.execute(
+      'CREATE TABLE posts ('
+      'id TEXT PRIMARY KEY, '
+      'status TEXT NOT NULL, '
+      'platform TEXT, '
+      'post_type TEXT NOT NULL, '
+      'account_name TEXT, '
+      'caption TEXT, '
+      'hashtags TEXT, '
+      'scheduled_at INTEGER, '
+      'published_at INTEGER, '
+      'video_title TEXT, '
+      'thumbnail_url TEXT, '
+      'contains_altered_content INTEGER NOT NULL DEFAULT 0, '
+      'fetched_at INTEGER NOT NULL)',
+    );
+    raw.execute(
+      "INSERT INTO posts (id, status, post_type, fetched_at) "
+      "VALUES ('old', 'scheduled', 'feed', 0)",
+    );
+    raw.close();
+
+    final store = CacheStore(file: file);
+    addTearDown(store.close);
+    expect(store.open().isOpen, isTrue);
+    expect(store.version, 2);
+    expect(store.loadPosts()!.posts.map((row) => row.id), ['old']);
+
+    final after = sqlite3.open(file.path);
+    addTearDown(after.close);
+    expect(
+      after.select(
+        "SELECT name FROM pragma_table_info('posts') WHERE name = 'fetched_at'",
+      ),
+      isEmpty,
+    );
+  });
+
   test('a snapshot is still there after a close and a reopen', () {
     final store = CacheStore(file: file);
     final readAt = DateTime.utc(2026, 10, 29, 9, 32);
@@ -287,10 +334,7 @@ void main() {
       post(id: 'a', scheduledAt: DateTime.utc(2026, 10, 30)),
       post(id: 'c', scheduledAt: DateTime.utc(2026, 11, 1)),
     ], readAt: DateTime.utc(2026, 10, 29, 9));
-    store.savePost(
-      post(id: 'b', scheduledAt: DateTime.utc(2026, 10, 31)),
-      readAt: DateTime.utc(2026, 10, 29, 10),
-    );
+    store.savePost(post(id: 'b', scheduledAt: DateTime.utc(2026, 10, 31)));
 
     expect(store.loadPosts()!.posts.map((row) => row.id), ['a', 'b', 'c']);
   });
@@ -306,10 +350,7 @@ void main() {
           scheduledAt: DateTime.utc(2026, 1, 1).add(Duration(minutes: i + 1)),
         ),
     ], readAt: DateTime.utc(2026, 10, 29, 9));
-    store.savePost(
-      post(id: 'first', scheduledAt: DateTime.utc(2026, 1, 1)),
-      readAt: DateTime.utc(2026, 10, 29, 10),
-    );
+    store.savePost(post(id: 'first', scheduledAt: DateTime.utc(2026, 1, 1)));
 
     final posts = store.loadPosts()!.posts;
     expect(posts, hasLength(500));
@@ -338,12 +379,12 @@ void main() {
 
     final raw = sqlite3.open(file.path);
     raw.execute(
-      "INSERT INTO posts (id, status, post_type, fetched_at) "
-      "VALUES ('bad', 'weird', 'feed', 0)",
+      "INSERT INTO posts (id, status, post_type) "
+      "VALUES ('bad', 'weird', 'feed')",
     );
     raw.execute(
-      "INSERT INTO posts (id, status, post_type, fetched_at) "
-      "VALUES ('good', 'scheduled', 'feed', 0)",
+      "INSERT INTO posts (id, status, post_type) "
+      "VALUES ('good', 'scheduled', 'feed')",
     );
     raw.close();
 
