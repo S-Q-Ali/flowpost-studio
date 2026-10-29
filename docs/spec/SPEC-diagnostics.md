@@ -3,7 +3,7 @@
 **Module:** `diagnostics` (see `docs/spec/flowpost-native-capability-map.md`)
 **Status:** Proposed 2026-10-29 (Phase 6.2); awaiting the owner's approval
 **Depends on:** `shell` (the bootstrap sequence and the window), `settings` (the Diagnostics section and the log folder), `offline` (the cache and drafts files, SPEC-offline Decisions 3 and 8)
-**Blocks:** 6.6 (the runbook quotes the evidence file and the salvage step), 6.7 (the gate reads these rules)
+**Blocks:** 6.7 (the runbook quotes the evidence file and the salvage step), 6.8 (the gate reads these rules)
 
 ---
 

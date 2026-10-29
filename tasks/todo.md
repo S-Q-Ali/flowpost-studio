@@ -629,7 +629,7 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **200% text is now tested on every page** — Home and the rail, Upload, Compose, Accounts, Queue, Calendar, Settings — at the 1024×640 minimum window. The three older tests that used 1.6 now use 2.0, and no page needed a layout change: the toolbar rows and filter wraps already grow.
 - **Tests:** 15 new — contrast 7, calendar keyboard/semantics 4, scale 4; 3 existing scale tests raised to 2.0.
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (153 files), `flutter analyze lib test` no issues, `flutter test` **656 passed** (was 641), LF-only bytes on every changed Dart file.
-- **Not verified visually:** the palette change (plum button labels, darker borders and error red) was checked by measured contrast, not by eye on a running window; a live pass is left for the Phase 6.7 gate.
+- **Not verified visually:** the palette change (plum button labels, darker borders and error red) was checked by measured contrast, not by eye on a running window; a live pass is left for the Phase 6.8 gate.
 
 ---
 
@@ -652,10 +652,15 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] Contrast tokens (onPrimary, primaryText, error, published, outline)
   - [x] Calendar chip keyboard, day-cell and chip labels, focus colour
   - [x] 200% text on every page at the minimum window
-- [ ] **6.4** Performance: cold start, media, lists, memory, size
-- [ ] **6.5** Security: secrets, tokens, deep links, FFmpeg args, dependencies, RLS notes
-- [ ] **6.6** README, ADRs, runbook, release checklist, rollback notes
-- [ ] **6.7** Phase 6 gate
+- [ ] **6.4** Credentials in Settings: first-run setup, validated store, masked display
+  - [ ] Approve `docs/spec/SPEC-credentials.md` (which credentials, storage, precedence, first run)
+  - [ ] The store: `credentials.json` beside `accounts.json`; saved values win over compiled ones; a service-role key is refused
+  - [ ] Settings section: enter, test, save, clear; masked; no value in logs or diagnostics
+  - [ ] First-run setup screen instead of `ConfigErrorApp`; providers reload when the values change
+- [ ] **6.5** Performance: cold start, media, lists, memory, size
+- [ ] **6.6** Security: secrets, tokens, deep links, FFmpeg args, dependencies, RLS notes
+- [ ] **6.7** README, ADRs, runbook, release checklist, rollback notes
+- [ ] **6.8** Phase 6 gate
   - [ ] `shipping-and-launch` checklist green
   - [ ] No P0/P1 security/accessibility/performance issue
   - [ ] Scoped `ponytail-audit` no Must-fix

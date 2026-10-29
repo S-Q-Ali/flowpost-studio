@@ -3,7 +3,7 @@
 **Module:** `settings` (see `docs/spec/flowpost-native-capability-map.md`)
 **Status:** Proposed 2026-10-29 (Phase 6.1); awaiting the owner's approval
 **Depends on:** `shell` (the route and the rail entry), `identity` (the session — deferred by the owner), `offline` (the cache wipe on sign-out)
-**Blocks:** 6.2 (the export action sits beside the log location), 6.6 (the About text)
+**Blocks:** 6.2 (the export action sits beside the log location), 6.7 (the About text)
 
 ---
 

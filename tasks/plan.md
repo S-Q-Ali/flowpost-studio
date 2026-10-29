@@ -428,8 +428,8 @@ If any command fails, the phase stays open. Do not move to the next phase with a
 
 ## Phase 6 — Production Hardening
 
-**Goal:** Settings, version/update, observability, accessibility, security, performance, and documentation are production-grade.
-**Estimate:** 1 week.
+**Goal:** Settings, user-entered credentials, version/update, observability, accessibility, security, performance, and documentation are production-grade.
+**Estimate:** 1–1.5 weeks.
 
 ### Task 6.1 — Settings and update UI
 **Acceptance:** Settings shows account, logout, app version, update check, log location, and about; update check reuses the Phase 0 service; no secret is displayed.
@@ -452,31 +452,38 @@ If any command fails, the phase stays open. Do not move to the next phase with a
 **Files:** `lib/core/theme/`, feature UI, tests.
 **Scope:** M.
 
-### Task 6.4 — Performance
+### Task 6.4 — Credentials in Settings
+**Acceptance:** A Settings section lets any user enter, test, save, and clear the Supabase URL, the anon/publishable key, and the update manifest URL; saved values are validated with the existing rules (https only, never a service-role or secret key) and replace the compiled defaults without a rebuild; a clean install with no credentials shows a setup screen instead of a config error; values are stored locally beside `accounts.json`, masked on screen, and never logged or written into a diagnostics export. Platform API keys stay server-side in the edge functions and are not accepted by the client.
+**Verify:** Unit tests on the store, validation, and precedence; widget tests for first run and the Settings section; manual first run on an empty app data folder; log and diagnostics export inspected for secrets.
+**Depends:** 6.1, 6.3.
+**Files:** `lib/core/config/`, `lib/core/providers/`, `lib/features/settings/`, `lib/main.dart`, tests.
+**Scope:** M.
+
+### Task 6.5 — Performance
 **Acceptance:** Cold start under 3 seconds; no UI freeze over 100ms on media/publish paths; large file memory stays bounded; list scrolling stays smooth; app size is recorded.
 **Verify:** Stopwatch cold-start runs; FFmpeg large-file run; DevTools timeline; size report.
-**Depends:** Phase 5.
+**Depends:** Phase 5, 6.4.
 **Files:** `lib/core/`, media/publishing paths.
 **Scope:** S.
 
-### Task 6.5 — Security review
-**Acceptance:** No service-role key; session tokens protected; deep links allowlisted and state-checked; FFmpeg arguments not shell-interpolated; upload URLs not logged; dependency audit has no critical/high issue; RLS assumptions documented.
+### Task 6.6 — Security review
+**Acceptance:** No service-role key; stored credentials (6.4) are validated, masked, and absent from logs and diagnostics; session tokens protected; deep links allowlisted and state-checked; FFmpeg arguments not shell-interpolated; upload URLs not logged; dependency audit has no critical/high issue; RLS assumptions documented.
 **Verify:** `security-and-hardening` checklist; secret scan; dependency audit; log inspection.
-**Depends:** Phase 5.
-**Files:** Config, auth, deep links, media, upload.
+**Depends:** Phase 5, 6.1–6.5.
+**Files:** Config, credentials store, auth, deep links, media, upload.
 **Scope:** M.
 
-### Task 6.6 — Documentation and ADRs
-**Acceptance:** README, architecture notes, identity/offline/FFmpeg ADRs, support runbook, release checklist, and rollback notes are current.
+### Task 6.7 — Documentation and ADRs
+**Acceptance:** README, architecture notes, identity/offline/FFmpeg/credentials ADRs, support runbook, release checklist, and rollback notes are current.
 **Verify:** A second person can build and run from the docs.
-**Depends:** 6.1–6.5.
+**Depends:** 6.1–6.6.
 **Files:** `README.md`, `docs/adr/`, `docs/runbook.md`.
 **Scope:** S.
 
-### Task 6.7 — Phase 6 gate
+### Task 6.8 — Phase 6 gate
 **Acceptance:** Pre-launch checklist green; no P0/P1 security, accessibility, or performance issue.
 **Verify:** `shipping-and-launch` checklist; full commands; `ponytail-audit`.
-**Depends:** 6.1–6.6.
+**Depends:** 6.1–6.7.
 **Files:** No new code; evidence in `tasks/todo.md`.
 **Scope:** S.
 
