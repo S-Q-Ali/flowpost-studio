@@ -319,12 +319,12 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] `publish_page.dart`: the scheduled label, the time it goes out, the Retry button and the sentence that explains why it is off
   - [x] 10 tests
 - [ ] **4.5** Phase 4 gate
-  - [ ] State-machine tests for timeout/already-published
+  - [x] State-machine tests for timeout/already-published
   - [ ] One real platform publish
-  - [ ] Duplicate guard proven
-  - [ ] `security-and-hardening` review
-  - [ ] `performance-optimization` review
-  - [ ] Scoped `ponytail-audit` no Must-fix
+  - [x] Duplicate guard proven
+  - [x] `security-and-hardening` review
+  - [x] `performance-optimization` review
+  - [x] Scoped `ponytail-audit` no Must-fix
   - [ ] Human approval
 
 ### Phase 4.1 evidence (2026-10-29)
@@ -372,6 +372,58 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **The screen** (`publish_page.dart`): "Scheduled" with the local time it goes out, the Retry button under a failure, and the sentence that says why the button is off.
 - **Tests:** 10 new (the scheduled row and the instant it stores, the scheduled row with no time, the retry that moves the row, the retry that changes nothing, the retry that is not offered, the second click, and the four on the screen) — 373 in the suite; `flutter analyze` and the format check are clean.
 - **Known limit for the 4.5 gate:** the functions' early bail-outs (no `postId`, the wrong platform, no `account_id`, no video, no connected account) leave the row in `processing`, so such a row is not `failed` and cannot be retried from the client — the admin publishes it again from the draft the screen kept.
+
+### Phase 4.5 evidence (2026-10-29)
+
+**Gate checklist**
+
+| Item | State |
+|---|---|
+| State-machine tests for timeout / already-published | Done |
+| Duplicate guard proven | Done |
+| `security-and-hardening` review | Done, no open finding |
+| `performance-optimization` review | Done, no open finding |
+| Scoped `ponytail-audit` | Done, no Must-fix left |
+| One real platform publish | **Open — needs the owner's real accounts** |
+| Human approval | Pending |
+
+**What the gate changed**
+
+- **The queue call cannot wedge the publish** (`posts_repository.dart`, `publish_client.dart`): the timeout is now one budget for the whole call — the connection, the answer and the body — instead of three timeouts that could add up to three times the budget, and a dropped connection is caught as a `PostsException` instead of an `IOException` that escaped the publish and left the screen on "Publishing...". The row read-back and the wait end early when the queue stops answering, so the admin is not left in front of a spinner.
+- **The YouTube title has a limit** (`publish_target.dart`, `publish_validation.dart`): YouTube keeps 100 characters and the function does not cut the title, so a longer one is refused by the client with the limit named, next to the caption limit the client already enforced.
+- **A path never reaches the screen** (`core/logging/app_logger.dart`): `maskPaths` is now the one masker, used by the FFmpeg reason and by the sentence of a failed publish. A platform or a tool can echo the path of the user's file back, and a path names a file on someone's disk.
+- **The screen says each thing once** (`publish_page.dart`): an issue of a target is shown under that target's field and no longer repeated in the list of the form's reasons, and the platform's own id is labelled "Platform id" — it is the id the platform gave, not the id of the row.
+- **The ponytail cleanups**: the caption key of a platform is now pinned by a test against the captions module, the JWT payload is decoded in one place (`jwtPayload` in `core/auth/access_token.dart`, used by the row owner and by the service-role check), the dead `PublishComposer.reset()` is gone, and the media size and duration formatters live in one place (`core/format/media_format.dart`) instead of two copies.
+
+**The reviews and their findings**
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| The queue call had no timeout on the connection and the body, so the publish could hang on a half-open socket | Must-fix | One `Stopwatch` budget over the whole call. Two tests against a real local server: a dropped connection and a call that runs out of time. |
+| A dropped connection threw an `IOException` that escaped the publish and left the screen on "Publishing..." | Must-fix | Caught and turned into "The queue did not answer. Try again." |
+| The wait for the row kept polling a queue that was not answering | Should-fix | The wait ends at the first refused answer. |
+| The retry lost the failure when the queue refused to move the row | Should-fix | The failure stays on the screen with the reason. |
+| The YouTube title had no limit, so a long one failed at the platform with an opaque error | Should-fix | The limit is 100 and is refused by the client. |
+| A file path in the sentence of a failure reached the screen | Should-fix | `maskPaths` is the one masker, used by both the FFmpeg reason and the failure sentence. Two tests. |
+| The caption key of a platform was not pinned against the captions module, although a comment promised a test | Should-fix | `test/features/publishing/publish_target_test.dart`. |
+| The JWT payload was decoded twice, in two files | Should-fix | `jwtPayload` in `core/auth/access_token.dart`. |
+| A validation message was printed twice | Should-fix | The issue of a target is only shown under its field. A test. |
+| The platform's own id was labelled "Post id" | Nit | "Platform id". |
+| The answer of a call was not bounded in size | Rejected | The answer of the platform functions is a small JSON; the cap would be a new limit with no case behind it. |
+| The targets were published one after the other | Rejected | The platforms throttle an account, so a parallel run would fail more, not less. One run at a time is also the duplicate guard. |
+| The `HttpClient` was created per call and thrown away | Rejected | A kept client holds a socket for the life of the app; the table is asked a few times per publish, so the per-call client is cheaper. |
+| A cancel button for a running publish | Rejected | Nothing is sent until the row is written, and a row that is written can be retried through the queue. The button would add a path that is not needed. |
+| `PostRow.platform` and `PublishTarget.==` were unused | Rejected | `platform` is part of the row the client reads back; the equality is used by the selection. |
+| The `posts` RLS has a backdoor owner `00000000-…` and the upload functions never compare `post.user_id` with the session user | Deferred to the owner | Both need a backend change and a deploy; the owner decided the backend guards come after the app ships. |
+
+**Verification:** `flutter analyze` no issues; `dart format --set-exit-if-changed lib test integration_test` clean; `flutter test` **383 passed** (10 new in this gate: 2 for the transport, 2 for the path masking, 2 for the title limit, 2 for the queue that stops answering, 1 for the caption key, 1 for the message that is printed once).
+
+**Deferred to the owner**
+
+- **One real platform publish is still open.** It needs the owner's real YouTube/Instagram accounts, real tokens and a real video; nothing in this repo can stand in for it. Everything else in the 4.5 gate is done, but the gate itself cannot be signed without it.
+- The `process-scheduled-posts` `pg_cron` job ships commented out (`supabase/migrations/20260307000300_cron_process_scheduled_posts.sql:6-22`), so the scheduled flow needs a job that may not exist in the live database.
+- The RLS backdoor owner and the missing `post.user_id` check in the upload functions (see the table above).
+- The functions' early bail-outs leave the row in `processing`, so such a row cannot be retried from the client.
 
 ---
 
