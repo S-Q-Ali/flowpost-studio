@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/config_overrides.dart';
 import '../../support/fake_drafts.dart';
 import '../../support/fake_time_zone.dart';
 
@@ -130,7 +131,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        appConfigProvider.overrideWithValue(_config),
+        seededConfig(_config),
         publishTargetsProvider.overrideWithValue(targets),
         publishedMediaProvider.overrideWithValue(
           withMedia

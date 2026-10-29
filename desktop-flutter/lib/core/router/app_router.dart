@@ -8,6 +8,7 @@ import '../../features/publishing/presentation/publish_page.dart';
 import '../../features/scheduling/presentation/calendar_page.dart';
 import '../../features/scheduling/presentation/queue_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
+import '../../features/setup/presentation/setup_page.dart';
 import '../shell/app_shell.dart';
 
 const String homeRoute = '/';
@@ -17,6 +18,7 @@ const String publishRoute = '/publish';
 const String queueRoute = '/queue';
 const String calendarRoute = '/calendar';
 const String settingsRoute = '/settings';
+const String setupRoute = '/setup';
 
 /// SPEC-shell Success Criterion 6: only these protocol paths are honoured.
 const List<String> deepLinkAllowlist = ['/', '/auth-callback'];
@@ -25,12 +27,23 @@ GoRouter buildRouter({
   String? initialDeepLink,
   Listenable? refreshListenable,
   String? Function()? pendingDeepLink,
+  bool Function()? needsSetup,
 }) {
   return GoRouter(
     initialLocation: initialDeepLink ?? homeRoute,
     refreshListenable: refreshListenable,
-    redirect: (context, state) => pendingDeepLink?.call(),
+    redirect: (context, state) {
+      // Without backend values every screen would fail on its first read, so
+      // setup owns the window until there are values (SPEC-credentials
+      // Decision 7).
+      if (needsSetup?.call() ?? false) {
+        return state.uri.path == setupRoute ? null : setupRoute;
+      }
+      if (state.uri.path == setupRoute) return homeRoute;
+      return pendingDeepLink?.call();
+    },
     routes: [
+      GoRoute(path: setupRoute, builder: (context, state) => const SetupPage()),
       ShellRoute(
         builder: (context, state, child) =>
             AppShell(location: state.uri.path, child: child),

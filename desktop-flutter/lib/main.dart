@@ -9,10 +9,11 @@ import 'package:logging/logging.dart';
 
 import 'app.dart';
 import 'core/config/app_config.dart';
+import 'core/config/config_controller.dart';
+import 'core/config/credentials_store.dart';
 import 'core/logging/app_logger.dart';
 import 'core/logging/error_handlers.dart';
 import 'core/logging/startup_failure.dart';
-import 'core/providers/app_providers.dart';
 import 'core/router/app_router.dart' show deepLinkAllowlist;
 import 'core/router/deep_link_dispatcher.dart';
 import 'core/shell/flowpost_shell.dart';
@@ -31,14 +32,25 @@ Future<void> main({MediaFilePicker? picker}) async {
       final log = await initLogging();
       installErrorHandlers(log);
 
-      AppConfig config;
+      // The values a user saved win over the build's; a file that exists but
+      // cannot be used stops at setup instead of being bypassed.
+      final store = CredentialsStore();
+      final saved = await store.read();
+      AppConfig? compiled;
       try {
-        config = AppConfig.fromEnvironment();
+        compiled = AppConfig.fromEnvironment();
       } on ConfigException catch (e) {
-        log.severe('Invalid configuration: ${e.message}');
-        runApp(ConfigErrorApp(message: e.message));
-        return;
+        log.warning('The build has no usable defaults: ${e.message}');
       }
+      final configState = resolveConfig(saved: saved, compiled: compiled);
+      if (saved case CredentialsInvalid(:final reason)) {
+        log.warning('The saved credentials could not be used: $reason');
+      }
+      log.info(
+        configState.needsSetup
+            ? 'No backend values; the setup screen starts the app.'
+            : 'Using the ${configState.source == ConfigSource.saved ? 'saved' : 'build'} values.',
+      );
 
       final initialLink = await _getInitialLink();
       await _removeStaleMediaJobs(log);
@@ -76,10 +88,16 @@ Future<void> main({MediaFilePicker? picker}) async {
       );
       unawaited(_listenDeepLinks(dispatcher));
 
+      final compiledValues = compiled;
       runApp(
         ProviderScope(
           overrides: [
-            appConfigProvider.overrideWithValue(config),
+            credentialsStoreProvider.overrideWithValue(store),
+            if (compiledValues != null)
+              compiledConfigProvider.overrideWithValue(compiledValues),
+            configControllerProvider.overrideWith(
+              () => ConfigController(initial: configState),
+            ),
             if (picker != null) mediaPickerProvider.overrideWithValue(picker),
           ],
           child: FlowPostApp(

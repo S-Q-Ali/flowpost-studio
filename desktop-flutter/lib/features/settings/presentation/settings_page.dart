@@ -2,14 +2,18 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/access_token.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/config/config_controller.dart';
 import '../../../core/diagnostics/diagnostics_report.dart';
-import '../../../core/providers/app_providers.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/session/session.dart';
 import '../../../core/update/app_version.dart';
 import '../settings_providers.dart';
+import 'credentials_form.dart';
 
 /// Who is signed in, which build this is, where the log lives, and what the
 /// app is (SPEC-settings).
@@ -37,6 +41,8 @@ class SettingsPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
                 const _AccountSection(),
+                const SizedBox(height: 16),
+                const _CredentialsSection(),
                 const SizedBox(height: 16),
                 const _UpdatesSection(),
                 const SizedBox(height: 16),
@@ -152,16 +158,98 @@ class _AccountSection extends ConsumerWidget {
   }
 }
 
+/// Where the backend values are entered and changed (SPEC-credentials).
+class _CredentialsSection extends ConsumerStatefulWidget {
+  const _CredentialsSection();
+
+  @override
+  ConsumerState<_CredentialsSection> createState() =>
+      _CredentialsSectionState();
+}
+
+class _CredentialsSectionState extends ConsumerState<_CredentialsSection> {
+  /// Bumped on a clear, which re-creates the form so the fields show the
+  /// values that are live again. A save keeps the typed values and the line
+  /// that says so, so it does not build a new form.
+  int _generation = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(configControllerProvider);
+    final line = switch (state.source) {
+      ConfigSource.saved => 'Using the values saved on this machine.',
+      ConfigSource.compiled => "Using the build's defaults.",
+      null => 'No values yet.',
+    };
+    return _Section(
+      title: 'Credentials',
+      child: CredentialsForm(
+        key: ValueKey(_generation),
+        initial: state.config,
+        submitLabel: 'Save',
+        sourceLine: line,
+        onTest: (values) => ref.read(connectionCheckProvider)(values),
+        onClear: state.source == ConfigSource.saved ? _clear : null,
+        onSubmit: _save,
+      ),
+    );
+  }
+
+  Future<String?> _save(AppConfig values) async {
+    final current = ref.read(configControllerProvider).config;
+    final backendChanged =
+        current != null &&
+        (current.supabaseUrl != values.supabaseUrl ||
+            current.supabaseAnonKey != values.supabaseAnonKey);
+    final written = await ref
+        .read(configControllerProvider.notifier)
+        .save(values);
+    if (!written) {
+      return 'The values could not be saved on this machine. Check the app '
+          'folder and try again.';
+    }
+    // A post from the old backend must not look like one from the new one
+    // (SPEC-credentials "A backend change while signed in").
+    if (backendChanged && ref.read(sessionProvider) != null) {
+      await ref.read(signOutProvider).run();
+    }
+    return null;
+  }
+
+  Future<bool> _clear() async {
+    final current = ref.read(configControllerProvider).config;
+    final after = ref.read(compiledConfigProvider);
+    final backendChanged =
+        current != null &&
+        (after == null ||
+            after.supabaseUrl != current.supabaseUrl ||
+            after.supabaseAnonKey != current.supabaseAnonKey);
+    final cleared = await ref.read(configControllerProvider.notifier).clear();
+    if (!cleared) return false;
+    // The session belongs to the backend that is no longer in use, the same
+    // rule a save follows.
+    if (backendChanged && ref.read(sessionProvider) != null) {
+      await ref.read(signOutProvider).run();
+    }
+    if (ref.read(configControllerProvider).needsSetup) {
+      if (mounted) context.go(setupRoute);
+      return true;
+    }
+    setState(() => _generation++);
+    return true;
+  }
+}
+
 class _UpdatesSection extends ConsumerWidget {
   const _UpdatesSection();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final version = ref.watch(appVersionProvider);
-    final configured = ref
-        .watch(appConfigProvider)
-        .updateManifestUrl
-        .isNotEmpty;
+    // The controller, not appConfigProvider: clearing the last values leaves
+    // this section on screen for the frame before /setup takes over.
+    final config = ref.watch(configControllerProvider).config;
+    final configured = config != null && config.updateManifestUrl.isNotEmpty;
     final state = ref.watch(updateCheckProvider);
     final result = state.result;
     final answer = _answer(configured, state);

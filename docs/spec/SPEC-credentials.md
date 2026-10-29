@@ -69,16 +69,16 @@ Between **Session** and **Updates** (the manifest URL feeds that section):
 
 The form starts from the values in use. Fields are obscured with a **Show** toggle, because the key is long and easy to mistype. Two lines of state say which source is live: "Using the values saved on this machine" or "Using the build's defaults".
 
-Actions: **Test connection**, **Save**, and **Clear saved values** (only when a file exists). Clear asks first, naming what happens: the build's defaults come back, or the setup screen if there are none.
+Actions: **Test connection**, **Save**, and **Clear saved values** (only when a file exists). Clear asks first, naming what happens: the build's defaults come back, or the setup screen if there are none. Clearing counts as a backend change: with a session it signs out and wipes `cache.db`, the same rule as saving.
 
 ## States
 
 - **First run.** No usable values: the app starts on `/setup`, outside the app shell — a title, the three fields, the validation messages, and **Save and continue**. There is no skip: every network feature needs the address, and the release build ships compiled defaults, so this screen is a recovery path, not the normal first run.
 - **Invalid saved file.** The setup screen opens with one line above the fields: "The saved credentials could not be used: <reason>", and the fields are empty. The file is left on disk until the user saves or clears.
 - **Validation.** Messages name the fix, not the rule: "Use an https address, for example https://project.supabase.co", "This looks like a service-role key. The app only accepts the public anon/publishable key."
-- **Save.** Disabled while a field is invalid. On success a quiet "Saved" line and the source line changes. A write failure keeps the previous values live and says the file could not be written; nothing in memory changes.
+- **Save.** Checks the fields when pressed: an invalid field is named under it and nothing is written. On success a quiet "Saved" line and the source line changes. A write failure keeps the previous values live and says the file could not be written; nothing in memory changes.
 - **Test connection.** Calls `GET <supabaseUrl>/rest/v1/` with the `apikey` header and the manifest URL (when set) through the existing checker. Answers: "The server answered.", "The server answered but refused this key.", "The server answered with <status>.", "Could not reach the server." Testing is optional; Save works offline.
-- **A backend change while signed in.** Saving a different URL or key signs out and wipes `cache.db` (SPEC-settings Decision 3); `drafts.db` is kept (SPEC-offline Decision 8), because a post from the old backend must not look like one from the new one.
+- **A backend change while signed in.** Saving a different URL or key — or clearing saved values that differ from the defaults that come back — signs out and wipes `cache.db` (SPEC-settings Decision 3); `drafts.db` is kept (SPEC-offline Decision 8), because a post from the old backend must not look like one from the new one.
 
 ## Decisions (need the owner's yes)
 
@@ -98,9 +98,9 @@ Actions: **Test connection**, **Save**, and **Clear saved values** (only when a 
 ## Tests
 
 - Unit: the store round-trips, replaces, clears, and treats a corrupt file as invalid; precedence table above, one test per row; trimming; each validation message (http URL, empty field, `sb_secret_`, service-role JWT, non-key text); the log carries no value.
-- Controller: saving changes what `appConfigProvider` answers; saving a different URL while signed in clears the session and wipes the cache (fake cache, fake drafts untouched); a failed write leaves the old values live.
-- Widget: `/setup` renders when nothing is configured and saving lands on Home; the Settings section shows the compiled defaults, the saved values, and the Show toggle; Save is disabled while a field is invalid; Clear asks first; each Test connection answer through an injected transport.
-- Diagnostics: a report built with a generated key in the config contains neither the key nor the manifest URL.
+- Controller: saving changes what `appConfigProvider` answers; saving a different URL while signed in clears the session and wipes the cache (fake cache, fake drafts untouched); clearing to a different backend does the same; a failed write leaves the old values live.
+- Widget: `/setup` renders when nothing is configured and saving lands on Home; the Settings section shows the compiled defaults, the saved values, and the Show toggle; an invalid field is named and nothing is written; Clear asks first and puts the defaults back; the same backend keeps the session; each Test connection answer through an injected transport.
+- Diagnostics: the report is built from facts that carry no config, and the existing redaction test keeps a key or token that reached a log line out of the file.
 - Manual: clean the support folder, start the installed build, save values, restart, and confirm the source line and a working update check.
 
 ## Verification

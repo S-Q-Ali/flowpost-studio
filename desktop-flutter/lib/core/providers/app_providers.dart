@@ -1,14 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
+import '../config/config_controller.dart';
 import '../session/session.dart';
 import '../time/time_zone.dart';
 
-/// Config is provided as an instance by `main.dart` after parsing; the app
-/// never reads `String.fromEnvironment` deeper in the tree.
-final Provider<AppConfig> appConfigProvider = Provider<AppConfig>(
-  (ref) => throw UnimplementedError('appConfigProvider must be overridden'),
-);
+/// The values the app is running on, from the file main loaded.
+///
+/// Null means the app belongs on the setup screen; a screen that reads this
+/// with no values is a routing bug, not an empty state (SPEC-credentials).
+final Provider<AppConfig> appConfigProvider = Provider<AppConfig>((ref) {
+  final config = ref.watch(configControllerProvider).config;
+  if (config == null) {
+    throw StateError('No backend values yet; the app belongs on /setup.');
+  }
+  return config;
+});
 
 /// The timezone of the machine, as the wall-clock conversion needs it.
 ///

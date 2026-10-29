@@ -1,12 +1,13 @@
 import 'package:flowpost_desktop/app.dart';
 import 'package:flowpost_desktop/core/config/app_config.dart';
-import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/features/accounts/accounts_providers.dart';
 import 'package:flowpost_desktop/features/accounts/data/accounts_repository.dart';
 import 'package:flowpost_desktop/features/accounts/domain/connected_account.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/config_overrides.dart';
 
 const _config = AppConfig(
   supabaseUrl: 'https://test.supabase.co',
@@ -57,7 +58,7 @@ Future<void> _pumpApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        appConfigProvider.overrideWithValue(_config),
+        seededConfig(_config),
         accountsRepositoryProvider.overrideWith((ref) => repository),
       ],
       child: FlowPostApp(initialDeepLink: initialLocation),

@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../core/diagnostics/diagnostics_collector.dart';
 import '../../core/diagnostics/diagnostics_export.dart';
 import '../../core/diagnostics/diagnostics_report.dart';
+import '../../core/config/app_config.dart';
 import '../../core/logging/app_logger.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/session/session.dart';
@@ -15,6 +16,7 @@ import '../../core/update/app_version.dart';
 import '../../core/update/update_checker.dart';
 import '../offline/offline_providers.dart';
 import '../scheduling/scheduling_controller.dart';
+import 'data/connection_check.dart';
 
 /// How the update manifest is read, as a seam the tests can answer.
 typedef UpdateFetcher = Future<UpdateResult> Function({
@@ -23,6 +25,11 @@ typedef UpdateFetcher = Future<UpdateResult> Function({
 });
 
 final updateFetcherProvider = Provider<UpdateFetcher>((ref) => checkForUpdate);
+
+/// Tests the typed values against the network, as a seam the tests answer.
+final connectionCheckProvider = Provider<Future<String> Function(AppConfig)>(
+  (ref) => checkCredentialsConnection,
+);
 
 /// The app's own logs folder, or null when it cannot be resolved.
 final logsFolderProvider = FutureProvider<Directory?>((ref) async {

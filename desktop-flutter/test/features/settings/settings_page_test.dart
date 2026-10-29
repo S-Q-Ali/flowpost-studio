@@ -3,7 +3,8 @@ import 'dart:io';
 
 import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/core/diagnostics/diagnostics_report.dart';
-import 'package:flowpost_desktop/core/providers/app_providers.dart';
+import 'package:flowpost_desktop/core/config/config_controller.dart';
+import 'package:flowpost_desktop/core/config/credentials_store.dart';
 import 'package:flowpost_desktop/core/session/session.dart';
 import 'package:flowpost_desktop/core/update/app_version.dart';
 import 'package:flowpost_desktop/core/update/update_checker.dart';
@@ -14,6 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/config_overrides.dart';
+import '../../support/fake_credentials_store.dart';
 import '../../support/fake_drafts.dart';
 import '../../support/fake_posts_cache.dart';
 
@@ -68,6 +71,9 @@ DiagnosticsFacts testFacts({
   logsRead: true,
 );
 
+TextField _field(WidgetTester tester, String key) =>
+    tester.widget<TextField>(find.byKey(Key(key)));
+
 /// The Settings screen scrolls; a control low on the card must be brought
 /// into the viewport before the tap lands on it.
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
@@ -90,15 +96,27 @@ Future<ProviderContainer> _pump(
   Future<Directory?> Function()? folderPicker,
   Future<DiagnosticsExportOutcome> Function()? exporter,
   List<LocalFileFact> broken = const [],
+  FakeCredentialsStore? store,
+  Future<String> Function(AppConfig config)? connectionCheck,
+  AppConfig? live,
+  ConfigSource source = ConfigSource.compiled,
+  AppConfig? compiled,
 }) async {
   final draftsRepository = drafts ?? FakeDraftsRepository();
   final overrides = [
-    appConfigProvider.overrideWithValue(
-      AppConfig.fromValues(
-        supabaseUrl: 'https://flowpost.test',
-        supabaseAnonKey: 'anon-key',
-        updateManifestUrl: manifest,
-      ),
+    seededConfig(
+      live ??
+          AppConfig.fromValues(
+            supabaseUrl: 'https://flowpost.test',
+            supabaseAnonKey: 'anon-key',
+            updateManifestUrl: manifest,
+          ),
+      source: source,
+    ),
+    if (compiled != null) compiledConfigProvider.overrideWithValue(compiled),
+    credentialsStoreProvider.overrideWithValue(store ?? FakeCredentialsStore()),
+    connectionCheckProvider.overrideWithValue(
+      connectionCheck ?? (config) async => 'The server answered.',
     ),
     appVersionProvider.overrideWith((ref) async => _version),
     postsCacheProvider.overrideWithValue(cache ?? FakePostsCache()),
@@ -232,7 +250,7 @@ void main() {
   ) async {
     await _pump(tester);
 
-    await tester.tap(find.byKey(const Key('settings-check-updates')));
+    await _tapVisible(tester, find.byKey(const Key('settings-check-updates')));
     await tester.pumpAndSettle();
 
     expect(find.text("You're up to date (v1.2.3)."), findsOneWidget);
@@ -253,7 +271,7 @@ void main() {
               ),
     );
 
-    await tester.tap(find.byKey(const Key('settings-check-updates')));
+    await _tapVisible(tester, find.byKey(const Key('settings-check-updates')));
     await tester.pumpAndSettle();
 
     expect(find.text('Version 1.3.0 is available.'), findsOneWidget);
@@ -273,7 +291,7 @@ void main() {
               ),
     );
 
-    await tester.tap(find.byKey(const Key('settings-check-updates')));
+    await _tapVisible(tester, find.byKey(const Key('settings-check-updates')));
     await tester.pumpAndSettle();
 
     expect(find.text('Update check failed'), findsOneWidget);
@@ -289,7 +307,7 @@ void main() {
     final opened = <Directory>[];
     await _pump(tester, logs: logs, opened: opened);
 
-    await tester.tap(find.byKey(const Key('settings-open-logs')));
+    await _tapVisible(tester, find.byKey(const Key('settings-open-logs')));
     await tester.pumpAndSettle();
 
     expect(opened.single.path, logs.path);
@@ -411,6 +429,208 @@ void main() {
     await _pump(tester);
 
     expect(find.byKey(const Key('settings-salvage-drafts')), findsNothing);
+  });
+
+  testWidgets('the credentials section starts from the build defaults', (
+    tester,
+  ) async {
+    await _pump(tester);
+
+    expect(find.text('Credentials'), findsOneWidget);
+    expect(find.text("Using the build's defaults."), findsOneWidget);
+    expect(
+      _field(tester, 'credentials-url').controller!.text,
+      'https://flowpost.test',
+    );
+    expect(_field(tester, 'credentials-key').obscureText, isTrue);
+    expect(find.byKey(const Key('credentials-clear')), findsNothing);
+  });
+
+  testWidgets('Show reveals the key', (tester) async {
+    await _pump(tester);
+
+    expect(_field(tester, 'credentials-key').obscureText, isTrue);
+    await _tapVisible(tester, find.byKey(const Key('credentials-show-key')));
+    expect(_field(tester, 'credentials-key').obscureText, isFalse);
+  });
+
+  testWidgets('saving values writes them and makes them live', (tester) async {
+    final store = FakeCredentialsStore();
+    final container = await _pump(tester, store: store);
+
+    await tester.enterText(
+      find.byKey(const Key('credentials-url')),
+      'https://new.supabase.co',
+    );
+    await tester.enterText(find.byKey(const Key('credentials-key')), 'new-key');
+    await _tapVisible(tester, find.byKey(const Key('credentials-submit')));
+
+    expect(store.written?.supabaseUrl, 'https://new.supabase.co');
+    expect(store.written?.supabaseAnonKey, 'new-key');
+    expect(find.text('Saved.'), findsOneWidget);
+    expect(
+      find.text('Using the values saved on this machine.'),
+      findsOneWidget,
+    );
+    expect(
+      container.read(configControllerProvider).config?.supabaseUrl,
+      'https://new.supabase.co',
+    );
+  });
+
+  testWidgets('a service-role key is named and nothing is written', (
+    tester,
+  ) async {
+    final store = FakeCredentialsStore();
+    final container = await _pump(tester, store: store);
+
+    await tester.enterText(
+      find.byKey(const Key('credentials-key')),
+      'sb_secret_123',
+    );
+    await _tapVisible(tester, find.byKey(const Key('credentials-submit')));
+
+    expect(
+      find.text(
+        'This looks like a service-role key. The app only accepts the public '
+        'anon/publishable key.',
+      ),
+      findsOneWidget,
+    );
+    expect(store.written, isNull);
+    expect(
+      container.read(configControllerProvider).config?.supabaseAnonKey,
+      'anon-key',
+    );
+  });
+
+  testWidgets('a write that fails keeps the old values live', (tester) async {
+    final store = FakeCredentialsStore()..failWrites = true;
+    final container = await _pump(tester, store: store);
+
+    await tester.enterText(
+      find.byKey(const Key('credentials-url')),
+      'https://new.supabase.co',
+    );
+    await _tapVisible(tester, find.byKey(const Key('credentials-submit')));
+
+    expect(
+      find.textContaining('could not be saved on this machine'),
+      findsOneWidget,
+    );
+    expect(find.text("Using the build's defaults."), findsOneWidget);
+    expect(
+      container.read(configControllerProvider).config?.supabaseUrl,
+      'https://flowpost.test',
+    );
+  });
+
+  testWidgets('Test connection answers through the seam', (tester) async {
+    final asked = <AppConfig>[];
+    await _pump(
+      tester,
+      connectionCheck: (config) async {
+        asked.add(config);
+        return 'The server answered but refused this key.';
+      },
+    );
+
+    await _tapVisible(tester, find.byKey(const Key('credentials-test')));
+
+    expect(
+      find.text('The server answered but refused this key.'),
+      findsOneWidget,
+    );
+    expect(asked.single.supabaseUrl, 'https://flowpost.test');
+  });
+
+  testWidgets('a changed backend signs out and wipes the cache', (
+    tester,
+  ) async {
+    final cache = FakePostsCache();
+    final container = await _pump(
+      tester,
+      session: const Session(sessionToken: 's', accessToken: 'a'),
+      cache: cache,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('credentials-url')),
+      'https://other.supabase.co',
+    );
+    await _tapVisible(tester, find.byKey(const Key('credentials-submit')));
+
+    expect(container.read(sessionProvider), isNull);
+    expect(cache.wipes, 1);
+  });
+
+  testWidgets('saving the same backend keeps the session', (tester) async {
+    final cache = FakePostsCache();
+    final container = await _pump(
+      tester,
+      session: const Session(sessionToken: 's', accessToken: 'a'),
+      cache: cache,
+    );
+
+    await _tapVisible(tester, find.byKey(const Key('credentials-submit')));
+
+    expect(container.read(sessionProvider), isNotNull);
+    expect(cache.wipes, 0);
+  });
+
+  testWidgets('clearing asks first and shows the defaults again', (
+    tester,
+  ) async {
+    const saved = AppConfig(
+      supabaseUrl: 'https://saved.supabase.co',
+      supabaseAnonKey: 'saved-key',
+      updateManifestUrl: '',
+    );
+    final compiled = AppConfig.fromValues(
+      supabaseUrl: 'https://flowpost.test',
+      supabaseAnonKey: 'anon-key',
+      updateManifestUrl: 'https://flowpost.test/update.json',
+    );
+    final store = FakeCredentialsStore()
+      ..stored = const CredentialsFound(saved);
+    final cache = FakePostsCache();
+    final container = await _pump(
+      tester,
+      live: saved,
+      source: ConfigSource.saved,
+      compiled: compiled,
+      store: store,
+      session: const Session(sessionToken: 's', accessToken: 'a'),
+      cache: cache,
+    );
+
+    expect(
+      find.text('Using the values saved on this machine.'),
+      findsOneWidget,
+    );
+
+    await _tapVisible(tester, find.byKey(const Key('credentials-clear')));
+    await tester.tap(find.byKey(const Key('credentials-keep')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Using the values saved on this machine.'),
+      findsOneWidget,
+    );
+    expect(store.stored, isA<CredentialsFound>());
+
+    await _tapVisible(tester, find.byKey(const Key('credentials-clear')));
+    await tester.tap(find.byKey(const Key('credentials-clear-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(store.stored, isA<CredentialsAbsent>());
+    expect(find.text("Using the build's defaults."), findsOneWidget);
+    expect(
+      _field(tester, 'credentials-url').controller!.text,
+      'https://flowpost.test',
+    );
+    expect(container.read(sessionProvider), isNull);
+    expect(cache.wipes, 1);
   });
 
   testWidgets('grows with large text at the minimum window size', (

@@ -631,6 +631,20 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (153 files), `flutter analyze lib test` no issues, `flutter test` **656 passed** (was 641), LF-only bytes on every changed Dart file.
 - **Not verified visually:** the palette change (plum button labels, darker borders and error red) was checked by measured contrast, not by eye on a running window; a live pass is left for the Phase 6.8 gate.
 
+### Phase 6.4 evidence (2026-10-30)
+
+- **The values are a file, not a rebuild** (`core/config/credentials_store.dart`): `credentials.json` beside `accounts.json`, written `.tmp` then renamed, read before the window opens. Precedence — saved wins, then the build's `--dart-define-from-file` values, then `/setup`; a file that exists but cannot be used stops at setup with its reason and is never silently bypassed (SPEC-credentials Decision 2).
+- **One controller, one seam** (`core/config/config_controller.dart`): `configControllerProvider` holds the live `ConfigState`, and `appConfigProvider` keeps its `Provider<AppConfig>` type reading it — captions, upload, publishing, scheduling, the posts transport and Settings all follow a save with no consumer changed (Decision 5).
+- **Validation is shared** (`configFieldProblem`): the compiled path, the store and the form run the same rules, so a value that saves is a value the app can boot on; `sb_secret_` and a service-role JWT are refused with the field named.
+- **Setup replaces the config error** (`features/setup/presentation/setup_page.dart`): `/setup` sits outside the shell and the redirect keeps every screen there while no values exist; `ConfigErrorApp` and its test are deleted. Save and continue writes the file and opens Home.
+- **The Settings section** (`features/settings/presentation/settings_page.dart`, `credentials_form.dart`): between Session and Updates, with the masked key and a Show toggle, the source line, **Test connection** (`GET <url>/rest/v1/` with `apikey`, and the manifest when set), **Save**, and **Clear saved values** behind a confirmation. A backend change — by saving a different URL/key, or by clearing to different defaults — signs out and wipes `cache.db`; drafts are kept.
+- **No value leaves the screen:** the startup log names only the source, the report is built from facts that carry no config, and nothing is written to the diagnostics export.
+- **Two fixes found by the tests:** the Settings updates section now reads the controller instead of `appConfigProvider` (clearing the last values leaves it on screen for one frame before `/setup` takes over), and clearing a saved backend signs out like a save does.
+- **Tests:** 48 new — store/validation 14, controller/precedence 10, connection check 8, setup page 7, Settings section 9; suite **704 passed** (was 656).
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (164 files), `flutter analyze lib test` no issues, LF-only bytes on every changed file, `flutter build windows --release` succeeded.
+- **Not verified on a real window:** first-run setup and the credentials section were exercised by widget tests at 1024×640 and 200% text, not by eye; a live pass is left for the Phase 6.8 gate.
+- **Standing:** login/signup still does not gate the app (the owner's instruction); the auth guard remains production-gate work.
+
 ---
 
 ## Phase 6 — Production Hardening
@@ -652,11 +666,11 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] Contrast tokens (onPrimary, primaryText, error, published, outline)
   - [x] Calendar chip keyboard, day-cell and chip labels, focus colour
   - [x] 200% text on every page at the minimum window
-- [ ] **6.4** Credentials in Settings: first-run setup, validated store, masked display
-  - [ ] Approve `docs/spec/SPEC-credentials.md` (which credentials, storage, precedence, first run)
-  - [ ] The store: `credentials.json` beside `accounts.json`; saved values win over compiled ones; a service-role key is refused
-  - [ ] Settings section: enter, test, save, clear; masked; no value in logs or diagnostics
-  - [ ] First-run setup screen instead of `ConfigErrorApp`; providers reload when the values change
+- [x] **6.4** Credentials in Settings: first-run setup, validated store, masked display
+  - [x] Approve `docs/spec/SPEC-credentials.md` (which credentials, storage, precedence, first run)
+  - [x] The store: `credentials.json` beside `accounts.json`; saved values win over compiled ones; a service-role key is refused
+  - [x] Settings section: enter, test, save, clear; masked; no value in logs or diagnostics
+  - [x] First-run setup screen instead of `ConfigErrorApp`; providers reload when the values change
 - [ ] **6.5** Performance: cold start, media, lists, memory, size
 - [ ] **6.6** Security: secrets, tokens, deep links, FFmpeg args, dependencies, RLS notes
 - [ ] **6.7** README, ADRs, runbook, release checklist, rollback notes

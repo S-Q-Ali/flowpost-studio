@@ -24,6 +24,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/config_overrides.dart';
+
 const _config = AppConfig(
   supabaseUrl: 'https://test.supabase.co',
   supabaseAnonKey: 'test-anon',
@@ -295,7 +297,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          appConfigProvider.overrideWithValue(_config),
+          seededConfig(_config),
           mediaPickerProvider.overrideWithValue(picker),
           mediaValidatorProvider.overrideWithValue(_fakeValidator),
           mediaWorkspaceProvider.overrideWith((ref) async => workspace),
