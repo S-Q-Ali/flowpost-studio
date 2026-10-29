@@ -443,8 +443,14 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] The spike: the engine works in the test runner and in the Windows build (ADR 0003)
   - [x] The cache database: the posts snapshot, the version inside it, the migration runner
   - [x] A file that will not open is renamed; a newer file is left alone
-- [ ] **5.4** Local drafts: autosave, restore, delete, no offline publish
+- [x] **5.4** Local drafts: autosave, restore, delete
+  - [x] `drafts.db` with its own migrations, one draft per media
+  - [x] The form saved 800 ms after the last change and restored when the screen opens
+  - [x] The conflict rule: a moved time is shown and the admin picks; a time the clock no longer has is refused
+  - [x] Deleted when every target wrote its row, kept when one failed
+  - The offline gate on Publish needs the connectivity state, so it lands in 5.5 and is verified in 5.6
 - [ ] **5.5** Connectivity banner; cached reads; reconnect refresh
+  - [ ] The offline gate on the Publish button, with the reason
 - [ ] **5.6** Phase 5 gate
   - [ ] Timezone/DST tests
   - [ ] Cache migration and corruption tests
@@ -532,6 +538,20 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **The engine calls are synchronous.** `package:sqlite3` is synchronous and the dataset is bounded at 500 rows, so the store has no futures and no fake: the tests open a real file in a temp directory, which is the seam the ADR names.
 - **Tests:** 19 — store 14 (`cache_store_test.dart`: first open and version, the full-field round trip across a close and a reopen, the 500-row bound, nulls last, replace, an empty read as a snapshot, a never-written cache as none, a newer file untouched, a broken file renamed with its stamp, two broken files in a minute, a row added after the read, a write past the bound, a delete, an unreadable row skipped), migrations 4 (`local_database_test.dart`: ordered steps and the version, already-applied steps skipped, a throwing step rolled back, version zero with no meta table) plus the engine spike.
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (117 files), `flutter analyze lib test` no issues, `flutter test` **518 passed** (was 500).
+
+### Phase 5.4 evidence (2026-10-29)
+
+- **The drafts are their own database.** `DraftStore` (`lib/features/offline/drafts/draft_store.dart`) opens `drafts.db` through the same `applyMigrations` runner as the cache, with a `drafts` table keyed by `video_id`, so one media has one draft and a cache rebuild can never reach the admin's words (ADR 0003, Decision 3).
+- **A drafts file that will not open is left alone.** `open()` returns false instead of throwing, the file is neither renamed nor deleted, and every read answers "no draft". The salvage flow the spec describes (read-only, the admin clicks to start fresh) needs a diagnostics screen to show the drafts on, so it lands with 6.2; the rule that matters here — nothing on disk is deleted by the store — already holds and is tested.
+- **The form is written 800 ms after the last change.** `PublishComposer` (`lib/features/publishing/publishing_providers.dart`) restarts a `Timer` on every change and writes on the fire, so typing is never a write per keystroke. The composer watches the published media, restores that media's draft when it appears, and treats a second change as a fresh wait.
+- **A restore shows the difference before it moves anything.** `DraftRestore` carries the instant the typed time meant when the draft was saved and the instant it means now. When they differ, the screen names both ("The time you typed is … here. The draft was saved for …. Which one did you mean?") and offers **Keep the time I typed** or **Use the saved time**; the second rewrites the date and time fields to the saved instant's wall clock. The typed value is never replaced on its own.
+- **A time the clock no longer has is refused, as on the publish path.** The form's existing skipped-hour message shows under the field and the Schedule button stays off, so a restored draft whose time fell into a spring-forward gap cannot be published until the admin picks another time.
+- **The time field had to become replaceable.** `TextFormField.initialValue` only applies when the field is first built, so a restored or re-chosen time would have left the old text in the box. The date and time fields now sit under a `ValueKey` of their value, so a changed value rebuilds the field while the stable key stays on the input for the tests.
+- **The draft is dropped when it has done its job.** After a run where every target ended published or scheduled, `PublishController` deletes the draft; a run with a failed target keeps it, because the admin may want to try again. The **Discard draft** button deletes it and empties the form. An emptied form deletes the draft rather than writing an empty one.
+- **A draft failure never reaches the screen.** `LocalDraftsRepository` (`lib/features/offline/data/drafts_repository.dart`) catches every failure — a missing support folder, an unreadable file — logs the type and no content, and answers "no draft". The store is opened once, lazily, and closed when the provider is disposed.
+- **Not yet: the offline publish gate.** The Publish button's "a connection is needed" state needs the connectivity kind that 5.5 introduces, so it lands there and is verified in 5.6.
+- **Tests:** 20 new — store 8 (`draft_store_test.dart`: the full round trip across a close and a reopen, one draft per media, two media apart, delete one, no draft, a non-database file left on disk, a newer database untouched, the empty-form rule), repository 3 (`drafts_repository_test.dart`: save/load/delete, a missing support folder, a file that is not a database), page 9 (`publish_page_test.dart` group "a draft": restored with its caption, the 800 ms wait, a second change restarting it, discard, deleted after a clean run, kept after a failure, the moved time and both answers, the skipped time refused).
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (124 files), `flutter analyze lib test` no issues, `flutter test` **538 passed** (was 518).
 
 ---
 

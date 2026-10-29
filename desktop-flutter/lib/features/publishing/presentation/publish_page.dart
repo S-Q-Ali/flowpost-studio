@@ -24,6 +24,7 @@ class PublishPage extends ConsumerWidget {
     final validation = ref.watch(publishValidationProvider);
     final state = ref.watch(publishControllerProvider);
     final canPublish = ref.watch(canPublishProvider);
+    final restore = ref.watch(draftRestoreProvider);
     final running = state is PublishRunning;
 
     return Scaffold(
@@ -44,6 +45,10 @@ class PublishPage extends ConsumerWidget {
                 const Text('Upload a file first, then publish it from here.')
               else ...[
                 _MediaSummary(fileName: media.fileName, size: media.size),
+                if (restore != null) ...[
+                  const SizedBox(height: 8),
+                  _DraftBanner(restore: restore),
+                ],
                 const SizedBox(height: 24),
                 if (targets.isEmpty)
                   const Text('No accounts are connected yet.')
@@ -180,6 +185,79 @@ class _MediaSummary extends StatelessWidget {
     );
   }
 }
+
+/// What came back from the machine, and whether its time still means what it
+/// did (SPEC-offline "The conflict rule").
+class _DraftBanner extends ConsumerWidget {
+  const _DraftBanner({required this.restore});
+
+  final DraftRestore restore;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final saved = restore.savedInstant;
+    final now = restore.nowInstant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.restore, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Restored from ${_clock(restore.savedAt.toLocal())}',
+                key: const Key('draft-restored'),
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+            TextButton(
+              key: const Key('draft-discard'),
+              onPressed: () =>
+                  ref.read(publishSelectionProvider.notifier).discard(),
+              child: const Text('Discard draft'),
+            ),
+          ],
+        ),
+        if (restore.timeMoved) ...[
+          Text(
+            'The time you typed is ${formatLocalSchedule(now!.toLocal())} '
+            'here. The draft was saved for '
+            '${formatLocalSchedule(saved!.toLocal())}. Which one did you '
+            'mean?',
+            key: const Key('draft-time-moved'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+          Wrap(
+            spacing: 8,
+            children: [
+              OutlinedButton(
+                key: const Key('draft-keep-typed'),
+                onPressed: () =>
+                    ref.read(draftRestoreProvider.notifier).keepTyped(),
+                child: const Text('Keep the time I typed'),
+              ),
+              TextButton(
+                key: const Key('draft-use-saved'),
+                onPressed: () => ref
+                    .read(publishSelectionProvider.notifier)
+                    .useSavedTime(saved),
+                child: const Text('Use the saved time'),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+String _clock(DateTime local) =>
+    '${local.hour.toString().padLeft(2, '0')}:'
+    '${local.minute.toString().padLeft(2, '0')}';
 
 /// One account to publish to.
 class _TargetTile extends ConsumerWidget {
@@ -345,32 +423,41 @@ class _ScheduleFields extends ConsumerWidget {
           children: [
             SizedBox(
               width: 160,
-              child: TextFormField(
-                key: const Key('schedule-date'),
-                initialValue: date,
-                decoration: const InputDecoration(
-                  labelText: 'Date',
-                  hintText: 'YYYY-MM-DD',
-                  border: OutlineInputBorder(),
+              // A restored or re-chosen time has to replace the text in the
+              // field, and `initialValue` only applies when the field is
+              // built. The key is what rebuilds it.
+              child: KeyedSubtree(
+                key: ValueKey('date-$date'),
+                child: TextFormField(
+                  key: const Key('schedule-date'),
+                  initialValue: date,
+                  decoration: const InputDecoration(
+                    labelText: 'Date',
+                    hintText: 'YYYY-MM-DD',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (text) => ref
+                      .read(publishSelectionProvider.notifier)
+                      .setScheduleDate(text),
                 ),
-                onChanged: (text) => ref
-                    .read(publishSelectionProvider.notifier)
-                    .setScheduleDate(text),
               ),
             ),
             SizedBox(
               width: 120,
-              child: TextFormField(
-                key: const Key('schedule-time'),
-                initialValue: time,
-                decoration: const InputDecoration(
-                  labelText: 'Time',
-                  hintText: 'HH:MM',
-                  border: OutlineInputBorder(),
+              child: KeyedSubtree(
+                key: ValueKey('time-$time'),
+                child: TextFormField(
+                  key: const Key('schedule-time'),
+                  initialValue: time,
+                  decoration: const InputDecoration(
+                    labelText: 'Time',
+                    hintText: 'HH:MM',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (text) => ref
+                      .read(publishSelectionProvider.notifier)
+                      .setScheduleTime(text),
                 ),
-                onChanged: (text) => ref
-                    .read(publishSelectionProvider.notifier)
-                    .setScheduleTime(text),
               ),
             ),
           ],

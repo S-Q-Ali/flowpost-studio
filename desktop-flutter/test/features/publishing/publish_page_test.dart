@@ -6,12 +6,17 @@ import 'package:flowpost_desktop/features/media/domain/media_validation.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/data/publish_client.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_errors.dart';
+import 'package:flowpost_desktop/features/offline/drafts/compose_draft.dart';
+import 'package:flowpost_desktop/features/offline/offline_providers.dart';
+import 'package:flowpost_desktop/features/publishing/domain/publish_selection.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
+import 'package:flowpost_desktop/features/publishing/domain/publish_validation.dart';
 import 'package:flowpost_desktop/features/publishing/publishing_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/fake_drafts.dart';
 import '../../support/fake_time_zone.dart';
 
 const _config = AppConfig(
@@ -103,6 +108,7 @@ Future<void> _pump(
   Size size = const Size(1280, 800),
   _FakeClient? client,
   _FakeRepository? repository,
+  FakeDraftsRepository? drafts,
   TimeZone zone = const SystemTimeZone(),
 }) async {
   tester.view.physicalSize = size;
@@ -134,6 +140,9 @@ Future<void> _pump(
         publishClientProvider.overrideWithValue(client ?? _FakeClient()),
         publishPollPolicyProvider.overrideWithValue(
           const PublishPollPolicy(interval: Duration.zero, attempts: 1),
+        ),
+        draftsRepositoryProvider.overrideWithValue(
+          drafts ?? FakeDraftsRepository(),
         ),
         timeZoneProvider.overrideWithValue(zone),
       ],
@@ -444,5 +453,198 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Instagram'), findsOneWidget);
+  });
+
+  group('a draft', () {
+    ComposeDraft saved({
+      PublishMode mode = PublishMode.now,
+      String scheduleDate = '',
+      String scheduleTime = '',
+      DateTime? resolvedAt,
+    }) {
+      return ComposeDraft(
+        videoId: 'video-1',
+        savedAt: DateTime(2026, 10, 29, 14, 32),
+        targetIds: const {'instagram:ig-1:feed'},
+        captions: const {'instagram:ig-1:feed': 'Saved caption'},
+        mode: mode,
+        scheduleDate: scheduleDate,
+        scheduleTime: scheduleTime,
+        resolvedAt: resolvedAt,
+      );
+    }
+
+    testWidgets('comes back when the screen opens for its media', (
+      tester,
+    ) async {
+      final drafts = FakeDraftsRepository({'video-1': saved()});
+
+      await _pump(tester, drafts: drafts);
+
+      expect(find.byKey(const Key('draft-restored')), findsOneWidget);
+      expect(find.text('Restored from 14:32'), findsOneWidget);
+      expect(find.text('Saved caption'), findsOneWidget);
+      expect(
+        find.byKey(const Key('caption-instagram:ig-1:feed')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('is written 800 ms after the last change, not on every key', (
+      tester,
+    ) async {
+      final drafts = FakeDraftsRepository();
+      await _pump(tester, drafts: drafts);
+
+      await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(drafts.saves, 0);
+
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(drafts.saves, 1);
+      expect(drafts.drafts['video-1']!.targetIds, {'instagram:ig-1:feed'});
+    });
+
+    testWidgets('a second change restarts the wait', (tester) async {
+      final drafts = FakeDraftsRepository();
+      await _pump(tester, drafts: drafts);
+      await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const Key('caption-instagram:ig-1:feed')),
+        'a',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.enterText(
+        find.byKey(const Key('caption-instagram:ig-1:feed')),
+        'ab',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(drafts.saves, 0);
+
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(drafts.saves, 1);
+      expect(drafts.drafts['video-1']!.captions['instagram:ig-1:feed'], 'ab');
+    });
+
+    testWidgets('is thrown away by the discard button', (tester) async {
+      final drafts = FakeDraftsRepository({'video-1': saved()});
+      await _pump(tester, drafts: drafts);
+
+      await tester.tap(find.byKey(const Key('draft-discard')));
+      await tester.pumpAndSettle();
+
+      expect(drafts.deleted, ['video-1']);
+      expect(drafts.drafts, isEmpty);
+      expect(find.byKey(const Key('draft-restored')), findsNothing);
+      expect(
+        find.byKey(const Key('caption-instagram:ig-1:feed')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('is deleted when every target wrote its row', (tester) async {
+      final drafts = FakeDraftsRepository({'video-1': saved()});
+      await _pump(tester, drafts: drafts);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+      await tester.pumpAndSettle();
+
+      expect(drafts.deleted, ['video-1']);
+    });
+
+    testWidgets('is kept when a target failed', (tester) async {
+      final drafts = FakeDraftsRepository({'video-1': saved()});
+      final client = _FakeClient()
+        ..failure = const PublishException(
+          PublishFailure(
+            PublishErrorCode.platformRejected,
+            'Instagram said no.',
+          ),
+        );
+      await _pump(tester, drafts: drafts, client: client);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+      await tester.pumpAndSettle();
+
+      expect(drafts.deleted, isEmpty);
+      expect(drafts.drafts, contains('video-1'));
+    });
+
+    testWidgets('a time that now means another instant is asked about', (
+      tester,
+    ) async {
+      final typed = DateTime(2026, 11, 2, 14, 30);
+      final fields = scheduleFields(typed);
+      final savedInstant = typed.toUtc().add(const Duration(hours: 1));
+      final drafts = FakeDraftsRepository({
+        'video-1': saved(
+          mode: PublishMode.schedule,
+          scheduleDate: fields.date,
+          scheduleTime: fields.time,
+          resolvedAt: savedInstant,
+        ),
+      });
+
+      await _pump(tester, drafts: drafts);
+
+      expect(find.byKey(const Key('draft-time-moved')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('draft-use-saved')));
+      await tester.pumpAndSettle();
+
+      final moved = scheduleFields(savedInstant.toLocal());
+      expect(find.byKey(const Key('draft-time-moved')), findsNothing);
+      expect(find.text(moved.date), findsOneWidget);
+      expect(find.text(moved.time), findsOneWidget);
+    });
+
+    testWidgets('keeping the typed time leaves the fields as they were', (
+      tester,
+    ) async {
+      final typed = DateTime(2026, 11, 2, 14, 30);
+      final fields = scheduleFields(typed);
+      final drafts = FakeDraftsRepository({
+        'video-1': saved(
+          mode: PublishMode.schedule,
+          scheduleDate: fields.date,
+          scheduleTime: fields.time,
+          resolvedAt: typed.toUtc().add(const Duration(hours: 1)),
+        ),
+      });
+      await _pump(tester, drafts: drafts);
+
+      await tester.tap(find.byKey(const Key('draft-keep-typed')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('draft-time-moved')), findsNothing);
+      expect(find.text(fields.date), findsOneWidget);
+      expect(find.text(fields.time), findsOneWidget);
+    });
+
+    testWidgets('a typed time the clock no longer has is refused', (
+      tester,
+    ) async {
+      final zone = easternSpringForward();
+      final drafts = FakeDraftsRepository({
+        'video-1': saved(
+          mode: PublishMode.schedule,
+          scheduleDate: '2026-03-08',
+          scheduleTime: '02:30',
+          resolvedAt: DateTime.utc(2026, 3, 8, 7, 30),
+        ),
+      });
+
+      await _pump(tester, drafts: drafts, zone: zone);
+
+      expect(find.textContaining('does not exist'), findsOneWidget);
+      expect(find.byKey(const Key('draft-time-moved')), findsNothing);
+      final button = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Schedule'),
+      );
+      expect(button.onPressed, isNull);
+    });
   });
 }

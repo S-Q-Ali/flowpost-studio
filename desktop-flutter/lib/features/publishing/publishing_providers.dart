@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/app_providers.dart';
+import '../../core/time/time_zone.dart';
 import '../media/captions/captions_providers.dart';
 import '../media/domain/media_validation.dart';
 import '../media/upload/upload_providers.dart';
+import '../offline/drafts/compose_draft.dart';
+import '../offline/offline_providers.dart';
 import 'data/posts_repository.dart';
 import 'data/publish_client.dart';
 import 'domain/publish_selection.dart';
@@ -76,13 +81,124 @@ final publishedMediaProvider = Provider<PublishedMedia?>((ref) {
   );
 });
 
+/// A draft that came back, and what its time means in the zone the machine
+/// is in now (SPEC-offline "The conflict rule").
+class DraftRestore {
+  const DraftRestore({
+    required this.savedAt,
+    this.savedInstant,
+    this.nowInstant,
+  });
+
+  /// When the draft was last written.
+  final DateTime savedAt;
+
+  /// The instant the typed time meant when the draft was saved.
+  final DateTime? savedInstant;
+
+  /// The instant the typed time means here and now. Null when the clock here
+  /// skips that hour, which the time field itself reports.
+  final DateTime? nowInstant;
+
+  /// True when the same typed time now means another instant, so the admin
+  /// has to choose before it is published.
+  bool get timeMoved =>
+      savedInstant != null &&
+      nowInstant != null &&
+      !savedInstant!.isAtSameMomentAs(nowInstant!);
+
+  DraftRestore keepTyped() => DraftRestore(
+    savedAt: savedAt,
+    savedInstant: savedInstant,
+    nowInstant: savedInstant,
+  );
+}
+
+final draftRestoreProvider =
+    NotifierProvider<DraftRestoreController, DraftRestore?>(
+      DraftRestoreController.new,
+    );
+
+/// What the screen says about the draft it restored.
+class DraftRestoreController extends Notifier<DraftRestore?> {
+  @override
+  DraftRestore? build() => null;
+
+  void set(DraftRestore? restore) => state = restore;
+
+  /// The admin keeps the time they typed; the notice about the other instant
+  /// stops showing.
+  void keepTyped() {
+    final restore = state;
+    if (restore == null) return;
+    state = restore.keepTyped();
+  }
+}
+
 final publishSelectionProvider =
     NotifierProvider<PublishComposer, PublishSelection>(PublishComposer.new);
 
 /// Holds what the admin picked on the compose screen.
+///
+/// The form is saved 800 ms after the last change and restored when the
+/// screen opens for the same media (SPEC-offline "The drafts").
 class PublishComposer extends Notifier<PublishSelection> {
+  /// How long the form waits for the typing to settle before it is written.
+  static const Duration saveDelay = Duration(milliseconds: 800);
+
+  Timer? _saveTimer;
+  String? _videoId;
+  int _loads = 0;
+
   @override
-  PublishSelection build() => const PublishSelection();
+  PublishSelection build() {
+    final media = ref.watch(publishedMediaProvider);
+    _saveTimer?.cancel();
+    _videoId = media?.videoId;
+    ref.onDispose(() => _saveTimer?.cancel());
+    if (media == null) return const PublishSelection();
+    _restore(media.videoId);
+    return const PublishSelection();
+  }
+
+  /// Reads the draft of this media, when there is one.
+  Future<void> _restore(String videoId) async {
+    final load = ++_loads;
+    final ComposeDraft? draft;
+    try {
+      draft = await ref.read(draftsRepositoryProvider).load(videoId);
+    } on Object {
+      return;
+    }
+    // The media moved on while the draft was being read, or the screen was
+    // opened again: the draft belongs to a form that is no longer here.
+    if (load != _loads || _videoId != videoId) return;
+    if (draft == null || draft.isEmpty) return;
+    state = draft.toSelection();
+    ref.read(draftRestoreProvider.notifier).set(_restoreOf(draft));
+  }
+
+  /// What the draft's time means in the zone the machine is in now.
+  DraftRestore _restoreOf(ComposeDraft draft) {
+    DateTime? now;
+    if (draft.mode == PublishMode.schedule) {
+      final wall = parseLocalSchedule(
+        date: draft.scheduleDate,
+        time: draft.scheduleTime,
+      );
+      if (wall != null) {
+        now = resolveWallClock(
+          wall: wall,
+          zone: ref.read(timeZoneProvider),
+        ).instant;
+      }
+    }
+    return DraftRestore(
+      savedAt: draft.savedAt,
+      savedInstant: draft.resolvedAt,
+      nowInstant: now,
+    );
+  }
 
   /// Picks a target, or drops it.
   ///
@@ -105,20 +221,22 @@ class PublishComposer extends Notifier<PublishSelection> {
         title = _aiTitle();
       }
     }
-    state = state.copyWith(
-      targetIds: ids,
-      captions: captions,
-      aiCaptions: aiCaptions,
-      youtubeTitle: title,
+    _update(
+      state.copyWith(
+        targetIds: ids,
+        captions: captions,
+        aiCaptions: aiCaptions,
+        youtubeTitle: title,
+      ),
     );
   }
 
   void setCaption(String targetId, String caption) {
-    state = state.copyWith(captions: {...state.captions, targetId: caption});
+    _update(state.copyWith(captions: {...state.captions, targetId: caption}));
   }
 
   void setYouTubeTitle(String title) {
-    state = state.copyWith(youtubeTitle: title);
+    _update(state.copyWith(youtubeTitle: title));
   }
 
   /// Switches between publishing now and publishing at a time.
@@ -133,22 +251,100 @@ class PublishComposer extends Notifier<PublishSelection> {
       final fields = scheduleFields(
         DateTime(next.year, next.month, next.day, next.hour),
       );
-      state = state.copyWith(
-        mode: mode,
-        scheduleDate: fields.date,
-        scheduleTime: fields.time,
+      _update(
+        state.copyWith(
+          mode: mode,
+          scheduleDate: fields.date,
+          scheduleTime: fields.time,
+        ),
       );
       return;
     }
-    state = state.copyWith(mode: mode);
+    _update(state.copyWith(mode: mode));
   }
 
   void setScheduleDate(String date) {
-    state = state.copyWith(scheduleDate: date);
+    // The admin is choosing the time again, so the question about the saved
+    // one no longer has an answer to wait for.
+    ref.read(draftRestoreProvider.notifier).keepTyped();
+    _update(state.copyWith(scheduleDate: date));
   }
 
   void setScheduleTime(String time) {
-    state = state.copyWith(scheduleTime: time);
+    ref.read(draftRestoreProvider.notifier).keepTyped();
+    _update(state.copyWith(scheduleTime: time));
+  }
+
+  /// Takes the time the draft was saved with, as a wall clock here.
+  void useSavedTime(DateTime savedInstant) {
+    final fields = scheduleFields(savedInstant.toLocal());
+    ref.read(draftRestoreProvider.notifier).set(null);
+    _update(
+      state.copyWith(scheduleDate: fields.date, scheduleTime: fields.time),
+    );
+  }
+
+  /// Throws the form and the draft away.
+  Future<void> discard() async {
+    final videoId = _videoId;
+    _saveTimer?.cancel();
+    _loads++;
+    ref.read(draftRestoreProvider.notifier).set(null);
+    state = const PublishSelection();
+    if (videoId == null) return;
+    await ref.read(draftsRepositoryProvider).delete(videoId);
+  }
+
+  /// The post was written, so the draft has done its job (SPEC-offline "The
+  /// drafts").
+  Future<void> draftPublished(String videoId) async {
+    _saveTimer?.cancel();
+    ref.read(draftRestoreProvider.notifier).set(null);
+    await ref.read(draftsRepositoryProvider).delete(videoId);
+  }
+
+  void _update(PublishSelection next) {
+    state = next;
+    _scheduleSave();
+  }
+
+  void _scheduleSave() {
+    final videoId = _videoId;
+    if (videoId == null) return;
+    _saveTimer?.cancel();
+    _saveTimer = Timer(saveDelay, () => _save(videoId));
+  }
+
+  /// Writes the form, or drops the draft when the form holds nothing.
+  Future<void> _save(String videoId) async {
+    if (_videoId != videoId) return;
+    final selection = state;
+    final zone = ref.read(timeZoneProvider);
+    DateTime? resolved;
+    int? offset;
+    if (selection.isScheduled) {
+      final wall = parseLocalSchedule(
+        date: selection.scheduleDate,
+        time: selection.scheduleTime,
+      );
+      if (wall != null) {
+        offset = zone.offsetAt(wall);
+        resolved = resolveWallClock(wall: wall, zone: zone).instant;
+      }
+    }
+    final draft = ComposeDraft.fromSelection(
+      selection,
+      videoId: videoId,
+      savedAt: DateTime.now(),
+      resolvedAt: resolved,
+      offsetMinutes: offset,
+    );
+    final drafts = ref.read(draftsRepositoryProvider);
+    if (draft.isEmpty) {
+      await drafts.delete(videoId);
+      return;
+    }
+    await drafts.save(draft);
   }
 
   String _aiCaption(PublishTarget target) {

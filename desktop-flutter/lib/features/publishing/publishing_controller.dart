@@ -153,6 +153,18 @@ class PublishController extends Notifier<PublishState> {
       state = PublishRunning([...statuses]);
     }
     state = PublishDone(statuses);
+    // Every target wrote its row, so the draft has done its job. A run with a
+    // failed target keeps the draft: the admin may want to try it again.
+    final written =
+        statuses.isNotEmpty &&
+        statuses.every(
+          (status) =>
+              status.phase == PublishPhase.published ||
+              status.phase == PublishPhase.scheduled,
+        );
+    if (written) {
+      await ref.read(publishSelectionProvider.notifier).draftPublished(videoId);
+    }
   }
 
   /// Writes the row of a post that goes out later.
