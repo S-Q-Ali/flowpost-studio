@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flowpost_desktop/core/providers/app_providers.dart';
+import 'package:flowpost_desktop/core/time/time_zone.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/data/publish_client.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_errors.dart';
@@ -10,6 +12,8 @@ import 'package:flowpost_desktop/features/publishing/publishing_controller.dart'
 import 'package:flowpost_desktop/features/publishing/publishing_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/fake_time_zone.dart';
 
 const _instagram = PublishTarget(
   platform: PublishPlatform.instagram,
@@ -102,12 +106,14 @@ ProviderContainer _container({
     interval: Duration.zero,
     attempts: 3,
   ),
+  TimeZone zone = const SystemTimeZone(),
 }) {
   return ProviderContainer(
     overrides: [
       postsRepositoryProvider.overrideWithValue(repository),
       publishClientProvider.overrideWithValue(client),
       publishPollPolicyProvider.overrideWithValue(policy),
+      timeZoneProvider.overrideWithValue(zone),
     ],
   );
 }
@@ -528,7 +534,11 @@ void main() {
   test('a scheduled post is queued and nothing is sent', () async {
     final repository = _FakeRepository();
     final client = _FakeClient();
-    final container = _container(repository: repository, client: client);
+    final container = _container(
+      repository: repository,
+      client: client,
+      zone: fixedZone(),
+    );
     addTearDown(container.dispose);
 
     await container
@@ -549,10 +559,39 @@ void main() {
     expect(repository.reads, isEmpty);
     final draft = repository.drafts.single;
     expect(draft.status, 'scheduled');
-    expect(draft.scheduledAt, DateTime(2026, 11, 1, 9, 30));
+    expect(draft.scheduledAt, DateTime.utc(2026, 11, 1, 8, 30));
     final state = container.read(publishControllerProvider) as PublishDone;
     expect(state.statuses.single.phase, PublishPhase.scheduled);
     expect(state.statuses.single.scheduledAt, DateTime(2026, 11, 1, 9, 30));
+  });
+
+  test('a scheduled post in a time the clock skips writes no row', () async {
+    final repository = _FakeRepository();
+    final client = _FakeClient();
+    final container = _container(
+      repository: repository,
+      client: client,
+      zone: easternSpringForward(),
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(publishControllerProvider.notifier)
+        .publish(
+          selection: const PublishSelection(
+            targetIds: {'instagram:ig-1:feed'},
+            mode: PublishMode.schedule,
+            scheduleDate: '2026-03-08',
+            scheduleTime: '02:30',
+          ),
+          targets: const [_instagram],
+          videoId: 'video-1',
+        );
+
+    final state = container.read(publishControllerProvider) as PublishDone;
+    expect(state.statuses.single.phase, PublishPhase.failed);
+    expect(state.statuses.single.message, contains('does not exist'));
+    expect(repository.drafts, isEmpty);
   });
 
   test('a scheduled post with no time fails with the format', () async {

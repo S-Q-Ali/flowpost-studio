@@ -1,3 +1,4 @@
+import '../../../core/time/time_zone.dart';
 import '../../media/domain/media_validation.dart';
 import 'publish_target.dart';
 
@@ -11,6 +12,7 @@ enum PublishRejection {
   scheduleIncomplete,
   scheduleInvalid,
   scheduleInPast,
+  scheduleSkipped,
 }
 
 /// One reason the compose form is not ready.
@@ -19,6 +21,7 @@ class PublishIssue {
     required this.reason,
     required this.message,
     this.targetId,
+    this.shownUnderField = false,
   });
 
   final PublishRejection reason;
@@ -28,6 +31,10 @@ class PublishIssue {
 
   /// The target the issue belongs to. Null when it is about the form.
   final String? targetId;
+
+  /// The screen already shows this issue under the field it belongs to, so
+  /// the list of reasons does not say it a second time.
+  final bool shownUnderField;
 }
 
 /// The result of checking the compose form.
@@ -57,6 +64,7 @@ PublishValidation validatePublish({
   required String scheduleDate,
   required String scheduleTime,
   DateTime? now,
+  TimeZone zone = const SystemTimeZone(),
 }) {
   final issues = <PublishIssue>[];
   if (targets.isEmpty) {
@@ -134,13 +142,28 @@ PublishValidation validatePublish({
             message: scheduleFormatMessage,
           ),
         );
-      } else if (!local.isAfter(now ?? DateTime.now())) {
-        issues.add(
-          const PublishIssue(
-            reason: PublishRejection.scheduleInPast,
-            message: 'The scheduled time is in the past.',
-          ),
-        );
+      } else {
+        final clock = resolveWallClock(wall: local, zone: zone);
+        if (clock is SkippedClock) {
+          // The clock skips that hour, so the time names no instant at all.
+          issues.add(
+            PublishIssue(
+              reason: PublishRejection.scheduleSkipped,
+              message: skippedTimeMessage(
+                jumpFrom: clock.jumpFrom,
+                jumpTo: clock.jumpTo,
+              ),
+              shownUnderField: true,
+            ),
+          );
+        } else if (!(clock.instant!.isAfter(now ?? DateTime.now()))) {
+          issues.add(
+            const PublishIssue(
+              reason: PublishRejection.scheduleInPast,
+              message: 'The scheduled time is in the past.',
+            ),
+          );
+        }
       }
     }
   }

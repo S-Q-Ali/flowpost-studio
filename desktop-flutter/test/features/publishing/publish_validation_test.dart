@@ -1,7 +1,10 @@
+import 'package:flowpost_desktop/core/time/time_zone.dart';
 import 'package:flowpost_desktop/features/media/domain/media_validation.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_validation.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/fake_time_zone.dart';
 
 const _youtube = PublishTarget(
   platform: PublishPlatform.youtube,
@@ -31,6 +34,7 @@ PublishValidation _validate({
   String scheduleDate = '',
   String scheduleTime = '',
   DateTime? now,
+  TimeZone zone = const SystemTimeZone(),
 }) {
   return validatePublish(
     targets: targets,
@@ -41,6 +45,7 @@ PublishValidation _validate({
     scheduleDate: scheduleDate,
     scheduleTime: scheduleTime,
     now: now,
+    zone: zone,
   );
 }
 
@@ -221,6 +226,34 @@ void main() {
     expect(local!.hour, 14);
     expect(local.minute, 30);
     expect(local.isUtc, isFalse);
+  });
+
+  test('a time the clock skips is refused and the jump is named', () {
+    final validation = _validate(
+      schedule: true,
+      scheduleDate: '2026-03-08',
+      scheduleTime: '02:30',
+      now: DateTime.utc(2026, 3, 7),
+      zone: easternSpringForward(),
+    );
+
+    final issue = validation.issues.single;
+    expect(issue.reason, PublishRejection.scheduleSkipped);
+    expect(issue.message, contains('does not exist'));
+    expect(issue.message, contains('01:59'));
+    expect(issue.message, contains('03:00'));
+  });
+
+  test('a time that happens twice is ready and the first one is used', () {
+    final validation = _validate(
+      schedule: true,
+      scheduleDate: '2026-11-01',
+      scheduleTime: '01:30',
+      now: DateTime.utc(2026, 10, 31),
+      zone: easternFallBack(),
+    );
+
+    expect(validation.isValid, isTrue);
   });
 
   test('the schedule fields split the date and the time', () {

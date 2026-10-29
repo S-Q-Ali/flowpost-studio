@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/media_format.dart';
+import '../../../core/providers/app_providers.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/time/time_zone.dart';
 import '../domain/publish_selection.dart';
 import '../domain/publish_target.dart';
 import '../domain/publish_validation.dart';
@@ -120,10 +122,11 @@ List<Widget> _issueLines(BuildContext context, PublishValidation validation) {
   if (validation.isValid) return const [];
   final scheme = Theme.of(context).colorScheme;
   return [
-    // An issue of a target is already shown under that target's field, so
-    // only the issues of the form itself are listed here.
+    // An issue of a target is already shown under that target's field, and
+    // an issue of the schedule is already shown under the date and the time,
+    // so only the issues of the form itself are listed here.
     for (final issue in validation.issues)
-      if (issue.targetId == null)
+      if (issue.targetId == null && !issue.shownUnderField)
         Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: Row(
@@ -330,8 +333,8 @@ class _ScheduleFields extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final local = parseLocalSchedule(date: date, time: time);
+    final zone = ref.watch(timeZoneProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -374,17 +377,39 @@ class _ScheduleFields extends ConsumerWidget {
         ),
         if (local != null) ...[
           const SizedBox(height: 8),
-          Text(
-            'Your time: ${formatLocalSchedule(local)}',
-            style: theme.textTheme.bodySmall,
-          ),
-          Text(
-            'Stored as ${local.toUtc().toIso8601String()}',
-            style: theme.textTheme.bodySmall,
-          ),
+          ..._zoneLines(context, local, zone),
         ],
       ],
     );
+  }
+
+  /// What the typed time turned out to be, in the admin's own timezone.
+  List<Widget> _zoneLines(BuildContext context, DateTime local, TimeZone zone) {
+    final theme = Theme.of(context);
+    final clock = resolveWallClock(wall: local, zone: zone);
+    if (clock is SkippedClock) {
+      return [
+        Text(
+          skippedTimeMessage(jumpFrom: clock.jumpFrom, jumpTo: clock.jumpTo),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.error,
+          ),
+        ),
+      ];
+    }
+    return [
+      Text(
+        'Your time: ${formatLocalSchedule(local)} '
+        '(${formatZoneOffset(zone.offsetAt(local))})',
+        style: theme.textTheme.bodySmall,
+      ),
+      Text(
+        'Stored as ${clock.instant!.toIso8601String()}',
+        style: theme.textTheme.bodySmall,
+      ),
+      if (clock is RepeatedClock)
+        Text(repeatedTimeMessage(), style: theme.textTheme.bodySmall),
+    ];
   }
 }
 

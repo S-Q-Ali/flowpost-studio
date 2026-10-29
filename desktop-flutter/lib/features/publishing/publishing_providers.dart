@@ -185,6 +185,7 @@ final publishValidationProvider = Provider<PublishValidation>((ref) {
     schedule: selection.isScheduled,
     scheduleDate: selection.scheduleDate,
     scheduleTime: selection.scheduleTime,
+    zone: ref.watch(timeZoneProvider),
   );
 });
 

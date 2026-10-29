@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
+import '../../core/providers/app_providers.dart';
+import '../../core/time/time_zone.dart';
 import 'data/posts_repository.dart';
 import 'data/publish_client.dart';
 import 'domain/publish_errors.dart';
@@ -162,22 +164,38 @@ class PublishController extends Notifier<PublishState> {
     PublishSelection selection,
     String videoId,
   ) async {
-    final when = parseLocalSchedule(
+    final wall = parseLocalSchedule(
       date: selection.scheduleDate,
       time: selection.scheduleTime,
     );
-    if (when == null) {
+    if (wall == null) {
       return PublishTargetStatus(
         target: target,
         phase: PublishPhase.failed,
         message: scheduleFormatMessage,
       );
     }
+    final clock = resolveWallClock(
+      wall: wall,
+      zone: ref.read(timeZoneProvider),
+    );
+    if (clock is SkippedClock) {
+      // The clock skips that hour, so the time names no instant and no row
+      // may be written for it.
+      return PublishTargetStatus(
+        target: target,
+        phase: PublishPhase.failed,
+        message: skippedTimeMessage(
+          jumpFrom: clock.jumpFrom,
+          jumpTo: clock.jumpTo,
+        ),
+      );
+    }
     final String postId;
     try {
       postId = await ref
           .read(postsRepositoryProvider)
-          .insert(_draft(target, selection, videoId, when: when));
+          .insert(_draft(target, selection, videoId, when: clock.instant!));
     } on PostsException catch (error) {
       _log.warning('The queue refused the ${target.platform.name} post.');
       return PublishTargetStatus(
@@ -202,7 +220,7 @@ class PublishController extends Notifier<PublishState> {
       target: target,
       phase: PublishPhase.scheduled,
       postId: postId,
-      scheduledAt: when,
+      scheduledAt: wall,
     );
   }
 

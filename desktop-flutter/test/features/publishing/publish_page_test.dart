@@ -1,6 +1,7 @@
 import 'package:flowpost_desktop/app.dart';
 import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
+import 'package:flowpost_desktop/core/time/time_zone.dart';
 import 'package:flowpost_desktop/features/media/domain/media_validation.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/data/publish_client.dart';
@@ -10,6 +11,8 @@ import 'package:flowpost_desktop/features/publishing/publishing_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/fake_time_zone.dart';
 
 const _config = AppConfig(
   supabaseUrl: 'https://test.supabase.co',
@@ -100,6 +103,7 @@ Future<void> _pump(
   Size size = const Size(1280, 800),
   _FakeClient? client,
   _FakeRepository? repository,
+  TimeZone zone = const SystemTimeZone(),
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -131,6 +135,7 @@ Future<void> _pump(
         publishPollPolicyProvider.overrideWithValue(
           const PublishPollPolicy(interval: Duration.zero, attempts: 1),
         ),
+        timeZoneProvider.overrideWithValue(zone),
       ],
       child: const FlowPostApp(initialDeepLink: '/publish'),
     ),
@@ -281,6 +286,54 @@ void main() {
     expect(find.byKey(const Key('schedule-date')), findsOneWidget);
     expect(find.byKey(const Key('schedule-time')), findsOneWidget);
     expect(find.textContaining('Stored as'), findsOneWidget);
+  });
+
+  testWidgets('a time the clock skips is refused under the field', (
+    tester,
+  ) async {
+    await _pump(tester, zone: easternSpringForward());
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Later'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('schedule-date')),
+      '2026-03-08',
+    );
+    await tester.enterText(find.byKey(const Key('schedule-time')), '02:30');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('That time does not exist today'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('01:59'), findsOneWidget);
+    expect(find.textContaining('03:00'), findsOneWidget);
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Schedule'),
+    );
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('a time that happens twice says the first one is used', (
+    tester,
+  ) async {
+    await _pump(tester, zone: easternFallBack());
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Later'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('schedule-date')),
+      '2026-11-01',
+    );
+    await tester.enterText(find.byKey(const Key('schedule-time')), '01:30');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('happens twice'), findsOneWidget);
+    expect(find.textContaining('UTC-04:00'), findsOneWidget);
   });
 
   testWidgets(
