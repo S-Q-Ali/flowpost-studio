@@ -1,4 +1,4 @@
-import 'dart:convert';
+import '../auth/access_token.dart';
 
 /// Shell-level configuration parsed once from `--dart-define-from-file`.
 ///
@@ -76,17 +76,8 @@ class AppConfig {
     if (lower.startsWith('sb_secret_') || lower.contains('service_role')) {
       return true;
     }
-    final parts = key.split('.');
-    if (parts.length != 3) return false;
-    try {
-      final payload = jsonDecode(
-        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
-      );
-      return payload is Map && payload['role'] == 'service_role';
-    } on Object {
-      // A non-JWT key is not automatically a service key; presence checks
-      // above still reject the names that matter.
-      return false;
-    }
+    // A non-JWT key is not automatically a service key; presence checks
+    // above still reject the names that matter.
+    return jwtPayload(key)?['role'] == 'service_role';
   }
 }
