@@ -98,7 +98,7 @@ Future<UpdateResult> checkForUpdate({
   Future<String> Function(Uri uri)? fetchManifest,
 }) async {
   try {
-    final body = await (fetchManifest ?? _fetchManifest)(manifestUrl);
+    final body = await (fetchManifest ?? fetchUpdateManifest)(manifestUrl);
     final manifest = parseManifest(body);
     return UpdateResult(
       currentVersion: currentVersion,
@@ -113,15 +113,25 @@ Future<UpdateResult> checkForUpdate({
   }
 }
 
-Future<String> _fetchManifest(Uri uri) async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+/// How long the whole manifest fetch may take.
+const Duration defaultUpdateTimeout = Duration(seconds: 8);
+
+Future<String> fetchUpdateManifest(
+  Uri uri, {
+  Duration timeout = defaultUpdateTimeout,
+}) async {
+  final client = HttpClient();
+  // One budget for the whole fetch: the connection, the answer and the body.
+  // A server that drips bytes would otherwise never finish it.
+  final clock = Stopwatch()..start();
+  Duration left() => timeout - clock.elapsed;
   try {
-    final request = await client.getUrl(uri);
-    final response = await request.close().timeout(const Duration(seconds: 8));
+    final request = await client.getUrl(uri).timeout(left());
+    final response = await request.close().timeout(left());
     if (response.statusCode != HttpStatus.ok) {
       throw HttpException('HTTP ${response.statusCode}', uri: uri);
     }
-    return await response.transform(utf8.decoder).join();
+    return await response.transform(utf8.decoder).join().timeout(left());
   } finally {
     client.close(force: true);
   }

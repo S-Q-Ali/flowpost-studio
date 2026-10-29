@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -236,9 +237,19 @@ String _chatContent(CaptionReply reply) {
   return content;
 }
 
+/// How long one call to the caption service may take.
+const Duration defaultCaptionTimeout = Duration(seconds: 120);
+
 /// The real transport: one HTTPS request with the session token.
 class HttpCaptionTransport implements CaptionTransport {
-  HttpCaptionTransport({HttpClient? client}) : _client = client ?? HttpClient();
+  HttpCaptionTransport({
+    HttpClient? client,
+    this.timeout = defaultCaptionTimeout,
+  }) : _client = client ?? HttpClient();
+
+  /// The whole call gets this long: the connection, the question and the
+  /// answer.
+  final Duration timeout;
 
   HttpClient _client;
 
@@ -249,24 +260,38 @@ class HttpCaptionTransport implements CaptionTransport {
     String? token,
   }) async {
     final client = _client;
-    final request = await client.postUrl(url);
-    request.headers.contentType = ContentType.json;
-    if (token != null) {
-      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-    }
-    request.write(jsonEncode(body));
-    final response = await request.close();
-    final text = await response.transform(utf8.decoder).join();
-    Object? decoded;
+    // One budget for the whole call: a stalled answer would otherwise keep
+    // the screen on "Generating..." with nothing to cancel it.
+    final clock = Stopwatch()..start();
+    Duration left() => timeout - clock.elapsed;
     try {
-      decoded = text.isEmpty ? null : jsonDecode(text);
-    } on FormatException {
-      decoded = null;
+      final request = await client.postUrl(url).timeout(left());
+      request.headers.contentType = ContentType.json;
+      if (token != null) {
+        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      }
+      request.write(jsonEncode(body));
+      final response = await request.close().timeout(left());
+      final text = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(left());
+      Object? decoded;
+      try {
+        decoded = text.isEmpty ? null : jsonDecode(text);
+      } on FormatException {
+        decoded = null;
+      }
+      return CaptionReply(
+        statusCode: response.statusCode,
+        body: decoded is Map ? Map<String, dynamic>.from(decoded) : const {},
+      );
+    } on TimeoutException {
+      cancel();
+      throw const CaptionException(
+        'The caption service did not answer. Try again.',
+      );
     }
-    return CaptionReply(
-      statusCode: response.statusCode,
-      body: decoded is Map ? Map<String, dynamic>.from(decoded) : const {},
-    );
   }
 
   @override

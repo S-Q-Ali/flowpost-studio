@@ -374,6 +374,42 @@ void main() {
       expect(result.videoId, 'video-1');
     });
 
+    test(
+      'a server that never answers is cut off by the whole budget',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        // The server takes the body and never answers.
+        server.listen((request) async {
+          await request.drain<void>();
+        });
+
+        final client = UploadClient(
+          endpoint: Uri.parse('http://127.0.0.1:${server.port}/upload'),
+          token: 'session-token',
+          transport: HttpUploadTransport(
+            timeout: const Duration(milliseconds: 300),
+          ),
+        );
+
+        await expectLater(
+          client.upload(
+            file: file,
+            fileName: 'normalized.mp4',
+            contentType: 'video/mp4',
+            idempotencyKey: 'job-1',
+          ),
+          throwsA(
+            isA<UploadException>().having(
+              (error) => error.message,
+              'message',
+              contains('did not answer'),
+            ),
+          ),
+        );
+      },
+    );
+
     test('the request in flight can be aborted', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(() => server.close(force: true));

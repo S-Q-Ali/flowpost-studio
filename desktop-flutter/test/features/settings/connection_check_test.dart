@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -91,4 +92,24 @@ void main() {
     );
     expect(answer, 'Could not reach the server.');
   });
+
+  test(
+    'a server that never answers is cut off by the whole-call budget',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      // The server takes the request and never answers.
+      server.listen((request) async {
+        await request.drain<void>();
+      });
+
+      await expectLater(
+        httpStatus(
+          Uri.parse('http://127.0.0.1:${server.port}/'),
+          timeout: const Duration(milliseconds: 300),
+        ),
+        throwsA(isA<TimeoutException>()),
+      );
+    },
+  );
 }

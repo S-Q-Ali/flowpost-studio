@@ -38,17 +38,26 @@ Future<String> checkCredentialsConnection(
   }
 }
 
+/// How long one probe may take, connection and body together.
+const Duration defaultStatusTimeout = Duration(seconds: 10);
+
 /// One GET with no body kept; the caller only needs the status line.
 Future<int> httpStatus(
   Uri url, {
   Map<String, String> headers = const {},
+  Duration timeout = defaultStatusTimeout,
 }) async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+  final client = HttpClient();
+  // One budget for the whole probe: the connection, the answer and the
+  // body. A server that sends a byte now and then would otherwise hold the
+  // check open for as long as it likes.
+  final clock = Stopwatch()..start();
+  Duration left() => timeout - clock.elapsed;
   try {
-    final request = await client.getUrl(url);
+    final request = await client.getUrl(url).timeout(left());
     headers.forEach(request.headers.set);
-    final response = await request.close();
-    await response.drain<void>();
+    final response = await request.close().timeout(left());
+    await response.drain<void>().timeout(left());
     return response.statusCode;
   } finally {
     client.close(force: true);

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flowpost_desktop/features/media/captions/data/captions_client.dart';
 import 'package:flowpost_desktop/features/media/captions/domain/caption_processing.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -307,5 +309,38 @@ void main() {
       );
       expect(transport.bodies, isEmpty);
     });
+  });
+
+  group('the http transport', () {
+    test(
+      'a server that never answers is cut off by the whole budget',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        // The server takes the request and never answers.
+        server.listen((request) async {
+          await request.drain<void>();
+        });
+
+        final client = CaptionsClient(
+          endpoint: Uri.parse('http://127.0.0.1:${server.port}/captions'),
+          token: 'session-token',
+          transport: HttpCaptionTransport(
+            timeout: const Duration(milliseconds: 300),
+          ),
+        );
+
+        await expectLater(
+          client.transcribe(audioBase64: 'AAAA', filename: 'audio.mp3'),
+          throwsA(
+            isA<CaptionException>().having(
+              (error) => error.message,
+              'message',
+              contains('did not answer'),
+            ),
+          ),
+        );
+      },
+    );
   });
 }

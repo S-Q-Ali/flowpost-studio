@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -209,9 +210,19 @@ typedef UploadSentCallback = void Function(int sentBytes);
 /// Reports how much of the file has been sent, from 0 to 1.
 typedef UploadProgressCallback = void Function(double fraction);
 
+/// How long one upload may take before the client gives up on it.
+///
+/// A 100 MB file on a slow line still fits: the shortest allowed speed is
+/// about 170 KB/s.
+const Duration defaultUploadTimeout = Duration(minutes: 10);
+
 /// The real transport: one multipart request with the session token.
 class HttpUploadTransport implements UploadTransport {
-  HttpUploadTransport({HttpClient? client}) : _client = client ?? HttpClient();
+  HttpUploadTransport({HttpClient? client, this.timeout = defaultUploadTimeout})
+    : _client = client ?? HttpClient();
+
+  /// The whole call gets this long: the connection, the file and the answer.
+  final Duration timeout;
 
   HttpClient _client;
 
@@ -223,29 +234,44 @@ class HttpUploadTransport implements UploadTransport {
     UploadSentCallback? onSent,
   }) async {
     final client = _client;
-    final request = await client.postUrl(url);
-    request.headers.contentType = ContentType(
-      'multipart',
-      'form-data',
-      parameters: {'boundary': body.boundary},
-    );
-    if (token != null) {
-      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-    }
-    request.contentLength = body.contentLength;
-    await request.addStream(body.openRead(onProgress: onSent));
-    final response = await request.close();
-    final text = await response.transform(utf8.decoder).join();
-    Object? decoded;
+    // One budget for the whole call: a connection, a file and an answer each
+    // with a timeout of its own would make the wait several times as long as
+    // it says, and a server that reads slowly would never end it.
+    final clock = Stopwatch()..start();
+    Duration left() => timeout - clock.elapsed;
     try {
-      decoded = text.isEmpty ? null : jsonDecode(text);
-    } on FormatException {
-      decoded = null;
+      final request = await client.postUrl(url).timeout(left());
+      request.headers.contentType = ContentType(
+        'multipart',
+        'form-data',
+        parameters: {'boundary': body.boundary},
+      );
+      if (token != null) {
+        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      }
+      request.contentLength = body.contentLength;
+      await request
+          .addStream(body.openRead(onProgress: onSent))
+          .timeout(left());
+      final response = await request.close().timeout(left());
+      final text = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(left());
+      Object? decoded;
+      try {
+        decoded = text.isEmpty ? null : jsonDecode(text);
+      } on FormatException {
+        decoded = null;
+      }
+      return UploadReply(
+        statusCode: response.statusCode,
+        body: decoded is Map ? Map<String, dynamic>.from(decoded) : const {},
+      );
+    } on TimeoutException {
+      cancel();
+      throw const UploadException('The upload did not answer. Try again.');
     }
-    return UploadReply(
-      statusCode: response.statusCode,
-      body: decoded is Map ? Map<String, dynamic>.from(decoded) : const {},
-    );
   }
 
   @override
