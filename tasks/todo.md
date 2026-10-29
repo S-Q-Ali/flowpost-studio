@@ -435,7 +435,12 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] `docs/adr/0003-local-cache-engine.md`: `package:sqlite3` directly, two databases, the version in the database, a broken file renamed and never deleted
   - [ ] Human approval of the three documents, and of the six decisions in each spec
 - [ ] **5.2** Calendar/queue UI; timezone/DST correctness
+  - [x] The `TimeZone` seam and the three cases a wall clock can have (skipped, repeated, ordinary)
+  - [ ] The read model and the queue list
+  - [ ] The calendar: month, week and list
+  - [ ] Editing a scheduled post and cancelling one
 - [ ] **5.3** SQLite cache with schema version and migration
+  - [x] The spike: the engine works in the test runner and in the Windows build (ADR 0003)
 - [ ] **5.4** Local drafts: autosave, restore, delete, no offline publish
 - [ ] **5.5** Connectivity banner; cached reads; reconnect refresh
 - [ ] **5.6** Phase 5 gate
@@ -462,6 +467,17 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **The web app's offline store is dead code.** `src/lib/offline-db.ts` wraps IndexedDB and is never imported (`:84`), and there is no draft, no autosave and no connectivity handling anywhere in `src/`.
 - **Open for the owner:** six decisions in `SPEC-scheduling.md` and eight in `SPEC-offline.md`, of which the ones that change the work are the platform filter, the week view, the timezone source, the delete of a published row, whether the cache keeps the `videos` rows, more than one draft per media, and whether the cache is wiped on sign-out while the drafts are kept.
 - **Spike before 5.3:** open a database in a temp directory under `flutter test` and under `flutter build windows`, and show that the compiled asset is inside the built app and that no `sqlite3.dll` sits next to the executable. The build hook has to run in the test runner on Windows, and that is the one thing the sources do not settle.
+
+### Phase 5 spike and 5.2a evidence (2026-10-29)
+
+- **The spike is done, and it corrected the ADR.** `sqlite3` 3.8.0 is added to `desktop-flutter/pubspec.yaml`. A database in a temp directory keeps its row across a close and a reopen under `flutter test`, and `flutter build windows --release` succeeds. The library lands in `build/native_assets/windows/sqlite3.dll` and is copied to `build/windows/x64/runner/Release/sqlite3.dll` (1.7 MB) — so the ADR's "no `sqlite3.dll` is shipped" was **wrong**. The conclusion survives: `installer/flowpost.iss` copies the whole `Release` folder, so the DLL ships with no change to the installer and the app needs no system SQLite. ADR 0003 now says what the build shows.
+- **The timezone seam is in.** `desktop-flutter/lib/core/time/time_zone.dart` holds the `TimeZone` seam (`resolve` + `offsetAt`), the production `SystemTimeZone`, and the three outcomes a wall clock can have: ordinary, repeated, skipped. The rules live in one place, so the screens cannot disagree about what a typed time means.
+- **A skipped hour is refused.** The web app resolves a typed time silently (`src/pages/QueuePage.tsx:104-107`), so a post written for the hour the clock jumps over goes out an hour later with nothing on the screen to say so. The desktop refuses it: "That time does not exist today. The clock jumps from 01:59 to 03:00." The publish button is off and **no row is written** — the controller resolves through the same seam and refuses there too, so the rule holds even if the form is bypassed.
+- **A repeated hour uses the first occurrence and says so.** "That time happens twice today. The post goes out at the first one." The screen shows the zone next to the time (`UTC-05:00`), so a wrong zone is visible rather than silent — the profile has no timezone column, so the machine's zone is the only one available.
+- **The cases pin on every machine.** The rules are written against the seam, not against `DateTime`, and the tests use a fake zone with a synthetic daylight-saving jump (`test/support/fake_time_zone.dart`). The skipped hour, the repeated hour, two zones with the same wall clock, and the round trip are all covered — on a machine whose own zone has no daylight saving as well.
+- **One reason is shown once.** The skipped message sits under the date and the time fields; the list of reasons at the bottom of the form no longer repeats it.
+- **The row stores an instant.** The controller now writes the resolved UTC instant into `scheduled_at` instead of a local `DateTime` the repository had to convert. The screen still shows the wall clock the admin typed.
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (97 files), `flutter analyze` no issues, `flutter test` **397 passed** (was 383).
 
 ---
 
