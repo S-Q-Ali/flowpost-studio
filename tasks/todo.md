@@ -1,184 +1,218 @@
-# Todo List: FlowPost Desktop Application (Windows, Pake-based)
+# Todo: FlowPost Desktop — Production-Ready Windows MVP
 
-**Plan:** `tasks/plan.md` · **Mode:** Remote-URL packaging, Windows x64, portable `.exe`  
-**Status:** Phase 0 next — de-risk spike before any build work  
-**Revised 2026-10-23:** skills-based planning (planning-and-task-breakdown + spec-driven-development + shipping-and-launch)  
-**Source:** docs/spec/flowpost-desktop-spec.md + docs/intent/flowpost-desktop.md
-
----
-
-## Phase 0: De-risk spike (no repo changes)
-
-- [x] **Task 1:** Verify toolchain, install Pake CLI
-  - [x] `node -v` ≥ 20.9, `rustc -V` ≥ 1.85
-  - [x] `npm install -g pake-cli` → `pake --version` works (v3.17.6)
-  - [x] Windows toolchain (MinGW GCC 16.2.0) installed at `E:\BuildTools\mingw64`
-
-- [x] **Task 2:** Build spike app against production, run OAuth matrix
-  - [x] Spike `.exe` launches FlowPost login page (built: `FlowPost.exe` 9.5 MB)
-  - [ ] Google sign-in completes **inside app window** → `/dashboard` (app crashes on launch - investigating)
-  - [ ] Session survives close/relaunch
-  - [ ] Facebook OAuth popup opens, completes, notifies opener
-  - [ ] "Upload from Computer" opens native picker; upload succeeds
-  - [ ] All outcomes recorded in `desktop/spike-results.md`
-
-- [ ] **Checkpoint 0: GO / NO-GO**
-  - [ ] Written decision: packaging mode + OAuth strategy
-  - [ ] Human approved before Phase 1
+**Plan:** `tasks/plan.md`
+**Status:** Auth deferred by owner; building features without login (accounts first)
+**Mode:** Windows x64, Flutter, existing Supabase backend, unsigned Inno Setup
+**Rule:** A phase is done only when its gate passes. No next phase with a Must-fix.
+**Owner override (2026-10-28):** login is deferred to the end. Build the real screens and local flows with no auth gate; real Supabase wiring resumes with identity. Phase gates for Phases 2–5 record local evidence only.
 
 ---
 
-## Phase 1: Repository hygiene + web restore
+## Phase 0 — Shell Completion and Installability
 
-- [x] **Task 3:** Archive Tauri fork + revise spec/intent
-  - [x] `feature/desktop-tauri-fork` branch holds `src-tauri/`, `src/preload.ts`, commits `b37cb82`/`aff56d4`/`22b61b6`
-  - [x] `tasks/archive/plan-tauri-fork.md` + `tasks/archive/todo-tauri-fork.md` kept with "superseded" headers
-  - [x] `docs/spec/flowpost-desktop-spec.md` rewritten for Pake architecture
-  - [x] `docs/intent/flowpost-desktop.md` updated (wrapper = auto-updating shell; extension-only features out of parity)
-  - [x] Note recorded: why Pake replaced Tauri fork
+- [x] **0.1a** Archive Pake plan/todo to `tasks/archive/`
+- [x] **0.1b** Review and approve `tasks/plan.md` and this todo
+- [x] **0.2** Fix shell safety blockers
+  - [x] Exclusive single-instance lock; unknown owner treated as alive
+  - [x] Tray failure does not trap a hidden window
+  - [x] OAuth `code`/`state` redacted; log route only
+  - [x] Config rejects non-HTTPS and service-role/secret keys
+  - [x] Global framework/async error logging
+- [x] **0.3** Deep-link restore and intent durability
+  - [x] Every accepted link calls `showFromTray()`
+  - [x] Hidden window returns with taskbar entry and focus
+  - [x] Failed batch read restores the intent file
+- [x] **0.4** Shell tests
+  - [x] Guard, tray, quit, hand-off, restore unit tests
+  - [x] `integration_test/shell_test.dart` launches and exits cleanly
+- [x] **0.5** Installer and protocol
+  - [x] `installer/flowpost.iss` builds `FlowPostNativeSetup.exe`
+  - [x] Start Menu, uninstall, and `flowpost://` registry entry
+  - [x] Icon from `public/logo.png`
+- [x] **0.6** Version/update, README, log path
+  - [x] Version + manifest check + download URL
+  - [x] README commands/toolchain/log path
+  - [x] Align spec/comment with real `%APPDATA%\com.flowpost\FlowPost\logs`
+- [x] **0.7** Phase 0 gate
+  - [x] `flutter analyze` zero
+  - [x] `dart format --set-exit-if-changed lib test` clean
+  - [x] `flutter test` green (60 tests)
+  - [x] `flutter test integration_test -d windows` green
+  - [x] Release build + installer
+  - [x] Install, Start Menu, protocol, uninstall
+  - [x] Close-to-tray; Show verified through `flowpost://focus`
+  - [x] Tray **Quit**/**Show** click accepted at approval (Quit via code path/review)
+  - [x] Two cold starts: one primary only
+  - [x] Cold start under 3 seconds
+  - [x] Logs contain no token/code/state
+  - [x] Scoped `ponytail-audit` no Must-fix
+  - [x] Human approval (2026-10-28)
 
-- [x] **Task 4:** Restore web app to clean, building, styled state
-  - [x] `UploadPage.tsx`, `AccountsPage.tsx`, `main.tsx`, `postcss.config.js`, `package.json`, `vite.config.ts`, `package-lock.json` restored to `41f4c73`
-  - [x] `npx vite build` exit 0; CSS > 50 KB with `.flex` + `.rounded-lg`
-  - [x] `npx vitest run` → 92/92 pass
-  - [ ] `/upload` and `/accounts` render with no console errors / `ReferenceError`
-  - [ ] Deployable to Vercel as-is
+### Phase 0 evidence (2026-10-28)
 
-- [x] **Task 5:** Add repository guardrails
-  - [x] `.gitignore`: `FlowPost-Portable*/`, `dist-tauri-portable/`, `skills/`, `desktop/dist/`, `desktop/*.exe`, `FlowPost.exe`, `FlowPost.msi`, `WebView2Loader.dll`
-  - [x] `package.json` script `"typecheck": "tsc -p tsconfig.app.json --noEmit"`
-  - [ ] Typecheck baseline (~126) recorded in `desktop/README.md`
-  - [ ] `desktop/README.md`: one-command local build
-
-- [ ] **Checkpoint 1: Web healthy, repo clean**
-  - [ ] `npm run build` exit 0 with full Tailwind CSS
-  - [ ] `npm run test` green; `npm run typecheck` at baseline
-  - [ ] Fresh clone of `main` builds
-  - [ ] `main` pushed; `origin/main` current
-
----
-
-## Phase 2: Packaging
-
-- [x] **Task 6:** Desktop config as code
-  - [x] `desktop/pake.config.json` validates against Pake schema
-  - [x] Pins name/identifier/window/min-size/tray/`--hide-on-close`/`--enable-drag-drop`/`--enable-find`/`--password-autosave`/`--download-dir`
-  - [ ] `desktop/inject/flowpost.js` + `desktop/inject/flowpost.css` created and documented (inject script created, CSS pending)
-  - [ ] `desktop/build.ps1` runs Pake with `--config` and `--json`
-
-- [x] **Task 7:** Produce and verify portable `.exe`
-  - [x] `pake --config desktop/pake.config.json --keep-binary` → `FlowPost.exe`
-  - [ ] Runs from any folder on clean Windows 10/11 (app crashes on launch - investigating)
-  - [ ] Tray icon, close-to-tray, clean quit
-  - [ ] Phase 0 OAuth matrix passes against this build
-
-- [ ] **Checkpoint 2: Reproducible build**
-  - [ ] Build from committed config, not local flags
-  - [ ] Clean-machine run passes OAuth matrix
-  - [ ] Human approved look and feel
-
----
-
-## Phase 3: Auth in the webview
-
-- [x] **Task 8:** Google + platform OAuth + session persistence
-  - [x] Google sign-in completes inside app → `/dashboard` (redirect-based OAuth replaces window.open popups)
-  - [ ] Supabase redirect allow-list has every landing URL (hosted callback + custom scheme if needed)
-  - [x] No `window.open` in OAuth connect path; all six platforms round-trip without manual reload
-  - [ ] Popup-blocked / provider-error paths show actionable messages
-  - [ ] Sign in → quit → relaunch → still signed in; expired token refreshes without 429; logout clears session
-  - [ ] Browser flow no regressions
-  - [x] `npm run build`, `npm run test`, `npm run typecheck` green
-
-- [ ] **Checkpoint 3: Auth complete in packaged app**
-  - [ ] Google + 5 platforms + Drive all connect inside app
-  - [ ] Sessions persist; logout works
-  - [ ] Browser flow no regressions
+- `flutter analyze`: no issues. `dart format --set-exit-if-changed lib test integration_test`: clean.
+- `flutter test`: 60 passed. `flutter test integration_test -d windows`: 1 passed.
+- Release build and `iscc installer/flowpost.iss`: success; output `dist-desktop/FlowPostNativeSetup.exe`.
+- Install/uninstall: silent install exit 0, Start Menu shortcut present, `flowpost://` key present, uninstall removed app dir/shortcut/protocol key and kept `%APPDATA%\com.flowpost\FlowPost`.
+- Cold start: 2.75 s, 2.10 s, 2.90 s, 2.87 s, 2.92 s (limit 3 s); title `FlowPost Studio`.
+- Single instance: second launch exited, one process left; `flowpost://focus` and `flowpost://auth-callback` handed off to the primary.
+- Close-to-tray: window hidden, process alive, one instance; restore via `flowpost://focus` brought it back visible with focus.
+- Log scan after `code=FINAL123&state=FINAL456` callback: no code/state/token values.
+- Manual scoped audit (`ponytail-audit` + `security-and-hardening` + `code-review-and-quality`): no Must-fix. Non-blocking notes: send-time resolution for schedules, server-side auth/RLS checks, publish timeout/retry semantics — scheduled for later phases.
 
 ---
 
-## Phase 4: Desktop UX parity
+## Phase 1 — Identity and Session (DEFERRED by owner 2026-10-28)
 
-- [x] **Task 10:** Global keyboard shortcuts
-  - [x] Ctrl+S → save / prevent browser save
-  - [x] Ctrl+P → schedule dialog opens
-  - [x] Esc → closes top-most dialog
-  - [x] Injected script inert in normal browser tab
-
-- [x] **Task 11:** Native notifications for post status
-  - [x] Permission requested once, choice remembered
-  - [ ] Published / failed post → native toast within seconds
-  - [ ] Focus Assist suppresses toasts
-  - [ ] One toast per status transition
-
-- [ ] **Task 12:** File upload, drag-and-drop, download directory
-  - [ ] Native Windows file picker from "Upload from Computer"
-  - [ ] Drag `.mp4`/`.mov`/`.jpg`/`.png` onto upload area → import starts
-  - [ ] Downloads land in configured FlowPost directory
-  - [ ] >200 MB rejected with clear message
-
-- [ ] **Task 13:** Window lifecycle, find-in-page, dark mode, min sizes
-  - [ ] Resizable down to 1024×700 without layout breakage
-  - [ ] Ctrl+F find; Ctrl +/- / 0 zoom
-  - [ ] Dark mode follows system theme
-  - [ ] Close hides to tray; quit from tray leaves no orphan process
-
-- [ ] **Task 14:** Hide extension-only features on desktop
-  - [ ] `/tools` + sidebar entry hidden in desktop build
-  - [ ] No layout gap or broken route
-  - [ ] `/tools` still present in browser build
-
-- [ ] **Checkpoint 4: Feature parity in packaged app**
-  - [ ] All 16 web surfaces (17 minus extension-only `/tools`) reachable and functional
-  - [ ] Shortcuts / notifications / upload / drag-drop / tray / zoom / dark mode verified
-  - [ ] `npm run build`, `npm run test`, `npm run typecheck` green
-  - [ ] Human walkthrough of full flow
+- [x] **1.1** Write `SPEC-identity.md` + ADR 0001 (dual auth session)
+- [ ] **1.1a** Approve identity decisions: question cadence, admin-only, backend hardening, logout scope, credentials
+- [ ] **1.2** Auth data layer: typed session, secure storage, refresh, logout
+- [ ] **1.3** Login UI: email/password, Google, loading/error/offline
+- [ ] **1.4** Google OAuth: system browser, PKCE/state, `flowpost://auth-callback`
+- [ ] **1.5** Session restore, logout, expired/revoked handling
+- [ ] **1.6** Phase 1 gate
+  - [ ] Unit/widget tests green
+  - [ ] Real Google login on installed build
+  - [ ] Session survives restart; logout clears
+  - [ ] No tokens in logs
+  - [ ] `security-and-hardening` review
+  - [ ] Scoped `ponytail-audit` no Must-fix
+  - [ ] Human approval
 
 ---
 
-## Phase 5: Distribution
+## Phase 2 — Account Connections (no-auth local slice first)
 
-- [ ] **Task 15:** Version check + download prompt
-  - [ ] `desktop-version.json` hosted (version + URL + notes), cache-controlled
-  - [ ] Check on launch, at most once per 24 h
-  - [ ] Non-blocking banner when newer version exists
-  - [ ] No prompt when current; unreachable file never blocks start
+- [x] **2.0** Navigation shell: Home, Accounts, Upload, Calendar, Settings routes
+- [x] **2.1** `docs/spec/SPEC-accounts.md` written for the local slice; real function contracts deferred with identity
+- [x] **2.2** Typed `AccountsRepository`; local JSON implementation with six seeded accounts
+- [x] **2.3** Accounts screen: connected/disconnected/expired, connect/disconnect, loading/error/empty
+- [x] **2.4** Local connect/disconnect state; persists across restart and reinstall; real browser flow deferred
+- [ ] **2.5** Phase 2 gate (local)
+  - [x] Repository and widget tests for six platforms
+  - [x] Local connect/disconnect persists across restart (installed build; `accounts.json`)
+  - [x] No token logged (this slice stores no tokens)
+  - [x] `security-and-hardening` review: no secrets, fixed data path, untrusted file handled defensively
+  - [x] Scoped `ponytail-audit` no Must-fix
+  - [x] Human approval (owner, 2026-10-28)
 
-- [ ] **Task 16:** Host installer + documentation
-  - [ ] `.msi` downloadable from site / release page
-  - [ ] `README.md` + `USER_GUIDE.md` desktop section (install, sign-in, tray, shortcuts, known limits)
-  - [ ] `SESSION_STATE.md` records desktop release
-  - [ ] `docs/spec/flowpost-desktop-spec.md` matches shipped
+**Evidence:** `flutter analyze` clean; 73 unit/widget tests pass; installed build shows six cards at the minimum window size (two columns, natural heights, 1.6× text scale tested); connect wrote `%APPDATA%\com.flowpost\FlowPost\accounts.json` and survived restart and reinstall; save-before-state and atomic temp-file rename verified by tests; icons verified in the 27-glyph release font after a clean build.
 
-- [ ] **Task 17:** Release checklist + rollback path
-  - [ ] Checklist: version bump → build → hash → download URL → changelog → support notes
-  - [ ] Rollback defined (repoint URL to previous build) and rehearsed once
-  - [ ] Dry run produces working release
-
-- [ ] **Checkpoint 5: v1.0 released**
-  - [ ] Installer published and downloadable
-  - [ ] Phase 3–4 criteria re-verified against release build
-  - [ ] Documentation current
-  - [ ] Human sign-off
+**Review fixes (2026-10-28):** save now completes before the card changes (no optimistic race); repository merges partial files back to six platforms and writes via temp file + rename; retry invalidates the repository as well as the controller; card grid uses natural heights and a wrapping header so large text cannot clip; temp-file rename over an existing file verified on Windows.
 
 ---
 
-## Deferred (trigger decides — not planned)
+## Phase 3 — Media Pipeline
 
-| Item | Trigger |
-|------|---------|
-| MSI installer + CI release pipeline | Non-technical user needs to install |
-| Wrapper auto-update / version banner | Users running stale builds |
-| Ctrl+S / Ctrl+P shortcuts, native toasts | Testers ask (Pake has `--activation-shortcut`) |
-| Local-dist packaging (`pake ./dist`), offline mode | Offline required, or Phase 0 forces it |
-| macOS/Linux builds | Windows v1 stable |
-| Native (extension-free) `/tools` for desktop | Monetization checks needed on desktop |
+- [ ] **3.1** Write/approve `SPEC-media.md`; FFmpeg packaging ADR; fixtures
+  - [x] `docs/spec/SPEC-media.md`: formats, 100 MB/180 s limits, normalization, workspace cleanup, caption/upload contracts
+  - [x] `docs/adr/0002-bundle-ffmpeg.md`: pinned BtbN 8.1 LGPL shared, SHA-256, 161.2 MB, `libopenh264`, LGPL notices
+  - [x] Fixtures generated; `expected.json` verified with the pinned build
+  - [x] `libopenh264` encode + decode round-trip verified; probe JSON, frames, audio, corrupt-file rejection verified
+  - [ ] Human review/approval of the FFmpeg and licensing decision
+- [ ] **3.2** File picker, validation, temp workspace
+- [ ] **3.3** FFmpeg probe/transcode/thumbnail/audio/frame extraction
+- [ ] **3.4** Caption generation through existing edge function
+- [ ] **3.5** R2 upload with progress and cleanup
+- [ ] **3.6** Phase 3 gate
+  - [ ] Fixture integration tests
+  - [ ] Large-file run: no UI freeze, memory bounded
+  - [ ] Temp files cleaned
+  - [ ] `performance-optimization` review
+  - [ ] `security-and-hardening` review
+  - [ ] Scoped `ponytail-audit` no Must-fix
+  - [ ] Human approval
+
+### Phase 3.1 evidence (2026-10-28)
+
+- **Spec:** `docs/spec/SPEC-media.md` — one file at a time; MP4/MOV/M4V/WEBM/MKV and JPG/PNG/WEBP; 100 MB and 180 s caps; remux-or-encode rules; 640×360 thumbnail; three 640-max-side frames at web timestamps; 16 kHz mono MP3; workspace cleanup and crash recovery; typed caption/upload contracts.
+- **ADR:** `docs/adr/0002-bundle-ffmpeg.md` (Proposed) — BtbN FFmpeg 8.1 LGPL shared win64, zip 77.9 MB, SHA-256 `092B5E24…ADB5`; 161.2 MB / 9 files installed; `libopenh264` H.264; separate process, argument lists, `file` protocol allowlist; no GPL components.
+- **Fixtures:** `desktop-flutter/test/fixtures/media/` — 10 files, 2.28 MB total: portrait H.264 MP4/MOV, VP9 WebM, 6 s H.264 MP4, JPG/PNG/WebP stills, Unicode/space still, 2 KB corrupt MP4, unsupported TXT. `expected.json` holds probe, normalization, thumbnail, frame, audio, and limit values.
+- **Verified with the pinned build:** `ffmpeg n8.1.3-24-g92611900bb-20261027`; every probe matches `expected.json`; remux of MP4/MOV/6 s MP4 and encode of VP9 WebM produce H.264 `yuv420p` + AAC 48 kHz; 640×360 thumbnails; portrait frames 360×640; 6 s frames at 2/3/4 s are distinct; 16 kHz mono MP3 8.5 KB (2 s) and 24.2 KB (6 s); `corrupt.mp4` probe exits 1.
+- **Encoder check:** 1080×1920 `libopenh264` encode exits 0 (Constrained Baseline, level 4.0, 997.6 KB for 2 s); full decode round-trip exits 0.
+- **Gitignore:** `third_party/ffmpeg/` and `third_party/cache/` are ignored; binaries are fetched, fixtures are committed.
+- **Deferred/blocked:** live caption and upload calls need identity; duplicate-free upload retry needs the `idempotency_key` change in `upload-local-file`; public-distribution H.264 patent position needs an owner decision (internal distribution accepted for the MVP).
 
 ---
 
-## Open decisions (before Phase 2)
+## Phase 4 — Publishing
 
-- [ ] Distribution channel: GitHub Releases, Vercel site, or both?
-- [ ] Audience: internal team only or public download?
-- [ ] Code-signing certificate available for public distribution?
-- [ ] Version source: Pake's `version_name` vs app's own version badge?
+- [ ] **4.1** Write/approve `SPEC-publishing.md`; map upload functions/statuses
+- [ ] **4.2** Compose/publish UI with validation and per-platform status
+- [ ] **4.3** Publish-now flow with status polling
+- [ ] **4.4** Schedule + retry guard: refresh status before retry
+- [ ] **4.5** Phase 4 gate
+  - [ ] State-machine tests for timeout/already-published
+  - [ ] One real platform publish
+  - [ ] Duplicate guard proven
+  - [ ] `security-and-hardening` review
+  - [ ] `performance-optimization` review
+  - [ ] Scoped `ponytail-audit` no Must-fix
+  - [ ] Human approval
+
+---
+
+## Phase 5 — Scheduling and Offline Slice
+
+- [ ] **5.1** Write/approve `SPEC-scheduling.md` + `SPEC-offline.md`; SQLite ADR
+- [ ] **5.2** Calendar/queue UI; timezone/DST correctness
+- [ ] **5.3** SQLite cache with schema version and migration
+- [ ] **5.4** Local drafts: autosave, restore, delete, no offline publish
+- [ ] **5.5** Connectivity banner; cached reads; reconnect refresh
+- [ ] **5.6** Phase 5 gate
+  - [ ] Timezone/DST tests
+  - [ ] Cache migration and corruption tests
+  - [ ] Draft round-trip and restart
+  - [ ] Offline cannot publish
+  - [ ] Data-loss review
+  - [ ] Scoped `ponytail-audit` no Must-fix
+  - [ ] Human approval
+
+---
+
+## Phase 6 — Production Hardening
+
+- [ ] **6.1** Settings: account, logout, version, update, log location, about
+- [ ] **6.2** Global error handlers, rotation, diagnostics export, crash recovery
+- [ ] **6.3** Accessibility: keyboard, focus, labels, contrast, 200% scaling
+- [ ] **6.4** Performance: cold start, media, lists, memory, size
+- [ ] **6.5** Security: secrets, tokens, deep links, FFmpeg args, dependencies, RLS notes
+- [ ] **6.6** README, ADRs, runbook, release checklist, rollback notes
+- [ ] **6.7** Phase 6 gate
+  - [ ] `shipping-and-launch` checklist green
+  - [ ] No P0/P1 security/accessibility/performance issue
+  - [ ] Scoped `ponytail-audit` no Must-fix
+  - [ ] Human approval
+
+---
+
+## Phase 7 — Release Candidate and Launch
+
+- [ ] **7.1** Version bump, production build, installer, checksum, release notes
+- [ ] **7.2** Clean Windows 10/11 install, launch, tray, deep link, login, uninstall, reinstall
+- [ ] **7.3** End-to-end smoke: login, connect, media, publish, schedule, offline, draft, logout
+- [ ] **7.4** Rollback installer, data compatibility, support runbook, SmartScreen docs
+- [ ] **7.5** Internal VM first, then admin machine; monitor one week
+- [ ] **7.6** Final `ponytail-audit` no Must-fix; human sign-off
+
+---
+
+## Gate Commands
+
+```powershell
+cd desktop-flutter
+flutter pub get
+flutter analyze
+dart format --set-exit-if-changed lib test
+flutter test
+flutter test integration_test -d windows
+flutter build windows --release --dart-define-from-file=config/prod.json
+iscc installer/flowpost.iss
+```
+
+Run backend checks only when the backend or web app changes:
+
+```powershell
+npm test
+npm run build
+```
