@@ -125,7 +125,13 @@
   - [x] Progress reporting, cancel, remux-falls-back-to-encode, sanitized error reasons
   - [x] Upload screen: processing and ready states; captions and upload disabled until sign-in
   - [x] Fixture integration tests against the real binary
-- [ ] **3.4** Caption generation through existing edge function
+- [x] **3.4** Caption generation through existing edge function
+  - [x] `caption_prompt.dart`: master prompt and platform map in one file
+  - [x] `captions_client.dart`: typed client over an injectable transport
+  - [x] `caption_generator.dart`: transcribe → describe → captions, with progress and cancel
+  - [x] `captions_providers.dart`: controller with idle / running / ready / failed states
+  - [x] Upload screen: caption progress, editable captions, readable failures
+  - [x] The action stays off until a session token exists
 - [ ] **3.5** R2 upload with progress and cleanup
 - [ ] **3.6** Phase 3 gate
   - [x] Fixture integration tests
@@ -171,6 +177,17 @@
 - **Integration test shape:** the shell and the media pipeline share one file on purpose — the shell takes a single-instance lock, so a second `app.main()` in the same run hands off to the first and exits. `main()` takes an optional `MediaFilePicker` so the test can feed a fixture instead of opening the native dialog.
 - **Gate:** `flutter analyze` no issues; `dart format --set-exit-if-changed lib test integration_test` clean; `flutter test` **210 passed** (media suite 110, of which **19 run against the real FFmpeg binary** and compare against `test/fixtures/media/expected.json`); `flutter test integration_test -d windows` **1 passed** against the real app; release build succeeded.
 - **Open:** the human approval of the Phase 3.6 gate remains.
+
+### Phase 3.4 evidence (2026-10-29)
+
+- **Prompt** (`lib/features/media/captions/domain/caption_prompt.dart`): `MasterPrompt` with the five fields of `src/lib/prompt-templates.ts` verbatim, `defaultMasterPrompt`, `platformAllowedCaptionKeys` (the `PLATFORM_ALLOWED_KEYS` map), `captionKeyLabels`, `allowedCaptionKeys`, `buildSystemPrompt` (the prompt as JSON with a two-space indent, matching `JSON.stringify(x, null, 2)`) and `buildUserMessage` with the web's "No transcript available." / "No visual description available." fallbacks. One file, so the text cannot drift into a second copy.
+- **Client** (`captions/data/captions_client.dart`): `CaptionsApi` over an injectable `CaptionTransport`. The three calls of the `generate-ai-captions` edge function — `groq-transcribe` with the audio base64, `groq-chat` with `qwen/qwen3.6-27b` for the frames (temperature 0.6, 512 tokens) and `openai/gpt-oss-120b` for the captions (temperature 0.7, 4096 tokens). `HttpCaptionTransport` uses `dart:io` `HttpClient`, so no dependency was added. The answer is read from the model's own JSON with the code fences stripped; an answer that is not JSON is a readable failure, not an empty caption set. The client sends nothing while there is no token.
+- **Generator** (`captions/data/caption_generator.dart`): transcribe → describe the frames → write the captions. The transcription is skipped when the source has no audio, so a silent video still gets captions from the frames. The audio goes out as base64, the frames as `data:image/jpeg;base64,…` data URLs. Progress at 0.05 / 0.2 / 0.5 / 0.8 / 1.0.
+- **Controller** (`captions/captions_providers.dart`): `CaptionIdle | CaptionRunning | CaptionReady | CaptionFailed`. A run counter keeps a cancelled or superseded run from writing over the newer state, and `cancel()` aborts the request in flight. The captions can be edited before they are published; picking another file throws them away.
+- **Upload screen** (`presentation/media_page.dart`): the "Generate captions" action, a progress bar with a Cancel button while the run lasts, one editable field per caption, and the failure message under the buttons.
+- **Identity (why the action is off today):** `isRequestAuthorized` in `supabase/functions/_shared/auth.ts` rejects the anon key by design (`reason: "anon-key"`), and `FRONTEND_API_KEY` is a rotated secret that no client holds — so the desktop app cannot call the function without a session token. `captionTokenProvider` is null until the identity module exists, and the action stays disabled with the hint "Sign in required to generate captions or upload." The app itself is not gated, per the owner's decision to add the login guard only when the app is production-ready.
+- **Tests:** 45 new — prompt 11, client 11, generator 8, controller 10, Upload screen 5 (the action is off without a token, the run works with one, a failure reads clearly, a caption can be edited, the run can be cancelled).
+- **Gate:** `flutter analyze` no issues; `dart format --set-exit-if-changed lib test integration_test` clean; `flutter test` **255 passed**; release build succeeded.
 
 ### Phase 3.6 gate review (2026-10-29)
 
