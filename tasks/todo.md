@@ -437,7 +437,7 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - [ ] **5.2** Calendar/queue UI; timezone/DST correctness
   - [x] The `TimeZone` seam and the three cases a wall clock can have (skipped, repeated, ordinary)
   - [x] The read model and the queue list
-  - [ ] The calendar: month, week and list
+  - [x] The calendar: month, week and list
   - [ ] Editing a scheduled post and cancelling one
 - [ ] **5.3** SQLite cache with schema version and migration
   - [x] The spike: the engine works in the test runner and in the Windows build (ADR 0003)
@@ -493,6 +493,18 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Times are shown in the admin's clock, with the offset.** `postTimeLabel` (`domain/scheduled_post.dart`) renders the stored instant through `toLocal()` and labels the offset from the same conversion, so the label always matches the clock that produced it; a published row reads "Published …".
 - **Tests:** 35 in `test/features/scheduling/` — repository 18 (token gate, empty table, one-extra-row, offset, order, both filters and no filter, row fields, unknown status/platform, missing media, account names from `display_name ?? account_name`, no token field in any URL), controller 9 (rows, page size and offset, status filter, failed read, append, end of list, one load at a time, failed page, page dropped after a filter change), page 8 (a full row, a published row, both empty states, error and retry, both filters re-read, load more). `test/support/fake_scheduled_posts.dart` records every call.
 - **Verification:** `dart format` clean, `flutter analyze lib test` no issues, `flutter test` **432 passed** (was 397), including the 35 scheduling tests.
+
+### Phase 5.2c evidence (2026-10-29)
+
+- **Three views over one read model.** `CalendarPage` (`desktop-flutter/lib/features/scheduling/presentation/calendar_page.dart`) sits on `calendarRoute` and shows a month grid, a week grid or a day-grouped list. The grid is Sunday first, up to three posts a day and `+N more`; the list shows all of them, grouped by `Thursday, 29 October 2026` headings. The empty state names the view ("No posts this month" / "No posts this week"), and **New post** goes to the upload screen because a post is always one media file plus one account.
+- **One read per visible range, not per month.** `loadBetween(from, to)` asks `posts` for `scheduled_at >= from` and `< to` as two bounds on the same column (`data/scheduled_posts_repository.dart`), so the week view gets its seven days even when the week straddles two months, and a month that starts mid-week is not padded with the previous month's rows. The labels come from the same second call the queue uses, so a token column is still never named.
+- **The range is wall-clock, the query is an instant.** `calendarRange` (`domain/calendar_range.dart`) builds local midnights; the repository converts them with `toUtc()` before sending. The tests build the bounds from the inputs they pass in, so they pin the rule on any machine zone.
+- **The calendar opens on today, and a test can stand on a known day.** `todayProvider` is the seam: `CalendarAnchorController` starts from it, and the tests override it with 29 October 2026 instead of waiting for the real clock. Arrows move one month in the month and list views and one week in the week view — the view the admin is looking at decides what "next" means.
+- **The week view has a title that names both ends.** `25–31 October 2026` inside one month, `27 December 2026 – 2 January 2027` across a year, so the arrow's effect is readable without counting cells.
+- **A failed read is the same shape as the queue.** `calendarControllerProvider` also turns Riverpod's automatic retry off, so a calendar that cannot be read shows the reason and **Try again** rather than a skeleton that never ends.
+- **The shell test caught the placeholder.** The navigation-rail test still expected "Coming soon in the next module." on `/calendar`; it now asserts the real screen's answer when there is no session ("Sign in required to see the calendar."), which is what keeps the rail route honest.
+- **Tests:** 39 new — domain 20 (`calendar_range_test.dart`: month and week ranges, the Sunday-first grid with its blanks, a leap February, month/week steps, three title shapes, the full day label, the clock label, grouping and a row with no time), repository 4 (both bounds as instants, rows and names, the token gate, ordering), controller 7 (the opening month, rows, the week read, both arrow steps, the list step, the failed read not retrying), page 8 (a post on its day, three plus a count, the week's seven days and its read, the grouped list with all rows, the arrows re-reading, the empty state, the error and retry, the new-post button).
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (111 files), `flutter analyze lib test` no issues, `flutter test` **471 passed** (was 432).
 
 ---
 

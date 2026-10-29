@@ -271,4 +271,67 @@ void main() {
       expect(url.toString(), isNot(contains('token_expiry')));
     }
   });
+
+  group('the calendar', () {
+    test('asks for the days it shows, as instants', () async {
+      final transport = _FakeTransport();
+      final from = DateTime(2026, 10, 1);
+      final to = DateTime(2026, 11, 1);
+
+      await _repository(transport).loadBetween(from, to);
+
+      final bounds = transport.urls.first.queryParametersAll['scheduled_at']!;
+      expect(bounds, hasLength(2));
+      final gte = bounds.firstWhere((bound) => bound.startsWith('gte.'));
+      final lt = bounds.firstWhere((bound) => bound.startsWith('lt.'));
+      expect(DateTime.parse(gte.substring(4)).toUtc(), from.toUtc());
+      expect(DateTime.parse(lt.substring(3)).toUtc(), to.toUtc());
+    });
+
+    test('reads the rows with their names, as the queue does', () async {
+      final transport = _FakeTransport()
+        ..answers.add([_row(id: 'p1')])
+        ..answers.add([
+          {'account_id': 'ig-1', 'account_name': '@flow', 'display_name': null},
+        ]);
+
+      final posts = await _repository(transport)
+          .loadBetween(DateTime(2026, 10, 1), DateTime(2026, 11, 1));
+
+      expect(posts.single.id, 'p1');
+      expect(posts.single.accountName, '@flow');
+      expect(posts.single.scheduledAt, DateTime.utc(2026, 10, 29, 8, 30));
+    });
+
+    test('without a token the calendar is not read', () async {
+      final transport = _FakeTransport();
+
+      await expectLater(
+        _repository(
+          transport,
+          token: null,
+        ).loadBetween(DateTime(2026, 10, 1), DateTime(2026, 11, 1)),
+        throwsA(
+          isA<PostsException>().having(
+            (error) => error.message,
+            'message',
+            'Sign in required to see the calendar.',
+          ),
+        ),
+      );
+      expect(transport.urls, isEmpty);
+    });
+
+    test('the rows are ordered by the time they go out', () async {
+      final transport = _FakeTransport();
+
+      await _repository(transport)
+          .loadBetween(DateTime(2026, 10, 1), DateTime(2026, 11, 1));
+
+      expect(
+        transport.urls.first.queryParameters['order'],
+        'scheduled_at.asc.nullslast,created_at.asc',
+      );
+    });
+  });
 }

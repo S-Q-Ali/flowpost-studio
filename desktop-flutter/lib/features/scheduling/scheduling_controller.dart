@@ -3,8 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../publishing/data/posts_repository.dart';
 import '../publishing/domain/publish_target.dart';
 import 'data/scheduled_posts_repository.dart';
+import 'domain/calendar_range.dart';
 import 'domain/scheduled_post.dart';
 import 'scheduling_providers.dart';
+
+/// The day the app treats as today.
+///
+/// The calendar opens on it, and a test stands on a known day by overriding
+/// it rather than by waiting for the real one.
+final todayProvider = Provider<DateTime>((ref) => dateOnly(DateTime.now()));
 
 /// The status the queue is filtered by.
 final queueFilterProvider =
@@ -132,5 +139,55 @@ class QueueController extends AsyncNotifier<QueueData> {
         hasMore: page.hasMore,
       ),
     );
+  }
+}
+
+/// The view the calendar is showing.
+final calendarViewProvider =
+    NotifierProvider<CalendarViewController, CalendarView>(
+      CalendarViewController.new,
+    );
+
+class CalendarViewController extends Notifier<CalendarView> {
+  @override
+  CalendarView build() => CalendarView.month;
+
+  void select(CalendarView view) => state = view;
+}
+
+/// The day the visible month or week is taken from.
+final calendarAnchorProvider =
+    NotifierProvider<CalendarAnchorController, DateTime>(
+      CalendarAnchorController.new,
+    );
+
+class CalendarAnchorController extends Notifier<DateTime> {
+  @override
+  DateTime build() => dateOnly(ref.read(todayProvider));
+
+  /// Moves [steps] views forward (or back): a month, or a week.
+  void step(int steps) {
+    state = stepAnchor(ref.read(calendarViewProvider), state, steps);
+  }
+}
+
+final calendarControllerProvider =
+    AsyncNotifierProvider<CalendarController, List<ScheduledPost>>(
+      CalendarController.new,
+      // Same reason as the queue: the screen shows the reason and a Try again
+      // button, not a skeleton that never ends.
+      retry: (retryCount, error) => null,
+    );
+
+/// Reads the rows of the month or week the calendar is showing.
+class CalendarController extends AsyncNotifier<List<ScheduledPost>> {
+  @override
+  Future<List<ScheduledPost>> build() async {
+    final view = ref.watch(calendarViewProvider);
+    final anchor = ref.watch(calendarAnchorProvider);
+    final range = calendarRange(view, anchor);
+    return ref
+        .read(scheduledPostsRepositoryProvider)
+        .loadBetween(range.start, range.end);
   }
 }

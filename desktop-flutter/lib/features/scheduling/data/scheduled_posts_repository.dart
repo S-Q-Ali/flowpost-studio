@@ -34,6 +34,12 @@ abstract class ScheduledPostsRepository {
     int offset = 0,
     int limit = 200,
   });
+
+  /// Reads every post that goes out in `[from, to)`, without paging.
+  ///
+  /// The calendar shows one month or one week at a time, so the range is the
+  /// bound; [from] and [to] are wall-clock days in the machine's zone.
+  Future<List<ScheduledPost>> loadBetween(DateTime from, DateTime to);
 }
 
 /// Reads the queue through PostgREST.
@@ -88,12 +94,52 @@ class PostgrestScheduledPostsRepository implements ScheduledPostsRepository {
     final names = await _accountNames([
       for (final row in page) row['account_id'],
     ], token);
+    return ScheduledPostsPage(
+      posts: _shownPosts(page, names),
+      hasMore: rows.length > limit,
+    );
+  }
+
+  @override
+  Future<List<ScheduledPost>> loadBetween(DateTime from, DateTime to) async {
+    final token = this.token;
+    if (token == null || token.isEmpty) {
+      throw const PostsException('Sign in required to see the calendar.');
+    }
+    final rows = await _transport.send(
+      method: 'GET',
+      url: _posts.replace(
+        queryParameters: {
+          'select': _postFields,
+          'order': 'scheduled_at.asc.nullslast,created_at.asc',
+          // Both bounds name the same column, so PostgREST reads them as one
+          // range: the first instant of the first day up to, not including,
+          // the first instant of the day after the last.
+          'scheduled_at': [
+            'gte.${from.toUtc().toIso8601String()}',
+            'lt.${to.toUtc().toIso8601String()}',
+          ],
+        },
+      ),
+      token: token,
+    );
+    final names = await _accountNames([
+      for (final row in rows) row['account_id'],
+    ], token);
+    return _shownPosts(rows, names);
+  }
+
+  /// The rows that can be shown, in the order they came back.
+  List<ScheduledPost> _shownPosts(
+    List<Map<String, Object?>> rows,
+    Map<String, String> names,
+  ) {
     final posts = <ScheduledPost>[];
-    for (final row in page) {
+    for (final row in rows) {
       final post = _post(row, names);
       if (post != null) posts.add(post);
     }
-    return ScheduledPostsPage(posts: posts, hasMore: rows.length > limit);
+    return posts;
   }
 
   /// The names of the accounts this page names.

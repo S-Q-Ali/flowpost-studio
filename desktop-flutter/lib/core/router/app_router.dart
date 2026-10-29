@@ -5,6 +5,7 @@ import '../../features/accounts/presentation/accounts_page.dart';
 import '../../features/home/home_page.dart';
 import '../../features/media/presentation/media_page.dart';
 import '../../features/publishing/presentation/publish_page.dart';
+import '../../features/scheduling/presentation/calendar_page.dart';
 import '../../features/scheduling/presentation/queue_page.dart';
 import '../shell/app_shell.dart';
 
@@ -55,8 +56,7 @@ GoRouter buildRouter({
           ),
           GoRoute(
             path: calendarRoute,
-            builder: (context, state) =>
-                const _PendingModulePage(name: 'Calendar'),
+            builder: (context, state) => const CalendarPage(),
           ),
           GoRoute(
             path: settingsRoute,

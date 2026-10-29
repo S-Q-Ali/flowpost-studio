@@ -15,6 +15,12 @@ class FakeScheduledPostsRepository implements ScheduledPostsRepository {
   /// The answer for the page that starts at an offset.
   final Map<int, ScheduledPostsPage> pages = {};
 
+  /// Every range the calendar asked for, in call order.
+  final List<({DateTime from, DateTime to})> rangeCalls = [];
+
+  /// The answer to every calendar read.
+  List<ScheduledPost> rangePosts = [];
+
   /// Thrown instead of an answer when set.
   Object? error;
 
@@ -34,11 +40,24 @@ class FakeScheduledPostsRepository implements ScheduledPostsRepository {
       offset: offset,
       limit: limit,
     ));
-    final gate = this.gate;
-    if (gate != null) await gate.future;
+    await _maybeWait();
     final error = this.error;
     if (error != null) throw error;
     return pages[offset] ?? const ScheduledPostsPage(posts: [], hasMore: false);
+  }
+
+  @override
+  Future<List<ScheduledPost>> loadBetween(DateTime from, DateTime to) async {
+    rangeCalls.add((from: from, to: to));
+    await _maybeWait();
+    final error = this.error;
+    if (error != null) throw error;
+    return rangePosts;
+  }
+
+  Future<void> _maybeWait() async {
+    final gate = this.gate;
+    if (gate != null) await gate.future;
   }
 }
 
