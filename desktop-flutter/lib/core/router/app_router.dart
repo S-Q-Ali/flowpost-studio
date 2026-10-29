@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 import '../../features/accounts/presentation/accounts_page.dart';
 import '../../features/home/home_page.dart';
 import '../../features/media/presentation/media_page.dart';
+import '../../features/publishing/presentation/publish_page.dart';
 import '../shell/app_shell.dart';
 
 const String homeRoute = '/';
 const String accountsRoute = '/accounts';
 const String uploadRoute = '/upload';
+const String publishRoute = '/publish';
 const String calendarRoute = '/calendar';
 const String settingsRoute = '/settings';
 
@@ -40,6 +42,10 @@ GoRouter buildRouter({
           GoRoute(
             path: uploadRoute,
             builder: (context, state) => const MediaPage(),
+          ),
+          GoRoute(
+            path: publishRoute,
+            builder: (context, state) => const PublishPage(),
           ),
           GoRoute(
             path: calendarRoute,

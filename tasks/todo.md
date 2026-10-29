@@ -299,7 +299,15 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] The five backend gaps that force the client's guard to be strict, each cited
   - [x] The owner's decisions (2026-10-29): refuse an over-limit caption, a story is its own option, the scheduler alone publishes a scheduled post, the backend guards come after the app ships
   - [x] Human approval of the spec
-- [ ] **4.2** Compose/publish UI with validation and per-platform status
+- [x] **4.2** Compose/publish UI with validation and per-platform status
+  - [x] `publish_target.dart`: the platforms, the account, the feed/story choice, the caption limit, the media each platform accepts, the function each platform uses
+  - [x] `publish_validation.dart`: the caption limit, the media type, the YouTube title, the schedule fields — refused, never cut
+  - [x] `publish_errors.dart` and `publish_client.dart`: the call per platform, the answer, the eleven error codes
+  - [x] `posts_repository.dart`: the `posts` row through PostgREST, the read back, the compare-and-set retry
+  - [x] `publishing_controller.dart`: one row and one call per target, the per-platform status
+  - [x] `publish_page.dart`: the compose screen, the per-platform status, the action off without a sign-in
+  - [x] The `/publish` route and the Publish button after the upload
+  - [x] 63 tests
 - [ ] **4.3** Publish-now flow with status polling
 - [ ] **4.4** Schedule + retry guard: refresh status before retry
 - [ ] **4.5** Phase 4 gate
@@ -322,6 +330,19 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Backend gaps found** (each needs the owner's approval and deploy access, so none are in the v1 scope): no status guard in the upload functions; no provider id for YouTube; the scheduler's claim is not atomic (`process-scheduled-posts/index.ts:82-85`); Instagram can re-send the publish call inside its 120 s window (`instagram-upload/index.ts:341-359`); TikTok can time out after the platform accepted the post (`tiktok-upload/index.ts:386-395`); the `posts` table has no `error_message` or `platform_post_id` column.
 - **Also found:** the `pg_cron` job for `process-scheduled-posts` ships commented out (`supabase/migrations/20260307000300_cron_process_scheduled_posts.sql:6-22`), so the whole scheduled flow depends on a job that has to be created by hand; and the web app's story branches never run, because the row it filters on is not selected after the insert (`src/pages/UploadPage.tsx:569` selects `id, platform, account_id, status`, but `:618-624` filters on `post_type`) — a story is published as a feed post there.
 - **Open for the owner:** the `process-scheduled-posts` cron — the migration ships it commented out (`supabase/migrations/20260307000300_cron_process_scheduled_posts.sql:6-22`), so the scheduled flow needs a job that may not exist in the live database.
+
+### Phase 4.2 evidence (2026-10-29)
+
+- **Compose screen** (`desktop-flutter/lib/features/publishing/presentation/publish_page.dart`): the media, the platform checkboxes with the connected account under each, one caption field per target with the limit under it, the YouTube title, the mode, the date and the time with the UTC instant under them, the reasons the form is not ready, and the status of every platform.
+- **The unit is the row** (`posts_repository.dart`): one `posts` row per (platform × account), written through PostgREST with the Auth token, then one call per row with `{"postId": …}` — the web app's shape (`src/pages/UploadPage.tsx:569`, `:634-704`). The caption, the media and the platform token never leave the machine.
+- **Two credentials**: the Auth token for the table (`posts` has RLS `user_id = auth.uid()`, `supabase/migrations/20260616000000_add_multi_user_rls.sql:54`) and the `sessions` token for the functions. Both are null until identity exists, so the action stays disabled and the contract is covered by mocked tests only.
+- **The limits are refused, not cut** (`publish_validation.dart`): an over-limit caption stops the form and names the limit, and an image for YouTube or TikTok stops it too. The web app sends it and lets the function cut it (`instagram-upload/index.ts:118`).
+- **The error model** (`publish_errors.dart`): eleven codes; the platform's own sentence is shown only after the links and the control bytes are taken out.
+- **The row's shape**: `user_id`, `video_id`, `platform`, `account_id`, `post_type`, `caption`, `hashtags` (null), `scheduled_at` (UTC), `status` (`processing`), `captions_enabled`, `contains_altered_content` (true while the caption is still the one the AI wrote) and `metadata.youtube_video_title` for YouTube (`youtube-upload/index.ts:241`).
+- **The log** carries the platform and the error code — never the caption, the media link, the platform id, the token or the account name.
+- **Deviation from the spec's UI:** the spec puts the media on the left and the form on the right; the screen is one column, because the media block is only the file name and the size and a second column would stay empty.
+- **Tests:** 63 new (validation, the client contract, the queue contract, the controller, the compose screen) — 350 in the suite; `flutter analyze` and the format check are clean.
+- **Deferred to 4.3 and 4.4:** the read-back of the row after the call, the polling of a running status, the scheduled row, the Retry button and its compare-and-set.
 
 ---
 

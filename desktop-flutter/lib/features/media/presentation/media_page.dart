@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/providers/app_providers.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../captions/captions_providers.dart';
 import '../captions/domain/caption_prompt.dart';
@@ -86,6 +88,12 @@ List<Widget> _uploadSection(
         Text(
           'Uploaded — ${result.filename} '
           '(${formatMediaBytes(result.size)})',
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: () => context.go(publishRoute),
+          icon: const Icon(Icons.send),
+          label: const Text('Publish'),
         ),
       ];
     case UploadFailed(message: final message):

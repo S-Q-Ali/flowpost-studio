@@ -13,3 +13,12 @@ final Provider<AppConfig> appConfigProvider = Provider<AppConfig>(
 /// Null until the identity module exists, so the actions that need one stay
 /// disabled with the sign-in hint.
 final Provider<String?> sessionTokenProvider = Provider<String?>((ref) => null);
+
+/// The Supabase Auth access token, for the table reads and writes.
+///
+/// The posts table only lets a user write their own rows, so the rows need
+/// this one and not the session token. Null until the identity module
+/// exists.
+final Provider<String?> authAccessTokenProvider = Provider<String?>(
+  (ref) => null,
+);

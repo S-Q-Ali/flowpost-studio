@@ -12,7 +12,7 @@ class AppShell extends StatelessWidget {
   static const List<_Destination> _destinations = [
     _Destination('/', 'Home'),
     _Destination('/accounts', 'Accounts'),
-    _Destination('/upload', 'Upload'),
+    _Destination('/upload', 'Upload', alsoCovers: ['/publish']),
     _Destination('/calendar', 'Calendar'),
     _Destination('/settings', 'Settings'),
   ];
@@ -47,7 +47,9 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = _destinations.indexWhere(
-      (destination) => destination.route == location,
+      (destination) =>
+          destination.route == location ||
+          destination.alsoCovers.contains(location),
     );
     return Scaffold(
       body: Row(
@@ -85,8 +87,11 @@ class AppShell extends StatelessWidget {
 }
 
 class _Destination {
-  const _Destination(this.route, this.label);
+  const _Destination(this.route, this.label, {this.alsoCovers = const []});
 
   final String route;
   final String label;
+
+  /// The other paths that belong to this destination.
+  final List<String> alsoCovers;
 }
