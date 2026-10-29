@@ -80,6 +80,17 @@ class ScheduledPost {
   /// Only a row the publisher has not claimed can be stopped.
   bool get canCancel => status == PostStatus.scheduled;
 
+  /// A row the publisher claimed and never finished.
+  ///
+  /// The scheduler and the functions settle a row within minutes, so one that
+  /// has been "processing" for half an hour was cut off. It can be removed,
+  /// but the platform may already have the post.
+  bool isStaleProcessing([DateTime? now]) {
+    final at = scheduledAt;
+    if (status != PostStatus.processing || at == null) return false;
+    return (now ?? DateTime.now()).difference(at) > const Duration(minutes: 30);
+  }
+
   /// The platform and the post type, as the screen names them.
   String get targetLabel {
     final platform = this.platform;

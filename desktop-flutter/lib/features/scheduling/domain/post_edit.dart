@@ -98,6 +98,10 @@ String deleteSentence(ScheduledPost post) {
     PostStatus.failed =>
       'Delete the failed ${post.targetLabel} post for $time? '
           'The caption is deleted with it and it cannot be recovered.',
+    PostStatus.processing when post.isStaleProcessing() =>
+      'Delete the ${post.targetLabel} post for $time? '
+          'It stopped moving over half an hour ago and may already be on the '
+          'platform. Deleting the row does not delete the post there.',
     _ =>
       'Delete the ${post.targetLabel} post for $time? '
           'The caption is deleted with it and it cannot be recovered.',

@@ -164,5 +164,28 @@ void main() {
         '10:00? $tail',
       );
     });
+
+    test('a row still processing cannot be called stuck', () {
+      final post = ScheduledPost(
+        id: 'post-1',
+        status: PostStatus.processing,
+        platform: PublishPlatform.instagram,
+        scheduledAt: DateTime.now().subtract(const Duration(minutes: 5)),
+      );
+
+      expect(post.isStaleProcessing(), isFalse);
+    });
+
+    test('a row stuck on processing says the post may be out there', () {
+      final post = ScheduledPost(
+        id: 'post-1',
+        status: PostStatus.processing,
+        platform: PublishPlatform.instagram,
+        scheduledAt: DateTime.now().subtract(const Duration(minutes: 31)),
+      );
+
+      expect(post.isStaleProcessing(), isTrue);
+      expect(deleteSentence(post), contains('may already be on the platform'));
+    });
   });
 }
