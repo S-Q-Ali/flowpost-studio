@@ -436,7 +436,7 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] Human approval of the three documents and of the six scheduling and eight offline decisions (2026-10-29)
 - [ ] **5.2** Calendar/queue UI; timezone/DST correctness
   - [x] The `TimeZone` seam and the three cases a wall clock can have (skipped, repeated, ordinary)
-  - [ ] The read model and the queue list
+  - [x] The read model and the queue list
   - [ ] The calendar: month, week and list
   - [ ] Editing a scheduled post and cancelling one
 - [ ] **5.3** SQLite cache with schema version and migration
@@ -480,6 +480,19 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **One reason is shown once.** The skipped message sits under the date and the time fields; the list of reasons at the bottom of the form no longer repeats it.
 - **The row stores an instant.** The controller now writes the resolved UTC instant into `scheduled_at` instead of a local `DateTime` the repository had to convert. The screen still shows the wall clock the admin typed.
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (97 files), `flutter analyze` no issues, `flutter test` **397 passed** (was 383).
+
+### Phase 5.2b evidence (2026-10-29)
+
+- **The queue is a real screen now, and the shell reaches it.** `QueuePage` (`desktop-flutter/lib/features/scheduling/presentation/queue_page.dart`) sits on `queueRoute` (`lib/core/router/app_router.dart:15`, `:53`) and is a bottom-nav destination between Upload and Calendar (`lib/core/shell/app_shell.dart:16`, `:37`). Header, a status chip row and a platform dropdown, then the list: thumbnail, media title, status, `Instagram story · @flow` or `Instagram · @flow`, the time, and two lines of caption. The empty state offers "Upload a video" only when nothing is filtered; a filtered empty says "No failed posts" and offers no upload because the media is not the problem.
+- **The read model is two calls, and neither crosses a privacy line.** `PostgrestScheduledPostsRepository` (`lib/features/scheduling/data/scheduled_posts_repository.dart:40`) asks `posts` for the display columns plus `videos(title,thumbnail_url)` — a real foreign key, so one embed — ordered `scheduled_at.asc.nullslast,created_at.asc`. `connected_accounts` has no foreign key to `posts`, so the account labels come from a second call (`:118`) for **only the page's** `account_id`s, with `select=account_id,account_name,display_name` and never a token column. A failed label read leaves the name off and keeps the queue.
+- **A page is 200 rows, and "more" is one extra row.** `limit` is asked as `limit + 1` (`:80`), so `hasMore` costs no count on a table the client does not own; the controller's `loadMore()` (`scheduling_controller.dart:97`) asks from `posts.length` and appends.
+- **Both filters are real queries, not browser filters.** The web app fetches every row and filters in memory (`src/pages/QueuePage.tsx:65-72`); the desktop sends `status=eq.…` and `platform=eq.…` (Decision 1), so the server does the work and the page stays 200 rows.
+- **Riverpod would have hidden a failed read.** Riverpod 3 retries a failing provider on its own and keeps `isLoading` true while it does, so `when()` showed the skeleton forever and the spec's "the reason, and Try again" never rendered. `queueControllerProvider` sets `retry: (retryCount, error) => null` (`scheduling_controller.dart:75`) and the page shows the sentence plus a **Try again** button that invalidates the provider.
+- **A row that changes underneath is not mixed.** `build()` watches both filters, and `loadMore()` re-reads them after its await and drops the page if either moved (`scheduling_controller.dart:97-120`), so a slow page cannot land in another filter's list. A failed page keeps the rows already on screen and shows the reason under them.
+- **A row this build cannot parse is left out, never guessed.** A `status` outside the allowed set or a missing `id` drops the row; an unknown platform still shows with "Unknown platform"; a row whose `videos` row is gone still reads with a placeholder thumbnail.
+- **Times are shown in the admin's clock, with the offset.** `postTimeLabel` (`domain/scheduled_post.dart`) renders the stored instant through `toLocal()` and labels the offset from the same conversion, so the label always matches the clock that produced it; a published row reads "Published …".
+- **Tests:** 35 in `test/features/scheduling/` — repository 18 (token gate, empty table, one-extra-row, offset, order, both filters and no filter, row fields, unknown status/platform, missing media, account names from `display_name ?? account_name`, no token field in any URL), controller 9 (rows, page size and offset, status filter, failed read, append, end of list, one load at a time, failed page, page dropped after a filter change), page 8 (a full row, a published row, both empty states, error and retry, both filters re-read, load more). `test/support/fake_scheduled_posts.dart` records every call.
+- **Verification:** `dart format` clean, `flutter analyze lib test` no issues, `flutter test` **432 passed** (was 397), including the 35 scheduling tests.
 
 ---
 

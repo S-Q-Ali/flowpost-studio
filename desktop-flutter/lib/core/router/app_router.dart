@@ -5,12 +5,14 @@ import '../../features/accounts/presentation/accounts_page.dart';
 import '../../features/home/home_page.dart';
 import '../../features/media/presentation/media_page.dart';
 import '../../features/publishing/presentation/publish_page.dart';
+import '../../features/scheduling/presentation/queue_page.dart';
 import '../shell/app_shell.dart';
 
 const String homeRoute = '/';
 const String accountsRoute = '/accounts';
 const String uploadRoute = '/upload';
 const String publishRoute = '/publish';
+const String queueRoute = '/queue';
 const String calendarRoute = '/calendar';
 const String settingsRoute = '/settings';
 
@@ -46,6 +48,10 @@ GoRouter buildRouter({
           GoRoute(
             path: publishRoute,
             builder: (context, state) => const PublishPage(),
+          ),
+          GoRoute(
+            path: queueRoute,
+            builder: (context, state) => const QueuePage(),
           ),
           GoRoute(
             path: calendarRoute,

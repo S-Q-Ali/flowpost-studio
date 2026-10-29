@@ -13,6 +13,7 @@ class AppShell extends StatelessWidget {
     _Destination('/', 'Home'),
     _Destination('/accounts', 'Accounts'),
     _Destination('/upload', 'Upload', alsoCovers: ['/publish']),
+    _Destination('/queue', 'Queue'),
     _Destination('/calendar', 'Calendar'),
     _Destination('/settings', 'Settings'),
   ];
@@ -33,6 +34,10 @@ class AppShell extends StatelessWidget {
           selected
               ? const Icon(Icons.cloud_upload_rounded)
               : const Icon(Icons.cloud_upload_outlined),
+        '/queue' =>
+          selected
+              ? const Icon(Icons.list_alt_rounded)
+              : const Icon(Icons.list_alt_outlined),
         '/calendar' =>
           selected
               ? const Icon(Icons.calendar_month_rounded)
