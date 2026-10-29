@@ -25,7 +25,16 @@ String? configFieldProblem(ConfigField field, String value) {
   switch (field) {
     case ConfigField.supabaseUrl:
       if (trimmed.isEmpty) return 'The Supabase address is required.';
-      return _httpsProblem(trimmed);
+      final https = _httpsProblem(trimmed);
+      if (https != null) return https;
+      // Every endpoint is built by appending its own path to this one, so a
+      // path here would end up inside every request, twice.
+      final uri = Uri.parse(trimmed);
+      if (uri.path.isNotEmpty && uri.path != '/') {
+        return 'Use the project address only, for example '
+            'https://project.supabase.co';
+      }
+      return null;
     case ConfigField.updateManifestUrl:
       if (trimmed.isEmpty) return null;
       return _httpsProblem(trimmed);

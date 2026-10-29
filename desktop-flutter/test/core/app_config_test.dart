@@ -50,6 +50,26 @@ void main() {
       );
     });
 
+    test('rejects a Supabase URL that carries a path', () {
+      // Every endpoint is built by appending its own path, so this would put
+      // /rest/v1 inside every request.
+      expect(
+        () => AppConfig.fromValues(
+          supabaseUrl: 'https://example.supabase.co/rest/v1',
+          supabaseAnonKey: 'public-anon-key',
+        ),
+        throwsA(isA<ConfigException>()),
+      );
+    });
+
+    test('accepts a Supabase URL with a trailing slash', () {
+      final config = AppConfig.fromValues(
+        supabaseUrl: 'https://example.supabase.co/',
+        supabaseAnonKey: 'public-anon-key',
+      );
+      expect(config.supabaseUrl, 'https://example.supabase.co');
+    });
+
     test('rejects a service-role JWT', () {
       final payload = base64Url
           .encode(utf8.encode('{"role":"service_role"}'))

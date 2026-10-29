@@ -264,7 +264,10 @@ class _ReadyState extends ConsumerWidget {
     final canUpload =
         canGenerate &&
         uploadState is! UploadRunning &&
-        uploadState is! UploadDone;
+        uploadState is! UploadDone &&
+        // The upload removes the job's temporary files when it finishes, and
+        // the captions are still reading them while they are being made.
+        captionState is! CaptionRunning;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

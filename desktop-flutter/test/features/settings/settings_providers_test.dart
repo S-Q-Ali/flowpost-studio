@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flowpost_desktop/core/config/app_config.dart';
+import 'package:flowpost_desktop/core/config/config_controller.dart';
 import 'package:flowpost_desktop/core/diagnostics/diagnostics_report.dart';
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/core/session/session.dart';
@@ -11,6 +12,7 @@ import 'package:flowpost_desktop/features/settings/settings_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/config_overrides.dart';
 import '../../support/fake_drafts.dart';
 import '../../support/fake_posts_cache.dart';
 
@@ -28,13 +30,20 @@ UpdateResult upToDate() => const UpdateResult(
   downloadUrl: null,
 );
 
+class _MutableConfig extends ConfigController {
+  _MutableConfig() : super(initial: ConfigState(config: config()));
+
+  void replace(AppConfig next) =>
+      state = ConfigState(config: next, source: ConfigSource.saved);
+}
+
 void main() {
   group('the update check', () {
     test('an unconfigured build never calls the manifest', () async {
       var calls = 0;
       final container = ProviderContainer(
         overrides: [
-          appConfigProvider.overrideWithValue(config(manifest: '')),
+          seededConfig(config(manifest: '')),
           appVersionProvider.overrideWith(
             (ref) async =>
                 const AppVersionInfo(version: '1.2.3', buildNumber: ''),
@@ -62,7 +71,7 @@ void main() {
       String? askedVersion;
       final container = ProviderContainer(
         overrides: [
-          appConfigProvider.overrideWithValue(config()),
+          seededConfig(config()),
           appVersionProvider.overrideWith(
             (ref) async =>
                 const AppVersionInfo(version: '1.2.3', buildNumber: '7'),
@@ -90,7 +99,7 @@ void main() {
     test('an available version is kept with its download link', () async {
       final container = ProviderContainer(
         overrides: [
-          appConfigProvider.overrideWithValue(config()),
+          seededConfig(config()),
           appVersionProvider.overrideWith(
             (ref) async =>
                 const AppVersionInfo(version: '1.2.3', buildNumber: ''),
@@ -116,10 +125,44 @@ void main() {
       expect(result.downloadUrl, Uri.parse('https://flowpost.test/setup.exe'));
     });
 
+    test(
+      'a result about another address is dropped when the address changes',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            configControllerProvider.overrideWith(_MutableConfig.new),
+            appVersionProvider.overrideWith(
+              (ref) async =>
+                  const AppVersionInfo(version: '1.2.3', buildNumber: ''),
+            ),
+            updateFetcherProvider.overrideWithValue(({
+              required manifestUrl,
+              required currentVersion,
+            }) async {
+              return UpdateResult(
+                currentVersion: currentVersion,
+                latestVersion: '1.3.0',
+                downloadUrl: Uri.parse('https://flowpost.test/setup.exe'),
+              );
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(updateCheckProvider.notifier).check();
+        expect(container.read(updateCheckProvider).result, isNotNull);
+
+        (container.read(configControllerProvider.notifier) as _MutableConfig)
+            .replace(config(manifest: 'https://flowpost.test/other.json'));
+
+        expect(container.read(updateCheckProvider).result, isNull);
+      },
+    );
+
     test('a failed check says so and leaves the button usable', () async {
       final container = ProviderContainer(
         overrides: [
-          appConfigProvider.overrideWithValue(config()),
+          seededConfig(config()),
           appVersionProvider.overrideWith(
             (ref) async =>
                 const AppVersionInfo(version: '1.2.3', buildNumber: ''),

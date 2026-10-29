@@ -586,6 +586,37 @@ void main() {
     expect(find.textContaining('Sign in required'), findsNothing);
   });
 
+  testWidgets('the upload action is off while the captions are being made', (
+    tester,
+  ) async {
+    await pumpUploadPage(
+      tester,
+      _FakePicker([File('C:\\clips\\clip.mp4')]),
+      sessionToken: 'session-token',
+      captionGenerator: _PendingGenerator(),
+      uploadTransport: _FakeTransport(),
+    );
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Generate captions'));
+    await tester.pump();
+
+    expect(find.text('Transcribing audio...'), findsOneWidget);
+    final whileRunning = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Upload'),
+    );
+    expect(whileRunning.onPressed, isNull);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    final afterwards = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Upload'),
+    );
+    expect(afterwards.onPressed, isNotNull);
+  });
+
   testWidgets('a failed upload shows a readable error', (tester) async {
     final transport = _FakeTransport()
       ..reply = const UploadReply(

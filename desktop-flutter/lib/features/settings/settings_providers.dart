@@ -9,8 +9,8 @@ import '../../core/diagnostics/diagnostics_collector.dart';
 import '../../core/diagnostics/diagnostics_export.dart';
 import '../../core/diagnostics/diagnostics_report.dart';
 import '../../core/config/app_config.dart';
+import '../../core/config/config_controller.dart';
 import '../../core/logging/app_logger.dart';
-import '../../core/providers/app_providers.dart';
 import '../../core/session/session.dart';
 import '../../core/update/app_version.dart';
 import '../../core/update/update_checker.dart';
@@ -75,11 +75,23 @@ final updateCheckProvider =
 
 class UpdateCheckController extends Notifier<UpdateCheckState> {
   @override
-  UpdateCheckState build() => const UpdateCheckState();
+  UpdateCheckState build() {
+    // An answer about another address says nothing about this one, so the
+    // result goes away when the address does. Read through the config state,
+    // not appConfigProvider: clearing the last values leaves the Settings
+    // section on screen for a frame before /setup takes over.
+    ref.watch(
+      configControllerProvider.select(
+        (state) => state.config?.updateManifestUrl,
+      ),
+    );
+    return const UpdateCheckState();
+  }
 
   Future<void> check() async {
     if (state.checking) return;
-    final manifest = ref.read(appConfigProvider).updateManifestUrl;
+    final manifest =
+        ref.read(configControllerProvider).config?.updateManifestUrl ?? '';
     if (manifest.isEmpty) return;
     final version = await ref.read(appVersionProvider.future);
     if (!ref.mounted) return;
@@ -100,6 +112,10 @@ class UpdateCheckController extends Notifier<UpdateCheckState> {
       currentVersion: version.version,
     );
     if (!ref.mounted) return;
+    final addressNow =
+        ref.read(configControllerProvider).config?.updateManifestUrl ?? '';
+    // The answer is about an address the app no longer uses.
+    if (addressNow != manifest) return;
     state = UpdateCheckState(result: result);
   }
 }
