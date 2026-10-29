@@ -1,7 +1,7 @@
 # Spec: `scheduling` — Calendar and Queue
 
 **Module:** `scheduling` (see `docs/spec/flowpost-native-capability-map.md`)
-**Status:** Proposed 2026-10-29 (Phase 5.1); implementation in 5.2
+**Status:** Approved 2026-10-29 (Phase 5.1); implementation in 5.2
 **Depends on:** `publishing` (the `posts` row), `media` (the `videos` row), `accounts` (the connected account list)
 **Blocks:** `offline`
 **ADR:** `docs/adr/0003-local-cache-engine.md` (where the cached copy of these rows lives)
@@ -48,7 +48,7 @@ The client reads the same rows the web app reads, and it reads them through Post
 A list of the admin's rows, newest time last, with the state of each one.
 
 - **Filters: status.** `all`, `scheduled`, `processing`, `publishing`, `published`, `failed` — the same five the database allows (`supabase/migrations/20260320000000_posts_status_publishing.sql:3-4`) plus `all`, and the same four the web app offers (`src/pages/QueuePage.tsx:42`).
-- **A platform filter is proposed** (see **Decisions**). The web app has none.
+- **A platform filter** (Decision 1). The web app has none.
 - **Rows.** The media thumbnail and title, the platform, the account name, the status, and the time: the published time when there is one, otherwise the scheduled time (`src/pages/QueuePage.tsx:305-345`).
 - **Actions per row.** Edit, Delete, and — for a row that is still `scheduled` — Cancel.
 - **Ordering.** By `scheduled_at` ascending, then by `created_at`. A row with no `scheduled_at` sorts last.
@@ -58,7 +58,7 @@ A list of the admin's rows, newest time last, with the state of each one.
 ## The calendar
 
 - **Month view.** A seven-column grid, Sunday first, with the month's posts on their day. Up to three posts a day, then **+N more** (`src/pages/CalendarPage.tsx:114-139`). The month title and the arrows move one month at a time (`src/pages/CalendarPage.tsx:100`, `:106-107`).
-- **Week view.** Seven days, the same rows as the month view. **Proposed** — the web app has no week view; the plan's 5.2 acceptance names one.
+- **Week view.** Seven days, the same rows as the month view (Decision 2). The web app has no week view; the plan's 5.2 acceptance names one.
 - **List view.** The same rows as the queue, grouped by day. The web app's calendar already toggles between a month grid and a list (`src/pages/CalendarPage.tsx:22`).
 - **Which rows appear.** The rows whose `scheduled_at` falls in the visible month (`src/pages/CalendarPage.tsx:26-34`). A published row keeps its `scheduled_at`, so it stays on its day and shows the published time.
 - **A day with many posts.** The grid shows three and counts the rest; the list shows all of them.
@@ -78,7 +78,7 @@ This is what the Publish screen already does (`desktop-flutter/lib/features/publ
 
 The `users` table has no timezone or locale column — the profile carries `id, name, email, avatar_url, is_admin, created_at` (`src/pages/ProfilePage.tsx:15-22`, `:46-50`), and the Preferences tab is a placeholder (`src/pages/ProfilePage.tsx:376-388`). Storing the admin's zone would need a migration and a deploy, which is outside this environment. The screen shows the zone next to every time (`UTC+05:00`), so a wrong zone is visible rather than silent.
 
-**Decision needed** (see **Decisions**): if the owner wants the zone on the profile, this becomes a backend change and the spec changes with it.
+**Decided** (see **Decisions**): the owner keeps the machine's zone. If the profile ever gains a timezone column, this becomes a backend change and the spec changes with it.
 
 ### The three cases a wall-clock time can have
 
@@ -182,14 +182,16 @@ The Publish screen's own phases (`waiting`, `publishing`, `published`, `failed`,
 - The account list the queue shows comes from the local store until the real connections exist (`desktop-flutter/lib/features/accounts/domain/connected_account.dart:64-66`).
 - The media of a row is a `videos` row; until the media slice writes one, the calendar has nothing to point at.
 
-## Open questions
+## Open questions (resolved 2026-10-29)
 
-1. **The platform filter.** Keep the web app's status-only filter, or add the platform? Proposed: add it — the queue is per-platform work, and the client already holds the platform of every target.
-2. **The week view.** The plan's 5.2 acceptance names month, week and list. The web app has month and list. Proposed: build all three.
-3. **The timezone.** The machine's timezone, or a timezone on the profile? Proposed: the machine's, with the zone shown on the screen. A profile field needs a migration and a deploy.
-4. **Deleting a published row.** The web app offers Delete on every row. The desktop proposes to keep Delete for `published` rows as an explicit "remove from the list", behind a confirmation.
+All four were decided at approval, in favour of the proposals below.
 
-## Decisions (proposed — confirm at approval)
+1. **The platform filter.** Keep the web app's status-only filter, or add the platform? Decided: add it — the queue is per-platform work, and the client already holds the platform of every target.
+2. **The week view.** The plan's 5.2 acceptance names month, week and list. The web app has month and list. Decided: build all three.
+3. **The timezone.** The machine's timezone, or a timezone on the profile? Decided: the machine's, with the zone shown on the screen. A profile field needs a migration and a deploy.
+4. **Deleting a published row.** The web app offers Delete on every row. The desktop keeps Delete for `published` rows as an explicit "remove from the list", behind a confirmation.
+
+## Decisions (approved 2026-10-29)
 
 | # | Decision |
 |---|---|

@@ -1,6 +1,6 @@
 # ADR 0003: A local SQLite database for the cache and the drafts
 
-**Status:** Proposed (2026-10-29)
+**Status:** Accepted (2026-10-29)
 **Module:** `offline`
 **Deciders:** project owner
 

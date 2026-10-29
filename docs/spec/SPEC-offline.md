@@ -1,7 +1,7 @@
 # Spec: `offline` — Cached Reads and Local Drafts
 
 **Module:** `offline` (see `docs/spec/flowpost-native-capability-map.md`)
-**Status:** Proposed 2026-10-29 (Phase 5.1); implementation in 5.3–5.5
+**Status:** Approved 2026-10-29 (Phase 5.1); implementation in 5.3–5.5
 **Depends on:** `identity` (the Auth token), `media` (the `videos` row), `publishing` (the `posts` row), `scheduling` (the queue and the calendar)
 **Blocks:** nothing — this is the last slice of the MVP
 **ADR:** `docs/adr/0003-local-cache-engine.md` (the engine, the schema, the two databases)
@@ -168,13 +168,15 @@ The rule exists because the draft is the only copy of the admin's intent. Silent
 - A cache rebuild never touches a draft.
 - No token is written to disk, and the cache is wiped on sign-out.
 
-## Open questions
+## Open questions (resolved 2026-10-29)
 
-1. **The media cache.** The `videos` rows are the server's copy of the media that is already on the machine's disk. Proposed: keep the fields the queue card shows (title, thumbnail, duration), so the queue can render without the server.
-2. **More than one draft per media.** Proposed: one. The compose form is per media, and a second draft for the same media would have to be merged.
-3. **The cache wipe on sign-out.** Proposed: wipe the cache and keep the drafts, because a draft is the admin's own words and a sign-out is often a shared machine handover. The drafts can then be copied out.
+All three were decided at approval, in favour of the proposals below.
 
-## Decisions (proposed — confirm at approval)
+1. **The media cache.** The `videos` rows are the server's copy of the media that is already on the machine's disk. Decided: keep the fields the queue card shows (title, thumbnail, duration), so the queue can render without the server.
+2. **More than one draft per media.** Decided: one. The compose form is per media, and a second draft for the same media would have to be merged.
+3. **The cache wipe on sign-out.** Decided: wipe the cache and keep the drafts, because a draft is the admin's own words and a sign-out is often a shared machine handover. The drafts can then be copied out.
+
+## Decisions (approved 2026-10-29)
 
 | # | Decision |
 |---|---|

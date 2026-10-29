@@ -429,11 +429,11 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 
 ## Phase 5 — Scheduling and Offline Slice
 
-- [ ] **5.1** Write/approve `SPEC-scheduling.md` + `SPEC-offline.md`; SQLite ADR
+- [x] **5.1** Write/approve `SPEC-scheduling.md` + `SPEC-offline.md`; SQLite ADR
   - [x] `docs/spec/SPEC-scheduling.md`: the read model, the queue, the calendar, the timezone and the DST rules, editing and cancelling
   - [x] `docs/spec/SPEC-offline.md`: the connectivity state, the cache, the schema and the migrations, corruption, the drafts and the conflict rule
   - [x] `docs/adr/0003-local-cache-engine.md`: `package:sqlite3` directly, two databases, the version in the database, a broken file renamed and never deleted
-  - [ ] Human approval of the three documents, and of the six decisions in each spec
+  - [x] Human approval of the three documents and of the six scheduling and eight offline decisions (2026-10-29)
 - [ ] **5.2** Calendar/queue UI; timezone/DST correctness
   - [x] The `TimeZone` seam and the three cases a wall clock can have (skipped, repeated, ordinary)
   - [ ] The read model and the queue list
@@ -453,6 +453,8 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [ ] Human approval
 
 ### Phase 5.1 evidence (2026-10-29)
+
+- **Approved by the owner on 2026-10-29.** All three documents and all fourteen proposed decisions: the platform filter, the week view, the machine's timezone, refusing a skipped hour and using the first of a repeated one, cancel-as-delete with a confirmation, 200 rows a page; and on the offline side no polling, connection-level failures only, two databases, a renamed corrupt file, no token on disk, the 500-row bound, the typed time never silently changed, and an unencrypted cache wiped on sign-out while the drafts are kept.
 
 - **Three documents, all proposed and waiting for the owner.** `docs/spec/SPEC-scheduling.md`, `docs/spec/SPEC-offline.md` and `docs/adr/0003-local-cache-engine.md`. Each ends with the decisions that need a yes or a no; nothing is implemented on top of an unapproved spec.
 - **What the web app does today, so the desktop is not guessing.** The queue is one page (`src/pages/QueuePage.tsx`) that fetches **every** row and filters it in the browser (`:65-72`), with a status filter only (`:42`) and a bulk bar (`:247-262`). The calendar is a month grid and a list (`src/pages/CalendarPage.tsx:22`), three posts a day and a count of the rest (`:127-139`), and its "Cancel Post" **deletes the row** with no confirmation (`:47-52`). The desktop follows the same shape and adds the confirmation, because a deleted row takes the caption with it.
