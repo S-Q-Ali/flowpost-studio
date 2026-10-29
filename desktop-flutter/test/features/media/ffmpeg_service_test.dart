@@ -265,6 +265,51 @@ void main() {
     },
   );
 
+  test('a video renamed to an image is still treated as a video', () async {
+    final executor = _workingExecutor();
+    final processor = FfmpegMediaProcessor(executor: executor, paths: _paths);
+
+    final result = await processor.process(
+      job(sourcePath: r'C:\clips\holiday.png', kind: MediaKind.image),
+    );
+
+    expect(result.kind, MediaKind.video);
+    expect(result.outputs!.normalized, isNotNull);
+    expect(result.outputs!.frames, hasLength(3));
+  });
+
+  test('a video renamed to an image still runs the duration limit', () async {
+    const probeJson = '''
+{
+  "streams": [
+    {
+      "codec_name": "h264",
+      "codec_type": "video",
+      "width": 640,
+      "height": 360,
+      "pix_fmt": "yuv420p"
+    }
+  ],
+  "format": { "duration": "200.000000" }
+}
+''';
+    final executor = _workingExecutor(probeJson: probeJson);
+    final processor = FfmpegMediaProcessor(executor: executor, paths: _paths);
+
+    await expectLater(
+      processor.process(
+        job(sourcePath: r'C:\clips\holiday.png', kind: MediaKind.image),
+      ),
+      throwsA(
+        isA<MediaProcessingException>().having(
+          (error) => error.message,
+          'message',
+          'Videos must be 3 minutes or shorter.',
+        ),
+      ),
+    );
+  });
+
   test('a video longer than three minutes is rejected', () async {
     const probeJson = '''
 {

@@ -1,5 +1,26 @@
 import 'dart:convert';
 
+import 'media_validation.dart';
+
+/// The codecs a still image uses.
+///
+/// A file's name is not proof of what it holds: a video can be renamed to
+/// `.png` and the pipeline would then skip the duration limit and produce a
+/// single frame instead of three.
+const Set<String> imageCodecs = {
+  'png',
+  'mjpeg',
+  'webp',
+  'bmp',
+  'gif',
+  'tiff',
+  'jpeg',
+};
+
+/// The kind the file really is, according to what the probe reports.
+MediaKind kindFromProbe(MediaProbe probe) =>
+    imageCodecs.contains(probe.videoCodec) ? MediaKind.image : MediaKind.video;
+
 /// Metadata ffprobe reports for a media file (SPEC-media "Model").
 class MediaProbe {
   const MediaProbe({

@@ -46,6 +46,7 @@ class MediaJob {
   final MediaStage stage;
 
   MediaJob copyWith({
+    MediaKind? kind,
     MediaProbe? probe,
     MediaOutputs? outputs,
     MediaStage? stage,
@@ -54,7 +55,7 @@ class MediaJob {
       id: id,
       sourcePath: sourcePath,
       displayName: displayName,
-      kind: kind,
+      kind: kind ?? this.kind,
       sourceBytes: sourceBytes,
       workspacePath: workspacePath,
       probe: probe ?? this.probe,

@@ -80,13 +80,18 @@ class FfmpegMediaProcessor implements MediaProcessor {
     final probe = await _probe(job.sourcePath, budget);
     _throwIfCancelled();
 
-    final limitError = checkMediaLimits(probe, kind: job.kind);
+    // The probe decides what the file is, not its name: a video renamed to
+    // `.png` must still run the duration limit and produce a video.
+    final kind = kindFromProbe(probe);
+
+    final limitError = checkMediaLimits(probe, kind: kind);
     if (limitError != null) throw MediaProcessingException(limitError.message);
 
     progress.stage(MediaStage.processing, 0.05, 'Processing...');
 
     final outputs = await _produce(
       job,
+      kind,
       probe,
       Directory(job.workspacePath),
       progress,
@@ -95,6 +100,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
 
     progress.stage(MediaStage.ready, 1.0, 'Ready.');
     return job.copyWith(
+      kind: kind,
       probe: probe,
       outputs: outputs,
       stage: MediaStage.ready,
@@ -132,14 +138,22 @@ class FfmpegMediaProcessor implements MediaProcessor {
 
   Future<MediaOutputs> _produce(
     MediaJob job,
+    MediaKind kind,
     MediaProbe probe,
     Directory directory,
     _Progress progress,
     _Budget budget,
   ) async {
     File? normalized;
-    if (job.kind == MediaKind.video) {
-      normalized = await _normalize(job, probe, directory, progress, budget);
+    if (kind == MediaKind.video) {
+      normalized = await _normalize(
+        job,
+        kind,
+        probe,
+        directory,
+        progress,
+        budget,
+      );
     }
 
     progress.stage(MediaStage.processing, 0.7, 'Creating the thumbnail...');
@@ -148,9 +162,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
       thumbnailArguments(
         sourcePath: job.sourcePath,
         outputPath: thumbnail.path,
-        at: job.kind == MediaKind.image
-            ? null
-            : thumbnailTimestamp(probe.duration),
+        at: kind == MediaKind.image ? null : thumbnailTimestamp(probe.duration),
       ),
       thumbnail,
       progress,
@@ -160,14 +172,14 @@ class FfmpegMediaProcessor implements MediaProcessor {
 
     progress.stage(MediaStage.processing, 0.8, 'Extracting caption frames...');
     final frames = <File>[];
-    final timestamps = frameTimestampsForKind(job.kind, probe.duration);
+    final timestamps = frameTimestampsForKind(kind, probe.duration);
     for (var index = 0; index < timestamps.length; index++) {
       final frame = File(p.join(directory.path, 'frame_${index + 1}.jpg'));
       await _run(
         frameArguments(
           sourcePath: job.sourcePath,
           outputPath: frame.path,
-          at: job.kind == MediaKind.image ? null : timestamps[index],
+          at: kind == MediaKind.image ? null : timestamps[index],
         ),
         frame,
         progress,
@@ -202,6 +214,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
   /// it and re-encoding otherwise.
   Future<File> _normalize(
     MediaJob job,
+    MediaKind kind,
     MediaProbe probe,
     Directory directory,
     _Progress progress,
@@ -209,7 +222,7 @@ class FfmpegMediaProcessor implements MediaProcessor {
   ) async {
     final output = File(p.join(directory.path, 'normalized.mp4'));
 
-    if (canRemux(kind: job.kind, sourcePath: job.sourcePath, probe: probe)) {
+    if (canRemux(kind: kind, sourcePath: job.sourcePath, probe: probe)) {
       final run = await _execute(
         remuxArguments(sourcePath: job.sourcePath, outputPath: output.path),
         total: probe.duration,
