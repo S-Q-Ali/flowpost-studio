@@ -37,7 +37,6 @@ interface CaptionPreviewModalProps {
   captions: Record<string, string> | null;
   loading: boolean;
   fileName: string;
-  onSave: (captions: Record<string, string>) => void;
   onRegenerate: () => void;
   progressStep: StepId | null;
   progressPercent: number;
@@ -50,7 +49,6 @@ export function CaptionPreviewModal({
   captions,
   loading,
   fileName,
-  onSave,
   onRegenerate,
   progressStep,
   progressPercent,

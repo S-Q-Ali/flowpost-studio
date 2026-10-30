@@ -743,7 +743,7 @@ export default function StoragePage() {
                           <div key={f.name} className="flex items-center gap-2 p-2 rounded group">
                             <File className="h-4 w-4 text-muted-foreground shrink-0" />
                             <span className="text-sm truncate flex-1">{f.name}</span>
-                            <span className="text-xs text-muted-foreground shrink-0">{formatBytes(f.size)}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">{formatBytes(f.size ?? 0)}</span>
                             <button className="opacity-0 group-hover:opacity-100 hover:text-destructive shrink-0 p-0.5" onClick={() => deleteSingleItem("mega", f.nodeId!, f.name, false)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>

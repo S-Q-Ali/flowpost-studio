@@ -759,6 +759,7 @@ Verified each claim against the code before writing it; nothing below is copied 
   - [x] Shipped dependency audit **0 critical / 0 high**; dev-only majors tracked (review 2026-11-30)
   - [x] Upload failure text cleaned once (log + screen); ADR 0001 corrected; `.gitignore` covers keys
   - [x] Seven edge functions deployed to project `ximorwzknbizpceaoflw` (2026-10-30 13:21, all ACTIVE)
+  - [x] CodeQL flagged three high alerts: `youtube-upload`/`tiktok-upload` decided to attach the Google bearer with `url.includes("googleapis.com")`, which a path or query on another host also matches. Replaced with `isGoogleApiUrl` (exact host) in `_shared/url-guard.ts`, with tests; the two functions need a redeploy
   - [ ] **Owner:** rotate the credentials in git history (R2, IG, FB, YouTube, Gemini, old app password, GCP service account) and enter the new values in the desktop Settings screen once the app is production-ready
 - [x] **6.7** README, ADRs, runbook, release checklist, rollback notes
   - [x] README covers both surfaces, the real secret names, FFmpeg and the actual commands
@@ -782,6 +783,25 @@ Verified each claim against the code before writing it; nothing below is copied 
 - [ ] **7.4** Rollback installer, data compatibility, support runbook, SmartScreen docs
 - [ ] **7.5** Internal VM first, then admin machine; monitor one week
 - [ ] **7.6** Final `ponytail-audit` no Must-fix; human sign-off
+
+---
+
+## Repo production pass — Pake removal
+
+Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is gone from the web repo; `desktop-flutter/` is the only desktop build.
+
+- [x] Removed `desktop/` (12 Pake/Electron files) and the `build:desktop` script; Pake-specific `.gitignore` entries pruned
+- [x] Removed the Pake-only web glue: `SystemTray`, `FolderWatcher`, `ContentAutomation`, `LocalFileUploader`, the `flowpost:*` bridge in `App.tsx`, the Pake branch in `main.tsx`
+- [x] Dead `onSave` prop removed from `CaptionPreviewModal`
+- [x] Real type gate: `npx tsc -b` (root `tsc --noEmit` was a no-op) wired into `.github/workflows/ci.yml` and `CONTRIBUTING.md`
+- [x] Root cause of the `never` collapse: `Database["public"]` must satisfy `GenericSchema`; `src/integrations/supabase/types.ts` regenerated from the live project
+- [x] Gates: `npx tsc -b` 0 errors, `npm test` 116/116, `npm run build` OK, `npm run lint` unchanged (findings only in `supabase/functions` and `tailwind.config.ts`)
+- [x] `graphify update .`; `graphify-out` committed separately
+- [x] Schema drift: the checked-in types were stale (missing `carousel_items`, `oauth_states`, `posts.workflow_item_id`, `workflows.caption_master_prompt`, and `Relationships` on `workflow_items`); the file is regenerated from live. Two dead paths read columns that exist in no schema and were removed: the Upload page workflow-supplement block (`destination_platforms`/`caption_template`/`delay_hours`) and the clone item select (`workflow_items.post_type`/`platforms`/`error_message` — live has `platforms_override`)
+- [x] `nul` artifact: `origin/main` tracked an empty file named `nul` (`322cf45` claimed to remove it but added it), so every Windows checkout of a merge with `main` failed with `invalid path 'nul'`. `feature/native-shell` now carries `766ecec`, which records the file as gone.
+- [x] Pushed both branches and opened the PRs: #49 (`chore/desktop-production` → `feature/native-shell`, 6 commits), #50 (`feature/native-shell` → `main`)
+- [ ] **Owner:** review and merge #49, then #50 (nothing merged)
+- [ ] **Owner:** confirm the live `workflow_items` and `workflows` columns match the migrations before Phase 7
 
 ---
 

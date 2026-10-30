@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Loader2, Youtube, Instagram, Facebook, Film, Folder, FileIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { invokeFunction } from "@/lib/invoke";
+import { invokeFunction, type InvokeFunctionResult } from "@/lib/invoke";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Platform } from "@/lib/types";
@@ -87,6 +87,7 @@ export default function UploadPage() {
     let cancelled = false;
     (async () => {
       try {
+        if (!userId) return;
         const { data: yt } = await supabase
       .from("connected_accounts")
       .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
@@ -184,22 +185,23 @@ export default function UploadPage() {
       let hasError = false;
 
       do {
-        const { data, error } = await invokeFunction("google-drive-auth", {
-          body: JSON.stringify({
-            action: "list-files",
-            account_id: selectedDriveId,
-            parent_id: driveParentId,
-            page_token: pageToken,
-          }),
-        });
-        if (error || !data) {
-          console.error("list-files error:", error);
+        const res: InvokeFunctionResult<{ files?: unknown[]; nextPageToken?: string | null }> =
+          await invokeFunction("google-drive-auth", {
+            body: JSON.stringify({
+              action: "list-files",
+              account_id: selectedDriveId,
+              parent_id: driveParentId,
+              page_token: pageToken,
+            }),
+          });
+        if (res.error || !res.data) {
+          console.error("list-files error:", res.error);
           toast.error("Failed to list Drive files. Try reconnecting the account.");
           hasError = true;
           break;
         }
-        if (data.files) allFiles = allFiles.concat(data.files);
-        pageToken = data.nextPageToken ?? null;
+        if (res.data.files) allFiles = allFiles.concat(res.data.files);
+        pageToken = res.data.nextPageToken ?? null;
       } while (pageToken);
 
       if (!hasError) setDriveFiles(allFiles);
@@ -357,6 +359,7 @@ export default function UploadPage() {
   };
 
   const handleSubmit = async () => {
+    if (!userId) return;
     if (isSubmitting) return;
     setIsSubmitting(true);
     if (isSubmittingRef.current) return;
@@ -415,7 +418,7 @@ export default function UploadPage() {
         scheduledAt = d.toISOString();
       }
 
-      const posts: { user_id: string; video_id: string; platform: string; caption: string | null; hashtags: string | null; scheduled_at: string; status: "scheduled" | "processing"; captions_enabled: boolean; account_id?: string | null; contains_altered_content?: boolean }[] = [];
+      const posts: { user_id: string; video_id: string; platform: string; caption: string | null; hashtags: string | null; scheduled_at: string; status: "scheduled" | "processing"; captions_enabled: boolean; post_type?: "feed" | "story"; account_id?: string | null; contains_altered_content?: boolean }[] = [];
       for (const platform of selectedPlatforms) {
         if (platform === "youtube") {
           for (const accountId of selectedYouTubeAccountIds) {
@@ -569,42 +572,7 @@ export default function UploadPage() {
       const { data: insertedPosts, error: postsError } = await supabase.from("posts").insert(posts).select("id, platform, account_id, status");
       if (postsError) throw postsError;
 
-      const { data: workflows } = await supabase
-        .from("workflows")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("is_active", true);
-
-      if (workflows && workflows.length > 0) {
-        const workflowPosts: any[] = [];
-        const baseCaption = youtubeDescription || instagramCaption || facebookCaption || tiktokCaption || "";
-        for (const wf of workflows) {
-          const wfPlatforms = ((wf.destination_platforms as string[]) ?? []).filter(
-            (p) => !selectedPlatforms.includes(p as Platform)
-          );
-          for (const p of wfPlatforms) {
-            const delayMs = (wf.delay_hours || 0) * 3600000;
-            const wfCaption = wf.caption_template
-              ? wf.caption_template.replace("{{title}}", youtubeTitle || "").replace("{{hashtags}}", hashtags)
-              : baseCaption;
-            workflowPosts.push({
-              user_id: userId,
-              video_id: videoId,
-              platform: p,
-              caption: wfCaption,
-              hashtags,
-              scheduled_at: new Date(new Date(scheduledAt).getTime() + delayMs).toISOString(),
-              status: "scheduled",
-              captions_enabled: captionsEnabled,
-            });
-          }
-        }
-        if (workflowPosts.length > 0) {
-          await supabase.from("posts").insert(workflowPosts);
-        }
-      }
-
-        if (isPublishNow && insertedPosts && insertedPosts.length > 0) {
+      if (isPublishNow && insertedPosts && insertedPosts.length > 0) {
         const createdPostIds = insertedPosts.map((p: any) => p.id);
 
         await supabase
@@ -1305,7 +1273,7 @@ export default function UploadPage() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={scheduleDate} onSelect={setScheduleDate} className="p-3 pointer-events-auto" />
+                  <Calendar mode="single" selected={scheduleDate} onSelect={(day) => day && setScheduleDate(day)} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
               <Input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="w-32" />

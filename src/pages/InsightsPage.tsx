@@ -157,20 +157,22 @@ export default function InsightsPage() {
       .eq("user_id", userId)
       .eq("platform", platform)
       .eq("is_connected", true)
-      .then(({ data: accountsData, error: accountsError }) => {
-        setLoading(false);
-        if (accountsError) {
-          setError(`Failed to load ${config.label} accounts`);
-          return;
-        }
-        const list = (accountsData || []) as ConnectedAccount[];
-        setAccounts(list);
-        if (list.length > 0) {
-          const storedAccount = list.find((a) => a.account_id === localStorage.getItem(`insights_account_${platform}`));
-          setSelectedAccountId(storedAccount ? storedAccount.account_id : list[0].account_id);
-        }
-      })
-      .catch(() => { setLoading(false); setError("Network error loading accounts"); });
+      .then(
+        ({ data: accountsData, error: accountsError }) => {
+          setLoading(false);
+          if (accountsError) {
+            setError(`Failed to load ${config.label} accounts`);
+            return;
+          }
+          const list = (accountsData || []) as ConnectedAccount[];
+          setAccounts(list);
+          if (list.length > 0) {
+            const storedAccount = list.find((a) => a.account_id === localStorage.getItem(`insights_account_${platform}`));
+            setSelectedAccountId(storedAccount ? storedAccount.account_id : list[0].account_id);
+          }
+        },
+        () => { setLoading(false); setError("Network error loading accounts"); },
+      );
   }, [userId, platform, config.label]);
 
   const fetchInsights = useCallback(() => {

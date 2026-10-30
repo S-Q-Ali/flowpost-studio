@@ -39,6 +39,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      carousel_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          post_id: string
+          sort_order: number
+          video_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          post_id: string
+          sort_order: number
+          video_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          post_id?: string
+          sort_order?: number
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carousel_items_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carousel_items_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       connected_accounts: {
         Row: {
           access_token: string | null
@@ -84,36 +123,66 @@ export type Database = {
         }
         Relationships: []
       }
-      page_eligibility: {
+      oauth_states: {
         Row: {
+          created_at: string
+          expires_at: string
           id: string
+          mode: string | null
+          state: string
+          used_at: string | null
           user_id: string
-          page_id: string
-          page_name: string | null
-          eligibility_bucket: string | null
-          monetization_tools: Json | null
-          criteria_progress: Json | null
-          checked_at: string
         }
         Insert: {
+          created_at?: string
+          expires_at: string
           id?: string
+          mode?: string | null
+          state: string
+          used_at?: string | null
           user_id: string
-          page_id: string
-          page_name?: string | null
-          eligibility_bucket?: string | null
-          monetization_tools?: Json | null
-          criteria_progress?: Json | null
-          checked_at?: string
         }
         Update: {
+          created_at?: string
+          expires_at?: string
           id?: string
+          mode?: string | null
+          state?: string
+          used_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      page_eligibility: {
+        Row: {
+          checked_at: string
+          criteria_progress: Json | null
+          eligibility_bucket: string | null
+          id: string
+          monetization_tools: Json | null
+          page_id: string
+          page_name: string | null
+          user_id: string
+        }
+        Insert: {
+          checked_at?: string
+          criteria_progress?: Json | null
+          eligibility_bucket?: string | null
+          id?: string
+          monetization_tools?: Json | null
+          page_id: string
+          page_name?: string | null
+          user_id: string
+        }
+        Update: {
+          checked_at?: string
+          criteria_progress?: Json | null
+          eligibility_bucket?: string | null
+          id?: string
+          monetization_tools?: Json | null
           page_id?: string
           page_name?: string | null
-          eligibility_bucket?: string | null
-          monetization_tools?: Json | null
-          criteria_progress?: Json | null
-          checked_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -135,6 +204,7 @@ export type Database = {
           status: string | null
           user_id: string
           video_id: string | null
+          workflow_item_id: string | null
         }
         Insert: {
           account_id?: string | null
@@ -153,6 +223,7 @@ export type Database = {
           status?: string | null
           user_id: string
           video_id?: string | null
+          workflow_item_id?: string | null
         }
         Update: {
           account_id?: string | null
@@ -171,6 +242,7 @@ export type Database = {
           status?: string | null
           user_id?: string
           video_id?: string | null
+          workflow_item_id?: string | null
         }
         Relationships: [
           {
@@ -180,43 +252,11 @@ export type Database = {
             referencedRelation: "videos"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      carousel_items: {
-        Row: {
-          id: string
-          post_id: string
-          video_id: string
-          sort_order: number
-          created_at: string | null
-        }
-        Insert: {
-          id?: string
-          post_id: string
-          video_id: string
-          sort_order: number
-          created_at?: string | null
-        }
-        Update: {
-          id?: string
-          post_id?: string
-          video_id?: string
-          sort_order?: number
-          created_at?: string | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "carousel_items_post_id_fkey"
-            columns: ["post_id"]
+            foreignKeyName: "posts_workflow_item_id_fkey"
+            columns: ["workflow_item_id"]
             isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "carousel_items_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "videos"
+            referencedRelation: "workflow_items"
             referencedColumns: ["id"]
           },
         ]
@@ -362,6 +402,71 @@ export type Database = {
         }
         Relationships: []
       }
+      workflow_items: {
+        Row: {
+          created_at: string
+          drive_file_id: string
+          fb_ig_caption: string | null
+          file_name: string
+          file_size: number | null
+          id: string
+          linkedin_caption: string | null
+          mime_type: string | null
+          platforms_override: string[] | null
+          posted_at: string | null
+          sort_order: number | null
+          status: string
+          tiktok_caption: string | null
+          workflow_id: string
+          yt_video_description: string | null
+          yt_video_title: string | null
+        }
+        Insert: {
+          created_at?: string
+          drive_file_id: string
+          fb_ig_caption?: string | null
+          file_name: string
+          file_size?: number | null
+          id?: string
+          linkedin_caption?: string | null
+          mime_type?: string | null
+          platforms_override?: string[] | null
+          posted_at?: string | null
+          sort_order?: number | null
+          status?: string
+          tiktok_caption?: string | null
+          workflow_id: string
+          yt_video_description?: string | null
+          yt_video_title?: string | null
+        }
+        Update: {
+          created_at?: string
+          drive_file_id?: string
+          fb_ig_caption?: string | null
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          linkedin_caption?: string | null
+          mime_type?: string | null
+          platforms_override?: string[] | null
+          posted_at?: string | null
+          sort_order?: number | null
+          status?: string
+          tiktok_caption?: string | null
+          workflow_id?: string
+          yt_video_description?: string | null
+          yt_video_title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_items_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_locks: {
         Row: {
           expires_at: string
@@ -380,67 +485,15 @@ export type Database = {
         }
         Relationships: []
       }
-      workflow_items: {
-        Row: {
-          id: string
-          workflow_id: string
-          drive_file_id: string
-          file_name: string
-          file_size: number | null
-          mime_type: string | null
-          status: string
-          yt_video_title: string | null
-          yt_video_description: string | null
-          fb_ig_caption: string | null
-          tiktok_caption: string | null
-          platforms_override: string[] | null
-          linkedin_caption: string | null
-          sort_order: number | null
-          created_at: string
-          posted_at: string | null
-        }
-        Insert: {
-          id?: string
-          workflow_id: string
-          drive_file_id: string
-          file_name: string
-          file_size?: number | null
-          mime_type?: string | null
-          status?: string
-          yt_video_title?: string | null
-          yt_video_description?: string | null
-          fb_ig_caption?: string | null
-          tiktok_caption?: string | null
-          platforms_override?: string[] | null
-          linkedin_caption?: string | null
-          sort_order?: number | null
-          created_at?: string
-          posted_at?: string | null
-        }
-        Update: {
-          id?: string
-          workflow_id?: string
-          drive_file_id?: string
-          file_name?: string
-          file_size?: number | null
-          mime_type?: string | null
-          status?: string
-          yt_video_title?: string | null
-          yt_video_description?: string | null
-          fb_ig_caption?: string | null
-          tiktok_caption?: string | null
-          platforms_override?: string[] | null
-          linkedin_caption?: string | null
-          sort_order?: number | null
-          created_at?: string
-          posted_at?: string | null
-        }
-      }
       workflows: {
         Row: {
+          caption_master_prompt: Json | null
           created_at: string | null
           custom_schedule: Json | null
+          data_source: string
           day_time_windows: Json | null
+          drive_account_id: string | null
+          drive_folder_id: string | null
           facebook_ai_generated: boolean | null
           facebook_page_ids: string[] | null
           id: string
@@ -449,6 +502,7 @@ export type Database = {
           is_active: boolean | null
           last_manual_triggered_at: string | null
           last_triggered_at: string | null
+          linkedin_account_ids: string[] | null
           max_videos_per_trigger: number | null
           media_type: string
           name: string
@@ -460,7 +514,6 @@ export type Database = {
           sheet_id: string | null
           sheet_url: string | null
           tiktok_account_ids: string[] | null
-          linkedin_account_ids: string[] | null
           total_posted: number | null
           trigger_hour_end: number
           trigger_hour_start: number
@@ -468,18 +521,16 @@ export type Database = {
           user_id: string
           videos_per_run: number | null
           youtube_altered_content: boolean | null
-          drive_account_id: string | null
-          drive_folder_id: string | null
-          data_source: string
           youtube_channel_ids: string[] | null
         }
         Insert: {
+          caption_master_prompt?: Json | null
           created_at?: string | null
           custom_schedule?: Json | null
+          data_source?: string
           day_time_windows?: Json | null
           drive_account_id?: string | null
           drive_folder_id?: string | null
-          data_source?: string
           facebook_ai_generated?: boolean | null
           facebook_page_ids?: string[] | null
           id?: string
@@ -488,6 +539,7 @@ export type Database = {
           is_active?: boolean | null
           last_manual_triggered_at?: string | null
           last_triggered_at?: string | null
+          linkedin_account_ids?: string[] | null
           max_videos_per_trigger?: number | null
           media_type?: string
           name: string
@@ -499,7 +551,6 @@ export type Database = {
           sheet_id?: string | null
           sheet_url?: string | null
           tiktok_account_ids?: string[] | null
-          linkedin_account_ids?: string[] | null
           total_posted?: number | null
           trigger_hour_end?: number
           trigger_hour_start?: number
@@ -510,12 +561,13 @@ export type Database = {
           youtube_channel_ids?: string[] | null
         }
         Update: {
+          caption_master_prompt?: Json | null
           created_at?: string | null
           custom_schedule?: Json | null
+          data_source?: string
           day_time_windows?: Json | null
           drive_account_id?: string | null
           drive_folder_id?: string | null
-          data_source?: string
           facebook_ai_generated?: boolean | null
           facebook_page_ids?: string[] | null
           id?: string
@@ -524,6 +576,7 @@ export type Database = {
           is_active?: boolean | null
           last_manual_triggered_at?: string | null
           last_triggered_at?: string | null
+          linkedin_account_ids?: string[] | null
           max_videos_per_trigger?: number | null
           media_type?: string
           name?: string
@@ -535,7 +588,6 @@ export type Database = {
           sheet_id?: string | null
           sheet_url?: string | null
           tiktok_account_ids?: string[] | null
-          linkedin_account_ids?: string[] | null
           total_posted?: number | null
           trigger_hour_end?: number
           trigger_hour_start?: number
@@ -545,7 +597,15 @@ export type Database = {
           youtube_altered_content?: boolean | null
           youtube_channel_ids?: string[] | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "workflows_drive_account_id_fkey"
+            columns: ["drive_account_id"]
+            isOneToOne: false
+            referencedRelation: "connected_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -571,12 +631,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -600,11 +660,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -625,11 +685,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -650,11 +710,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -667,11 +727,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

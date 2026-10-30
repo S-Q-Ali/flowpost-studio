@@ -10,16 +10,10 @@ import { Loader2, Wrench, Chrome, CheckCircle2, XCircle, AlertCircle, RefreshCw,
 import { formatDistanceToNow, differenceInHours } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { invokeFunction } from "@/lib/invoke";
+import type { Json } from "@/integrations/supabase/types";
 
 const EXT_SOURCE = 'FLOWPOST_EXT';
 const DASH_SOURCE = 'FLOWPOST_DASH';
-
-interface ExtResponse {
-  source: string;
-  id: string;
-  type: string;
-  payload: unknown;
-}
 
 interface PageAccount {
   account_id: string;
@@ -112,14 +106,17 @@ export default function ToolsPage() {
             basicInfo: { id: r.page_id, name: r.page_name || r.page_id },
             eligibilityBucket: r.eligibility_bucket || '',
             monetizationToolsEligibilityStatus: (r.monetization_tools || {}) as ToolStatus,
-            eligibilityCriteriaProgress: (r.criteria_progress || {}) as EligibilityProgress,
+            eligibilityCriteriaProgress: (r.criteria_progress || {}) as unknown as EligibilityProgress,
           }));
           setSavedResults(mapped);
           const sorted = [...data].sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime());
           setLastChecked(sorted[0].checked_at);
         }
       })
-      .finally(() => { if (!cancelled) done(); });
+      .then(
+        () => { if (!cancelled) done(); },
+        () => { if (!cancelled) done(); },
+      );
     return () => { cancelled = true; };
   }, [userId]);
 
@@ -201,17 +198,19 @@ export default function ToolsPage() {
       setLastChecked(new Date().toISOString());
       const sessionRes = await supabase.auth.getSession();
       const saveUserId = sessionRes.data.session?.user?.id || userId;
-      const rows = res.data.payload.map((page: PageResult) => ({
-        user_id: saveUserId,
-        page_id: page.basicInfo.id,
-        page_name: page.basicInfo.name,
-        eligibility_bucket: page.eligibilityBucket,
-        monetization_tools: page.monetizationToolsEligibilityStatus,
-        criteria_progress: page.eligibilityCriteriaProgress,
-      }));
-      supabase.from("page_eligibility").upsert(rows, { onConflict: "user_id,page_id" }).then(({ error }) => {
-        if (error) console.warn("[ToolsPage] Failed to save eligibility:", error.message);
-      });
+      if (saveUserId) {
+        const rows = res.data.payload.map((page: PageResult) => ({
+          user_id: saveUserId,
+          page_id: page.basicInfo.id,
+          page_name: page.basicInfo.name,
+          eligibility_bucket: page.eligibilityBucket,
+          monetization_tools: page.monetizationToolsEligibilityStatus as unknown as Json,
+          criteria_progress: page.eligibilityCriteriaProgress as unknown as Json,
+        }));
+        supabase.from("page_eligibility").upsert(rows, { onConflict: "user_id,page_id" }).then(({ error }) => {
+          if (error) console.warn("[ToolsPage] Failed to save eligibility:", error.message);
+        });
+      }
     } else {
       setError('Unexpected response from extension.');
     }
@@ -310,6 +309,8 @@ export default function ToolsPage() {
       </div>
     );
   }
+
+  const visibleResults = results || savedResults;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -440,7 +441,7 @@ export default function ToolsPage() {
         </Card>
       )}
 
-      {(results || savedResults) && (results || savedResults).map((page) => (
+      {visibleResults && visibleResults.map((page) => (
         <Card key={page.basicInfo.id}>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">

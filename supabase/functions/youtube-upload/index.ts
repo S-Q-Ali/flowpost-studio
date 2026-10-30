@@ -4,6 +4,7 @@ import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 import { checkPostAccess } from "../_shared/post-access.ts";
+import { isGoogleApiUrl } from "../_shared/url-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -223,7 +224,7 @@ Deno.serve(async (req) => {
 
       const headRes = await fetch(sourceUrl, {
         method: "HEAD",
-        headers: sourceUrl.includes("googleapis.com") && googleAccessToken
+        headers: isGoogleApiUrl(sourceUrl) && googleAccessToken
           ? { Authorization: `Bearer ${googleAccessToken}` }
           : {},
       });
@@ -283,7 +284,7 @@ Deno.serve(async (req) => {
     }
 
     const videoStream = await fetch(sourceUrl, {
-      headers: !megaUrl && sourceUrl.includes("googleapis.com") && googleAccessToken
+      headers: !megaUrl && isGoogleApiUrl(sourceUrl) && googleAccessToken
         ? { Authorization: `Bearer ${googleAccessToken}` }
         : {},
     });

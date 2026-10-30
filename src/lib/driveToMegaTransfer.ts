@@ -111,7 +111,7 @@ function uploadToMega(
     const writable = new WritableStream({
       write(chunk: Uint8Array) {
         return new Promise<void>((res, rej) => {
-          const ok = uploadStream.write(chunk, (err?: Error) => {
+          const ok = uploadStream.write(chunk, (err?: Error | null) => {
             if (err) rej(err);
             else if (!ok) uploadStream.once("drain", res);
             else res();
@@ -149,7 +149,7 @@ export async function transferDriveToMega(
     sid: ticket.megaSession.sid,
     user: ticket.megaSession.user,
     options: { autoload: false, autologin: false },
-  });
+  } as unknown as Parameters<typeof MegaStorage.fromJSON>[0]);
   await (storage as any).reload(true);
 
   // 4. Resolve target folder
