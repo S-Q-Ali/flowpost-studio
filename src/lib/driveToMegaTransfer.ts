@@ -95,8 +95,14 @@ function uploadToMega(
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const mutableTarget = target as unknown as {
-      upload: (opts: { name: string; size: number }, cb: (err: string) => void) => NodeJS.WritableStream & {
+      upload: (
+        opts: { name: string; size: number },
+        cb: (err: string) => void,
+      ) => {
         on: (event: string, listener: (data: { bytesUploaded: number }) => void) => void;
+        once: (event: string, listener: () => void) => void;
+        write: (chunk: Uint8Array, cb: (err?: Error | null) => void) => boolean;
+        end: (cb: () => void) => void;
       };
     };
     const uploadStream = mutableTarget.upload({ name: fileName, size: fileSize }, (err: string) => {
