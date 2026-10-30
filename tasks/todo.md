@@ -735,7 +735,7 @@ Read-only audit first (`security-and-hardening` checklist, secret scan of HEAD a
   - [x] Shipped dependency audit **0 critical / 0 high**; dev-only majors tracked (review 2026-11-30)
   - [x] Upload failure text cleaned once (log + screen); ADR 0001 corrected; `.gitignore` covers keys
   - [x] Seven edge functions deployed to project `ximorwzknbizpceaoflw` (2026-10-30 13:21, all ACTIVE)
-  - [ ] **Owner:** rotate the credentials in git history (R2, IG, FB, YouTube, Gemini, old app password, GCP service account)
+  - [ ] **Owner:** rotate the credentials in git history (R2, IG, FB, YouTube, Gemini, old app password, GCP service account) and enter the new values in the desktop Settings screen once the app is production-ready
 - [ ] **6.7** README, ADRs, runbook, release checklist, rollback notes
 - [ ] **6.8** Phase 6 gate
   - [ ] `shipping-and-launch` checklist green
