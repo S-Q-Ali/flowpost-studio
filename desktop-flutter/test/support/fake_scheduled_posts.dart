@@ -104,9 +104,11 @@ ScheduledPost post({
     platform: platform,
     accountName: accountName,
     caption: caption,
+    // `scheduledAt` is a UTC instant on the model, the way the server sends
+    // it. A local DateTime here would look like a moved time to the edit form.
     scheduledAt: noTime
         ? null
-        : scheduledAt ?? DateTime.utc(2026, 10, 29, 14, 30),
+        : (scheduledAt ?? DateTime.utc(2026, 10, 29, 14, 30)).toUtc(),
     publishedAt: publishedAt,
     videoTitle: videoTitle,
   );
