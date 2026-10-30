@@ -811,6 +811,25 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 
 ---
 
+## Production Launch — Desktop Download
+
+**Plan:** `tasks/plan-production-launch.md` (approved decisions 2026-10-31: portable ZIP, desktop-only landing, unsigned v1)
+
+- [x] **T1** Capture real desktop screenshots into `public/screenshots/` (setup, home, accounts, upload; Settings left out — its capture showed the dummy build URL and a disabled update check)
+- [ ] **T2** `THIRD_PARTY_NOTICES.md` + FFmpeg licence inside the ZIP
+- [ ] **T3** `src/lib/desktopRelease.ts` download constants + test
+- [ ] **T4** `.github/workflows/release.yml` (tag → ZIP, checksums, `update.json`, release)
+- [ ] **T5** `CHANGELOG.md`, automated release steps in the runbook, versioning rule in CONTRIBUTING
+- [ ] **Checkpoint B** `v1.0.0-rc.1` prerelease publishes; `latest` untouched; assets verified
+- [ ] **T6** Desktop-first landing page with download CTA (dashboard links removed)
+- [ ] **T7** `index.html` metadata, JSON-LD and OG image for the download page
+- [ ] **Checkpoint C** Web gates green, desktop-only page verified at 390 px and 1440 px
+- [ ] **T8** README restructured as a product page (download, install, requirements)
+- [ ] **T9** Repository description/topics/homepage, social preview, stray file cleanup
+- [ ] **Checkpoint D** Repository page reads as a desktop product
+- [ ] **T10** Publish `v1.0.0` and verify the download end to end (owner approval required)
+- [ ] **T11** Record the launch in this file and project memory
+
 ## Gate Commands
 
 ```powershell
