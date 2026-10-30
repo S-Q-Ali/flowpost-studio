@@ -33,7 +33,7 @@ const DRIVE_HOSTS = new Set([
   "lh3.googleusercontent.com",
 ]);
 
-/// Whether a Drive download URL may be fetched with the user's Google token.
+/// Whether a URL may be fetched with the user's Google token.
 ///
 /// The URL can arrive in a request body, so a token carrying it is still
 /// untrusted: the bearer never goes to a host outside Google's.
@@ -41,6 +41,22 @@ export function isAllowedDriveUrl(raw: string): boolean {
   try {
     const url = new URL(raw);
     return url.protocol === "https:" && DRIVE_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/// Whether a URL points at the Google APIs host.
+///
+/// Substring checks (`url.includes("googleapis.com")`) also match a path or
+/// query on another host, which would still receive the bearer token.
+export function isGoogleApiUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    return (
+      url.protocol === "https:" &&
+      (url.hostname === "googleapis.com" || url.hostname.endsWith(".googleapis.com"))
+    );
   } catch {
     return false;
   }

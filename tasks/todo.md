@@ -759,6 +759,7 @@ Verified each claim against the code before writing it; nothing below is copied 
   - [x] Shipped dependency audit **0 critical / 0 high**; dev-only majors tracked (review 2026-11-30)
   - [x] Upload failure text cleaned once (log + screen); ADR 0001 corrected; `.gitignore` covers keys
   - [x] Seven edge functions deployed to project `ximorwzknbizpceaoflw` (2026-10-30 13:21, all ACTIVE)
+  - [x] CodeQL flagged three high alerts: `youtube-upload`/`tiktok-upload` decided to attach the Google bearer with `url.includes("googleapis.com")`, which a path or query on another host also matches. Replaced with `isGoogleApiUrl` (exact host) in `_shared/url-guard.ts`, with tests; the two functions need a redeploy
   - [ ] **Owner:** rotate the credentials in git history (R2, IG, FB, YouTube, Gemini, old app password, GCP service account) and enter the new values in the desktop Settings screen once the app is production-ready
 - [x] **6.7** README, ADRs, runbook, release checklist, rollback notes
   - [x] README covers both surfaces, the real secret names, FFmpeg and the actual commands
