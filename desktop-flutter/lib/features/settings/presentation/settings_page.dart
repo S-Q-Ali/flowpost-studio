@@ -97,11 +97,7 @@ class _AccountSection extends ConsumerWidget {
         title: 'Account',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Not signed in'),
-            SizedBox(height: 4),
-            Text('Sign-in arrives with the production build.'),
-          ],
+          children: [Text('Not signed in')],
         ),
       );
     }

@@ -167,10 +167,6 @@ void main() {
 
       expect(find.text('Settings'), findsOneWidget);
       expect(find.text('Not signed in'), findsOneWidget);
-      expect(
-        find.text('Sign-in arrives with the production build.'),
-        findsOneWidget,
-      );
       expect(find.text('Version 1.2.3 (7)'), findsOneWidget);
       expect(find.text('Diagnostics'), findsOneWidget);
       expect(find.text('Log file'), findsOneWidget);

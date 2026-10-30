@@ -179,10 +179,7 @@ void main() {
   testWidgets('navigation rail moves between screens', (tester) async {
     await _pumpApp(tester, _MemoryAccountsRepository(), initialLocation: '/');
 
-    expect(
-      find.text('The native desktop experience starts here.'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Upload a video'), findsOneWidget);
 
     await tester.tap(find.text('Accounts'));
     await tester.pumpAndSettle();
