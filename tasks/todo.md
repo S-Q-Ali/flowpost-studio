@@ -645,6 +645,20 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
 - **Not verified on a real window:** first-run setup and the credentials section were exercised by widget tests at 1024×640 and 200% text, not by eye; a live pass is left for the Phase 6.8 gate.
 - **Standing:** login/signup still does not gate the app (the owner's instruction); the auth guard remains production-gate work.
 
+### Phase 6.5 evidence (2026-10-30)
+
+Measured first, and nothing was optimized: no number crossed its budget, so no product code changed. The `performance-optimization` route (measure → identify → fix → verify) stopped at measure because the fix step had nothing to fix.
+
+- **Size: 32.1 MB in 20 files** for the release payload (`build\windows\x64\runner\Release`): `flutter_windows.dll` 20.3, `app.so` 7.3, `sqlite3.dll` 1.6, `cnativeapi.dll` 1.2, `icudtl.dat` 0.8, plugins and the rest under 0.1 each. The pinned FFmpeg is **161.2 MB in 10 files** (`third_party\ffmpeg\bin`) and rides in the installer beside the exe, so the installed footprint is about 193 MB before media.
+- **Cold start on the release exe, five launches:** 2934, 2328, 2261, 2168, 2334 ms, stopping the clock when `MainWindowHandle` first becomes non-zero (10 ms poll). Run 1 is the first launch after the build. A launch of a freshly built binary measured once at 3276 ms; that reading is the only one over the 3 s budget and was not reproducible afterwards.
+- **A 200-row queue scrolls with no dropped frame** (profile mode, ten flings): 459 frames, p50 5.09 ms, p95 8.09, p99 9.69, **max 11.49**, none over 16.7; the first paint of the list 63.8 ms; RSS 194 MB.
+- **The five-platform compose screen scrolls with no dropped frame** (profile mode, all five platforms selected, eight flings, asserted that the page actually moved): 226 frames, p50 3.75 ms, p95 5.40, p99 7.25, **max 8.67**, none over 16.7; first paint 8.9 ms; RSS 191 MB.
+- **A 68 MB 1080p video does not freeze the window** (profile mode, the real FFmpeg pipeline): 4.87 s end to end, 45 frames, p99 and max **22.7 ms**, **none over 100 ms**, peak RSS **178 MB** — FFmpeg streams, so memory does not follow the file size. Two earlier runs of the same harness peaked at 44.9 and 55.7 ms with 0 frames over 100; the first run of a fresh build hit 116.5 ms once.
+- **The harnesses are checkable, not one-off scripts.** `integration_test/perf_media_test.dart` writes its own 68 MB stress file with the bundled FFmpeg when the file is missing, pumps `MediaPage` directly (the shell's OS lock allows `app.main()` once per process) and reports timings plus peak RSS to `build/perf_media_result.json`. `integration_test/perf_list_test.dart` drives the queue and the compose screen from fakes and writes `build/perf_list_result.json` / `build/perf_publish_result.json`. Both run with `flutter drive --profile -d windows --driver=test_driver/integration_test.dart --target=integration_test/<name>.dart`; plain `flutter test` does not pick them up.
+- **Frame numbers come from profile mode, not debug.** `addTimingsCallback` reports `totalSpan`, and RSS is `ProcessInfo.currentRss` sampled every 100 ms during the media run.
+- **The gate found three time-dependent tests, and the fixture was lying.** `queue_page_test.dart` ("an edit saves the caption and the typed time", "an edit also writes the row into the cache", "an edit of a row that moved on is not written") began failing after 10:00 local: the `post()` helper in `test/support/fake_scheduled_posts.dart` handed the model a **local** `DateTime` while `ScheduledPost.scheduledAt` is documented as a UTC instant, so the edit form's "did the time move?" check saw a move and refused a row whose time was already past. The helper now calls `.toUtc()`, the way the server sends the row; the product code is unchanged and behaves as SPEC-scheduling says (an admin fixing the caption of a waiting row is not blocked by its old time).
+- **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (166 files), `flutter analyze lib test integration_test` no issues, `flutter test` **729 passed**, `flutter build windows --release` succeeded, LF-only bytes on every changed Dart file.
+
 ---
 
 ## Phase 6 — Production Hardening
@@ -671,7 +685,12 @@ The audit ran over the Phase 3.2/3.3 slice only. Every finding was checked again
   - [x] The store: `credentials.json` beside `accounts.json`; saved values win over compiled ones; a service-role key is refused
   - [x] Settings section: enter, test, save, clear; masked; no value in logs or diagnostics
   - [x] First-run setup screen instead of `ConfigErrorApp`; providers reload when the values change
-- [ ] **6.5** Performance: cold start, media, lists, memory, size
+- [x] **6.5** Performance: cold start, media, lists, memory, size
+  - [x] Release size recorded: 32.1 MB payload plus 161.2 MB of bundled FFmpeg
+  - [x] Cold start 2.17–2.93 s over five launches of the release exe
+  - [x] A 68 MB video runs through FFmpeg with no frame over 100 ms and peak RSS at 178 MB
+  - [x] A 200-row queue and the five-platform compose screen scroll with no frame over 16.7 ms
+  - [x] Repeatable harnesses: `integration_test/perf_media_test.dart`, `integration_test/perf_list_test.dart`
 - [ ] **6.6** Security: secrets, tokens, deep links, FFmpeg args, dependencies, RLS notes
 - [ ] **6.7** README, ADRs, runbook, release checklist, rollback notes
 - [ ] **6.8** Phase 6 gate
