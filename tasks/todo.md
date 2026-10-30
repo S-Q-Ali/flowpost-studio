@@ -693,7 +693,7 @@ Read-only audit first (`security-and-hardening` checklist, secret scan of HEAD a
 
 **Verification:** web `npm run build` succeeded and `npm test` **116 passed** (110 + 6); `npm run lint` unchanged at its pre-existing 11 errors in the touched files (all pre-existing `any`/`ts-ignore`, none in new code); desktop `dart format --set-exit-if-changed` clean (166 files), `flutter analyze` no issues, `flutter test` **730 passed**. Edge functions parse-checked with `esbuild`; `deno check` and the `_shared` Deno tests still cannot run here (no `deno`), though the same files do run under vitest.
 
-**Not done, on purpose:** the seven edge-function fixes are **not deployed** — that is a separate, explicit step. History purge is optional; rotation is required and is the owner's action. The hand-off intent file can briefly hold an OAuth `code`; it is deleted as soon as the primary drains it, the code is single-use and short-lived, so it is an accepted risk rather than a fix.
+**Deployed 2026-10-30:** all seven functions are  on project  (deployed 13:21), after the owner supplied a Supabase access token; the token now lives only in the ignored , and the committed  carries a placeholder. History purge is optional; rotation is still required and is the owner's action. The hand-off intent file can briefly hold an OAuth `code`; it is deleted as soon as the primary drains it, the code is single-use and short-lived, so it is an accepted risk rather than a fix.
 
 ---
 
@@ -734,7 +734,8 @@ Read-only audit first (`security-and-hardening` checklist, secret scan of HEAD a
   - [x] `generate-ai-captions` counts the generate path and caps the audio body
   - [x] Shipped dependency audit **0 critical / 0 high**; dev-only majors tracked (review 2026-11-30)
   - [x] Upload failure text cleaned once (log + screen); ADR 0001 corrected; `.gitignore` covers keys
-  - [ ] **Owner:** rotate the credentials in git history (R2, IG, FB, YouTube, Gemini, old app password, GCP service account) and deploy the seven edge functions
+  - [x] Seven edge functions deployed to project `ximorwzknbizpceaoflw` (2026-10-30 13:21, all ACTIVE)
+  - [ ] **Owner:** rotate the credentials in git history (R2, IG, FB, YouTube, Gemini, old app password, GCP service account)
 - [ ] **6.7** README, ADRs, runbook, release checklist, rollback notes
 - [ ] **6.8** Phase 6 gate
   - [ ] `shipping-and-launch` checklist green
