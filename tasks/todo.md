@@ -797,7 +797,8 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 - [x] Gates: `npx tsc -b` 0 errors, `npm test` 116/116, `npm run build` OK, `npm run lint` unchanged (findings only in `supabase/functions` and `tailwind.config.ts`)
 - [x] `graphify update .`; `graphify-out` committed separately
 - [x] Schema drift: the checked-in types were stale (missing `carousel_items`, `oauth_states`, `posts.workflow_item_id`, `workflows.caption_master_prompt`, and `Relationships` on `workflow_items`); the file is regenerated from live. Two dead paths read columns that exist in no schema and were removed: the Upload page workflow-supplement block (`destination_platforms`/`caption_template`/`delay_hours`) and the clone item select (`workflow_items.post_type`/`platforms`/`error_message` — live has `platforms_override`)
-- [ ] **Owner:** push `chore/desktop-production` and open the PR (nothing pushed yet)
+- [x] Pushed both branches and opened the PRs: #49 (`chore/desktop-production` → `feature/native-shell`, 6 commits), #50 (`feature/native-shell` → `main`)
+- [ ] **Owner:** review and merge #49, then #50 (nothing merged)
 - [ ] **Owner:** confirm the live `workflow_items` and `workflows` columns match the migrations before Phase 7
 
 ---
