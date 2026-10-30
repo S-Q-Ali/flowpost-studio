@@ -802,7 +802,11 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 - [x] Pushed both branches and opened the PRs: #49 (`chore/desktop-production` → `feature/native-shell`, 6 commits), #50 (`feature/native-shell` → `main`)
 - [x] CodeQL flagged three new highs: `youtube-upload` and `tiktok-upload` attached the Google bearer after a substring match. `_shared/url-guard.ts` now has an exact-host `isGoogleApiUrl` with tests; both functions redeployed to `ximorwzknbizpceaoflw` on 2026-10-30
 - [x] #49 merged into `feature/native-shell` (`60381f4`, 2026-10-30); #50 now runs Web ✓, Desktop ✓, CodeQL ✓ (no new alerts), lint advisory ✗ as expected
-- [ ] **Owner:** merge #50 when ready — nothing has reached `main` yet
+- [x] #50 merged to `main` (2026-10-31); `main` CI green on Web, Desktop and CodeQL, lint advisory still red
+- [x] `nul` really removed by #58 (squash `53962d6`) — a plain commit, because a merge commit let GitHub's criss-cross restore the file
+- [x] **Dependabot pass, 2026-10-31:** #52–#55 (checkout 7, setup-node 7, cache 6, codeql-action 4) rebased and merged; #59 moved the brand marks into `src/components/BrandIcons.tsx` so lucide 1.x can land; #57 (tooling) replaced by #60 — Tailwind 4, Vite 8, Vitest 5, ESLint 10, TypeScript 6.0.3 (pinned by typescript-eslint's `<6.1.0` peer); #56 superseded by #62 — React 19, Router 7, react-day-picker 10 (calendar moved to the v10 class keys and `Chevron`), with the stale duplicate #61 closed
+- [x] Ruleset `Protect Main Branch` saved and active (PR + linear history, required Web/Desktop/CodeQL, admin bypass)
+- [ ] **Owner:** verify a commit email on GitHub (or author with the noreply address) — the ruleset blocks unattributed commits
 - [ ] **Owner:** confirm the live `workflow_items` and `workflows` columns match the migrations before Phase 7
 
 ---
