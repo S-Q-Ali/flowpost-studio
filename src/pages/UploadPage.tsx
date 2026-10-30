@@ -12,7 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Loader2, Youtube, Instagram, Facebook, Film, Folder, FileIcon } from "lucide-react";
+import { CalendarIcon, Loader2, Film, Folder, FileIcon } from "lucide-react";
+import { FacebookIcon, InstagramIcon, YouTubeIcon } from "@/components/BrandIcons";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { invokeFunction, type InvokeFunctionResult } from "@/lib/invoke";
@@ -1084,7 +1085,7 @@ export default function UploadPage() {
             {selectedPlatforms.includes("youtube") && (
               <div className="space-y-3 border border-border/60 rounded-lg p-4">
                 <div className="flex items-center gap-2">
-                  <Youtube className="h-4 w-4 text-red-500" />
+                  <YouTubeIcon className="h-4 w-4 text-red-500" />
                   <span className="text-sm font-medium text-foreground">YouTube</span>
                   {youtubeQuota && youtubeQuota.percentage >= 50 && (
                     <Badge
@@ -1125,7 +1126,7 @@ export default function UploadPage() {
             {selectedPlatforms.includes("instagram") && (
               <div className="space-y-3 border border-border/60 rounded-lg p-4">
                 <div className="flex items-center gap-2">
-                  <Instagram className="h-4 w-4 text-pink-500" />
+                  <InstagramIcon className="h-4 w-4 text-pink-500" />
                   <span className="text-sm font-medium text-foreground">Instagram</span>
                 </div>
                 <div className="space-y-2">
@@ -1144,7 +1145,7 @@ export default function UploadPage() {
             {selectedPlatforms.includes("facebook") && (
               <div className="space-y-3 border border-border/60 rounded-lg p-4">
                 <div className="flex items-center gap-2">
-                  <Facebook className="h-4 w-4 text-blue-500" />
+                  <FacebookIcon className="h-4 w-4 text-blue-500" />
                   <span className="text-sm font-medium text-foreground">Facebook</span>
                 </div>
                 <div className="space-y-2">

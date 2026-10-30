@@ -26,7 +26,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, BarChart3, Instagram, Facebook, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, BarChart3, AlertCircle, RefreshCw } from "lucide-react";
+import { FacebookIcon, InstagramIcon } from "@/components/BrandIcons";
 import { invokeFunction } from "@/lib/invoke";
 
 type Platform = "instagram" | "facebook";
@@ -65,9 +66,9 @@ interface InsightsResponse {
 
 const platformConfig: Record<Platform, {
   label: string;
-  icon: typeof Instagram;
+  icon: typeof InstagramIcon;
   functionName: string;
-  emptyIcon: typeof Instagram;
+  emptyIcon: typeof InstagramIcon;
   emptyMsg: string;
   connectLink: string;
   stats: {
@@ -85,9 +86,9 @@ const platformConfig: Record<Platform, {
 }> = {
   instagram: {
     label: "Instagram",
-    icon: Instagram,
+    icon: InstagramIcon,
     functionName: "fetch-instagram-insights",
-    emptyIcon: Instagram,
+    emptyIcon: InstagramIcon,
     emptyMsg: "No Instagram accounts connected yet.",
     connectLink: "/accounts",
     stats: {
@@ -104,9 +105,9 @@ const platformConfig: Record<Platform, {
   },
   facebook: {
     label: "Facebook",
-    icon: Facebook,
+    icon: FacebookIcon,
     functionName: "fetch-facebook-insights",
-    emptyIcon: Facebook,
+    emptyIcon: FacebookIcon,
     emptyMsg: "No Facebook pages connected yet.",
     connectLink: "/accounts",
     stats: {
@@ -281,12 +282,12 @@ export default function InsightsPage() {
             <SelectContent>
               <SelectItem value="instagram">
                 <div className="flex items-center gap-2">
-                  <Instagram size={14} /> Instagram
+                  <InstagramIcon size={14} /> Instagram
                 </div>
               </SelectItem>
               <SelectItem value="facebook">
                 <div className="flex items-center gap-2">
-                  <Facebook size={14} /> Facebook
+                  <FacebookIcon size={14} /> Facebook
                 </div>
               </SelectItem>
             </SelectContent>
@@ -355,12 +356,12 @@ export default function InsightsPage() {
             <SelectContent>
               <SelectItem value="instagram">
                 <div className="flex items-center gap-2">
-                  <Instagram size={14} /> Instagram
+                  <InstagramIcon size={14} /> Instagram
                 </div>
               </SelectItem>
               <SelectItem value="facebook">
                 <div className="flex items-center gap-2">
-                  <Facebook size={14} /> Facebook
+                  <FacebookIcon size={14} /> Facebook
                 </div>
               </SelectItem>
             </SelectContent>
