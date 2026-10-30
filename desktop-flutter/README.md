@@ -2,10 +2,11 @@
 
 Flutter Windows client for FlowPost Studio. The shell provides the window,
 tray, single instance, `flowpost://` links, logging, config and theme; the
-Accounts screen manages the six publish targets locally, and the Upload
-screen picks a local video or image and processes it with a bundled FFmpeg.
-An Inno Setup installer ships the app. Identity, captions, upload, publishing
-and scheduling land in later phases.
+Accounts screen manages the six publish targets locally, the Upload screen
+picks a local video or image and processes it with a bundled FFmpeg, and the
+Queue, Calendar, Compose, Drafts and Settings screens cover publishing and
+scheduling, including an offline cache and local drafts. An Inno Setup
+installer ships the app.
 
 Windows 10 1809+ / Windows 11, x64 only.
 
