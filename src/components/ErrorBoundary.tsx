@@ -19,14 +19,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log to desktop file or crash reporting service
-    console.error("Desktop app error:", error, errorInfo);
-    
-    // Send error report for desktop context
-    if (window.__isDesktop) {
-      // TODO: Implement file-based error logging for desktop
-      // window.desktopLogError(error, errorInfo);
-    }
+    console.error("Application error:", error, errorInfo);
   }
 
   render() {

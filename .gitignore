@@ -28,22 +28,13 @@ build/
 *~
 .DS_Store
 
-# Desktop build outputs (keep config, ignore binaries)
-desktop/*.app
-desktop/*.exe
-desktop/*.dmg
-desktop/*.deb
-desktop/*.AppImage
-desktop/out/
+# Desktop build outputs
 FlowPost.exe
 FlowPost.msi
 WebView2Loader.dll
 
 # Local tool installers
 vs_buildtools.exe
-
-# Pake-specific
-pake/
 
 # Skills (opencode internal)
 skills/
@@ -58,6 +49,9 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
+
+# TypeScript incremental build state
+*.tsbuildinfo
 
 # Temporary files
 tmp/

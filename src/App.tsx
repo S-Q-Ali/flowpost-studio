@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,12 +7,10 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "rea
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SecurityQuestionsGate } from "@/components/SecurityQuestionsGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { SystemTray } from "@/components/SystemTray";
 import LoginPage from "./pages/LoginPage";
 import { AppLayout } from "@/components/AppLayout";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { toast } from "sonner";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
@@ -93,40 +91,6 @@ function AppRoutes() {
 }
 
 const App = () => {
-  // Desktop-specific: System tray functionality
-  useEffect(() => {
-    const handleSave = () => {
-      toast.info("Save triggered - use Ctrl+S on current page to save");
-    };
-
-    const handleSchedule = () => {
-      // Navigate to upload page to create new post
-      window.location.href = "/upload";
-    };
-
-    const handleCloseDialog = () => {
-      // Close modals - individual pages listen for this event
-      window.dispatchEvent(new CustomEvent("flowpost:close-dialog"));
-    };
-
-    const handleNotify = (e: CustomEvent) => {
-      const { title, body, icon } = e.detail || {};
-      toast.info(`${title}: ${body}`);
-    };
-
-    window.addEventListener("flowpost:save", handleSave);
-    window.addEventListener("flowpost:schedule", handleSchedule);
-    window.addEventListener("flowpost:close-dialog", handleCloseDialog);
-    window.addEventListener("flowpost:notify", handleNotify);
-
-    return () => {
-      window.removeEventListener("flowpost:save", handleSave);
-      window.removeEventListener("flowpost:schedule", handleSchedule);
-      window.removeEventListener("flowpost:close-dialog", handleCloseDialog);
-      window.removeEventListener("flowpost:notify", handleNotify);
-    };
-  }, []);
-
   return (
     <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
       <TooltipProvider>
@@ -135,7 +99,6 @@ const App = () => {
         <ErrorBoundary>
           <AuthProvider>
             <BrowserRouter>
-              <SystemTray />
               <AppRoutes />
             </BrowserRouter>
           </AuthProvider>
