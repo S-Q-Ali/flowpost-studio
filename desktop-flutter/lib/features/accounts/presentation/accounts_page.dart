@@ -24,13 +24,6 @@ class AccountsPage extends ConsumerWidget {
             'Connect the channels FlowPost publishes to.',
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Local preview: connections are saved on this PC until sign-in is wired.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
           const SizedBox(height: 20),
           Expanded(
             child: accounts.when(

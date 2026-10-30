@@ -13,7 +13,7 @@ void main() {
     updateManifestUrl: '',
   );
 
-  testWidgets('app boots to the placeholder home screen', (tester) async {
+  testWidgets('app boots to the home screen', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [seededConfig(testConfig)],
@@ -21,7 +21,7 @@ void main() {
       ),
     );
     expect(find.text('FlowPost Studio'), findsOneWidget);
-    expect(find.textContaining('native desktop experience'), findsOneWidget);
+    expect(find.textContaining('Upload a video'), findsOneWidget);
   });
 
   testWidgets(

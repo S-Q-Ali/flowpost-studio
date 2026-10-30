@@ -811,6 +811,45 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 
 ---
 
+## Production Launch — Desktop Download
+
+**Plan:** `tasks/plan-production-launch.md` (approved decisions 2026-10-31: portable ZIP, desktop-only landing, unsigned v1)
+
+- [x] **T1** Capture real desktop screenshots into `public/screenshots/` (setup, home, accounts, upload; Settings left out — its capture showed the dummy build URL and a disabled update check)
+- [ ] **T2** `THIRD_PARTY_NOTICES.md` + FFmpeg licence inside the ZIP
+- [ ] **T3** `src/lib/desktopRelease.ts` download constants + test
+- [ ] **T4** `.github/workflows/release.yml` (tag → ZIP, checksums, `update.json`, release)
+- [ ] **T5** `CHANGELOG.md`, automated release steps in the runbook, versioning rule in CONTRIBUTING
+- [ ] **Checkpoint B** `v1.0.0-rc.1` prerelease publishes; `latest` untouched; assets verified
+- [ ] **T6** Desktop-first landing page with download CTA (dashboard links removed)
+- [ ] **T7** `index.html` metadata, JSON-LD and OG image for the download page
+- [ ] **Checkpoint C** Web gates green, desktop-only page verified at 390 px and 1440 px
+- [ ] **T8** README restructured as a product page (download, install, requirements)
+- [ ] **T9** Repository description/topics/homepage, social preview, stray file cleanup
+- [ ] **Checkpoint D** Repository page reads as a desktop product
+- [ ] **T10** Publish `v1.0.0` and verify the download end to end (owner approval required)
+- [ ] **T11** Record the launch in this file and project memory
+
+## Desktop Identity — Sign-in Before v1.0.0
+
+**Plan:** `tasks/plan-identity.md` (awaiting approval) · **Spec:** `docs/spec/SPEC-identity.md`
+
+- [ ] **I1** `supabase_flutter` + `flutter_secure_storage`; single Supabase bootstrap seam
+- [ ] **I2** `IdentityStore` / `SecureIdentityStore` / `MemoryIdentityStore`
+- [ ] **I3** Auth repository, admin check, typed error mapping
+- [ ] **I4** OAuth flow: state generation, callback validation, consume-before-exchange
+- [ ] **I5** Identity controller, session wiring, startup restore, logout, token expiry
+- [ ] **I6** First-run `flowpost://` registration in HKCU
+- [ ] **Checkpoint A** Analyze, format, identity unit tests, release build links
+- [ ] **I7** Login page (email/password + Google)
+- [ ] **I8** Security questions page (verify + setup)
+- [ ] **I9** Callback page and router guard
+- [ ] **I10** Settings account section and sign-out
+- [ ] **Checkpoint B** All Flutter gates green with fakes
+- [ ] **I11** Harden `verify-security-questions` with JWT + admin check
+- [ ] **I12** Deploy, redirect allowlist, real config, manual sign-in gate
+- [ ] **I13** Identity gate, then resume launch T2
+
 ## Gate Commands
 
 ```powershell

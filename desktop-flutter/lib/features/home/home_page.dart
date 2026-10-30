@@ -71,7 +71,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'The native desktop experience starts here.',
+            'Upload a video, write captions, and schedule it across platforms.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 12),
