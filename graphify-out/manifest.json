@@ -18,14 +18,14 @@
     "semantic_hash": "bc484741cdf3591af5da7d9f3da3a647"
   },
   "package.json": {
-    "mtime": 1793391571.470028,
-    "seen": 1793392570.0051033,
-    "ast_hash": "c18e5bde02a85a08e1c73080fc681090",
+    "mtime": 1793394843.6113226,
+    "seen": 1793399054.269456,
+    "ast_hash": "8c32260927e2fabfcf2e9640837fbfc5",
     "semantic_hash": ""
   },
   "postcss.config.js": {
-    "mtime": 1793391575.160088,
-    "seen": 1793392570.0051079,
+    "mtime": 1793393699.540962,
+    "seen": 1793394151.8880355,
     "ast_hash": "0f8aa602547b154dc06be77b007c51d2",
     "semantic_hash": ""
   },
@@ -126,9 +126,9 @@
     "semantic_hash": "854ce263491269d5b7db6d0828a63f9a"
   },
   "src/components/ui/calendar.tsx": {
-    "mtime": 1793389043.5096076,
-    "seen": 1793392570.011889,
-    "ast_hash": "abdbac10539dadbb3344eb812f129ae2",
+    "mtime": 1793394843.6139095,
+    "seen": 1793399054.274253,
+    "ast_hash": "15fb788f26c3f85fb17e2f6f0d6ec179",
     "semantic_hash": ""
   },
   "src/components/ui/card.tsx": {
@@ -294,14 +294,14 @@
     "semantic_hash": ""
   },
   "src/lib/captions.ts": {
-    "mtime": 1793392069.0607767,
-    "seen": 1793392570.0241644,
+    "mtime": 1793393699.543963,
+    "seen": 1793394151.898291,
     "ast_hash": "92581dd0d473bfe5638dd3c63760b611",
     "semantic_hash": ""
   },
   "src/lib/driveToMegaTransfer.ts": {
-    "mtime": 1793392069.2184465,
-    "seen": 1793392570.0241668,
+    "mtime": 1793393699.5449638,
+    "seen": 1793394151.898293,
     "ast_hash": "14312bf9b9cdaba001dc4ef04340cc65",
     "semantic_hash": ""
   },
@@ -444,8 +444,8 @@
     "semantic_hash": ""
   },
   "src/test/setup.ts": {
-    "mtime": 1793392109.7415266,
-    "seen": 1793392570.0281153,
+    "mtime": 1793393699.5459628,
+    "seen": 1793394151.9067633,
     "ast_hash": "9884b9904ddf8c74ef45f1ed97dffcaf",
     "semantic_hash": ""
   },
@@ -684,14 +684,14 @@
     "semantic_hash": ""
   },
   "vite.config.ts": {
-    "mtime": 1793392150.4091294,
-    "seen": 1793392570.0372138,
+    "mtime": 1793393699.5470147,
+    "seen": 1793394151.9203064,
     "ast_hash": "4dbcf31564a19b4de14df8d94e3456ca",
     "semantic_hash": ""
   },
   "vitest.config.ts": {
-    "mtime": 1793392150.2783785,
-    "seen": 1793392570.0372174,
+    "mtime": 1793393699.5480576,
+    "seen": 1793394151.920309,
     "ast_hash": "8a9821c82e28bdfb16a5330d7503b15b",
     "semantic_hash": ""
   },
@@ -1602,8 +1602,8 @@
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
-    "mtime": 1793392109.52926,
-    "seen": 1793392570.0074651,
+    "mtime": 1793393699.5419588,
+    "seen": 1793394151.889927,
     "ast_hash": "a6b98bae65a949f54aecc391b769a07c",
     "semantic_hash": ""
   },
@@ -2802,9 +2802,9 @@
     "semantic_hash": ""
   },
   "tasks/todo.md": {
-    "mtime": 1793389044.0576754,
-    "seen": 1793392570.0548785,
-    "ast_hash": "8bf5c1a8930239527ba919425d4c5427",
+    "mtime": 1793398997.5880377,
+    "seen": 1793399054.3605206,
+    "ast_hash": "6ee834fd5c7df22d32d7355c29fc650f",
     "semantic_hash": ""
   },
   ".opencode/skills/theme-factory/theme-showcase.pdf": {
@@ -2880,9 +2880,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/home/home_page.dart": {
-    "mtime": 1793389040.5392234,
-    "seen": 1793392570.0038145,
-    "ast_hash": "964fa5bdb413a088e1d396acd4c5a47a",
+    "mtime": 1793398658.699595,
+    "seen": 1793399054.2310846,
+    "ast_hash": "b6b555c6c92ed6f31bcd8882d8dc235c",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/main.dart": {
@@ -2922,9 +2922,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/home/home_page_test.dart": {
-    "mtime": 1793389042.4723103,
-    "seen": 1793392570.0041924,
-    "ast_hash": "c2579af27cf8935fa97b874ca3195b2b",
+    "mtime": 1793398663.5476582,
+    "seen": 1793399054.254714,
+    "ast_hash": "39cd1d3cfb3e3552a6f1989fe1ead1c2",
     "semantic_hash": ""
   },
   "desktop-flutter/windows/flutter/generated_plugin_registrant.cc": {
@@ -3132,15 +3132,15 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/accounts/presentation/accounts_page.dart": {
-    "mtime": 1793389040.518047,
-    "seen": 1793392570.003811,
-    "ast_hash": "de54bdc2e2ab0d41bcda119a53bafa21",
+    "mtime": 1793398663.3308797,
+    "seen": 1793399054.2310774,
+    "ast_hash": "f866a4a23532cbb621f593fce9d11ce1",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/accounts/accounts_page_test.dart": {
-    "mtime": 1793389042.4701462,
-    "seen": 1793392570.0041845,
-    "ast_hash": "d0f773795f2bc6d624eaa58e90d88bec",
+    "mtime": 1793398670.4802785,
+    "seen": 1793399054.2543561,
+    "ast_hash": "567b312a4ef64eae67a90c54245fbc9e",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/accounts/accounts_repository_test.dart": {
@@ -3876,9 +3876,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/settings/presentation/settings_page.dart": {
-    "mtime": 1793389042.1042018,
-    "seen": 1793392570.004084,
-    "ast_hash": "de49e850e98701e102fc3e55233b8127",
+    "mtime": 1793398670.3814292,
+    "seen": 1793399054.2463052,
+    "ast_hash": "d1f7adaf6facffa1ffe5772eea5527f2",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/settings/settings_providers.dart": {
@@ -3906,9 +3906,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/settings/settings_page_test.dart": {
-    "mtime": 1793389042.9587417,
-    "seen": 1793392570.0043695,
-    "ast_hash": "51c1129799c61098df0368fe767a4741",
+    "mtime": 1793398663.9571705,
+    "seen": 1793399054.2633753,
+    "ast_hash": "e350d728800f709da8147461edab978b",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/settings/settings_providers_test.dart": {
@@ -4170,14 +4170,14 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1793391474.1806083,
-    "seen": 1793392570.0372424,
+    "mtime": 1793393699.5119636,
+    "seen": 1793394151.921643,
     "ast_hash": "e943d00377859855f4943701c2dc2f6b",
     "semantic_hash": ""
   },
   ".github/workflows/codeql.yml": {
-    "mtime": 1793391474.1816013,
-    "seen": 1793392570.0372462,
+    "mtime": 1793393699.5139658,
+    "seen": 1793394151.9216456,
     "ast_hash": "ea1402d9cf1c24dd0ffac937ebec7fc0",
     "semantic_hash": ""
   },
@@ -4215,6 +4215,12 @@
     "mtime": 1793391299.3565545,
     "seen": 1793392570.0085924,
     "ast_hash": "d4974be56eb4435b1fb9b0a4a68f2fe6",
+    "semantic_hash": ""
+  },
+  "tasks/plan-production-launch.md": {
+    "mtime": 1793398038.366631,
+    "seen": 1793399054.3603108,
+    "ast_hash": "a73180e48efe28ba0885147cc202c9bb",
     "semantic_hash": ""
   }
 }
