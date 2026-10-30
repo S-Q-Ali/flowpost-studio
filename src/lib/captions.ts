@@ -102,7 +102,8 @@ async function downloadVideo(
     }
   }
 
-  return new Blob(chunks);
+  // Stream chunks are typed ArrayBufferLike; Blob accepts them at runtime.
+  return new Blob(chunks as BlobPart[]);
 }
 
 async function extractFrames(videoBlob: Blob, signal?: AbortSignal): Promise<string[]> {
