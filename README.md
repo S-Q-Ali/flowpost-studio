@@ -1,5 +1,8 @@
 # FlowPost Studio
 
+[![CI](https://github.com/S-Q-Ali/flowpost-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/S-Q-Ali/flowpost-studio/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+
 > Upload once, publish everywhere. A multi-platform video and image scheduling dashboard for YouTube Shorts, Instagram Reels and Stories, Facebook Pages, TikTok and LinkedIn, with a web dashboard and a native Windows client.
 
 ## What is in this repository
@@ -175,6 +178,8 @@ cd desktop-flutter && flutter test        # Flutter unit, provider and widget te
 - `docs/adr/` — identity, FFmpeg bundling, local cache, credentials
 - `docs/runbook.md` — support, release and rollback
 - `USER_GUIDE.md` — end-user guide for the dashboard
+- `CONTRIBUTING.md` — setup, the gates CI enforces, commit and pull request rules
+- `SECURITY.md` — how to report a vulnerability privately
 - `tasks/plan.md` and `tasks/todo.md` — roadmap and phase evidence
 
 ## License

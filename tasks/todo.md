@@ -708,6 +708,17 @@ Verified each claim against the code before writing it; nothing below is copied 
 - **Verification:** every command in the README was run: `npm test` **116 passed**, `npm run build` succeeded. Desktop commands were the ones already gated in 6.5/6.6.
 - **Open:** a second person has not yet built from the docs (the plan's verify step); that is the owner's check.
 
+### GitHub production readiness (2026-10-30)
+
+- **CI** (`.github/workflows/ci.yml`): `web` job runs `npm ci`, `tsc --noEmit`, `npm test`, `npm run build` and `npm audit --omit=dev --audit-level=high`; `desktop` job runs format, analyze and test on `windows-latest` with the pinned FFmpeg fetched and cached by the script's hash; both run on pull requests and pushes to `main`, with a concurrency group that cancels superseded runs.
+- **Lint is advisory on purpose.** `npm run lint` still reports 95 pre-existing `any` errors in `src` (and the Deno functions have never been covered by this browser-oriented config), so the job runs with `continue-on-error`; the type check and tests are the blocking gates. Clearing that baseline is tracked work, not a silently disabled rule.
+- **CodeQL** (`security-and-quality`) for JavaScript/TypeScript weekly and on pull requests; Dart has no supported CodeQL extractor, so the desktop relies on `flutter analyze` plus the tests.
+- **Dependabot** for npm (grouped into shipped and tooling), pub, and GitHub Actions.
+- **`SECURITY.md`** (private advisory route, scope, no-secrets rule), **`CONTRIBUTING.md`** (setup, gates, commit and PR rules), PR template, typed bug and feature issue forms, `.editorconfig`.
+- **Removed the stale `bun.lock`/`bun.lockb`** (last written in March, while `package-lock.json` is what `npm ci` uses).
+- **Verified:** `tsc --noEmit` exit 0, `npm test` 116 passed, `npm run build` ok, `npm audit --omit=dev --audit-level=high` exit 0, `dart format --output=none --set-exit-if-changed` exit 0, `npm ci --dry-run` exit 0, every new YAML parsed with the `yaml` package; the workflows themselves have not run on GitHub yet.
+- **Owner:** enable branch protection on `main` (CI required, no direct pushes) after the first push, and keep `feature/native-shell` unpushed until the owner asks.
+
 ---
 
 ## Phase 6 — Production Hardening

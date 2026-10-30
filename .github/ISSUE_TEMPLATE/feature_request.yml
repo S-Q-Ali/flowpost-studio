@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a capability for the dashboard or the desktop client
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can you not do today, and what does it cost you?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including doing nothing, or a smaller version of the idea.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Surfaces
+      options:
+        - label: Windows desktop client
+        - label: Web dashboard
+        - label: Backend / edge functions
