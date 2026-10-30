@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-muted-foreground mb-4">
               The app encountered an error. Please restart.
             </p>
-            {process.env.NODE_ENV === "development" && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <pre className="text-xs bg-muted p-4 rounded overflow-auto text-left">
                 {this.state.error.message}
               </pre>
