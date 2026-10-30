@@ -215,6 +215,11 @@ Deno.serve(async (req) => {
     if (!audioBase64) {
       return json({ error: "audio_base64 is required" }, 400);
     }
+    // Whisper takes 25 MB; base64 adds a third, so this is the cheap ceiling
+    // that keeps the function from buffering an unbounded body.
+    if (audioBase64.length > 34_000_000) {
+      return json({ error: "The audio file is too large" }, 413);
+    }
     try {
       const binary = Uint8Array.from(atob(audioBase64), (c) => c.charCodeAt(0));
       const formData = new FormData();
@@ -318,7 +323,7 @@ Deno.serve(async (req) => {
     } catch (err) {
       console.error("get-file-token error", err);
       return json(
-        { error: err instanceof Error ? err.message : "Unknown error" },
+        { error: "Could not prepare the file" },
         500,
       );
     }
@@ -329,6 +334,10 @@ Deno.serve(async (req) => {
   if (!itemId) {
     return json({ error: "workflow_item_id is required" }, 400);
   }
+  // The session path is counted like the other two proxy modes; a full
+  // generation costs a transcription plus a chat call.
+  const generateQuota = await chatQuota(authResult, "captions-generate", 30);
+  if (!generateQuota.allowed) return json({ error: generateQuota.error }, 429);
 
   try {
     const { data: item, error: itemError } = await supabase

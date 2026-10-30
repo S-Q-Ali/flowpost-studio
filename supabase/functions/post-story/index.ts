@@ -103,8 +103,11 @@ Deno.serve(async (req) => {
     postId = body.postId;
     mediaTypeInput = body.mediaType;
 
-    // Retry path: only postId is provided, look up data from DB
-    if (postId && (!body.videoUrl || !body.accessToken || !body.accountId)) {
+    // Only the scheduler and the workflow run hold the raw credentials; a
+    // browser session publishes rows it owns, by post id.
+    const isServiceCaller = auth.kind === "service-role" || auth.kind === "cron";
+
+    if (postId) {
       const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
 
       const { data: storyPost } = await supabase
@@ -120,39 +123,52 @@ Deno.serve(async (req) => {
       const access = checkPostAccess(auth, storyPost);
       if (!access.ok) return json({ error: access.error }, access.status);
 
-      const { data: video } = await supabase
-        .from("videos")
-        .select("file_url, media_type")
-        .eq("id", storyPost.video_id)
-        .single();
+      const rawFields = !!(body.videoUrl && body.accessToken && body.accountId);
+      if (rawFields) {
+        if (!isServiceCaller) {
+          return json({ error: "Raw credentials are not allowed for this caller" }, 403);
+        }
+        accountId = body.accountId!;
+        videoUrl = body.videoUrl!;
+        accessToken = body.accessToken!;
+      } else {
+        const { data: video } = await supabase
+          .from("videos")
+          .select("file_url, media_type")
+          .eq("id", storyPost.video_id)
+          .single();
 
-      if (!video?.file_url) {
-        return json({ error: "Video URL not found" }, 404);
+        if (!video?.file_url) {
+          return json({ error: "Video URL not found" }, 404);
+        }
+
+        const { data: acc } = await supabase
+          .from("connected_accounts")
+          .select("access_token")
+          .eq("account_id", storyPost.account_id)
+          .eq("platform", platform)
+          .single();
+
+        if (!acc?.access_token) {
+          return json({ error: "Access token not found" }, 404);
+        }
+
+        accountId = storyPost.account_id;
+        videoUrl = video.file_url;
+        accessToken = await decrypt(acc.access_token);
+        if (!mediaTypeInput) mediaTypeInput = video.media_type;
       }
-
-      const { data: acc } = await supabase
-        .from("connected_accounts")
-        .select("access_token")
-        .eq("account_id", storyPost.account_id)
-        .eq("platform", platform)
-        .single();
-
-      if (!acc?.access_token) {
-        return json({ error: "Access token not found" }, 404);
-      }
-
-      accountId = storyPost.account_id;
-      videoUrl = video.file_url;
-      accessToken = await decrypt(acc.access_token);
-      if (!mediaTypeInput) mediaTypeInput = video.media_type;
-    } else if (!body.videoUrl || !body.accessToken || !body.accountId) {
-      // First attempt from process-workflow — raw fields required
-      return json(
-        { error: "postId with videoUrl, accessToken and accountId are required, or provide all raw fields" },
-        400,
-      );
     } else {
-      // First attempt: use provided raw fields
+      if (!isServiceCaller) {
+        return json({ error: "postId is required" }, 400);
+      }
+      // First attempt from process-workflow — raw fields required
+      if (!body.videoUrl || !body.accessToken || !body.accountId) {
+        return json(
+          { error: "postId with videoUrl, accessToken and accountId are required, or provide all raw fields" },
+          400,
+        );
+      }
       accountId = body.accountId;
       videoUrl = body.videoUrl;
       accessToken = body.accessToken;
