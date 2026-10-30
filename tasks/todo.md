@@ -693,7 +693,7 @@ Read-only audit first (`security-and-hardening` checklist, secret scan of HEAD a
 
 **Verification:** web `npm run build` succeeded and `npm test` **116 passed** (110 + 6); `npm run lint` unchanged at its pre-existing 11 errors in the touched files (all pre-existing `any`/`ts-ignore`, none in new code); desktop `dart format --set-exit-if-changed` clean (166 files), `flutter analyze` no issues, `flutter test` **730 passed**. Edge functions parse-checked with `esbuild`; `deno check` and the `_shared` Deno tests still cannot run here (no `deno`), though the same files do run under vitest.
 
-**Deployed 2026-10-30:** all seven functions are  on project  (deployed 13:21), after the owner supplied a Supabase access token; the token now lives only in the ignored , and the committed  carries a placeholder. History purge is optional; rotation is still required and is the owner's action. The hand-off intent file can briefly hold an OAuth `code`; it is deleted as soon as the primary drains it, the code is single-use and short-lived, so it is an accepted risk rather than a fix.
+**Deployed 2026-10-30:** all seven functions are `ACTIVE` on project `ximorwzknbizpceaoflw` (deployed 13:21), after the owner supplied a Supabase access token; the token now lives only in the ignored `.env`, and the committed `.env.example` carries a placeholder. History purge is optional; rotation is still required and is the owner's action. The hand-off intent file can briefly hold an OAuth `code`; it is deleted as soon as the primary drains it, the code is single-use and short-lived, so it is an accepted risk rather than a fix.
 
 ---
 
