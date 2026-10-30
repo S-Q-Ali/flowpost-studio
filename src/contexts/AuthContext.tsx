@@ -7,22 +7,6 @@ import {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const TOKEN_KEY = "flowpost_token";
-
-function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-function setStoredToken(token: string | null) {
-  if (typeof window === "undefined") return;
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
-  } else {
-    localStorage.removeItem(TOKEN_KEY);
-  }
-}
-
 type AuthContextValue = {
   isAuthenticated: boolean;
   isVerifying: boolean;
@@ -58,30 +42,6 @@ function clearCache() {
   sessionStorage.removeItem(CACHE_KEY);
 }
 
-const VERIFY_CACHE_KEY = "flowpost_verify_cache";
-
-function getVerifyCache(): { valid: boolean; userId: string } | null {
-  try {
-    const raw = sessionStorage.getItem(VERIFY_CACHE_KEY);
-    if (!raw) return null;
-    const { data, timestamp } = JSON.parse(raw);
-    if (Date.now() - timestamp < 5000) return data;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function setVerifyCache(data: { valid: boolean; userId: string }) {
-  try {
-    sessionStorage.setItem(VERIFY_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
-  } catch {}
-}
-
-function clearVerifyCache() {
-  try { sessionStorage.removeItem(VERIFY_CACHE_KEY); } catch {}
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
@@ -91,144 +51,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    let resolved = false;
-    let timeoutId: ReturnType<typeof setTimeout>;
 
-    const resolve = () => {
-      if (!resolved && !cancelled) {
-        resolved = true;
-        setIsVerifying(false);
-      }
-    };
-
-    // 1. Check custom token (admin)
-    const token = getStoredToken();
-    if (token) {
-      // Check sessionStorage cache first (survives page refreshes within 5s TTL)
-      const cached = getVerifyCache();
-      if (cached) {
-        if (cached.valid) {
-          setIsAuthenticated(true);
-          setUserId(cached.userId ?? "00000000-0000-0000-0000-000000000000");
-          setIsAdmin(true);
-          setPendingSecurityVerification(false);
-          // Check if Supabase session exists in localStorage
-          const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
-          const hasSession = !!localStorage.getItem(storageKey);
-          if (!hasSession) {
-            setStoredToken(null);
-            setIsAuthenticated(false);
-            setUserId(null);
-            setIsAdmin(false);
-          }
-        } else {
-          // Cached as invalid — clear token
-          setStoredToken(null);
-        }
-        resolve();
-        return;
-      }
-
-      supabase.functions.invoke<{ valid?: boolean; userId?: string }>("verify-session", { body: { token } })
-        .then(async ({ data, error }) => {
-          if (cancelled) return;
-          if (data?.valid) {
-            setVerifyCache({ valid: true, userId: data.userId ?? "00000000-0000-0000-0000-000000000000" });
-            setIsAuthenticated(true);
-            setUserId(data.userId ?? "00000000-0000-0000-0000-000000000000");
-            setIsAdmin(true);
-            setPendingSecurityVerification(false);
-            // Check if Supabase session exists in localStorage (synchronous, no API call)
-            const storageKey = `sb-ximorwzknbizpceaoflw-auth-token`;
-            const hasSession = !!localStorage.getItem(storageKey);
-            if (!hasSession) {
-              setStoredToken(null);
-              setIsAuthenticated(false);
-              setUserId(null);
-              setIsAdmin(false);
-            }
-          } else if (!error) {
-            // Token is genuinely invalid (edge function ran successfully)
-            setVerifyCache({ valid: false, userId: "" });
-            setStoredToken(null);
-          }
-          // else: HTTP error (429, 5xx, etc.) — preserve token, try again next load
-          resolve();
-        })
-        .catch(() => {
-          // Network error — preserve token, try again next load
-          resolve();
-        });
-      return;
-    }
-
-    // 2. Check sessionStorage cache (reduces API calls)
+    // Instant restore from this tab's cache so a reload does not flash the login page.
     const cached = getCache();
     if (cached?.userId) {
-      setIsAuthenticated(true);
       setUserId(cached.userId);
       setIsAdmin(cached.isAdmin);
       setPendingSecurityVerification(cached.isAdmin);
-      resolve();
+      setIsAuthenticated(true);
+      setIsVerifying(false);
     }
 
-    // 3. Subscribe to Supabase auth state for fresh logins / session recovery
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (cancelled) return;
-
-        if (event === "SIGNED_IN" && session) {
-          const { data: existing } = await supabase
-            .from("users")
-            .select("id, is_admin")
-            .eq("id", session.user.id)
-            .maybeSingle();
-
-          if (!existing) {
-            localStorage.setItem(SIGNUP_CLOSED_KEY, "true");
-            await supabase.auth.signOut();
-            clearCache();
-            resolve();
-            return;
-          }
-
-          setCache({ userId: existing.id, isAdmin: existing.is_admin });
-
-          if (existing.is_admin) {
-            setIsAdmin(true);
-            setPendingSecurityVerification(true);
-            setIsAuthenticated(true);
-            setUserId(existing.id);
-          } else {
-            setIsAuthenticated(true);
-            setUserId(existing.id);
-          }
-
-          resolve();
-        }
-
-        if (event === "SIGNED_OUT") {
-          const t = getStoredToken();
-          if (!t) {
-            clearCache();
-            setIsAuthenticated(false);
-            setUserId(null);
-            setIsAdmin(false);
-            setPendingSecurityVerification(false);
-          }
-          resolve();
-        }
+    const apply = async (event: string, session: { user: { id: string } } | null) => {
+      if (event === "SIGNED_OUT" || !session) {
+        clearCache();
+        setIsAuthenticated(false);
+        setUserId(null);
+        setIsAdmin(false);
+        setPendingSecurityVerification(false);
+        setIsVerifying(false);
+        return;
       }
-    );
 
-    // Fresh visit (no OAuth hash) → resolve immediately, no 5s delay
-    const hasOAuthHash = window.location.hash.includes("access_token");
-    if (!hasOAuthHash) {
-      resolve();
-    } else {
-      // OAuth callback — wait up to 5s for SIGNED_IN
-      timeoutId = setTimeout(resolve, 5000);
-    }
+      // INITIAL_SESSION / SIGNED_IN: this is also how the persisted Supabase
+      // session is restored on startup and on every desktop launch.
+      const { data: existing } = await supabase
+        .from("users")
+        .select("id, is_admin")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (!existing) {
+        localStorage.setItem(SIGNUP_CLOSED_KEY, "true");
+        await supabase.auth.signOut();
+        clearCache();
+        setIsAuthenticated(false);
+        setUserId(null);
+        setIsVerifying(false);
+        return;
+      }
+
+      const admin = existing.is_admin === true;
+      setCache({ userId: existing.id, isAdmin: admin });
+      setIsAuthenticated(true);
+      setUserId(existing.id);
+      setIsAdmin(admin);
+      setPendingSecurityVerification(admin);
+      setIsVerifying(false);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(apply);
+
+    // Never leave the app spinning if Supabase does not answer.
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) setIsVerifying(false);
+    }, 5000);
 
     return () => {
       cancelled = true;
@@ -299,9 +178,7 @@ useEffect(() => {
   }, []);
 
   const logout = useCallback(async () => {
-    setStoredToken(null);
     clearCache();
-    clearVerifyCache();
     setIsAuthenticated(false);
     setUserId(null);
     setIsAdmin(false);

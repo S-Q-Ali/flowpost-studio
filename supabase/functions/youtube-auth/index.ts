@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
+import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -10,8 +12,9 @@ const YT_CLIENT_ID = Deno.env.get("YT_CLIENT_ID");
 const YT_CLIENT_SECRET = Deno.env.get("YT_CLIENT_SECRET");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
-if (!YT_CLIENT_ID || !YT_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+if (!YT_CLIENT_ID || !YT_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
   console.error("Missing required secrets for youtube-auth function");
 }
 
@@ -20,6 +23,14 @@ const supabaseAdmin = createClient(
   SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { persistSession: false } },
 );
+
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: null,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: SUPABASE_ANON_KEY,
+  sessionLookup: createSessionLookup(supabaseAdmin),
+});
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -116,14 +127,14 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const action = url.searchParams.get("action");
 
-  if (action !== "callback" && action !== "url") {
-    const authHeader = req.headers.get("Authorization");
-    const validKeys = [Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")];
-    const token = authHeader?.replace("Bearer ", "");
-    if (!token || !validKeys.includes(token)) {
-      return json({ error: "Unauthorized" }, 401);
-    }
+  // The Google redirect carries no headers, so the callback is public; every
+  // other action runs for a signed-in caller or the service key.
+  let auth: Awaited<ReturnType<typeof authorize>> | null = null;
+  if (action !== "callback") {
+    auth = await authorize(req);
+    if (!auth.allowed) return json({ error: "Unauthorized" }, 401);
   }
+  const sessionUserId = auth && auth.kind === "session" ? auth.userId : null;
 
   try {
     if (!action) return json({ error: "Missing action" }, 400);
@@ -131,14 +142,19 @@ Deno.serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/youtube-auth?action=callback`;
 
     if (action === "url") {
-      const reqUserId = url.searchParams.get("userId");
-      if (!reqUserId) return json({ error: "Missing userId" }, 400);
+      const owner = resolveSessionOwner(auth, url.searchParams.get("userId"));
+      if (owner.denied) return json({ error: "Unauthorized" }, 401);
+      if (!owner.userId) return json({ error: "Missing userId" }, 400);
+      const state = await createOAuthState(supabaseAdmin, {
+        userId: owner.userId,
+        mode: "youtube",
+      });
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", YT_CLIENT_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("access_type", "offline");
-      authUrl.searchParams.set("state", reqUserId);
+      authUrl.searchParams.set("state", state);
       authUrl.searchParams.set("prompt", "select_account consent");
       authUrl.searchParams.set(
         "scope",
@@ -161,9 +177,16 @@ Deno.serve(async (req) => {
       }
 
       const code = url.searchParams.get("code");
-      const userId = url.searchParams.get("state");
+      const rawState = url.searchParams.get("state") ?? "";
       if (!code) return html("<html><body>Missing code</body></html>", 400);
-      if (!userId) return html("<html><body>Missing user ID in state</body></html>", 400);
+      const oauthState = await consumeOAuthState(supabaseAdmin, rawState);
+      if (!oauthState) {
+        return html(
+          "<html><body>Invalid or expired state. Please start the connection from FlowPost again.</body></html>",
+          400,
+        );
+      }
+      const userId = oauthState.userId;
 
       const tokens = await exchangeCodeForTokens(code, redirectUri);
       const { channelId, channelTitle, subscriberCount } = await fetchChannelInfo(tokens.access_token);
@@ -213,12 +236,13 @@ Deno.serve(async (req) => {
       const accountId = url.searchParams.get("account_id");
       if (!accountId) return json({ error: "Missing account_id" }, 400);
 
-      const { data: account, error: fetchError } = await supabaseAdmin
+      let accountQuery = supabaseAdmin
         .from("connected_accounts")
-        .select("account_id, refresh_token")
+        .select("id, account_id, refresh_token")
         .eq("platform", "youtube")
-        .eq("account_id", accountId)
-        .single();
+        .eq("account_id", accountId);
+      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
+      const { data: account, error: fetchError } = await accountQuery.single();
 
       if (fetchError || !account) return json({ error: "Account not found" }, 404);
       const rawRefreshToken = await decrypt(account.refresh_token);
@@ -233,8 +257,7 @@ Deno.serve(async (req) => {
           access_token: await encrypt(refreshed.access_token),
           token_expiry: tokenExpiry,
         })
-        .eq("platform", "youtube")
-        .eq("account_id", accountId);
+        .eq("id", account.id);
 
       if (updateError) throw updateError;
 
@@ -244,7 +267,7 @@ Deno.serve(async (req) => {
     return json({ error: "Invalid action" }, 400);
   } catch (err) {
     console.error("youtube-auth error", err);
-    return json({ error: err instanceof Error ? err.message : "Unknown error" }, 500);
+    return json({ error: "YouTube connection failed" }, 500);
   }
 });
 

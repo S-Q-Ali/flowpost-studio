@@ -33,10 +33,11 @@ import { CaptionPromptEditor } from "@/components/CaptionPromptEditor";
 import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Clock3, Play, Loader2, Folder, Copy } from "lucide-react";
 import { toast } from "sonner";
 import type { Platform, ConnectedAccount, MasterPrompt } from "@/lib/types";
+import type { Database } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
-import { invokeFunction } from "@/lib/invoke";
+import { invokeFunction, type InvokeFunctionResult } from "@/lib/invoke";
 
 type WorkflowRow = {
   id: string;
@@ -149,6 +150,7 @@ export default function WorkflowsPage() {
   const [isAnyWorkflowRunning, setIsAnyWorkflowRunning] = useState(false);
 
   const loadWorkflows = async () => {
+    if (!userId) return;
     const { data, error } = await supabase
       .from("workflows")
       .select("id, user_id, name, is_active, sheet_url, sheet_id, platforms, youtube_channel_ids, facebook_page_ids, instagram_account_ids, tiktok_account_ids, linkedin_account_ids, youtube_altered_content, post_as_story, max_videos_per_trigger, run_interval_hours, videos_per_run, last_triggered_at, last_manual_triggered_at, run_days, total_posted, media_type, scheduling_mode, custom_schedule, drive_account_id, drive_folder_id, data_source, caption_master_prompt, created_at, updated_at")
@@ -169,6 +171,7 @@ export default function WorkflowsPage() {
   };
 
   const loadAccounts = async () => {
+    if (!userId) return;
     const [{ data: yt }, { data: fb }, { data: ig }, { data: tt }, { data: li }, { data: gd }] = await Promise.all([
       supabase
         .from("connected_accounts")
@@ -262,6 +265,7 @@ export default function WorkflowsPage() {
   };
 
   const fetchDriveAccounts = async () => {
+    if (!userId) return;
     const { data } = await supabase
       .from("connected_accounts")
       .select("id, account_name, account_id, metadata, display_name")
@@ -354,22 +358,23 @@ export default function WorkflowsPage() {
     let hasError = false;
 
     do {
-      const { data, error } = await invokeFunction("google-drive-auth", {
-        body: JSON.stringify({
-          action: "list-files",
-          account_id: selectedDriveId,
-          parent_id: parentId,
-          page_token: pageToken,
-        }),
-      });
-      if (error || !data) {
-        console.error("list-files error:", error);
+      const res: InvokeFunctionResult<{ files?: unknown[]; nextPageToken?: string | null }> =
+        await invokeFunction("google-drive-auth", {
+          body: JSON.stringify({
+            action: "list-files",
+            account_id: selectedDriveId,
+            parent_id: parentId,
+            page_token: pageToken,
+          }),
+        });
+      if (res.error || !res.data) {
+        console.error("list-files error:", res.error);
         toast.error("Failed to list Drive folder. Try reconnecting the account.");
         hasError = true;
         break;
       }
-      if (data.files) allFiles = allFiles.concat(data.files);
-      pageToken = data.nextPageToken ?? null;
+      if (res.data.files) allFiles = allFiles.concat(res.data.files);
+      pageToken = res.data.nextPageToken ?? null;
     } while (pageToken);
 
     if (!hasError) setDriveFolderFiles(allFiles);
@@ -388,6 +393,7 @@ export default function WorkflowsPage() {
   };
 
   const handleSave = async () => {
+    if (!userId) return;
     if (!workflowName.trim()) {
       toast.error("Workflow name is required");
       return;
@@ -419,7 +425,7 @@ export default function WorkflowsPage() {
 
     setIsSaving(true);
     try {
-      const payload: Record<string, unknown> = {
+      const payload: Database["public"]["Tables"]["workflows"]["Insert"] = {
         user_id: userId,
         name: workflowName.trim(),
         is_active: isActive,
@@ -439,7 +445,7 @@ export default function WorkflowsPage() {
         custom_schedule: Object.keys(customSchedule).length > 0 ? customSchedule : null,
         drive_account_id: selectedDriveId,
         data_source: dataSource,
-        caption_master_prompt: captionMasterPrompt,
+        caption_master_prompt: captionMasterPrompt as unknown as Database["public"]["Tables"]["workflows"]["Insert"]["caption_master_prompt"],
       };
 
       if (dataSource === "g_sheet") {
@@ -509,7 +515,7 @@ export default function WorkflowsPage() {
 
     const { data: newWf, error } = await supabase
       .from("workflows")
-      .insert({ ...(settings as any), name: `${wf.name} (Copy)`, is_active: false })
+      .insert({ ...settings, name: `${wf.name} (Copy)`, is_active: false } as unknown as Database["public"]["Tables"]["workflows"]["Insert"])
       .select()
       .single();
 
@@ -517,7 +523,7 @@ export default function WorkflowsPage() {
 
     const { data: items } = await supabase
       .from("workflow_items")
-      .select("id, workflow_id, drive_file_id, file_name, mime_type, file_size, status, created_at, posted_at, sort_order, post_type, platforms, error_message")
+      .select("id, workflow_id, drive_file_id, file_name, mime_type, file_size, status, created_at, posted_at, sort_order")
       .eq("workflow_id", id);
 
     if (items?.length) {

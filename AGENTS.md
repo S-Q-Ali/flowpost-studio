@@ -28,6 +28,33 @@ Map the user's intent to the matching skill automatically:
 - Deploy / launch readiness → `shipping-and-launch`
 - Not sure which skill applies → `using-agent-skills`
 
+## Ponytail — lazy senior dev mode
+
+The [ponytail](https://github.com/DietrichGebert/ponytail) plugin (MIT) is installed via
+`opencode.json` → `@dietrichgebert/ponytail`. It injects its ruleset every turn and adds:
+
+| Command | Use |
+|---|---|
+| `/ponytail lite\|full\|ultra\|off` | Set the intensity (default `full`) |
+| `/ponytail-review` | Review the current diff: bugs, security, load, missing tests, what to cut |
+| `/ponytail-audit` | Same for the whole repo, ranked most-important first |
+| `/ponytail-debt` | List every deferred `shortcut:` comment |
+| `/ponytail-gain` / `/ponytail-help` | Benchmarks / quick reference |
+
+The ladder (applies to every task here, including plans and docs):
+
+1. Does it need to exist? Skip what nobody asked for and name it in one line.
+2. Already in this codebase? Use it the way the surrounding code does.
+3. Standard library / platform feature? Use it unless the project has its own.
+4. Installed dependency? Use it. Never add a dependency for a few lines.
+5. One line a reader gets at a glance? One line.
+6. Otherwise: the minimum code that works.
+
+Lazy about the solution, never about the change itself — finish every caller, test and
+fixture the change touches. Never cut validation at trust boundaries, error handling that
+prevents data loss, security, accessibility, or anything the user asked for. New
+non-trivial logic (branch, loop, parser, money, security) leaves one small test.
+
 ## Execution Model
 
 For every request:

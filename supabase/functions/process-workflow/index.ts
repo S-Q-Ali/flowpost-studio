@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
+import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
@@ -37,6 +38,14 @@ if (!CRON_API_KEY) {
 
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
+});
+
+const authorize = createRequestAuthorizer({
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  cronApiKey: CRON_API_KEY,
+  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
+  anonKey: Deno.env.get("SUPABASE_ANON_KEY"),
+  sessionLookup: createSessionLookup(supabase),
 });
 
 const driveTokenCtx: DriveTokenContext = {
@@ -82,29 +91,13 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  const bearerToken = authHeader?.replace("Bearer ", "");
-
-  const isCronKey = CRON_API_KEY && bearerToken === CRON_API_KEY;
-  const isServiceRole = bearerToken === SUPABASE_SERVICE_ROLE_KEY || isCronKey;
-
-  let isSessionValid = false;
-  if (!isServiceRole) {
-    const adminToken = req.headers.get("x-admin-token");
-    if (adminToken) {
-      const { data: session } = await supabase
-        .from("sessions")
-        .select("id")
-        .eq("token", adminToken)
-        .gte("expires_at", new Date().toISOString())
-        .maybeSingle();
-      isSessionValid = !!session;
-    }
-  }
-
-  if (!isServiceRole && !isSessionValid) {
+  const auth = await authorize(req);
+  if (!auth.allowed) {
     return json({ error: "Unauthorized" }, 401);
   }
+  // A signed-in caller runs its own workflow; the cron and the service key
+  // have no user and run whatever they name.
+  const sessionUserId = auth.kind === "session" ? auth.userId : null;
 
   if (req.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
@@ -155,6 +148,7 @@ Deno.serve(async (req) => {
     const filters: Record<string, unknown> = { is_active: true };
     if (workflowId) {
       filters.id = workflowId;
+      if (sessionUserId) filters.user_id = sessionUserId;
     }
 
     const { data: workflows, error: wfError } = await supabase
@@ -164,7 +158,7 @@ Deno.serve(async (req) => {
 
     if (wfError) {
       console.error("Failed to fetch workflows", wfError);
-      return json({ error: wfError.message }, 500);
+      return json({ error: "Could not load the workflows" }, 500);
     }
 
     const list = (workflows as any[] | null) ?? [];

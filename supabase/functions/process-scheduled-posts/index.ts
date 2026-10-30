@@ -39,6 +39,23 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // A row stays "processing" only while the function that claimed it runs.
+    // One that has been processing for half an hour was cut off — the
+    // platform may or may not have received it — and blocks the queue forever.
+    const staleBefore = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: reaped, error: reapError } = await supabase
+      .from("posts")
+      .update({ status: "failed" })
+      .eq("status", "processing")
+      .lt("scheduled_at", staleBefore)
+      .select("id");
+
+    if (reapError) {
+      console.error("Failed to reap stale processing posts", reapError);
+    } else if ((reaped ?? []).length > 0) {
+      console.log(`Marked ${(reaped ?? []).length} stale processing posts as failed`);
+    }
+
     const now = new Date().toISOString();
     const { data: posts, error: fetchError } = await supabase
       .from("posts")
@@ -79,10 +96,23 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      await supabase
+      // Claim the row before calling the function. The status check in the
+      // filter makes the claim atomic: two overlapping cron runs cannot both
+      // publish the same post.
+      const { data: claimed, error: claimError } = await supabase
         .from("posts")
         .update({ status: "processing" })
-        .eq("id", post.id);
+        .eq("id", post.id)
+        .eq("status", "scheduled")
+        .select("id");
+
+      if (claimError) {
+        console.error(`Failed to claim post ${post.id}`, claimError);
+        continue;
+      }
+      if (!claimed || claimed.length === 0) {
+        continue;
+      }
 
       const res = await fetch(
         `${supabaseUrl}/functions/v1/${functionName}`,
@@ -97,13 +127,16 @@ Deno.serve(async (req) => {
         },
       );
 
-      if (res.ok) {
+      if (res.ok || res.status === 409) {
         processed++;
       } else {
+        // A function that reached the platform writes "published" itself; a
+        // lost answer must not turn that row into a failure.
         await supabase
           .from("posts")
           .update({ status: "failed" })
-          .eq("id", post.id);
+          .eq("id", post.id)
+          .neq("status", "published");
         console.error(`${functionName} failed for post ${post.id}`, await res.text());
       }
     }

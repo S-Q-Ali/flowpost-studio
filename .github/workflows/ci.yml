@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc -b
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit the shipped dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  lint:
+    name: Lint (advisory)
+    # The ESLint baseline still reports `any` and `ts-ignore` findings in the
+    # web app. Keep the run visible without blocking merge until that baseline
+    # is cleared; the type check and tests are the blocking gates.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+  desktop:
+    name: Desktop
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: desktop-flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Version
+        run: flutter --version
+
+      - name: Install packages
+        run: flutter pub get
+
+      - name: Format
+        run: dart format --output=none --set-exit-if-changed lib test integration_test
+
+      - name: Analyze
+        run: flutter analyze lib test integration_test
+
+      - name: Cache FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: |
+            desktop-flutter/third_party/ffmpeg
+            desktop-flutter/third_party/cache
+          key: ffmpeg-${{ hashFiles('desktop-flutter/tool/fetch_ffmpeg.ps1') }}
+
+      - name: Fetch FFmpeg
+        shell: powershell
+        run: ./tool/fetch_ffmpeg.ps1
+
+      - name: Test
+        run: flutter test

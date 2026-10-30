@@ -298,7 +298,12 @@ Deno.serve(async (req) => {
 
     if (action === "sync-pages") {
       const body = await req.json();
-      const { userId, pages, accessToken } = body;
+      const { pages, accessToken } = body ?? {};
+      // A session syncs its own pages only; the service key keeps naming the
+      // owner in the body.
+      const owner = resolveSessionOwner(auth, body?.userId);
+      if (owner.denied) return json({ error: "Unauthorized" }, 401);
+      const userId = owner.userId;
       if (!userId) return json({ error: "Missing userId" }, 400);
 
       // Try Graph API if a user-level access token was provided
@@ -347,7 +352,7 @@ Deno.serve(async (req) => {
 
         if (upsertErr) {
           console.error(`[sync-pages] Failed to upsert page ${pageId}:`, upsertErr);
-          return json({ error: `Failed to sync page ${pageId}: ${upsertErr.message}` }, 500);
+          return json({ error: `Failed to sync page ${pageId}` }, 500);
         }
 
         // Sync linked Instagram account if we have a fresh page access token

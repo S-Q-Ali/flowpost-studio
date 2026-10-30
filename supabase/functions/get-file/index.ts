@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { File as MegaFile, Storage as MegaStorage } from "npm:megajs";
 import { decrypt } from "../_shared/crypto.ts";
+import { isAllowedDriveUrl } from "../_shared/url-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -45,7 +46,12 @@ Deno.serve(async (req) => {
     return new Response("Invalid token payload", { status: 403, headers: corsHeaders });
   }
 
-  if (tokenPayload.exp && Date.now() > tokenPayload.exp) {
+  // Every token is minted with a 15-minute `exp`; a token without one would
+  // be a permanent link to the user's file.
+  if (!tokenPayload.exp) {
+    return new Response("Invalid token payload", { status: 403, headers: corsHeaders });
+  }
+  if (Date.now() > tokenPayload.exp) {
     return new Response("Token expired", { status: 410, headers: corsHeaders });
   }
 
@@ -141,6 +147,13 @@ Deno.serve(async (req) => {
           }
         }
       }
+    }
+
+    // The URL travels in a minted token, but it originates in a request body,
+    // so it is still untrusted: only Google's file hosts are fetched and the
+    // Google bearer is never sent anywhere else.
+    if (!isAllowedDriveUrl(tokenPayload.driveUrl!)) {
+      return new Response("Invalid Drive URL", { status: 400, headers: corsHeaders });
     }
 
     const driveRes = await fetch(tokenPayload.driveUrl!, {

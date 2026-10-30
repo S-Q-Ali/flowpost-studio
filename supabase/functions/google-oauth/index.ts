@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { resolveAllowedRedirect } from "../_shared/url-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -49,36 +50,28 @@ Deno.serve(async (req) => {
     }
 
     const user = exchangeData.user;
-    const email = user.email;
-    const name = user.user_metadata?.full_name || user.user_metadata?.name || email;
-    const avatarUrl = user.user_metadata?.avatar_url || null;
 
     const { data: existingUser } = await supabase
       .from("users")
       .select("id")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
+    // Signups are closed: only a row that already exists may sign in.
     if (!existingUser) {
-      const { error: insertError } = await supabase
-        .from("users")
-        .insert({
-          id: user.id,
-          email: email,
-          name: name,
-          avatar_url: avatarUrl,
-          is_admin: false,
-        });
-
-      if (insertError) {
-        console.error("Failed to create user record:", insertError);
-      }
+      return json({ error: "This account is not allowed to sign in" }, 403);
     }
 
     const token = crypto.randomUUID() + crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    await supabase.from("sessions").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    // Clear only this user's expired rows; a login must never sign out the
+    // other sessions of the account or of anyone else.
+    await supabase
+      .from("sessions")
+      .delete()
+      .eq("user_id", user.id)
+      .lt("expires_at", new Date().toISOString());
 
     const { error: sessionError } = await supabase
       .from("sessions")
@@ -92,26 +85,25 @@ Deno.serve(async (req) => {
       console.error("Failed to create session:", sessionError);
     }
 
+    const appOrigin = Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app";
     const rawRedirect = url.searchParams.get("redirect_uri") || "/";
-    // Allow relative paths or known origins only
-    if (rawRedirect.startsWith("http")) {
-      const allowedOrigins = [
-        "https://flowpost-studio.vercel.app",
-        Deno.env.get("ALLOWED_ORIGIN"),
-        "http://localhost:5173",
-        "http://localhost:3000",
-      ].filter((o): o is string => !!o);
-      const parsedOrigin = new URL(rawRedirect).origin;
-      if (!allowedOrigins.includes(parsedOrigin)) {
-        return json({ error: "Invalid redirect_uri origin" }, 400);
-      }
+    const target = resolveAllowedRedirect(rawRedirect, appOrigin, [
+      "https://flowpost-studio.vercel.app",
+      appOrigin,
+      "http://localhost:5173",
+      "http://localhost:3000",
+    ]);
+    if (!target) {
+      return json({ error: "Invalid redirect_uri" }, 400);
     }
-    const redirectUrl = `${rawRedirect}?token=${token}`;
-    
+    // The fragment keeps the token out of server logs, Referer headers and
+    // the browser history entry's query string.
+    target.hash = `token=${token}`;
+
     return new Response(null, {
       status: 302,
       headers: {
-        "Location": redirectUrl,
+        "Location": target.toString(),
         ...corsHeaders,
       },
     });

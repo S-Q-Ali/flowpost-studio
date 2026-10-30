@@ -1,0 +1,23 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.overview
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+
+# Real config files stay out of git (SPEC-shell: only dev.example.json is committed)
+config/dev.json
+config/prod.json
+
+# Pinned FFmpeg binaries are fetched, not committed (ADR 0002)
+third_party/ffmpeg/
+third_party/cache/

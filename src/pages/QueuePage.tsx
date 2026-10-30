@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Post, Platform, PostStatus } from "@/lib/types";
+import type { Database } from "@/integrations/supabase/types";
 const filters = ["all", "scheduled", "processing", "published", "failed"] as const;
 
 type PostWithDetails = Post & { channelName?: string | null };
@@ -68,7 +69,7 @@ export default function QueuePage() {
       .eq("user_id", userId)
       .order("scheduled_at", { ascending: true });
 
-    let list = (postsData as PostWithDetails[]) ?? [];
+    let list = (postsData as unknown as PostWithDetails[]) ?? [];
     if (filter !== "all") list = list.filter((p) => p.status === filter);
 
     const accountIds = [...new Set(list.map((p) => p.account_id).filter(Boolean))] as string[];
@@ -115,7 +116,7 @@ export default function QueuePage() {
     if (!editPost) return;
     setSaving(true);
     try {
-      const updates: Record<string, unknown> = {
+      const updates: Database["public"]["Tables"]["posts"]["Update"] = {
         caption: editCaption,
         hashtags: editHashtags,
         contains_altered_content: editContainsAltered,

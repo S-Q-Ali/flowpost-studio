@@ -46,6 +46,7 @@ export default function AccountsPage() {
   const [renameDriveValue, setRenameDriveValue] = useState("");
 
   const fetchFacebook = async (): Promise<ConnectedAccount[]> => {
+    if (!userId) return [];
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
@@ -64,6 +65,7 @@ export default function AccountsPage() {
   };
 
   const fetchInstagram = async (): Promise<ConnectedAccount[]> => {
+    if (!userId) return [];
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
@@ -82,6 +84,7 @@ export default function AccountsPage() {
   };
 
   const fetchYouTube = async (): Promise<ConnectedAccount[]> => {
+    if (!userId) return [];
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
@@ -100,6 +103,7 @@ export default function AccountsPage() {
   };
 
   const fetchMega = async (): Promise<ConnectedAccount[]> => {
+    if (!userId) return [];
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
@@ -118,6 +122,7 @@ export default function AccountsPage() {
   };
 
   const fetchDrive = async (): Promise<ConnectedAccount[]> => {
+    if (!userId) return [];
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
@@ -136,6 +141,7 @@ export default function AccountsPage() {
   };
 
   const fetchTikTok = async (): Promise<ConnectedAccount[]> => {
+    if (!userId) return [];
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
@@ -154,6 +160,7 @@ export default function AccountsPage() {
   };
 
   const fetchLinkedIn = async (): Promise<ConnectedAccount[]> => {
+    if (!userId) return [];
     const { data, error } = await supabase
       .from("connected_accounts")
       .select("id, user_id, platform, account_name, account_id, display_name, is_connected, connected_at, token_expiry, metadata")
@@ -320,7 +327,7 @@ export default function AccountsPage() {
         setIsYouTubeConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "youtube-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "YouTube connection failed");
       setIsYouTubeConnecting(false);
@@ -379,7 +386,7 @@ export default function AccountsPage() {
         setIsFacebookConnecting(false);
       }, 10 * 60 * 1000);
 
-      window.open(data.url, "facebook-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Facebook connection failed");
       setIsFacebookConnecting(false);
@@ -422,7 +429,7 @@ export default function AccountsPage() {
         setIsInstagramConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "instagram-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Instagram connection failed");
       setIsInstagramConnecting(false);
@@ -461,7 +468,7 @@ export default function AccountsPage() {
         toast.error("Reconnection timed out. Try again.");
       }, 10 * 60 * 1000);
 
-      window.open(data.url, "facebook-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Facebook reconnection failed");
       setReconnectingFacebookId(null);
@@ -520,7 +527,7 @@ export default function AccountsPage() {
         setIsTikTokConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "tiktok-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "TikTok connection failed");
       setIsTikTokConnecting(false);
@@ -579,7 +586,7 @@ export default function AccountsPage() {
         setIsLinkedInConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "linkedin-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "LinkedIn connection failed");
       setIsLinkedInConnecting(false);
@@ -622,7 +629,7 @@ export default function AccountsPage() {
         setIsDriveConnecting(false);
       }, 5 * 60 * 1000);
 
-      window.open(data.url, "drive-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Google Drive connection failed");
       setIsDriveConnecting(false);
@@ -668,7 +675,7 @@ export default function AccountsPage() {
         toast.error("Reconnection timed out. Try again.");
       }, 30_000);
 
-      window.open(data.url, "drive-auth", "width=600,height=700,scrollbars=yes");
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Google Drive reconnection failed");
       setReconnectingDriveId(null);
@@ -720,7 +727,7 @@ export default function AccountsPage() {
   };
 
   const disconnectYouTube = async (accountId: string | null | undefined) => {
-    if (!accountId) return;
+    if (!accountId || !userId) return;
     const { error } = await supabase
       .from("connected_accounts")
       .update({ is_connected: false })
@@ -738,7 +745,7 @@ export default function AccountsPage() {
   };
 
   const setConnected = async (platform: Platform, accountId: string | null | undefined, next: boolean) => {
-    if (!accountId) return;
+    if (!accountId || !userId) return;
     const { error } = await supabase
       .from("connected_accounts")
       .update({ is_connected: next })
@@ -755,7 +762,7 @@ export default function AccountsPage() {
   };
 
   const disconnectTikTok = async (accountId: string | null | undefined) => {
-    if (!accountId) return;
+    if (!accountId || !userId) return;
     const { error } = await supabase
       .from("connected_accounts")
       .update({ is_connected: false })
@@ -773,7 +780,7 @@ export default function AccountsPage() {
   };
 
   const disconnectLinkedIn = async (accountId: string | null | undefined) => {
-    if (!accountId) return;
+    if (!accountId || !userId) return;
     const { error } = await supabase
       .from("connected_accounts")
       .update({ is_connected: false })
@@ -1273,7 +1280,7 @@ export default function AccountsPage() {
                           size="icon"
                           className="h-8 w-8"
                           disabled={reconnectingDriveId === a.id}
-                          onClick={() => reconnectDrive(a.id!, email ?? a.account_id)}
+                          onClick={() => reconnectDrive(a.id!, email ?? a.account_id ?? undefined)}
                           title="Reconnect this account"
                         >
                           <RefreshCw className={`h-4 w-4 ${reconnectingDriveId === a.id ? "animate-spin" : ""}`} />

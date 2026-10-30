@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SecurityQuestionsGate } from "@/components/SecurityQuestionsGate";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import LoginPage from "./pages/LoginPage";
 import { AppLayout } from "@/components/AppLayout";
 import { Loader2 } from "lucide-react";
@@ -48,7 +49,7 @@ function AppRoutes() {
         className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 bg-background text-foreground"
       >
         <Logo size="lg" />
-         <p className="text-sm text-muted-foreground flex items-center gap-2">
+        <p className="text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 size={18} className="animate-spin" />
           Verifying...
         </p>
@@ -89,18 +90,22 @@ function AppRoutes() {
   );
 }
 
-const App = () => (
-  <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
-  </ThemeProvider>
-);
+const App = () => {
+  return (
+    <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <ErrorBoundary>
+          <AuthProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </AuthProvider>
+        </ErrorBoundary>
+      </TooltipProvider>
+    </ThemeProvider>
+  );
+};
 
 export default App;

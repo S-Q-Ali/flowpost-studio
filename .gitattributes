@@ -1,0 +1,2 @@
+# Dart sources normalize to LF; keeps review diffs honest
+*.dart text eol=lf

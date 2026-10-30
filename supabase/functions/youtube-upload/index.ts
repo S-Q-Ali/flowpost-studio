@@ -3,6 +3,8 @@ import { File } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { checkPostAccess } from "../_shared/post-access.ts";
+import { isGoogleApiUrl } from "../_shared/url-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -126,13 +128,17 @@ Deno.serve(async (req) => {
   try {
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .select("id, video_id, account_id, caption, hashtags, status, platform, contains_altered_content, metadata")
+      .select("id, video_id, account_id, caption, hashtags, status, platform, user_id, contains_altered_content, metadata")
       .eq("id", postId)
       .single();
 
     if (postError || !post) {
       return json({ error: "Post not found" }, 404);
     }
+
+    const access = checkPostAccess(auth, post);
+    if (!access.ok) return json({ error: access.error }, access.status);
+
     if (post.platform !== "youtube") {
       return json({ error: "Post is not for YouTube" }, 400);
     }
@@ -218,7 +224,7 @@ Deno.serve(async (req) => {
 
       const headRes = await fetch(sourceUrl, {
         method: "HEAD",
-        headers: sourceUrl.includes("googleapis.com") && googleAccessToken
+        headers: isGoogleApiUrl(sourceUrl) && googleAccessToken
           ? { Authorization: `Bearer ${googleAccessToken}` }
           : {},
       });
@@ -278,7 +284,7 @@ Deno.serve(async (req) => {
     }
 
     const videoStream = await fetch(sourceUrl, {
-      headers: !megaUrl && sourceUrl.includes("googleapis.com") && googleAccessToken
+      headers: !megaUrl && isGoogleApiUrl(sourceUrl) && googleAccessToken
         ? { Authorization: `Bearer ${googleAccessToken}` }
         : {},
     });

@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { checkPostAccess } from "../_shared/post-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -11,6 +12,28 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL")!;
+
+const ALLOWED_DOMAINS = [
+  "www.googleapis.com",
+  "drive.google.com",
+  "storage.googleapis.com",
+  "mega.nz",
+  R2_PUBLIC_URL,
+  SUPABASE_URL ? new URL(SUPABASE_URL).hostname : "",
+].filter(Boolean);
+
+function isAllowedUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return false;
+    return ALLOWED_DOMAINS.some(
+      (domain) => parsed.hostname === domain || parsed.hostname.endsWith("." + domain),
+    );
+  } catch {
+    return false;
+  }
+}
 
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_SERVICE_ROLE_KEY for post-story function");
@@ -80,13 +103,16 @@ Deno.serve(async (req) => {
     postId = body.postId;
     mediaTypeInput = body.mediaType;
 
-    // Retry path: only postId is provided, look up data from DB
-    if (postId && (!body.videoUrl || !body.accessToken || !body.accountId)) {
+    // Only the scheduler and the workflow run hold the raw credentials; a
+    // browser session publishes rows it owns, by post id.
+    const isServiceCaller = auth.kind === "service-role" || auth.kind === "cron";
+
+    if (postId) {
       const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
 
       const { data: storyPost } = await supabase
         .from("posts")
-        .select("video_id, account_id")
+        .select("video_id, account_id, user_id, status")
         .eq("id", postId)
         .single();
 
@@ -94,45 +120,65 @@ Deno.serve(async (req) => {
         return json({ error: "Post not found" }, 404);
       }
 
-      const { data: video } = await supabase
-        .from("videos")
-        .select("file_url, media_type")
-        .eq("id", storyPost.video_id)
-        .single();
+      const access = checkPostAccess(auth, storyPost);
+      if (!access.ok) return json({ error: access.error }, access.status);
 
-      if (!video?.file_url) {
-        return json({ error: "Video URL not found" }, 404);
+      const rawFields = !!(body.videoUrl && body.accessToken && body.accountId);
+      if (rawFields) {
+        if (!isServiceCaller) {
+          return json({ error: "Raw credentials are not allowed for this caller" }, 403);
+        }
+        accountId = body.accountId!;
+        videoUrl = body.videoUrl!;
+        accessToken = body.accessToken!;
+      } else {
+        const { data: video } = await supabase
+          .from("videos")
+          .select("file_url, media_type")
+          .eq("id", storyPost.video_id)
+          .single();
+
+        if (!video?.file_url) {
+          return json({ error: "Video URL not found" }, 404);
+        }
+
+        const { data: acc } = await supabase
+          .from("connected_accounts")
+          .select("access_token")
+          .eq("account_id", storyPost.account_id)
+          .eq("platform", platform)
+          .single();
+
+        if (!acc?.access_token) {
+          return json({ error: "Access token not found" }, 404);
+        }
+
+        accountId = storyPost.account_id;
+        videoUrl = video.file_url;
+        accessToken = await decrypt(acc.access_token);
+        if (!mediaTypeInput) mediaTypeInput = video.media_type;
       }
-
-      const { data: acc } = await supabase
-        .from("connected_accounts")
-        .select("access_token")
-        .eq("account_id", storyPost.account_id)
-        .eq("platform", platform)
-        .single();
-
-      if (!acc?.access_token) {
-        return json({ error: "Access token not found" }, 404);
-      }
-
-      accountId = storyPost.account_id;
-      videoUrl = video.file_url;
-      accessToken = await decrypt(acc.access_token);
-      if (!mediaTypeInput) mediaTypeInput = video.media_type;
-    } else if (!body.videoUrl || !body.accessToken || !body.accountId) {
-      // First attempt from process-workflow — raw fields required
-      return json(
-        { error: "postId with videoUrl, accessToken and accountId are required, or provide all raw fields" },
-        400,
-      );
     } else {
-      // First attempt: use provided raw fields
+      if (!isServiceCaller) {
+        return json({ error: "postId is required" }, 400);
+      }
+      // First attempt from process-workflow — raw fields required
+      if (!body.videoUrl || !body.accessToken || !body.accountId) {
+        return json(
+          { error: "postId with videoUrl, accessToken and accountId are required, or provide all raw fields" },
+          400,
+        );
+      }
       accountId = body.accountId;
       videoUrl = body.videoUrl;
       accessToken = body.accessToken;
     }
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  if (!isAllowedUrl(videoUrl)) {
+    return json({ error: "Invalid video URL" }, 400);
   }
 
   // Initialize supabase for status writes if postId is provided
@@ -225,7 +271,6 @@ Deno.serve(async (req) => {
     } else {
       // Instagram story flow
       console.log("Instagram account ID:", accountId);
-      console.log("Token prefix:", accessToken.substring(0, 20));
       console.log("Instagram story using URL:", videoUrl);
 
       // Determine API base URL based on token type

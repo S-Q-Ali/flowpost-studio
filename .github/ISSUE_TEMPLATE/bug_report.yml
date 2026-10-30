@@ -1,0 +1,54 @@
+name: Bug report
+description: Something is broken in the dashboard or the desktop client
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before you start: do **not** paste tokens, keys, URLs that contain them, or personal paths. Attach a diagnostics export from **Settings → Diagnostics** if you can.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - Windows desktop client
+        - Web dashboard
+        - Edge function / backend
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown in Settings → About, or the dashboard footer
+      placeholder: e.g. 1.0.0
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Include the on-screen sentence. Do not include tokens or full file paths.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostics or log excerpt
+      description: The export is already cleaned of secrets and paths. If you paste `app.log` by hand, remove anything that looks like a key.
+      render: text

@@ -1,331 +1,187 @@
 # FlowPost Studio
 
-> Upload once, publish everywhere. Multi-platform video and image scheduling dashboard supporting YouTube Shorts, Instagram Reels & Stories, Facebook Pages, TikTok, and LinkedIn.
+[![CI](https://github.com/S-Q-Ali/flowpost-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/S-Q-Ali/flowpost-studio/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
----
+> Upload once, publish everywhere. A multi-platform video and image scheduling dashboard for YouTube Shorts, Instagram Reels and Stories, Facebook Pages, TikTok and LinkedIn, with a web dashboard and a native Windows client.
+
+## What is in this repository
+
+| Part | Where | Stack |
+|---|---|---|
+| Web dashboard | `src/` | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router |
+| Backend | `supabase/` | Supabase Postgres, Auth, Storage and Deno edge functions |
+| Windows desktop client | `desktop-flutter/` | Flutter (Windows), Riverpod, SQLite, bundled FFmpeg |
 
 ## Features
 
-- **Cross-platform publishing** — Upload a video or image once and distribute to YouTube, Instagram, Facebook, TikTok, and LinkedIn simultaneously
-- **AI caption generation** — Auto-generate per-platform captions via Groq Whisper (transcription) + Vision (frame analysis) + LLM pipeline, entirely client-side
-- **Scheduled posting** — Set future publish dates per platform (cron-driven every 5 minutes)
-- **Content calendar** — Monthly overview of all scheduled and published posts
-- **Queue management** — Edit, reschedule, retry, or delete pending posts with bulk operations
-- **Google Sheets & FlowPost workflows** — Two modes: pull content from a Google Sheet or use the built-in workflow_items table. 3 scheduling modes (once daily, every N hours, custom time ranges)
-- **AI-powered workflows** — Auto-generate captions for entire workflow runs with per-platform prompts
-- **Cloudflare R2 cache** — Drive-sourced workflow videos are cached to R2; Facebook, Instagram, and stories fetch from R2 at zero Supabase egress
-- **Connected accounts** — Manage OAuth connections for YouTube, Facebook, Instagram, TikTok, LinkedIn, and Google Drive
-- **Mega integration** — Connect your Mega account or use public share links as an alternate file source alongside Google Drive
-- **Storage manager** — Browse, upload files to, and create folders in both Google Drive and Mega; transfer files from Drive to Mega directly in the browser
-- **Dual theme** — Light ("Warm Cream") and dark ("Warm Cocoa") modes with terracotta accents, follows OS preference
-- **Profile & security** — User profile dashboard with avatar, password change, and security questions for admin 2FA
-- **YouTube quota monitoring** — Dashboard badges warn when daily quota reaches 50% / 80%
-- **TikTok & LinkedIn integration** — Supported with FILE_UPLOAD + DIRECT_POST publishing flow (TikTok) and standard OAuth (LinkedIn)
-- **Insights dashboard** — Instagram and Facebook analytics with adaptive charts and configurable date ranges
+- **Cross-platform publishing** — one upload fans out to YouTube, Instagram, Facebook, TikTok and LinkedIn
+- **Scheduled posting** — per-platform publish times, picked up by a scheduler edge function
+- **Content calendar** — month, week and list views over scheduled and published posts
+- **Queue management** — edit, reschedule, retry or delete pending posts
+- **AI captions** — Groq Whisper transcription, frame analysis and an LLM produce per-platform captions
+- **Workflows** — pull rows from a Google Sheet or the built-in workflow items, on daily, interval or time-window schedules
+- **File sources** — Google Drive, Mega (authenticated or public links) and Cloudflare R2 as a workflow cache
+- **Accounts** — OAuth connections per platform, with tokens encrypted at rest
+- **Insights** — Instagram and Facebook analytics with selectable date ranges
+- **Desktop client** — offline cache and drafts, single instance, tray, deep links, diagnostics export and a first-run setup screen
 
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router v6 |
-| **Backend** | Supabase (PostgreSQL, Auth, Edge Functions running Deno) |
-| **File Storage** | Google Drive (per-user OAuth) + Mega (authenticated or public links) + Cloudflare R2 (workflow cache) |
-| **Social APIs** | YouTube Data API v3, Facebook Graph API v25, Instagram Graph API, TikTok API v2, LinkedIn API |
-| **AI** | Groq API (Whisper for transcription, vision for frame analysis, LLM for caption generation) |
-| **Hosting** | Vercel (frontend), Supabase (edge functions + database) |
-| **Linting** | ESLint with typescript-eslint |
-
----
-
-## Project Structure
+## Project layout
 
 ```
 flowpost-studio/
-├── src/
-│   ├── components/           # UI components (shadcn/ui + custom)
-│   │   ├── ui/               # ~16 shadcn/ui primitives
-│   │   ├── AppLayout.tsx     # Authenticated app shell with sidebar
-│   │   ├── AppSidebar.tsx    # Navigation sidebar
-│   │   ├── BetaBadge.tsx     # Beta indicator badge (TikTok)
-│   │   ├── Logo.tsx          # FlowPost logo
-│   │   └── StatusBadge.tsx   # Post status badge
-│   ├── contexts/
-│   │   └── AuthContext.tsx    # Authentication state management
-│   ├── hooks/                 # Shared React hooks
-│   ├── integrations/
-│   │   └── supabase/          # Supabase client + DB types
-│   ├── lib/
-│   │   ├── types.ts           # App type definitions
-│   │   └── utils.ts           # Utility functions
-│   ├── pages/
-│   │   ├── Dashboard.tsx      # Stats overview
-│   │   ├── UploadPage.tsx     # Video upload + distribution
-│   │   ├── QueuePage.tsx      # Post queue management
-│   │   ├── CalendarPage.tsx   # Content calendar view
-│   │   ├── InsightsPage.tsx   # Instagram / Facebook analytics
-│   │   ├── WorkflowsPage.tsx  # Google Sheets workflow management
-│   │   ├── AccountsPage.tsx   # OAuth account connections + Mega
-│   │   ├── LoginPage.tsx      # Email/password + Google OAuth login
-│   │   └── NotFound.tsx       # 404 page
-│   ├── App.tsx                # Root component with router
-│   └── main.tsx               # Entry point
+├── src/                     # Web dashboard (pages, components, hooks, Supabase client)
 ├── supabase/
-│   ├── functions/              # 26 Deno Edge Functions
-│   │   ├── _shared/             # Shared modules
-│   │   │   ├── crypto.ts             # AES-GCM token encryption
-│   │   │   ├── rate-limit.ts         # Rate limiting helpers
-│   │   │   └── sheet-status.ts       # Sheet status update helper
-│   │   ├── verify-password/
-│   │   ├── verify-session/
-│   │   ├── verify-security-questions/
-│   │   ├── get-quota-usage/
-│   │   ├── get-file/                 # Drive/Mega file proxy
-│   │   ├── generate-ai-captions/     # AI caption generation (Whisper + Vision + LLM)
-│   │   ├── youtube-upload/
-│   │   ├── youtube-auth/
-│   │   ├── facebook-upload/
-│   │   ├── facebook-auth/
-│   │   ├── instagram-upload/
-│   │   ├── tiktok-upload/
-│   │   ├── tiktok-auth/
-│   │   ├── linkedin-upload/
-│   │   ├── linkedin-auth/
-│   │   ├── post-story/
-│   │   ├── process-workflow/        # R2 cache for Drive-sourced videos
-│   │   ├── process-scheduled-posts/
-│   │   ├── update-sheet-status/
-│   │   ├── google-drive-auth/        # Drive OAuth flow
-│   │   ├── google-oauth/             # Google sign-in OAuth
-│   │   ├── mega-auth/                # Mega account management
-│   │   ├── drive-to-mega/            # Browser-streamed Drive→Mega transfer
-│   │   ├── transfer-ticket/          # Temporary Mega session credentials
-│   │   ├── fetch-instagram-insights/
-│   │   └── fetch-facebook-insights/
-│   └── migrations/            # 28 database migration files
-├── public/                    # Static assets
-├── .env.example               # Environment variable template
-└── vercel.json                # Vercel deployment config
+│   ├── functions/           # Deno edge functions; shared code in functions/_shared/
+│   └── migrations/          # SQL migrations, applied in order
+├── desktop-flutter/         # Native Windows client
+│   ├── lib/                 # App code (core, features, router)
+│   ├── test/                # Unit, provider and widget tests
+│   ├── integration_test/    # Windows performance harnesses
+│   └── tool/                # fetch_ffmpeg.ps1
+├── docs/
+│   ├── spec/                # Feature specs
+│   ├── adr/                 # Architecture decision records
+│   └── runbook.md           # Support, release and rollback
+├── tasks/                   # Plan, status and evidence
+└── .env.example             # Environment template (copy to .env)
 ```
 
----
+## Getting started (web dashboard)
 
-## Architecture Overview
+Prerequisites:
 
-```
-┌─────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│   Browser   │────>│    Supabase      │────>│  YouTube API     │
-│  (React)    │     │  Edge Functions   │     │  Facebook API    │
-│             │     │    (Deno)        │     │  Instagram API   │
-│  ┌───────┐  │     │                  │     │  TikTok API      │
-│  │ Drive │  │     │                  │     │  LinkedIn API    │
-│  │ OAuth │  │     │  ┌────────────┐  │     └──────────────────┘
-│  │ Drive │  │     │  ┌────────────┐  │     └──────────────────┘
-│  │ OAuth │  │     │  │process-    │  │
-│  └───────┘  │     │  │workflow    │──┤──── R2 URL (0 egress)
-│             │     │  └───┬───┬────┘  │
-│  ┌───────┐  │     │      │   │       │
-│  │ Mega  │  │     │  ┌───┴───┴────┐  │
-│  │ Auth  │  │     │  │ get-file   │  │
-│  └───────┘  │     │  │ proxy      │  │
-│             │     │  └─────┬──────┘  │
-│             │     │        │         │
-│             │     │  ┌─────┴──────┐  │
-│             │     │  │ Cloudflare │  │
-│             │     │  │ R2 (cache) │  │
-│             │     │  └────────────┘  │
-└─────────────┘     └──────────────────┘
-```
-
-**Data flow:**
-
-1. User authenticates via email/password (admin) or Google OAuth (regular users)
-2. File sources: Google Drive (per-user OAuth) or Mega (authenticated or public links)
-3. For Google Sheets workflows, `process-workflow` reads sheets, resolves each row's source (Drive URL, Mega URL, or `mega:filename` pattern), and creates posts
-4. For Drive-sourced videos, `process-workflow` uploads the file to Cloudflare R2 (presigned URL + raw PUT) and updates the video record with the R2 URL
-5. Facebook, Instagram, and story posts serve the R2 URL directly — **zero Supabase egress** per platform. If R2 upload fails, the `get-file` proxy acts as a fallback (1× egress)
-6. Mega-sourced files and manual uploads still use the `get-file` proxy to stream files directly to the target platform
-7. For immediate publishing, posts fire directly; for scheduled posts, a cron job picks up due posts every 5 minutes
-8. TikTok publishes via FILE_UPLOAD + DIRECT_POST flow (SELF_ONLY privacy in Beta)
-9. All OAuth tokens are encrypted at rest with AES-GCM
-
-**AI caption generation runs entirely in the browser:**
-1. `get-file-token` returns a raw Google Drive OAuth token (no Supabase egress)
-2. Browser downloads the video directly from `googleapis.com` using the Drive token
-3. `AudioContext` + `MediaRecorder` extract audio → sent to **Groq Whisper** (transcription)
-4. `<video>` + `<canvas>` extract 3 frames → sent to **Groq Vision** (celebrity/subject identification)
-5. Transcription + vision results → sent to **Groq GPT-OSS** → generates per-platform captions
-6. Results displayed in modal with per-platform preview; user reviews and applies
-7. All audio/video blobs freed after use (~1.3 GB video + ~50 MB audio)
-
-**Sheet `video_url` supports 3 formats:**
-```
-https://drive.google.com/...  → Drive API
-https://mega.nz/file/HASH#KEY → Mega public link (anonymous)
-mega:filename.mp4             → Mega authenticated (account lookup)
-```
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- A Supabase project with the [migrations](supabase/migrations/) applied
-- Facebook app, YouTube project, Instagram Business account, TikTok developer app, and Google Cloud OAuth client
-
-### Local Development
+- Node.js (LTS) and npm
+- A Supabase project with the migrations in `supabase/migrations/` applied
+- Developer apps for the platforms you want to publish to
 
 ```bash
-# Clone the repository
-git clone <repo-url>
-cd flowpost-studio
-
-# Install dependencies
 npm install
-
-# Set up environment variables
-cp .env.example .env.local
-# Fill in your credentials
-
-# Start the development server
-npm run dev
+cp .env.example .env.local   # then fill in the VITE_ values
+npm run dev                  # http://localhost:8080
 ```
 
-### Deploy Edge Functions
+The dashboard talks to Supabase through `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Every privileged call happens in an edge function; the browser never holds a service-role key.
+
+## Getting started (Windows client)
+
+Prerequisites:
+
+- Flutter (stable channel) with the Windows desktop toolchain, on Windows 10 or 11
+- The pinned FFmpeg build, fetched by the script below
 
 ```bash
-# Install Supabase CLI (if not already installed)
-npm install supabase --save-dev
-
-# Link to your project
-npx supabase link
-
-# Deploy all functions
-npx supabase functions deploy verify-password verify-session verify-security-questions get-quota-usage youtube-upload youtube-auth facebook-upload facebook-auth instagram-upload tiktok-upload tiktok-auth linkedin-upload linkedin-auth post-story process-workflow process-scheduled-posts update-sheet-status google-drive-auth mega-auth get-file generate-ai-captions drive-to-mega transfer-ticket fetch-instagram-insights fetch-facebook-insights
+cd desktop-flutter
+flutter pub get
+powershell -ExecutionPolicy Bypass -File tool\fetch_ffmpeg.ps1
+flutter run -d windows
 ```
 
-### Deploy Database Migrations
+The first start opens a setup screen: enter the Supabase URL, the anon key and (optionally) the update manifest URL. The values are stored in `credentials.json` under `%APPDATA%\com.flowpost\FlowPost`; the same values can be baked in at build time with `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`.
+
+Release build:
+
+```bash
+flutter build windows --release
+```
+
+The output is `desktop-flutter/build/windows/x64/runner/Release/`. FFmpeg is fetched, not committed; run the script once per checkout.
+
+## Backend
+
+### Deploy the edge functions
+
+```bash
+npx supabase login                       # or set SUPABASE_ACCESS_TOKEN
+npx supabase link --project-ref <ref>
+npx supabase functions deploy            # every function in supabase/functions
+```
+
+`supabase/config.toml` decides which functions accept unauthenticated calls. Most functions verify the caller themselves through `functions/_shared/auth.ts` (service role, cron key, frontend key or an admin session token).
+
+### Apply migrations
 
 ```bash
 npx supabase db push
 ```
 
----
+### Secrets
 
-## Environment Variables
+Set these in **Supabase Dashboard → Edge Functions → Secrets** (never in the repository):
 
-Set these in **Supabase Dashboard → Edge Functions → Secrets**:
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_URL` | Project URL |
+| `SUPABASE_ANON_KEY` | Anon key, used to validate caller tokens |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side database access |
+| `ALLOWED_ORIGIN` | Frontend origin allowed by CORS |
+| `FRONTEND_API_KEY` | Key the dashboard sends on function calls |
+| `CRON_API_KEY` | Key the scheduler sends |
+| `APP_PASSWORD` | Legacy admin password gate |
+| `TOKEN_ENCRYPTION_KEY` | 256-bit key for AES-GCM encryption of OAuth tokens |
+| `GOOGLE_SHEET_ID` | Default sheet used by workflows |
+| `FB_APP_ID`, `FB_APP_SECRET` | Facebook app |
+| `IG_APP_ID`, `IG_APP_SECRET` | Instagram app |
+| `YT_CLIENT_ID`, `YT_CLIENT_SECRET` | Google/YouTube OAuth client |
+| `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | TikTok app |
+| `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | LinkedIn app |
+| `GROQ_API_KEY` | Transcription, vision and caption generation |
+| `R2_ENDPOINT`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` | Cloudflare R2 workflow cache |
 
-| Variable | Description |
-|----------|-------------|
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
-| `ALLOWED_ORIGIN` | Frontend URL for CORS (e.g. `https://flowpost-studio.vercel.app`) |
-| `CRON_API_KEY` | API key for cron-triggered functions |
-| `FRONTEND_API_KEY` | Anon key for frontend-called functions |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID (sign-in + Drive) |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
-| `GD_CLIENT_ID` | Google Drive OAuth client ID |
-| `GD_CLIENT_SECRET` | Google Drive OAuth client secret |
-| `TOKEN_ENCRYPTION_KEY` | 256-bit key for AES-GCM OAuth token encryption |
-| `TIKTOK_CLIENT_KEY` | TikTok developer app client key |
-| `TIKTOK_CLIENT_SECRET` | TikTok developer app client secret |
-| `YOUTUBE_CLIENT_ID` | YouTube OAuth client ID |
-| `YOUTUBE_CLIENT_SECRET` | YouTube OAuth client secret |
-| `FACEBOOK_CLIENT_ID` | Facebook app ID |
-| `FACEBOOK_CLIENT_SECRET` | Facebook app secret |
-| `LINKEDIN_CLIENT_ID` | LinkedIn OAuth app client ID |
-| `LINKEDIN_CLIENT_SECRET` | LinkedIn OAuth app client secret |
-| `GROQ_API_KEY` | Groq API key for AI caption generation |
-| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | GCP service account email for Sheets access |
-| `GOOGLE_PRIVATE_KEY` | GCP service account private key |
-| `R2_ENDPOINT` | Cloudflare R2 S3 endpoint URL |
-| `R2_ACCESS_KEY` | Cloudflare R2 access key ID |
-| `R2_SECRET_KEY` | Cloudflare R2 secret access key |
-| `R2_BUCKET` | Cloudflare R2 bucket name |
-| `R2_PUBLIC_URL` | Cloudflare R2 public bucket hostname (e.g. `pub-xxxxxxxxxxxx.r2.dev`) |
+Local tooling reads `.env` (ignored by git). `ACCESS_TOKEN` there is a Supabase personal access token for the CLI only; it is never used by the app and `.env.example` keeps a placeholder.
 
-Frontend variables (in `.env.local`):
+## Scripts
 
-| Variable | Description |
-|----------|-------------|
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
-| `VITE_SUPABASE_PROJECT_ID` | Supabase project reference ID |
+| Script | What it does |
+|---|---|
+| `npm run dev` | Vite dev server on port 8080 |
+| `npm run build` | Production build |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | ESLint over the dashboard |
+| `npm run test` | Vitest (dashboard and `supabase/functions/_shared`) |
+| `npm run test:watch` | Vitest in watch mode |
 
----
+Desktop commands live in `desktop-flutter/`:
 
-## Available Scripts
-
-| Script | Command | Description |
-|--------|---------|-------------|
-| `dev` | `npm run dev` | Start dev server on port 8080 |
-| `build` | `npm run build` | Production build |
-| `test` | `npm run test` | Run test suite (requires Vitest setup) |
-| `lint` | `npm run lint` | Lint all source files |
-| `preview` | `npm run preview` | Preview production build locally |
-
----
+| Command | What it does |
+|---|---|
+| `flutter run -d windows` | Run the client |
+| `flutter build windows --release` | Release build |
+| `flutter analyze lib test integration_test` | Static analysis |
+| `dart format --set-exit-if-changed lib test integration_test` | Format gate |
+| `flutter test` | Unit, provider and widget tests |
+| `flutter drive --profile -d windows --driver=test_driver/integration_test.dart --target=integration_test/perf_list_test.dart` | Windows performance harness |
 
 ## Security
 
-- **Row Level Security** — All tables have RLS enabled with per-user policies
-- **Token Encryption** — All OAuth tokens encrypted at rest with AES-GCM (`TOKEN_ENCRYPTION_KEY`)
-- **CORS** — Restricted via the `ALLOWED_ORIGIN` environment variable on all edge functions
-- **Rate Limiting** — Login and security question endpoints have rate limiting (5 attempts, 15-minute lockout)
-- **SSRF Protection** — Upload functions validate URLs against a domain whitelist before fetching
-- **Secrets Management** — All credentials are stored in Supabase Edge Function secrets, never in the codebase
-- **Admin 2FA** — Admin users must answer security questions after email sign-in
-- **New signups blocked** — Only existing `public.users` records can authenticate
+- Row Level Security on every table; the browser only ever uses the anon key
+- One shared authorizer (`functions/_shared/auth.ts`) for edge functions; owner checks via `resolveSessionOwner` and `checkPostAccess`
+- OAuth tokens encrypted at rest (AES-GCM), OAuth state rows are random, single-use and expire
+- Redirects are allowlisted (`//host` and `/\host` rejected); `get-file` only fetches Google hosts and its tokens expire
+- Stored credentials are validated, masked and kept out of logs and diagnostics
+- Deep links are allowlisted and logged without their query string; FFmpeg is started with an argument list, never a shell
+- Signups are closed: only an existing `public.users` row can sign in
+- No service-role key in either client
 
----
+The reasoning behind each decision is in `docs/adr/`.
 
 ## Testing
 
 ```bash
-npm run test
+npm test                                  # Vitest: dashboard + edge function shared modules
+cd desktop-flutter && flutter test        # Flutter unit, provider and widget tests
 ```
 
-The test suite uses Vitest.
+## Documentation
 
----
-
-## Deployment
-
-### Frontend (Vercel)
-
-The frontend auto-deploys from the Git repository. Vercel detects the Vite configuration and builds automatically.
-
-### Edge Functions (Supabase)
-
-```bash
-npx supabase functions deploy <function-name>
-```
-
-### Database (Supabase)
-
-```bash
-npx supabase db push
-```
-
----
-
-## API References
-
-- [YouTube Data API v3](https://developers.google.com/youtube/v3)
-- [Facebook Graph API](https://developers.facebook.com/docs/graph-api)
-- [Instagram Graph API](https://developers.facebook.com/docs/instagram-api)
-- [TikTok API](https://developers.tiktok.com/)
-- [LinkedIn API](https://developer.linkedin.com/docs)
-- [Groq API](https://console.groq.com/docs)
-- [Supabase Edge Functions](https://supabase.com/docs/guides/functions)
-- [MegaJS](https://github.com/tonistiigi/megajs)
-
----
+- `docs/spec/` — feature specs and decisions
+- `docs/adr/` — identity, FFmpeg bundling, local cache, credentials
+- `docs/runbook.md` — support, release and rollback
+- `USER_GUIDE.md` — end-user guide for the dashboard
+- `CONTRIBUTING.md` — setup, the gates CI enforces, commit and pull request rules
+- `SECURITY.md` — how to report a vulnerability privately
+- `tasks/plan.md` and `tasks/todo.md` — roadmap and phase evidence
 
 ## License
 
-Private project. All rights reserved.
+MIT. See `LICENSE`. The copyright notice stays with the project owner.
