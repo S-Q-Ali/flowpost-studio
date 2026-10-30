@@ -93,11 +93,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setCache({ userId: existing.id, isAdmin: existing.is_admin });
+      const admin = existing.is_admin === true;
+      setCache({ userId: existing.id, isAdmin: admin });
       setIsAuthenticated(true);
       setUserId(existing.id);
-      setIsAdmin(existing.is_admin);
-      setPendingSecurityVerification(existing.is_admin);
+      setIsAdmin(admin);
+      setPendingSecurityVerification(admin);
       setIsVerifying(false);
     };
 

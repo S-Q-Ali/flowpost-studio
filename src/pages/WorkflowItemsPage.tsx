@@ -22,14 +22,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Loader2, Folder, File as FileIcon, FileText, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, XCircle, Archive, ListOrdered, Square } from "lucide-react";
+import { ArrowLeft, Loader2, Folder, File as FileIcon, FileText, Save, RefreshCw, Trash2, CheckCircle2, Circle, CheckCheck, Sparkles, Check, XCircle, Archive, Square } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
 import { CaptionPreviewModal } from "@/components/CaptionPreviewModal";
 import { generateAICaptions, regenerateCaptions, type StepProgress } from "@/lib/captions";
 import { getItemPublishTime } from "@/lib/scheduling";
-import { invokeFunction } from "@/lib/invoke";
+import { invokeFunction, type InvokeFunctionResult } from "@/lib/invoke";
+import type { Database } from "@/integrations/supabase/types";
 
 function formatBytes(b: number): string {
   if (!b) return "0 B";
@@ -159,8 +160,8 @@ export default function WorkflowItemsPage() {
       case "file_name_desc": sorted.sort((a, b) => b.file_name.localeCompare(a.file_name, undefined, { numeric: true })); break;
       case "file_size_asc": sorted.sort((a, b) => (a.file_size ?? 0) - (b.file_size ?? 0)); break;
       case "file_size_desc": sorted.sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0)); break;
-      case "status_ready": sorted.sort((a, b) => a.status === "ready" ? -1 : a.status === "posted" ? 1 : 0); break;
-      case "status_pending": sorted.sort((a, b) => a.status === "pending" ? -1 : 1); break;
+      case "status_ready": sorted.sort((a) => a.status === "ready" ? -1 : a.status === "posted" ? 1 : 0); break;
+      case "status_pending": sorted.sort((a) => a.status === "pending" ? -1 : 1); break;
       case "created_asc": sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); break;
       case "created_desc": sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
     }
@@ -238,13 +239,14 @@ export default function WorkflowItemsPage() {
         { event: "UPDATE", schema: "public", table: "posts" },
         (payload) => {
           const row = payload.new as { workflow_item_id?: string; platform?: string; status?: string };
-          if (!row.workflow_item_id || !row.platform || !row.status) return;
-          if (!ids.includes(row.workflow_item_id)) return;
+          const { workflow_item_id: itemId, platform, status } = row;
+          if (!itemId || !platform || !status) return;
+          if (!ids.includes(itemId)) return;
           setPostStatusMap((prev) => ({
             ...prev,
-            [row.workflow_item_id]: {
-              ...(prev[row.workflow_item_id] ?? {}),
-              [row.platform]: row.status,
+            [itemId]: {
+              ...(prev[itemId] ?? {}),
+              [platform]: status,
             },
           }));
         },
@@ -585,22 +587,23 @@ export default function WorkflowItemsPage() {
     let hasError = false;
 
     do {
-      const { data, error } = await invokeFunction("google-drive-auth", {
-        body: JSON.stringify({
-          action: "list-files",
-          account_id: workflow.drive_account_id,
-          parent_id: workflow.drive_folder_id,
-          page_token: pageToken,
-        }),
-      });
-      if (error || !data) {
-        console.error("list-files error:", error);
+      const res: InvokeFunctionResult<{ files?: unknown[]; nextPageToken?: string | null }> =
+        await invokeFunction("google-drive-auth", {
+          body: JSON.stringify({
+            action: "list-files",
+            account_id: workflow.drive_account_id,
+            parent_id: workflow.drive_folder_id,
+            page_token: pageToken,
+          }),
+        });
+      if (res.error || !res.data) {
+        console.error("list-files error:", res.error);
         toast.error("Failed to scan Drive folder");
         hasError = true;
         break;
       }
-      if (data.files) allFiles = allFiles.concat(data.files);
-      pageToken = data.nextPageToken ?? null;
+      if (res.data.files) allFiles = allFiles.concat(res.data.files);
+      pageToken = res.data.nextPageToken ?? null;
     } while (pageToken);
 
     if (!hasError) {
@@ -639,7 +642,7 @@ export default function WorkflowItemsPage() {
   };
 
   const saveCaptions = async (itemId: string, captions: Record<string, string>) => {
-    const CAPTION_KEY_MAP: Record<string, string> = {
+    const CAPTION_KEY_MAP: Record<string, keyof Database["public"]["Tables"]["workflow_items"]["Update"]> = {
       caption: "fb_ig_caption",
       yt_video_title: "yt_video_title",
       yt_video_description: "yt_video_description",
@@ -647,10 +650,11 @@ export default function WorkflowItemsPage() {
       tiktok_caption: "tiktok_caption",
       linkedin_caption: "linkedin_caption",
     };
-    const updates: Record<string, string | null> = {};
+    const updates: Database["public"]["Tables"]["workflow_items"]["Update"] = {};
+    const fields = updates as Record<string, string>;
     for (const [key, value] of Object.entries(captions)) {
-      const dbField = CAPTION_KEY_MAP[key] || key;
-      if (value) updates[dbField] = value;
+      const dbField = CAPTION_KEY_MAP[key];
+      if (dbField && value) fields[dbField] = value;
     }
 
     const { error } = await supabase
@@ -896,42 +900,6 @@ export default function WorkflowItemsPage() {
 
     const item = items.find((i) => i.id === itemId);
     if (item) openResults(item);
-  };
-
-  const applyCaptions = async (captions: Record<string, string>) => {
-    if (!viewingItemId) return;
-    const CAPTION_KEY_MAP: Record<string, string> = {
-      caption: "fb_ig_caption",
-      yt_video_title: "yt_video_title",
-      yt_video_description: "yt_video_description",
-      fb_ig_caption: "fb_ig_caption",
-      tiktok_caption: "tiktok_caption",
-      linkedin_caption: "linkedin_caption",
-    };
-    const updates: Record<string, string | null> = {};
-    for (const [key, value] of Object.entries(captions)) {
-      const dbField = CAPTION_KEY_MAP[key] || key;
-      if (value) updates[dbField] = value;
-    }
-
-    const { error } = await supabase
-      .from("workflow_items")
-      .update(updates)
-      .eq("id", viewingItemId);
-
-    if (error) {
-      toast.error("Failed to save captions: " + error.message);
-      return;
-    }
-
-    setItems((prev) =>
-      prev.map((i) => (i.id === viewingItemId ? { ...i, ...updates } as WorkflowItem : i)),
-    );
-
-    toast.success("AI captions applied!");
-    setPreviewOpen(false);
-    setPreviewCaptions(null);
-    setViewingItemId(null);
   };
 
   if (loading) {
@@ -1344,7 +1312,6 @@ export default function WorkflowItemsPage() {
         captions={previewCaptions}
         loading={previewLoading}
         fileName={previewFileName}
-        onSave={applyCaptions}
         onRegenerate={() => viewingItemId && handleRegenerate(viewingItemId)}
         progressStep={previewProgress?.step ?? null}
         progressPercent={previewProgress?.progress ?? 0}

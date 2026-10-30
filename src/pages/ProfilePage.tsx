@@ -17,7 +17,7 @@ interface UserProfile {
   name: string | null;
   email: string | null;
   avatar_url: string | null;
-  is_admin: boolean;
+  is_admin: boolean | null;
   created_at: string | null;
 }
 
@@ -48,24 +48,28 @@ export default function ProfilePage() {
       .select("id, name, email, avatar_url, is_admin, created_at")
       .eq("id", userId)
       .single()
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (!error && data) {
-          setProfile(data);
-          setName(data.name || "");
-          setAvatarUrl(data.avatar_url || "");
-        }
-        if (!cancelled) done();
-      })
-      .catch(() => { if (!cancelled) done(); });
+      .then(
+        ({ data, error }) => {
+          if (cancelled) return;
+          if (!error && data) {
+            setProfile(data);
+            setName(data.name || "");
+            setAvatarUrl(data.avatar_url || "");
+          }
+          if (!cancelled) done();
+        },
+        () => { if (!cancelled) done(); },
+      );
     return () => { cancelled = true; };
   }, [userId]);
 
   useEffect(() => {
     supabase.functions
       .invoke<{ questionsConfigured?: boolean }>("verify-security-questions", { method: "GET" })
-      .then(({ data }) => setSecConfigured(data?.questionsConfigured ?? false))
-      .catch(() => setSecConfigured(false));
+      .then(
+        ({ data }) => setSecConfigured(data?.questionsConfigured ?? false),
+        () => setSecConfigured(false),
+      );
   }, []);
 
   const handleSaveProfile = async () => {

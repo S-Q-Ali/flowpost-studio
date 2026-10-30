@@ -29,7 +29,7 @@ Never commit a real key, token or service-account file. `.env` is ignored; `.env
 Run the same gates CI runs:
 
 ```bash
-npx tsc --noEmit
+npx tsc -b
 npm test
 npm run build
 npm audit --omit=dev --audit-level=high

@@ -33,7 +33,7 @@ function formatTime(minutes: number, date: Date): string {
   return `${utcStr} (${localStr})`;
 }
 
-function getDayLabel(d: Date, offset: number): string {
+function getDayLabel(offset: number): string {
   if (offset === 0) return "Today";
   if (offset === 1) return "Tomorrow";
   return `+${offset}d`;
@@ -68,7 +68,7 @@ export function getItemPublishTime(
       const isPast = offset === 0 && targetMin <= currentMin;
       const prefix = offset === 0
         ? (isPast ? "was at" : "next at")
-        : `${getDayLabel(d, offset)}`;
+        : `${getDayLabel(offset)}`;
       const timeStr = formatTime(targetMin, offset === 0 ? now : d);
       const label = `${prefix} ${timeStr}`;
       return { label, isPast };
