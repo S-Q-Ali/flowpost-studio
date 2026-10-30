@@ -154,7 +154,7 @@ Desktop commands live in `desktop-flutter/`:
 - Row Level Security on every table; the browser only ever uses the anon key
 - One shared authorizer (`functions/_shared/auth.ts`) for edge functions; owner checks via `resolveSessionOwner` and `checkPostAccess`
 - OAuth tokens encrypted at rest (AES-GCM), OAuth state rows are random, single-use and expire
-- Opens are allowlisted (`//host` and `/\host` rejected); `get-file` only fetches Google hosts and its tokens expire
+- Redirects are allowlisted (`//host` and `/\host` rejected); `get-file` only fetches Google hosts and its tokens expire
 - Stored credentials are validated, masked and kept out of logs and diagnostics
 - Deep links are allowlisted and logged without their query string; FFmpeg is started with an argument list, never a shell
 - Signups are closed: only an existing `public.users` row can sign in

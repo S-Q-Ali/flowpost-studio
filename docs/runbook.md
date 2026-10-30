@@ -12,7 +12,7 @@ Support, release and rollback notes for the web dashboard and the Windows client
 | Read cache | `cache.db` in the data root |
 | Offline drafts | `drafts.db` in the data root |
 | Log | `logs\app.log`, rotates to `app.log.1` at 1 MB |
-| Diagnostics export | `logs\flowpost-diagnostics-<stamp>.txt` |
+| Diagnostics export | `flowpost-diagnostics-<stamp>.txt` in the folder the user picks in Settings |
 | Media workspace | `%LOCALAPPDATA%\com.flowpost\FlowPost\media\jobs\<job-id>` |
 | Installation | `%LOCALAPPDATA%\Programs\FlowPost Studio` |
 
@@ -81,6 +81,6 @@ git checkout HEAD -- supabase/functions
 
 1. Revoke the value at the provider (Google, Meta, TikTok, LinkedIn, Groq, Cloudflare R2, Supabase).
 2. Issue a new one.
-3. Edge function secrets: update in **Supabase Dashboard → Edge Functions → Secrets**, then redeploy nothing (functions read the secret at start).
+3. Edge function secrets: update in **Supabase Dashboard → Edge Functions → Secrets**; the next isolate picks the new value up, no redeploy needed.
 4. Client-side credentials: the owner enters them in **Settings → Credentials** on the desktop or in `.env.local` for the dashboard.
 5. Never paste a secret into an issue, a commit, or `.env.example`; that file ships with the repository.
