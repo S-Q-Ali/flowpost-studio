@@ -785,6 +785,22 @@ Verified each claim against the code before writing it; nothing below is copied 
 
 ---
 
+## Repo production pass — Pake removal
+
+Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is gone from the web repo; `desktop-flutter/` is the only desktop build.
+
+- [x] Removed `desktop/` (12 Pake/Electron files) and the `build:desktop` script; Pake-specific `.gitignore` entries pruned
+- [x] Removed the Pake-only web glue: `SystemTray`, `FolderWatcher`, `ContentAutomation`, `LocalFileUploader`, the `flowpost:*` bridge in `App.tsx`, the Pake branch in `main.tsx`
+- [x] Dead `onSave` prop removed from `CaptionPreviewModal`
+- [x] Real type gate: `npx tsc -b` (root `tsc --noEmit` was a no-op) wired into `.github/workflows/ci.yml` and `CONTRIBUTING.md`
+- [x] Root cause of the `never` collapse: `Database["public"]` must satisfy `GenericSchema`; `src/integrations/supabase/types.ts` regenerated from the live project
+- [x] Gates: `npx tsc -b` 0 errors, `npm test` 116/116, `npm run build` OK, `npm run lint` unchanged (findings only in `supabase/functions` and `tailwind.config.ts`)
+- [x] `graphify update .`; `graphify-out` committed separately
+- [ ] **Owner:** push `chore/desktop-production` and open the PR (nothing pushed yet)
+- [ ] **Owner:** schema drift — `workflow_locks` is in the migrations and used by `supabase/functions/process-workflow`, but is absent from the live project; workflows' `destination_platforms`/`caption_template`/`delay_hours` are in migrations but not live
+
+---
+
 ## Gate Commands
 
 ```powershell
