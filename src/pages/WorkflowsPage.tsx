@@ -30,7 +30,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { BetaBadge } from "@/components/BetaBadge";
 import { CaptionPromptEditor } from "@/components/CaptionPromptEditor";
-import { Plus, Workflow, Youtube, Instagram, Facebook, Trash2, Pencil, Link2, Clock3, Play, Loader2, Folder, Copy } from "lucide-react";
+import { Plus, Workflow, Trash2, Pencil, Link2, Clock3, Play, Loader2, Folder, Copy } from "lucide-react";
+import { FacebookIcon, InstagramIcon, YouTubeIcon } from "@/components/BrandIcons";
 import { toast } from "sonner";
 import type { Platform, ConnectedAccount, MasterPrompt } from "@/lib/types";
 import type { Database } from "@/integrations/supabase/types";
@@ -91,9 +92,9 @@ const TikTokWorkflowIcon = ({ size = 16, className = "" }: { size?: number; clas
 );
 
 const platformOptions: { id: Platform; label: string; icon: React.ComponentType<any>; color: string }[] = [
-  { id: "youtube", label: "YouTube Shorts", icon: Youtube, color: "text-red-500" },
-  { id: "facebook", label: "Facebook Page", icon: Facebook, color: "text-blue-500" },
-  { id: "instagram", label: "Instagram Reels", icon: Instagram, color: "text-pink-500" },
+  { id: "youtube", label: "YouTube Shorts", icon: YouTubeIcon, color: "text-red-500" },
+  { id: "facebook", label: "Facebook Page", icon: FacebookIcon, color: "text-blue-500" },
+  { id: "instagram", label: "Instagram Reels", icon: InstagramIcon, color: "text-pink-500" },
   { id: "tiktok", label: "TikTok", icon: TikTokWorkflowIcon, color: "text-foreground" },
   { id: "linkedin", label: "LinkedIn", icon: TikTokWorkflowIcon, color: "text-linkedin" },
 ];

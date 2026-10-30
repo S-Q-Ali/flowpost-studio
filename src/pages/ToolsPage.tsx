@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Wrench, Chrome, CheckCircle2, XCircle, AlertCircle, RefreshCw, Clock, CloudDownload } from "lucide-react";
+import { Loader2, Wrench, CheckCircle2, XCircle, AlertCircle, RefreshCw, Clock, CloudDownload } from "lucide-react";
+import { ChromeIcon } from "@/components/BrandIcons";
 import { formatDistanceToNow, differenceInHours } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { invokeFunction } from "@/lib/invoke";
@@ -324,7 +325,7 @@ export default function ToolsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
-            <Chrome size={14} />
+            <ChromeIcon size={14} />
             Extension Status
           </CardTitle>
         </CardHeader>
