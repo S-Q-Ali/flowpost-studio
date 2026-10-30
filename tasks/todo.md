@@ -659,6 +659,42 @@ Measured first, and nothing was optimized: no number crossed its budget, so no p
 - **The gate found three time-dependent tests, and the fixture was lying.** `queue_page_test.dart` ("an edit saves the caption and the typed time", "an edit also writes the row into the cache", "an edit of a row that moved on is not written") began failing after 10:00 local: the `post()` helper in `test/support/fake_scheduled_posts.dart` handed the model a **local** `DateTime` while `ScheduledPost.scheduledAt` is documented as a UTC instant, so the edit form's "did the time move?" check saw a move and refused a row whose time was already past. The helper now calls `.toUtc()`, the way the server sends the row; the product code is unchanged and behaves as SPEC-scheduling says (an admin fixing the caption of a waiting row is not blocked by its old time).
 - **Verification:** `dart format --set-exit-if-changed lib test integration_test` clean (166 files), `flutter analyze lib test integration_test` no issues, `flutter test` **729 passed**, `flutter build windows --release` succeeded, LF-only bytes on every changed Dart file.
 
+### Phase 6.6 evidence (2026-10-30)
+
+Read-only audit first (`security-and-hardening` checklist, secret scan of HEAD and the working tree, git-history sweep, dependency audit), then the fixes. Every finding below was read in the source before it was listed.
+
+**P0, fixed in code (not deployed yet):**
+- **`google-oauth` was open signup.** It exchanged a Google code, inserted a `users` row for anyone and returned a 7-day `sessions` token — the admin bearer every edge function accepts — bypassing the security-questions gate and contradicting "signups are closed". It now refuses a caller with no existing row (403) and writes nothing.
+- **Same function leaked the token.** `redirect_uri=//evil.com` passed the "relative path" branch, so `Location: //evil.com?token=<session>`. Redirects now go through `_shared/url-guard.ts` (absolute same-origin allowlist, or a single-slash path) and the token rides in the **fragment**, keeping it out of server logs, `Referer` and history.
+- **Same function wiped every session on login** (`.delete().neq("id", "00000000-…")`), so any account that could reach it signed everyone out. It now deletes only that user's expired rows.
+- **Git history holds live-format credentials**, added before `.gitignore` covered `.env` and untracked in `f37171c` but never purged: R2 token, IG/FB page tokens, YouTube client secret and refresh token, Gemini key, the old app password, and a **GCP service-account PEM** (`flowpost-wrokflow.json`, commit `2715c53`). Rotation is the owner's action; history rewriting is optional.
+
+**P1, fixed in code (not deployed yet):**
+- **`youtube-auth`**: `action=url` skipped auth and put the raw `userId` in `state`, so the callback trusted a caller-supplied owner. It now uses the shared authorizer, `resolveSessionOwner`, and a random `oauth_states` row consumed in the callback (the `instagram-auth` pattern); `refresh` is scoped to the session's own account; the catch returns a fixed sentence.
+- **`get-file`**: token payloads are now required to carry `exp` (every mint sets 15 minutes), so a token is never a permanent link; the `driveUrl` inside a token is checked against Google's file hosts before the Google bearer is attached, because that URL starts life in a request body — this closes the SSRF path to metadata/internal hosts.
+- **`post-story`**: the raw `accountId`/`accessToken`/`videoUrl` branch is now service-role/cron only, and a `postId` always passes `checkPostAccess` before anything is written, so a session can no longer set another user's row to `published`.
+- **`facebook-auth` `sync-pages`** resolved `userId` from the body; a session now syncs its own pages only (`resolveSessionOwner`), and the upsert error no longer carries the DB message.
+- **`process-workflow`**: any session could run any `workflowId`. The ad-hoc header check is replaced by the shared authorizer, and a session run is filtered by its own `user_id`; the workflows query returns a fixed sentence instead of `wfError.message`.
+- **`generate-ai-captions`**: the main `generate` path had no quota (only the two proxy modes did) — it now consumes `captions-generate` (30/hour); `audio_base64` over 34 MB is refused before `atob`.
+
+**P2, fixed:**
+- The upload failure path logged and showed the service's sentence verbatim while the publish path already scrubbed it. `cleanFailureText` moved to `core/logging/app_logger.dart` beside `maskPaths`/`stripControlCharacters` and is now applied in `upload_providers.dart`, so a link or path a service echoes back is cleaned once, for both the log and the screen.
+- `.gitignore` now covers `*.pem`, `*.key` and `*service-account*.json`.
+- ADR 0001 claimed both tokens live in `flutter_secure_storage` and that a restart skips the gate. The code keeps them in memory only (`SessionController`) and nothing is written to disk; the ADR now says so, and records the `google-oauth` rules above.
+
+**Dependencies** (root install boundary: `package-lock.json`, no `packageManager` field; pub has no advisory audit, `pubspec.lock` is the pin):
+- Shipped tree (`npm audit --omit=dev`): **0 critical, 0 high** after the fixes, down from 2 critical / 11 high. `react-router-dom` 6.30.6 (patch: open-redirect/XSS advisories), `@supabase/supabase-js` 2.118.0 (`ws` 8.22), and `tailwindcss` + `tailwindcss-animate` moved to devDependencies — they run at build time, and keeping them in `dependencies` pulled eight high advisories (postcss, nanoid, brace-expansion, glob, minimatch, picomatch, source-map-js, yaml) into the shipped audit.
+- **2 moderate remain** (`react-router`/`react-router-dom`; the patch needs React Router 7, a routing migration — tracked for Phase 7).
+- **Dev tree still has 2 critical / 14 high** in vitest/tinypool/vite; none ship. Clearing them means vite 5→8 and vitest 3→5 majors; **review date 2026-11-30**.
+
+**Already green before this phase:** no service-role key in either client (`app_config.dart` refuses `sb_secret_`/`service_role`), desktop session in memory only, deep links allowlisted (`['/', '/auth-callback']`) and logged without query strings, FFmpeg started with an argument list (no shell), stored credentials validated and masked, diagnostics sanitized, HEAD and working-tree secret scan clean.
+
+**New test:** `supabase/functions/_shared/url-guard.test.ts` (6 cases: same-origin path, allowed absolute origin, `//host`, `/\host`, other origin/scheme, Google host vs metadata/`googleapis.com.evil.com`/plain http). Also `upload_controller_test.dart` gained "a service sentence that echoes a link or a path is cleaned".
+
+**Verification:** web `npm run build` succeeded and `npm test` **116 passed** (110 + 6); `npm run lint` unchanged at its pre-existing 11 errors in the touched files (all pre-existing `any`/`ts-ignore`, none in new code); desktop `dart format --set-exit-if-changed` clean (166 files), `flutter analyze` no issues, `flutter test` **730 passed**. Edge functions parse-checked with `esbuild`; `deno check` and the `_shared` Deno tests still cannot run here (no `deno`), though the same files do run under vitest.
+
+**Not done, on purpose:** the seven edge-function fixes are **not deployed** — that is a separate, explicit step. History purge is optional; rotation is required and is the owner's action. The hand-off intent file can briefly hold an OAuth `code`; it is deleted as soon as the primary drains it, the code is single-use and short-lived, so it is an accepted risk rather than a fix.
+
 ---
 
 ## Phase 6 — Production Hardening
@@ -691,7 +727,14 @@ Measured first, and nothing was optimized: no number crossed its budget, so no p
   - [x] A 68 MB video runs through FFmpeg with no frame over 100 ms and peak RSS at 178 MB
   - [x] A 200-row queue and the five-platform compose screen scroll with no frame over 16.7 ms
   - [x] Repeatable harnesses: `integration_test/perf_media_test.dart`, `integration_test/perf_list_test.dart`
-- [ ] **6.6** Security: secrets, tokens, deep links, FFmpeg args, dependencies, RLS notes
+- [x] **6.6** Security: secrets, tokens, deep links, FFmpeg args, dependencies, RLS notes
+  - [x] `google-oauth`: existing-user only, same-origin redirect with the token in the fragment, no cross-account session wipe
+  - [x] `youtube-auth` state is a random consumed row; `get-file` needs `exp` and only fetches Google hosts
+  - [x] `post-story`, `facebook-auth sync-pages`, `process-workflow` resolve the owner from the session
+  - [x] `generate-ai-captions` counts the generate path and caps the audio body
+  - [x] Shipped dependency audit **0 critical / 0 high**; dev-only majors tracked (review 2026-11-30)
+  - [x] Upload failure text cleaned once (log + screen); ADR 0001 corrected; `.gitignore` covers keys
+  - [ ] **Owner:** rotate the credentials in git history (R2, IG, FB, YouTube, Gemini, old app password, GCP service account) and deploy the seven edge functions
 - [ ] **6.7** README, ADRs, runbook, release checklist, rollback notes
 - [ ] **6.8** Phase 6 gate
   - [ ] `shipping-and-launch` checklist green
