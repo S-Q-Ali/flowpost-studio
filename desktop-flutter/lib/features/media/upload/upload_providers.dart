@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/logging/app_logger.dart';
 import '../../../core/providers/app_providers.dart';
 import '../domain/media_job.dart';
 import '../domain/media_validation.dart';
@@ -116,8 +117,11 @@ class UploadController extends Notifier<UploadState> {
       await _removeJobFiles(job.id);
     } on UploadException catch (error) {
       if (run != _run) return;
-      state = UploadFailed(error.message);
-      _log.warning('The upload of job ${job.id} failed: ${error.message}');
+      // The service sentence can carry the media link or a path, so it is
+      // cleaned before it reaches the screen and the log.
+      final message = cleanFailureText(error.message);
+      state = UploadFailed(message);
+      _log.warning('The upload of job ${job.id} failed: $message');
     } on Object catch (error, stackTrace) {
       if (run != _run) return;
       state = const UploadFailed('Something went wrong while uploading.');

@@ -78,6 +78,23 @@ String maskPaths(String text) => text
     .replaceAll(_windowsPathPattern, 'the file')
     .replaceAll(_uncPathPattern, 'the file');
 
+/// Makes a sentence a service sent back safe to show.
+///
+/// Control bytes, links and paths go: a service can echo the media link back,
+/// and a long answer would fill the screen.
+String cleanFailureText(String? text) {
+  if (text == null) return '';
+  var cleaned = text.replaceAll(
+    RegExp(r'https?://\S+', caseSensitive: false),
+    '',
+  );
+  cleaned = maskPaths(cleaned);
+  cleaned = stripControlCharacters(cleaned);
+  cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (cleaned.length > 240) cleaned = '${cleaned.substring(0, 240)}…';
+  return cleaned;
+}
+
 /// Renames [log] to `<log>.1` once it exceeds [maxBytes]; the next append
 /// recreates it. Keeps `%APPDATA%\com.flowpost\FlowPost\logs\app.log` bounded.
 Future<void> rotateLogIfNeeded(File log, {int maxBytes = 1 << 20}) async {

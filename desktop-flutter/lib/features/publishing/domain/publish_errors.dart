@@ -125,20 +125,3 @@ bool _mentionsTheMedia(String lower) =>
     lower.contains('video not found') ||
     lower.contains('video url not found') ||
     lower.contains('missing file_url');
-
-/// Makes a sentence from the service safe to show.
-///
-/// Control bytes, links and paths go: a service can echo the media link
-/// back, and a long answer would fill the screen.
-String cleanFailureText(String? text) {
-  if (text == null) return '';
-  var cleaned = text.replaceAll(
-    RegExp(r'https?://\S+', caseSensitive: false),
-    '',
-  );
-  cleaned = maskPaths(cleaned);
-  cleaned = stripControlCharacters(cleaned);
-  cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
-  if (cleaned.length > 240) cleaned = '${cleaned.substring(0, 240)}…';
-  return cleaned;
-}

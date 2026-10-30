@@ -330,6 +330,29 @@ void main() {
     expect((state as UploadFailed).message, 'R2 upload failed: 500');
   });
 
+  test('a service sentence that echoes a link or a path is cleaned', () async {
+    final transport = _FakeTransport()
+      ..reply = const UploadReply(
+        statusCode: 502,
+        body: {
+          'error':
+              r'could not fetch https://r2.example.com/a/clip.mp4 '
+              r'from C:\Users\Someone\clip.mp4',
+        },
+      );
+    final container = _container(transport);
+    addTearDown(container.dispose);
+
+    await container.read(uploadControllerProvider.notifier).upload(videoJob());
+
+    final state = container.read(uploadControllerProvider);
+    expect(state, isA<UploadFailed>());
+    final message = (state as UploadFailed).message;
+    expect(message, contains('could not fetch'));
+    expect(message, isNot(contains('https://')));
+    expect(message, isNot(contains('Someone')));
+  });
+
   test('an unexpected failure does not show the raw error', () async {
     final transport = _FakeTransport()
       ..failure = StateError(r'C:\Users\Someone\private\clip.mp4');
