@@ -695,6 +695,19 @@ Read-only audit first (`security-and-hardening` checklist, secret scan of HEAD a
 
 **Deployed 2026-10-30:** all seven functions are `ACTIVE` on project `ximorwzknbizpceaoflw` (deployed 13:21), after the owner supplied a Supabase access token; the token now lives only in the ignored `.env`, and the committed `.env.example` carries a placeholder. History purge is optional; rotation is still required and is the owner's action. The hand-off intent file can briefly hold an OAuth `code`; it is deleted as soon as the primary drains it, the code is single-use and short-lived, so it is an accepted risk rather than a fix.
 
+### Phase 6.7 evidence (2026-10-30)
+
+Verified each claim against the code before writing it; nothing below is copied from the old README.
+
+- **`README.md` rewritten** for two surfaces (web dashboard, native Windows client), the real secret names read from `Deno.env.get` across `supabase/functions` (the old table listed `FACEBOOK_CLIENT_ID`, `YOUTUBE_CLIENT_ID`, `GOOGLE_PRIVATE_KEY` and others that no function reads), the FFmpeg fetch step, the Inno Setup path, and the real desktop commands. No version literals and no counts that drift.
+- **`docs/runbook.md` new:** data root and every file in it, log rotation, diagnostics export, eight symptom rows tied to the code that produces them, release checklists for desktop and backend, rollback (installer, edge functions, forward-only migrations, Vercel), credential rotation.
+- **`docs/adr/0004-credentials-in-settings.md`:** why the config moved from `--dart-define` to Settings, the precedence, the sign-out on backend change, and the alternatives.
+- **`LICENSE`:** MIT, copyright with the project owner (`S-Q-Ali`).
+- **Deleted six stale root documents** (`BUILD_COMPLETE.md`, `DESKTOP_SUMMARY.md`, `PLAN-TAURI-REMOVAL.md`, `README-DESKTOP-STATUS.md`, `SESSION_STATE.md`, `TEST_DESKTOP_APP.md`; git keeps them). `DEPLOYMENT.md` is now a pointer to the README and runbook instead of a second stale copy.
+- **`.env.example`** carries the two `VITE_` keys the dashboard reads, plus commented `GROQ_API_KEY` and `ACCESS_TOKEN` placeholders — the real token stays in the ignored `.env`.
+- **Verification:** every command in the README was run: `npm test` **116 passed**, `npm run build` succeeded. Desktop commands were the ones already gated in 6.5/6.6.
+- **Open:** a second person has not yet built from the docs (the plan's verify step); that is the owner's check.
+
 ---
 
 ## Phase 6 — Production Hardening
@@ -736,7 +749,12 @@ Read-only audit first (`security-and-hardening` checklist, secret scan of HEAD a
   - [x] Upload failure text cleaned once (log + screen); ADR 0001 corrected; `.gitignore` covers keys
   - [x] Seven edge functions deployed to project `ximorwzknbizpceaoflw` (2026-10-30 13:21, all ACTIVE)
   - [ ] **Owner:** rotate the credentials in git history (R2, IG, FB, YouTube, Gemini, old app password, GCP service account) and enter the new values in the desktop Settings screen once the app is production-ready
-- [ ] **6.7** README, ADRs, runbook, release checklist, rollback notes
+- [x] **6.7** README, ADRs, runbook, release checklist, rollback notes
+  - [x] README covers both surfaces, the real secret names, FFmpeg and the actual commands
+  - [x] `docs/runbook.md`: support triage, release checklists, rollback, credential rotation
+  - [x] ADR 0004 records the credentials-in-Settings decision; MIT `LICENSE` added
+  - [x] Six stale root documents removed; `DEPLOYMENT.md` now points at the two live documents
+  - [ ] **Owner:** have a second person build and run from the docs (the plan's verify step)
 - [ ] **6.8** Phase 6 gate
   - [ ] `shipping-and-launch` checklist green
   - [ ] No P0/P1 security/accessibility/performance issue
