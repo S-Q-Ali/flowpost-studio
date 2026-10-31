@@ -373,6 +373,32 @@ void main() {
       );
     });
 
+    test('a refused session is its own kind of failure', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        await request.drain<void>();
+        request.response.statusCode = 401;
+        await request.response.close();
+      });
+
+      await expectLater(
+        HttpPostsTransport(
+          supabaseUrl: 'http://127.0.0.1:${server.port}',
+          anonKey: 'anon',
+        ).send(body: {'action': 'list'}, token: 'dead-session'),
+        throwsA(
+          isA<PostsException>()
+              .having(
+                (error) => error.message,
+                'message',
+                'Your session is no longer accepted. Activate your license.',
+              )
+              .having((error) => error.kind, 'kind', PostsErrorKind.rejected),
+        ),
+      );
+    });
+
     test('a body that is not a rows answer reads as nothing', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(() => server.close(force: true));

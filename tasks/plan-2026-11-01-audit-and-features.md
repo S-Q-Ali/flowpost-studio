@@ -189,11 +189,13 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: B4 · Size: S.
   - Done: `desktopDownloadUrl()` returns the releases page while `INSTALLER_ASSET` is null; set it to `FlowPostNativeSetup.exe` after the first release. The JSON-LD `downloadUrl` in `index.html` and the README links were switched to `/releases` for the same reason — neither can call the helper.
 
-- [ ] **B6. Re-check the session expiry** — Should (desktop 6)
+- [x] **B6. Re-check the session expiry** — Should (desktop 6)
   - Accept: a timer plus a 401 handler end the session and route to `/license` with a clear message; no silent dead state.
   - Verify: fake clock test — expiry triggers once; 401 from posts-api triggers once; a valid session is untouched.
   - Files: `lib/features/license/license_controller.dart`, `lib/features/offline/`, test.
   - Dep: none · Size: S.
+  - Done: the controller waits on the grant's own expiry (the service's clock, so the two cannot disagree) and drops the token before asking for a new one. A 401/403 from `posts-api` is now `PostsErrorKind.rejected`, which the reporting transport forwards to the same re-check with `refused: true` — that path ignores the local clock, because the server has already said no. Concurrent refusals share one re-check.
+  - Limit: captions, upload and the publish function still only show their own error text; the re-check hangs off `posts-api`, which every queue and row write goes through.
 
 - [ ] **B7. Clear the vault even when one key fails** — Should (desktop 7)
   - Accept: `clear()` attempts all three deletes, then reports one failure; a leftover token cannot keep the app signed in.

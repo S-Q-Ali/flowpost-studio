@@ -36,11 +36,15 @@ class ReportingTransport implements PostsTransport {
     required this.inner,
     required this.onReached,
     required this.onLost,
+    required this.onRejected,
   });
 
   final PostsTransport inner;
   final void Function() onReached;
   final void Function() onLost;
+
+  /// The server answered but would not take the session token.
+  final void Function() onRejected;
 
   @override
   Future<List<Map<String, Object?>>> send({
@@ -59,6 +63,7 @@ class ReportingTransport implements PostsTransport {
       } else {
         onReached();
       }
+      if (error.kind == PostsErrorKind.rejected) onRejected();
       rethrow;
     }
   }

@@ -105,8 +105,9 @@ class PostRow {
 ///
 /// Only [connection] means the machine is offline: a timeout and an error
 /// answer both say the server was reached (SPEC-offline "What the app knows
-/// about the connection").
-enum PostsErrorKind { connection, timeout, server }
+/// about the connection"). [rejected] says the server was reached and did not
+/// take the session, so the app has to ask for a new one.
+enum PostsErrorKind { connection, timeout, server, rejected }
 
 /// A failure of the posts function.
 class PostsException implements Exception {
@@ -269,6 +270,12 @@ class HttpPostsTransport implements PostsTransport {
           .transform(utf8.decoder)
           .join()
           .timeout(left());
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw const PostsException(
+          'Your session is no longer accepted. Activate your license.',
+          kind: PostsErrorKind.rejected,
+        );
+      }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw PostsException(
           'The queue did not accept the call (${response.statusCode}).',

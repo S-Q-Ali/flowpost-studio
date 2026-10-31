@@ -32,26 +32,31 @@ class _ActiveStore implements LicenseStore {
 }
 
 void main() {
-  late ProviderContainer container;
+  ProviderContainer? alive;
 
-  setUp(() {
-    container = ProviderContainer(
-      overrides: [
-        seededConfig(
-          const AppConfig(
-            supabaseUrl: 'https://test.supabase.co',
-            supabaseAnonKey: 'test-anon',
-            updateManifestUrl: '',
-          ),
+  ProviderContainer scope() => alive ??= ProviderContainer(
+    overrides: [
+      seededConfig(
+        const AppConfig(
+          supabaseUrl: 'https://test.supabase.co',
+          supabaseAnonKey: 'test-anon',
+          updateManifestUrl: '',
         ),
-        licenseServiceProvider.overrideWithValue(
-          LicenseService(api: _NoApi(), store: _ActiveStore()),
-        ),
-      ],
-    );
-  });
+      ),
+      licenseServiceProvider.overrideWithValue(
+        LicenseService(api: _NoApi(), store: _ActiveStore()),
+      ),
+    ],
+  );
 
-  tearDown(() => container.dispose());
+  /// The license screen watches the grant, so it holds the re-check timer the
+  /// app waits on. A test that mounts it gives the timer back.
+  void close() {
+    alive?.dispose();
+    alive = null;
+  }
+
+  tearDown(close);
 
   Future<void> pumpApp(
     WidgetTester tester, {
@@ -70,7 +75,7 @@ void main() {
     );
     await tester.pumpWidget(
       UncontrolledProviderScope(
-        container: container,
+        container: scope(),
         child: MaterialApp.router(routerConfig: router),
       ),
     );
@@ -88,6 +93,7 @@ void main() {
 
     expect(find.text('Unlock FlowPost'), findsOneWidget);
     expect(find.text('Queue'), findsNothing);
+    close();
   });
 
   testWidgets('an active license opens the app shell', (tester) async {
@@ -104,6 +110,7 @@ void main() {
 
     expect(find.text('Unlock FlowPost'), findsOneWidget);
     expect(find.byKey(const Key('license-active')), findsOneWidget);
+    close();
   });
 
   testWidgets('the starting screen shows while the grant is read', (

@@ -124,6 +124,23 @@ void main() {
     expect(api.keys, isEmpty);
   });
 
+  test(
+    'a grant the backend refused is renewed even while it looks valid',
+    () async {
+      store.record = LicenseRecord(
+        token: 'token-1',
+        expiresAt: DateTime.utc(2026, 11, 7, 12),
+        key: 'key-1',
+      );
+
+      final state = await service().restore(renew: true);
+
+      expect(state, isA<Active>());
+      expect(api.keys.single, 'key-1');
+      expect(store.record?.token, 'token-1');
+    },
+  );
+
   test('an expired record renews silently with the stored key', () async {
     store.record = LicenseRecord(
       token: 'old-token',

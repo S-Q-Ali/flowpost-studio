@@ -19,9 +19,13 @@ class _FakeApi implements LicenseApi {
   LicenseException? failure;
   final List<String> keys = [];
 
+  /// Lets a test look at the app while the call is in flight.
+  void Function()? onCall;
+
   @override
   Future<LicenseGrant> activate(String key) async {
     keys.add(key);
+    onCall?.call();
     final failure = this.failure;
     if (failure != null) throw failure;
     return grant!;
@@ -50,19 +54,30 @@ class _MemoryStore implements LicenseStore {
 void main() {
   late _FakeApi api;
   late _MemoryStore store;
+  late DateTime clock;
+  ProviderContainer? alive;
 
   ProviderContainer container({List<Override> overrides = const []}) {
     final created = ProviderContainer(
       overrides: [
         licenseServiceProvider.overrideWithValue(
-          LicenseService(api: api, store: store),
+          LicenseService(api: api, store: store, clock: () => clock),
         ),
         ...overrides,
       ],
     );
-    addTearDown(created.dispose);
+    alive = created;
     return created;
   }
+
+  /// An active license holds a timer until its session expires. A test that
+  /// gets that far gives it back before the binding looks for leaks.
+  void close(ProviderContainer created) {
+    alive = null;
+    created.dispose();
+  }
+
+  tearDown(() => alive?.dispose());
 
   setUp(() {
     api = _FakeApi()
@@ -71,6 +86,7 @@ void main() {
         expiresAt: DateTime.utc(2099, 1, 1),
       );
     store = _MemoryStore();
+    clock = DateTime.utc(2026, 11, 1, 12);
   });
 
   test('startup restores a stored grant and opens the session', () async {
@@ -207,6 +223,119 @@ void main() {
     expect(scope.read(sessionProvider), isNull);
     expect(store.record, isNull);
   });
+  testWidgets('the expiry of a session is reached, not slept through', (
+    tester,
+  ) async {
+    store.record = LicenseRecord(
+      token: 'token-1',
+      expiresAt: clock.add(const Duration(hours: 2)),
+      key: 'key-1',
+    );
+    api.grant = LicenseGrant(
+      token: 'token-2',
+      expiresAt: DateTime.utc(2099, 1, 1),
+    );
+    final scope = container();
+    await scope.read(licenseControllerProvider.future);
+    var tokenDuringRenewal = 'nothing asked';
+    api.onCall = () =>
+        tokenDuringRenewal = '${scope.read(sessionProvider)?.sessionToken}';
+
+    // The machine's clock passes the expiry and the app's wait ends with it:
+    // the app asks again instead of letting every later call fail with the
+    // dead token.
+    clock = clock.add(const Duration(hours: 2, minutes: 1));
+    await tester.pump(const Duration(hours: 3));
+    await tester.pump();
+
+    expect(api.keys, ['key-1']);
+    expect(tokenDuringRenewal, 'null');
+    expect(scope.read(sessionProvider)?.sessionToken, 'token-2');
+    expect(scope.read(licenseControllerProvider).value, isA<Active>());
+    close(scope);
+  });
+
+  test(
+    'a session the backend refused is renewed even while it looks valid',
+    () async {
+      store.record = LicenseRecord(
+        token: 'token-1',
+        expiresAt: DateTime.utc(2099, 1, 1),
+        key: 'key-1',
+      );
+      api.grant = LicenseGrant(
+        token: 'token-2',
+        expiresAt: DateTime.utc(2099, 6, 1),
+      );
+      final scope = container();
+      await scope.read(licenseControllerProvider.future);
+
+      await scope
+          .read(licenseControllerProvider.notifier)
+          .revalidate(refused: true);
+
+      expect(api.keys, ['key-1']);
+      expect(scope.read(sessionProvider)?.sessionToken, 'token-2');
+    },
+  );
+
+  test(
+    'a refused session with a key the backend will not take locks the app',
+    () async {
+      store.record = LicenseRecord(
+        token: 'token-1',
+        expiresAt: DateTime.utc(2099, 1, 1),
+        key: 'revoked-key',
+      );
+      api.failure = const LicenseException(LicenseError.invalidKey);
+      final scope = container();
+      await scope.read(licenseControllerProvider.future);
+
+      await scope
+          .read(licenseControllerProvider.notifier)
+          .revalidate(refused: true);
+
+      final state = scope.read(licenseControllerProvider).value;
+      expect((state as Locked).reason, LicenseError.invalidKey);
+      expect(scope.read(sessionProvider), isNull);
+      expect(store.record, isNull);
+    },
+  );
+
+  test('calls that are all refused ask for a new session once', () async {
+    store.record = LicenseRecord(
+      token: 'token-1',
+      expiresAt: DateTime.utc(2099, 1, 1),
+      key: 'key-1',
+    );
+    final scope = container();
+    await scope.read(licenseControllerProvider.future);
+
+    await Future.wait([
+      scope.read(licenseControllerProvider.notifier).revalidate(refused: true),
+      scope.read(licenseControllerProvider.notifier).revalidate(refused: true),
+      scope.read(licenseControllerProvider.notifier).revalidate(refused: true),
+    ]);
+
+    expect(api.keys, ['key-1']);
+    expect(scope.read(sessionProvider)?.sessionToken, 'token-1');
+  });
+
+  test(
+    'a session that is not expired and never refused is left alone',
+    () async {
+      store.record = LicenseRecord(
+        token: 'token-1',
+        expiresAt: DateTime.utc(2099, 1, 1),
+        key: 'key-1',
+      );
+      final scope = container();
+      await scope.read(licenseControllerProvider.future);
+
+      expect(api.keys, isEmpty);
+      expect(scope.read(sessionProvider)?.sessionToken, 'token-1');
+    },
+  );
 }
 
 class _FailingWipe extends FakePostsCache {

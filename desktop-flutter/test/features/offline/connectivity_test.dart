@@ -35,6 +35,7 @@ void main() {
       inner: inner,
       onReached: connectivity.reached,
       onLost: connectivity.lost,
+      onRejected: () {},
     );
   }
 
@@ -44,6 +45,34 @@ void main() {
   test('the app starts online, before any call', () {
     expect(container.read(connectivityProvider), ConnectionStatus.online);
   });
+
+  test(
+    'a session the server refuses is reported to the license gate',
+    () async {
+      var rejections = 0;
+      var reached = 0;
+      final reporting = ReportingTransport(
+        inner: _Transport(
+          error: const PostsException(
+            'The queue did not accept the call (401).',
+            kind: PostsErrorKind.rejected,
+          ),
+        ),
+        onReached: () => reached++,
+        onLost: container.read(connectivityProvider.notifier).lost,
+        onRejected: () => rejections++,
+      );
+
+      await expectLater(
+        reporting.send(body: {'action': 'list'}),
+        throwsA(isA<PostsException>()),
+      );
+
+      expect(rejections, 1);
+      // A refusal came from the server, so the machine is not offline.
+      expect(reached, 1);
+    },
+  );
 
   test('a call that reached the server leaves the app online', () async {
     container.read(connectivityProvider.notifier).lost();

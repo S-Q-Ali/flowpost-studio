@@ -46,7 +46,9 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - The first real tag is the owner's to push; no dry run has been done.
 - [x] B5. Fix the landing download CTA
       - `src/lib/desktop-download.ts` gives the CTA the releases page today and the direct asset once `INSTALLER_ASSET` names it; `index.html` and the README no longer point at `releases/latest`.
-- [ ] B6. Re-check session expiry (timer + 401)
+- [x] B6. Re-check session expiry (timer + 401)
+      - `LicenseController` waits on the grant's expiry (the service's clock), drops the token, then tries the stored key; `posts-api`'s 401/403 now arrives as `PostsErrorKind.rejected` and drives the same re-check with `refused: true`, which ignores the local clock.
+      - Captions, upload and the publish function still show only their own error text — the re-check hangs off `posts-api`.
 - [ ] B7. Clear the vault when one key fails
 - [ ] B8. Report network failures properly
 - [ ] B9. Drain FFmpeg streams before closing

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/app_providers.dart';
+import '../license/license_controller.dart';
 import '../publishing/data/posts_repository.dart';
 import 'connectivity.dart';
 import 'data/drafts_repository.dart';
@@ -33,5 +34,9 @@ final postsTransportProvider = Provider<PostsTransport>((ref) {
     ),
     onReached: connectivity.reached,
     onLost: connectivity.lost,
+    // The session is dead even when the clock has not reached its expiry.
+    // Read at call time: the license gate is what ends or renews it.
+    onRejected: () =>
+        ref.read(licenseControllerProvider.notifier).revalidate(refused: true),
   );
 });

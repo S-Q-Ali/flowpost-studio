@@ -38,11 +38,14 @@ class LicenseService {
 
   /// Opens the app from the vault without a network call while the grant is
   /// unexpired; an expired grant renews silently with the stored key.
-  Future<LicenseState> restore() async {
+  ///
+  /// [renew] is for a grant the backend refused: the clock still says it is
+  /// good, so trusting it would send the same dead token out again.
+  Future<LicenseState> restore({bool renew = false}) async {
     try {
       final record = await store.read();
       if (record == null) return const Locked(LicenseError.missing);
-      if (record.expiresAt.isAfter(_now())) {
+      if (!renew && record.expiresAt.isAfter(_now())) {
         _token = record.token;
         return Active(expiresAt: record.expiresAt, offline: true);
       }
@@ -65,6 +68,10 @@ class LicenseService {
 
   /// The minted session token, for the app's outbound calls.
   Future<String?> token() async => _token ?? (await store.read())?.token;
+
+  /// The time the expiry is measured against. The app waits on this clock and
+  /// not its own, so a re-check and the vault can never disagree.
+  DateTime now() => _now();
 
   Future<void> clear() async {
     _token = null;
