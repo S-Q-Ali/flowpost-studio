@@ -88,10 +88,7 @@ class _StubbornProcessor implements MediaProcessor {
   MediaProgressCallback? _onProgress;
 
   @override
-  Future<MediaJob> process(
-    MediaJob job, {
-      MediaProgressCallback? onProgress,
-    }) {
+  Future<MediaJob> process(MediaJob job, {MediaProgressCallback? onProgress}) {
     _onProgress = onProgress;
     return done.future;
   }

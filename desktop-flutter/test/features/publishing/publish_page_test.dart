@@ -293,9 +293,11 @@ void main() {
 
     expect(find.text('Instagram: Published'), findsOneWidget);
     expect(
-      tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Publish now'),
-      ).onPressed,
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Publish now'),
+          )
+          .onPressed,
       isNull,
     );
     expect(find.byKey(const Key('publish-repeat-blocked')), findsOneWidget);
@@ -346,9 +348,11 @@ void main() {
 
     expect(find.byKey(const Key('publish-repeat-blocked')), findsNothing);
     expect(
-      tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Publish now'),
-      ).onPressed,
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Publish now'),
+          )
+          .onPressed,
       isNotNull,
     );
   });
