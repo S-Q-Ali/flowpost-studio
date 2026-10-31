@@ -10,10 +10,17 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
 - [x] A5. Allowlist `driveDownloadUrl` in LinkedIn and TikTok
 - [x] A6. Unique index + non-terminal guard for publish-now
 - [x] A7. Sign-out revokes the admin token
-- [ ] A8. Per-workflow lock
-- [ ] A9. Batch scheduler + reaper heartbeat
-- [ ] A10. Rate-limit the real caller, fail closed
-- [ ] A11. Server-side upload size and type ceiling
+- [x] A8. Per-workflow lock
+      - `workflow_locks` key is now `workflow:<id>` (30-min TTL), taken just before the run and released at the end of every path, including `continue`. Different workflows run side by side; a manual run of a busy workflow gets 409.
+- [x] A9. Batch scheduler + reaper heartbeat
+      - One conditional `update … in(ids) eq(status, scheduled)` claims the batch; `Promise.allSettled` publishes the claimed rows in parallel.
+      - The reaper fails `processing`/`publishing` rows whose `claimed_at` is older than 30 min, falling back to `scheduled_at` (or `created_at` for rows inserted without one), and clears `claimed_at`.
+- [x] A10. Rate-limit the real caller, fail closed
+      - New `consume_rate_limit(key, max, window)` RPC (SECURITY DEFINER, service_role only) does the count in one statement.
+      - `_shared/rate-limit.ts` is one `consumeRateLimit` + `consumeQuota`; an RPC error refuses (503 at the call sites), never opens.
+      - `verify-license` counts per IP and per key hash; `verify-security-questions` per IP; captions keep their hourly quota.
+- [x] A11. Server-side upload size and type ceiling
+      - `checkUpload` in `_shared/upload.ts`: empty → 400, over 200 MB → 413, content type outside the video/image allowlist → 415. `upload-local-file` refuses before it talks to R2.
 - [x] A12. Run Deno tests in CI — not a finding: `vitest.config.ts` already includes `supabase/functions/_shared/**` and CI runs `npm test` (155 tests pass)
 - [x] A13. Delete `verify-password`, `verify-session`, frontend-api-key branch
       - `verify-password` is a 410 tombstone (file deletion is blocked in this sandbox).

@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  checkUpload,
   isValidIdempotencyKey,
   uploadExtension,
   buildUploadObjectKey,
+  MAX_UPLOAD_BYTES,
 } from "./upload";
 
 describe("isValidIdempotencyKey", () => {
@@ -51,5 +53,30 @@ describe("buildUploadObjectKey", () => {
 
   it("keeps the user folder clean", () => {
     expect(buildUploadObjectKey("user/../other", "abc123", "mp4")).toBe("userother/abc123.mp4");
+  });
+});
+
+describe("checkUpload", () => {
+  it("rejects a file over the cap", () => {
+    expect(MAX_UPLOAD_BYTES).toBe(200 * 1024 * 1024);
+    expect(checkUpload(MAX_UPLOAD_BYTES, "video/mp4")).toEqual({ ok: true });
+    const result = checkUpload(MAX_UPLOAD_BYTES + 1, "video/mp4");
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.status).toBe(413);
+  });
+
+  it("rejects a content type outside the allowlist", () => {
+    expect(checkUpload(1024, "image/png")).toEqual({ ok: true });
+    expect(checkUpload(1024, "image/webp")).toEqual({ ok: true });
+    expect(checkUpload(1024, "video/quicktime")).toEqual({ ok: true });
+    const result = checkUpload(1024, "text/html");
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.status).toBe(415);
+  });
+
+  it("rejects an empty file", () => {
+    const result = checkUpload(0, "image/png");
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.status).toBe(400);
   });
 });

@@ -2,7 +2,12 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { buildUploadObjectKey, isValidIdempotencyKey, uploadExtension } from "../_shared/upload.ts";
+import {
+  buildUploadObjectKey,
+  checkUpload,
+  isValidIdempotencyKey,
+  uploadExtension,
+} from "../_shared/upload.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -82,6 +87,11 @@ Deno.serve(async (req) => {
 
   if (idempotencyKey && !isValidIdempotencyKey(idempotencyKey)) {
     return json({ error: "Invalid idempotency key" }, 400);
+  }
+
+  const check = checkUpload(file.size, file.type);
+  if (!check.ok) {
+    return json({ error: check.error }, check.status);
   }
 
   try {
