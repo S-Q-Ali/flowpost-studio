@@ -55,7 +55,8 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - `connection_failure.dart` holds the sentence and the test for a socket or TLS failure; both media transports rethrow it as their own typed error instead of letting the raw exception reach the generic panel.
 - [x] B9. Drain FFmpeg streams before closing
       - The runner reads both pipes to the end after the exit code lands (two-second backstop for a held handle) instead of cancelling mid-tail; `FfmpegRunner` gained a start seam so a fake process can prove the line after the exit survives.
-- [ ] B10. Stop FFmpeg on quit
+- [x] B10. Stop FFmpeg on quit
+      - `quit()` calls `killRunningFfmpeg()` before anything that could end in `exit(0)`; the runner keeps its child in a process-global slot, the way the pipeline runs one encoder at a time.
 - [ ] B11. Delete the dead identity module
 - [ ] B12. Draft restore must not overwrite edits
 - [ ] B13. "Try again" retries the same file

@@ -54,6 +54,20 @@ Stream<String> decodeOutputLines(Stream<List<int>> bytes) => bytes
     .transform(const Utf8Decoder(allowMalformed: true))
     .transform(const LineSplitter());
 
+/// The child of the run that is in flight, or null when none is.
+///
+/// One run at a time: the media pipeline processes a single job. Quit ends the
+/// app without unwinding anything, and an encoder left behind holds the source
+/// file open and keeps writing into a workspace the next start deletes.
+Process? _running;
+
+/// Stops the encoder that is running, so a quit cannot orphan an FFmpeg.
+void killRunningFfmpeg() {
+  final child = _running;
+  _running = null;
+  child?.kill();
+}
+
 /// Runs the bundled FFmpeg as a separate process.
 ///
 /// Arguments are always passed as a list, never through a shell, so a path
@@ -109,6 +123,7 @@ class FfmpegRunner implements FfmpegExecutor {
       );
     }
     _active = process;
+    _running = process;
     if (_cancelRequested) process.kill();
 
     final outDone = decodeOutputLines(process.stdout).listen((line) {
@@ -137,6 +152,7 @@ class FfmpegRunner implements FfmpegExecutor {
       exitCode = await process.exitCode;
     } finally {
       _active = null;
+      if (_running == process) _running = null;
     }
     // The last lines are the ones that explain a failure, and they are still
     // on their way off the pipe when the exit code lands: cancelling here

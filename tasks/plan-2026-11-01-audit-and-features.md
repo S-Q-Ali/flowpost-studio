@@ -218,11 +218,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: none · Size: S.
   - Done: the runner reads both pipes to their end instead of cancelling where the tail still sits, with a two-second window as the backstop for a handle a child process holds open. `FfmpegRunner` takes a start function so a test can drive the pipes; the fake exits first and the line arrives after, which is the order that lost the summary.
 
-- [ ] **B10. Stop FFmpeg on quit** — Should (desktop 10)
+- [x] **B10. Stop FFmpeg on quit** — Should (desktop 10)
   - Accept: tray Quit cancels and kills the active media process before `exit(0)`.
   - Verify: test with a fake processor — quit calls cancel once; no process id remains.
   - Files: `lib/core/shell/flowpost_shell.dart`, `lib/features/media/media_providers.dart`, test.
   - Dep: B3 · Size: S.
+  - Done: `killRunningFfmpeg()` in `ffmpeg_runner.dart` — the runner already holds its child, so the registry sits next to it and works without a container in the shell's hand. `quit()` calls it first, before any await that could end in `exit(0)`. The shell is built before `runApp`, so the controllers are not reachable there; the registry is process-global the way the single encoder is. Two tests with the fake process: the in-flight child is killed, and a run that already finished is not reached back to.
 
 - [ ] **B11. Delete the dead identity module** — Should (desktop 11, lean)
   - Accept: `lib/features/identity/` and its 8 test files are removed; `flutter analyze` and the suite stay green; nothing is re-exported.

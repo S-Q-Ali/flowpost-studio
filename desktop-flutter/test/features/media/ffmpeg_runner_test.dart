@@ -132,5 +132,69 @@ void main() {
         expect(run.stdout, contains('time=00:00:07.00'));
       },
     );
+
+    test('the child still running when the app quits is killed', () async {
+      final process = _FakeProcess();
+      final started = FfmpegRunner(
+        ffmpegPath: 'ffmpeg',
+        ffprobePath: 'ffprobe',
+        start: (_, _) async => process,
+      );
+      final pending = started.run(
+        executable: 'ffmpeg',
+        arguments: const [],
+        timeout: const Duration(seconds: 30),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      killRunningFfmpeg();
+      expect(process.killed, isTrue);
+
+      // The run itself is left to end as any cancelled one does.
+      process.exit.complete(-1);
+      await process.stdoutController.close();
+      await process.stderrController.close();
+      expect((await pending).isSuccess, isFalse);
+    });
+
+    test('the run that is over is not the one quit kills', () async {
+      final finished = _FakeProcess();
+      final first = FfmpegRunner(
+        ffmpegPath: 'ffmpeg',
+        ffprobePath: 'ffprobe',
+        start: (_, _) async => finished,
+      );
+      final done = first.run(executable: 'ffmpeg', arguments: const []);
+      await Future<void>.delayed(Duration.zero);
+      finished.exit.complete(0);
+      await finished.stdoutController.close();
+      await finished.stderrController.close();
+      await done;
+
+      // The next file gets its own encoder; quit stops that one and does not
+      // reach back to a process that is already gone.
+      final running = _FakeProcess();
+      final second = FfmpegRunner(
+        ffmpegPath: 'ffmpeg',
+        ffprobePath: 'ffprobe',
+        start: (_, _) async => running,
+      );
+      final pending = second.run(
+        executable: 'ffmpeg',
+        arguments: const [],
+        timeout: const Duration(seconds: 30),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      killRunningFfmpeg();
+
+      expect(running.killed, isTrue);
+      expect(finished.killed, isFalse);
+
+      running.exit.complete(-1);
+      await running.stdoutController.close();
+      await running.stderrController.close();
+      await pending;
+    });
   });
 }
