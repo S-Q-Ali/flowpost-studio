@@ -1,0 +1,102 @@
+name: Release the desktop app
+
+# A tag like `desktop-v1.0.0` builds the Windows installer, writes its
+# SHA-256 next to it, and publishes both on a GitHub release. The tag is the
+# only version: the installer and the app's own version come from it.
+on:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  installer:
+    name: Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Read the version from the tag
+        id: version
+        shell: bash
+        run: echo "value=${GITHUB_REF_NAME#desktop-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install packages
+        working-directory: desktop-flutter
+        run: flutter pub get
+
+      - name: Cache FFmpeg
+        uses: actions/cache@v6
+        with:
+          path: |
+            desktop-flutter/third_party/ffmpeg
+            desktop-flutter/third_party/cache
+          key: ffmpeg-${{ hashFiles('desktop-flutter/tool/fetch_ffmpeg.ps1') }}
+
+      - name: Fetch FFmpeg
+        working-directory: desktop-flutter
+        shell: powershell
+        run: ./tool/fetch_ffmpeg.ps1
+
+      - name: Build the app
+        working-directory: desktop-flutter
+        run: >-
+          flutter build windows --release
+          --build-name=${{ steps.version.outputs.value }}
+          --build-number=${{ github.run_number }}
+          --dart-define-from-file=config/prod.json
+
+      - name: Build the installer
+        working-directory: desktop-flutter
+        shell: powershell
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --yes
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc "/DMyAppVersion=${{ steps.version.outputs.value }}" "installer\flowpost.iss"
+          # A native tool that fails leaves PowerShell running happily.
+          exit $LASTEXITCODE
+
+      - name: Write the checksum of the installer
+        shell: pwsh
+        run: |
+          $installer = "dist-desktop\FlowPostNativeSetup.exe"
+          if (-not (Test-Path $installer)) {
+            throw "The installer was not produced: $installer"
+          }
+          $hash = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLower()
+          "$hash  FlowPostNativeSetup.exe" | Set-Content -Encoding ascii "$installer.sha256"
+          Write-Host "SHA-256 $hash"
+
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              dist-desktop/FlowPostNativeSetup.exe \
+              dist-desktop/FlowPostNativeSetup.exe.sha256 \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              dist-desktop/FlowPostNativeSetup.exe \
+              dist-desktop/FlowPostNativeSetup.exe.sha256 \
+              --title "FlowPost Studio $VERSION" \
+              --notes "Windows installer for FlowPost Studio $VERSION. Check it with: certutil -hashfile FlowPostNativeSetup.exe SHA256"
+          fi
