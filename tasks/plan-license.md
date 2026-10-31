@@ -23,8 +23,8 @@ Desktop first run                Backend                        Desktop after
 setup (URL + anon key)  ──►  POST functions/v1/verify-license
 license key (user)            hash = sha256(key)              secure vault:
         │                     licenses: active, not expired   token + expiresAt
-        └──────────────────►  mint session (7 days)   ──────►  Router guard opens the app
-                              bound to the admin user id
+        └──────────────────►  mint session (7 days)   ──────►  + key in the vault
+                              bound to the admin user id      Router guard opens the app
                                                                      │
                                                               edge calls use
                                                               x-admin-token / Bearer <session token>
@@ -43,8 +43,10 @@ license key (user)            hash = sha256(key)              secure vault:
   activating a license signs out the web admin gate and vice versa; this is the
   documented behaviour and stays.
 - **Offline.** A stored, unexpired token opens the app without a network call
-  (marked "offline"); an expired token goes back to the license screen. When
-  online, the stored token is confirmed with the existing `verify-session`.
+  (marked "offline"); an expired token renews silently with the key kept in the
+  vault, and only a revoked or missing key sends the user back to the license
+  screen. When online, the stored token is confirmed with the existing
+  `verify-session`.
 - **Unwired, not deleted.** `features/identity/**` stays in the tree and its unit
   tests keep passing; no app file imports it. `SPEC-identity.md` gets an inactive
   header; ADR 0001 stays as history and ADR 0005 records the supersession.
@@ -89,17 +91,18 @@ license key (user)            hash = sha256(key)              secure vault:
 
 ### Phase 2 — Desktop
 
-- [ ] **L5 — License data layer** (M)
+- [x] **L5 — License data layer** (M)
   `features/license/data/`: models (`LicenseState`: `Locked(reason)` /
   `Active(expiresAt, offline)`), a client that POSTs to
   `<supabaseUrl>/functions/v1/verify-license` with `apikey` and maps
   401/429/network/timeout to typed errors, a vault-backed store (`SecretVault`,
-  keys `flowpost_license_token` / `_expires_at`), and a service with
-  `activate(key)`, `restore()` (expiry check + optional `verify-session`) and
-  `clear()`. Injectables for tests; clock injected.
-  - Acceptance: success persists token + expiry and returns Active; 401 → Locked
-    with "not valid"; expired stored token → Locked; offline with a future expiry
-    → Active(offline: true); clear removes both records.
+  keys `flowpost.license.token` / `.expires_at` / `.key`), and a service with
+  `activate(key)`, `restore()` (local expiry check, silent renewal from the
+  stored key) and `clear()`. Injectables for tests; clock injected.
+  - Acceptance: success persists token + expiry + key and returns Active; 401 →
+    Locked with "not valid"; expired stored grant → renewed silently, or Locked
+    (offline/expired) with the key kept; revoked grant → Locked and cleared;
+    clear removes all three records.
   - Files: `lib/features/license/data/*.dart`, tests beside them.
 
 - [ ] **L6 — Controller and session wiring** (S)
