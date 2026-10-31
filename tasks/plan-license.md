@@ -152,7 +152,7 @@ license key (user)            hash = sha256(key)              secure vault:
     diagnostics facts became `licensed`. All 858 tests, analyzer and formatter
     green; no `lib/` file outside `features/identity/**` imports identity.
 
-- [ ] **L9b — Posts access without Supabase Auth** (M) — found while reading L9
+- [x] **L9b — Posts access without Supabase Auth** (M) — found while reading L9
   The queue, calendar and publish writes talk to `posts` over PostgREST with the
   Supabase Auth JWT (`auth.uid() = user_id`). With login gone there is no JWT to
   send, and the 7-day session token is not one. Add a `posts-api` edge function
@@ -166,6 +166,15 @@ license key (user)            hash = sha256(key)              secure vault:
     its own rows; the queue/calendar/publish tests run against a fake function
     transport; no `lib/` file imports `core/auth/access_token.dart`.
   - Deploy: ships with L11 (owner-assisted).
+  - Done 2026-10-31: `posts-api` takes `{action, ...}` bodies and answers
+    `{rows: [...]}`; every query filters `user_id` from the session and insert
+    overwrites the owner, so a client cannot name another user. The session is
+    the only credential (`Session.sessionToken`); `accessToken`,
+    `authAccessTokenProvider` and `core/auth/` are gone, and the remaining
+    copy says "Activate a license…". The settings connection probe still pings
+    `/rest/v1/` — it tests the backend, not a posts call. 855 Flutter tests, 179
+    Vitest tests, analyzer, formatter, `tsc -b` green.
+
 
 ### Phase 3 — Docs, deploy and gate
 
