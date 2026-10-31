@@ -1,17 +1,17 @@
 # Graph Report - flowpost-studio  (2026-10-31)
 
 ## Corpus Check
-- 623 files · ~656,732 words
+- 643 files · ~667,007 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 199 file(s) not represented in the graph (top: .xsd 117, .ttf 54, (none) 8)
 
 ## Summary
-- 7740 nodes · 11593 edges · 430 communities (388 shown, 42 thin omitted)
+- 8237 nodes · 12312 edges · 442 communities (398 shown, 44 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 151 edges (avg confidence: 0.89)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `77eecabd`
+- Built from commit: `a80bf8c4`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -40,13 +40,13 @@
 - compilerOptions
 - package:flutter_riverpod/flutter_riverpod.dart
 - tiktok-auth/index.ts
-- cache_store_test.dart
-- media_workspace.dart
+- identity_store.dart
+- package:logging/logging.dart
 - package_skill.py
 - tempfile
 - dart:io
 - xlsx/scripts/office/helpers/pptx_theme.py
-- settings_page_test.dart
+- package:flutter_riverpod/flutter_riverpod.dart
 - publish_page.dart
 - WorkflowItemsPage.tsx
 - settings_page.dart
@@ -60,14 +60,14 @@
 - Implementation Plan: FlowPost Desktop — Production-Ready Windows MVP
 - setup.ts
 - posixpath
-- perf_list_test.dart
-- Todo: FlowPost Desktop — Production-Ready Windows MVP
+- media_controller_test.dart
+- login_page.dart
 - Worked example: Agent Teams for competing-hypothesis debugging
 - Skill Creator
 - scheduled_posts_repository_test.dart
 - Claude API - Python
 - connections.py
-- extract_form_field_info.py
+- oauth_flow_test.dart
 - imports
 - imports
 - publish_page_test.dart
@@ -79,7 +79,7 @@
 - Process
 - diagnostics_report.dart
 - vercel.json
-- return
+- identity_controller_test.dart
 - Spec: FlowPost Desktop Application (Windows)
 - API and Interface Design
 - Browser Testing with DevTools
@@ -92,7 +92,7 @@
 - Incremental Implementation
 - package:flutter_test/flutter_test.dart
 - Managed Agents - cURL / Raw HTTP
-- docx/scripts/office/helpers/pptx_theme.py
+- post_edit.dart
 - Non-fillable fields
 - Spec: `identity` — FlowPost Native Sign-in and Session
 - re
@@ -106,9 +106,9 @@
 - Managed Agents - Endpoint Reference
 - Prompt Caching - Design & Optimization
 - app_shell.dart
-- settings_providers_test.dart
-- List
-- typing
+- auth_repository.dart
+- security_questions_page_test.dart
+- docx/scripts/office/helpers/pptx_chart.py
 - GIFBuilder
 - algorithmic-art/SKILL.md
 - Managed Agents - Go
@@ -118,7 +118,7 @@
 - Interview Me
 - Python MCP Server Implementation Guide
 - Planning and Task Breakdown
-- Running Evaluations
+- media_workspace.dart
 - easing.py
 - Tools
 - Model Migration Guide
@@ -149,7 +149,7 @@
 - Web Performance Auditor
 - PlatformIcon.tsx
 - Using Agent Skills
-- offline_providers.dart
+- identity_client.dart
 - Testing Patterns Reference (JavaScript/TypeScript)
 - Review Scope
 - Claude API Documentation URLs
@@ -174,7 +174,7 @@
 - Process
 - Connected Accounts
 - Claude API - Java
-- ref_npm_supabase
+- auth.ts
 - Steering Patterns
 - Tool Use - TypeScript
 - tasteskill: Anti-Slop Frontend Skill
@@ -189,8 +189,8 @@
 - .update
 - 🚀 High-Level Workflow
 - Spec-Driven Development
-- media_workspace.dart
-- app_providers.dart
+- auth_repository_test.dart
+- login_page_test.dart
 - Contributing
 - Anthropic Brand Styling
 - Beta Features & Anthropic-Defined Tools
@@ -221,7 +221,7 @@
 - Claude Model Catalog
 - Files API - TypeScript
 - 10. REFERENCE VOCABULARY (Pattern Names the Agent Should Know)
-- accounts_page.dart
+- supabase_gateways.dart
 - upload_controller_test.dart
 - JSON Schemas
 - Slack GIF Creator
@@ -249,7 +249,7 @@
 - Theme Factory Skill
 - Web Application Testing
 - XLSX creation, editing, and analysis
-- posts_cache.dart
+- media_controller_test.dart
 - Tool Use
 - crypto.ts
 - Managed Agents - Onboarding Flow
@@ -268,7 +268,7 @@
 - Manage memories directly (host-side)
 - _
 - Claude Platform on AWS
-- calm_error_panel_test.dart
+- identity_models.dart
 - Managed Agents - Overview
 - Migrating to Opus 4.8
 - pathlib
@@ -326,9 +326,9 @@
 - Streaming - PHP
 - Streaming - Ruby
 - captions_client.dart
-- publish_validation_test.dart
+- PPTXSchemaValidator
 - post-story/index.ts
-- dart:convert
+- identity_controller.dart
 - flowpost-desktop.md
 - idea-refine.sh
 - scheduling_controller.dart
@@ -344,7 +344,7 @@
 - FlutterWindow
 - Win32Window
 - Spec: `credentials` — Backend Values the User Can Enter (Phase 6.4)
-- package:flutter_test/flutter_test.dart
+- identity_providers.dart
 - app_logger.dart
 - Security policy
 - publishing_controller.dart
@@ -352,8 +352,8 @@
 - publish_selection.dart
 - Spec: `shell` — FlowPost Native Windows Bootstrap
 - utils.cpp
-- accounts_providers.dart
-- media_page.dart
+- home_page.dart
+- draft_store_test.dart
 - media_processor.dart
 - Win32Window
 - media_probe.dart
@@ -373,7 +373,7 @@
 - Server-Side Tools: Code Execution
 - instance_guard.dart
 - compose_draft.dart
-- package:flutter/material.dart
+- app_theme.dart
 - upload_client.dart
 - scheduled_posts_repository.dart
 - time_zone.dart
@@ -405,32 +405,44 @@
 - User-Defined Tools
 - ADR 0003: A local SQLite database for the cache and the drafts
 - media_job.dart
-- package:flowpost_desktop/core/config/app_config.dart
+- RedliningValidator
 - SPEC — Accessibility (Phase 6.3)
 - PULL_REQUEST_TEMPLATE.md
 - Provider Clients (Quick Reference)
-- tiktok-auth/index.ts
+- RedliningValidator
 - Prompt Caching
 - accounts_page_test.dart
 - Which Surface Should I Use?
 - Cost Optimization Strategies
 - settings_providers.dart
 - media_format.dart
-- fake_posts_cache.dart
+- protocol_registration.dart
 - ffmpeg_progress.dart
 - AuthContext.tsx
 - validators.py
-- Evaluation Process
-- PostsCache
-- PostsRepository
-- Point
+- ref_npm_supabase
+- facebook-auth/index.ts
+- contrast_test.dart
+- .MessageHandler
 - scripts
 - Spec: `settings` — Settings Screen (Phase 6.1)
-- ease_back_in
+- pptx/scripts/office/helpers/pptx_chart.py
 - drive-to-mega/index.ts
 - Quality Checklist
+- startup_failure.dart
+- protocol_registration_test.dart
+- Map
 - Spec: `diagnostics` — Failures, Evidence and Salvage (Phase 6.2)
 - Advanced MCP Features
+- ref_npm_supabase
+- sessionProvider
+- media_limits_test.dart
+- configControllerProvider
+- static const String
+- FunctionsGateway
+- UsersGateway
+- Size
+- FlowPostShell
 - Available Utilities
 - integration_test.dart
 
@@ -461,7 +473,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (430 total, 42 thin omitted)
+## Communities (442 total, 44 thin omitted)
 
 ### Community 0 - "InsightsPage.tsx"
 Cohesion: 0.09
@@ -505,7 +517,7 @@ Nodes (21): chatQuota(), checkRateLimit(), consumeQuota(), LOCKOUT_DURATION_MINU
 
 ### Community 10 - "BaseSchemaValidator"
 Cohesion: 0.05
-Nodes (9): find_chart_problems(), fatal_slide_errors(), is_schema_verdict(), BaseSchemaValidator, DOCXSchemaValidator, PPTXSchemaValidator, RedliningValidator, group() (+1 more)
+Nodes (10): find_chart_problems(), fatal_slide_errors(), is_schema_verdict(), BaseSchemaValidator, _load_schema(), DOCXSchemaValidator, PPTXSchemaValidator, RedliningValidator (+2 more)
 
 ### Community 11 - "captions.ts"
 Cohesion: 0.08
@@ -524,24 +536,24 @@ Cohesion: 0.08
 Nodes (15): accountsRoute, build, buildRouter, calendarRoute, deepLinkAllowlist, homeRoute, location, name (+7 more)
 
 ### Community 15 - "BaseSchemaValidator"
-Cohesion: 0.05
-Nodes (9): fatal_slide_errors(), is_schema_verdict(), BaseSchemaValidator, _load_schema(), DOCXSchemaValidator, PPTXSchemaValidator, RedliningValidator, group() (+1 more)
+Cohesion: 0.07
+Nodes (6): find_chart_problems(), fatal_slide_errors(), is_schema_verdict(), BaseSchemaValidator, DOCXSchemaValidator, PPTXSchemaValidator
 
 ### Community 16 - "components.json"
 Cohesion: 0.12
 Nodes (16): aliases, components, hooks, lib, ui, utils, rsc, $schema (+8 more)
 
 ### Community 17 - "BaseSchemaValidator"
-Cohesion: 0.05
-Nodes (8): fatal_slide_errors(), is_schema_verdict(), BaseSchemaValidator, DOCXSchemaValidator, PPTXSchemaValidator, RedliningValidator, group(), text_of()
+Cohesion: 0.07
+Nodes (6): fatal_slide_errors(), is_schema_verdict(), BaseSchemaValidator, _load_schema(), DOCXSchemaValidator, PPTXSchemaValidator
 
 ### Community 18 - "google-drive-auth/index.ts"
 Cohesion: 0.13
 Nodes (16): authorize, corsHeaders, exchangeCodeForTokens(), fetchDriveUserInfo(), GD_CLIENT_ID, GD_CLIENT_SECRET, json(), R2_ACCESS_KEY (+8 more)
 
 ### Community 19 - "json"
-Cohesion: 0.08
-Nodes (16): create_validation_image(), generate_html(), main(), _call_claude(), improve_description(), main(), find_project_root(), main() (+8 more)
+Cohesion: 0.05
+Nodes (28): get_bounding_box_messages(), RectAndField, create_validation_image(), get_field_info(), get_full_annotation_field_id(), make_field_dict(), write_field_info(), extract_form_structure() (+20 more)
 
 ### Community 20 - "youtube-upload/index.ts"
 Cohesion: 0.09
@@ -552,52 +564,52 @@ Cohesion: 0.12
 Nodes (15): compilerOptions, allowImportingTsExtensions, isolatedModules, lib, module, moduleDetection, moduleResolution, noEmit (+7 more)
 
 ### Community 22 - "package:flutter_riverpod/flutter_riverpod.dart"
-Cohesion: 0.08
-Nodes (19): AppVersionInfo, buildNumber, packageInfoLoaderProvider, version, buildNumber, info, main, version (+11 more)
+Cohesion: 0.09
+Nodes (17): AppVersionInfo, buildNumber, packageInfoLoaderProvider, version, buildNumber, info, main, version (+9 more)
 
 ### Community 23 - "tiktok-auth/index.ts"
 Cohesion: 0.08
-Nodes (29): Slice C — OAuth state hardening + belt 6 OAuth functions, authorize, corsHeaders, exchangeCodeForUserToken(), FB_APP_ID, FB_APP_SECRET, fetchFacebookPages(), getLongLivedUserToken() (+21 more)
+Nodes (28): Slice C — OAuth state hardening + belt 6 OAuth functions, authorize, corsHeaders, exchangeCodeForToken(), fetchLinkedInProfile(), json(), LI_CLIENT_ID, LI_CLIENT_SECRET (+20 more)
 
-### Community 24 - "cache_store_test.dart"
-Cohesion: 0.08
-Nodes (17): main, accountName, caption, containsAlteredContent, dir, file, hashtags, id (+9 more)
-
-### Community 25 - "media_workspace.dart"
+### Community 24 - "identity_store.dart"
 Cohesion: 0.04
-Nodes (41): calmPanel, installErrorHandlers, present, allowedPaths, DeepLinkDispatcher, handle, log, pendingRoute (+33 more)
+Nodes (42): accessToken, adminTokenKey, clear, CredentialVault, _decode, delete, deleteAdminToken, deletePendingOAuth (+34 more)
+
+### Community 25 - "package:logging/logging.dart"
+Cohesion: 0.03
+Nodes (37): build, CalmErrorPanel, calmPanelBody, calmPanelTitle, calmPanel, installErrorHandlers, present, allowedPaths (+29 more)
 
 ### Community 26 - "package_skill.py"
 Cohesion: 0.21
 Nodes (4): main(), package_skill(), should_exclude(), validate_skill()
 
 ### Community 27 - "tempfile"
-Cohesion: 0.09
-Nodes (25): accept_changes(), _setup_libreoffice_macro(), rezip(), _ensure_shim(), get_soffice_env(), _needs_shim(), run_soffice(), _ensure_shim() (+17 more)
+Cohesion: 0.08
+Nodes (25): accept_changes(), _setup_libreoffice_macro(), _ensure_shim(), get_soffice_env(), _needs_shim(), run_soffice(), _ensure_shim(), get_soffice_env() (+17 more)
 
 ### Community 28 - "dart:io"
-Cohesion: 0.04
-Nodes (41): exportDiagnostics, target, temporary, candidateDirectories, environmentVariable, ffmpeg, FfmpegPaths, ffprobe (+33 more)
+Cohesion: 0.03
+Nodes (54): _brokenFilePattern, _brokenFiles, files, found, gatherDiagnostics, logLines, logsRead, name (+46 more)
 
 ### Community 29 - "xlsx/scripts/office/helpers/pptx_theme.py"
 Cohesion: 0.15
 Nodes (19): part_text(), _canonical_ids(), _check_chart_axis_references(), _check_stacked_label_positions(), _declared_axes(), _ext_lst_spans(), find_chart_problems(), _strip_ext_lst() (+11 more)
 
-### Community 30 - "settings_page_test.dart"
-Cohesion: 0.06
-Nodes (29): accessToken, build, clear, Session, SessionController, sessionToken, signIn, broken (+21 more)
+### Community 30 - "package:flutter_riverpod/flutter_riverpod.dart"
+Cohesion: 0.04
+Nodes (48): accessToken, build, clear, Session, SessionController, sessionToken, signIn, compiled (+40 more)
 
 ### Community 31 - "publish_page.dart"
-Cohesion: 0.07
-Nodes (38): build, caption, _CaptionSection, _clock, date, _DraftBanner, fileName, _issueLines (+30 more)
+Cohesion: 0.06
+Nodes (35): caption, _CaptionSection, _clock, date, _DraftBanner, fileName, _issueLines, issues (+27 more)
 
 ### Community 32 - "WorkflowItemsPage.tsx"
 Cohesion: 0.07
 Nodes (44): date-fns, lucide-react, @supabase/supabase-js, CAPTION_LABELS, CaptionPreviewModal(), CaptionPreviewModalProps, STEP_LABELS, StepId (+36 more)
 
 ### Community 33 - "settings_page.dart"
-Cohesion: 0.07
-Nodes (36): compiledConfigProvider, configControllerProvider, sessionProvider, _AboutSection, _AccountSection, _answer, build, child (+28 more)
+Cohesion: 0.10
+Nodes (20): _answer, build, child, createState, _DiagnosticsSection, _download, _ExportRow, _generation (+12 more)
 
 ### Community 34 - "evaluation.py"
 Cohesion: 0.15
@@ -616,8 +628,8 @@ Cohesion: 0.09
 Nodes (23): Answer Guidelines, Complexity and Depth, Core Requirements, Diversity, Evaluation Examples, Evaluation Overview, Evaluation Requirements, Good Questions (+15 more)
 
 ### Community 38 - "flowpost_shell.dart"
-Cohesion: 0.03
-Nodes (46): _caption, _fallbackFolder, folder, reportStartupFailure, showStartupMessageBox, startupFailureMessage, StartupFailureReporter, text (+38 more)
+Cohesion: 0.05
+Nodes (32): acquireSingleInstance, configureTray, drainIntentFile, _guard, handle, _handOffTo, _hideOnClose, IntentLineReader (+24 more)
 
 ### Community 39 - "Node/TypeScript MCP Server Implementation Guide"
 Cohesion: 0.07
@@ -632,16 +644,16 @@ Cohesion: 0.14
 Nodes (13): Architecture Decisions, Assumptions, Blocking Inputs, Cross-Phase Skills Matrix, Current State (2026-10-28), Definition of Done (every task), Implementation Plan: FlowPost Desktop — Production-Ready Windows MVP, Open Questions (+5 more)
 
 ### Community 43 - "posixpath"
-Cohesion: 0.10
-Nodes (23): opc_target(), rels_source_part(), rendered_text(), safe_extract(), clean_unused_files(), get_referenced_files(), get_slides_in_sldidlst(), _referenced_by() (+15 more)
+Cohesion: 0.11
+Nodes (23): main(), opc_target(), rels_source_part(), rezip(), safe_extract(), clean_unused_files(), get_referenced_files(), get_slides_in_sldidlst() (+15 more)
 
-### Community 44 - "perf_list_test.dart"
+### Community 44 - "media_controller_test.dart"
 Cohesion: 0.12
 Nodes (9): binding, _config, jsonEncode, _line, main, _max, pct, _stats (+1 more)
 
-### Community 45 - "Todo: FlowPost Desktop — Production-Ready Windows MVP"
-Cohesion: 0.10
-Nodes (20): Gate Commands, Phase 0 evidence (2026-10-28), Phase 0 — Shell Completion and Installability, Phase 1 — Identity and Session (DEFERRED by owner 2026-10-28), Phase 2 — Account Connections (no-auth local slice first), Phase 3.1 evidence (2026-10-28), Phase 3.2 evidence (2026-10-29), Phase 3.3 evidence (2026-10-29) (+12 more)
+### Community 45 - "login_page.dart"
+Cohesion: 0.05
+Nodes (35): identityControllerProvider, browserLauncherProvider, build, _busy, _cancelGoogle, createState, dispose, _email (+27 more)
 
 ### Community 46 - "Worked example: Agent Teams for competing-hypothesis debugging"
 Cohesion: 0.06
@@ -652,8 +664,8 @@ Cohesion: 0.06
 Nodes (34): Advanced: Blind comparison, Anatomy of a Skill, Capture Intent, Claude.ai-specific instructions, Communicating with the user, Cowork-Specific Instructions, Creating a skill, Description Optimization (+26 more)
 
 ### Community 48 - "scheduled_posts_repository_test.dart"
-Cohesion: 0.11
-Nodes (17): accountId, answers, bodies, _call, id, main, methods, _repository (+9 more)
+Cohesion: 0.06
+Nodes (30): PostsException, bodies, _draft, main, methods, _repository, rows, segment (+22 more)
 
 ### Community 49 - "Claude API - Python"
 Cohesion: 0.06
@@ -663,17 +675,17 @@ Nodes (33): 1. Use Prompt Caching for Repeated Context, 2. Choose the Right Mode
 Cohesion: 0.08
 Nodes (5): create_connection(), MCPConnection, MCPConnectionHTTP, MCPConnectionSSE, MCPConnectionStdio
 
-### Community 51 - "extract_form_field_info.py"
-Cohesion: 0.09
-Nodes (16): main(), _merge_or_die(), get_bounding_box_messages(), RectAndField, get_field_info(), get_full_annotation_field_id(), make_field_dict(), write_field_info() (+8 more)
+### Community 51 - "oauth_flow_test.dart"
+Cohesion: 0.05
+Nodes (37): IdentityException, delete, main, read, readAll, store, values, vault (+29 more)
 
 ### Community 54 - "publish_page_test.dart"
 Cohesion: 0.06
 Nodes (34): body, defaultPublishTimeout, failure, HttpPublishTransport, _noAnswer, platformId, platformIdKeys, publish (+26 more)
 
 ### Community 55 - "merge_runs.py"
-Cohesion: 0.17
-Nodes (23): _can_merge(), _consolidate_text(), _consolidate_text_elements(), _element_text(), _find_elements(), traverse(), _find_runs(), _first_child_run() (+15 more)
+Cohesion: 0.14
+Nodes (25): _can_merge(), _consolidate_text(), _consolidate_text_elements(), _element_text(), _find_elements(), traverse(), _find_runs(), _first_child_run() (+17 more)
 
 ### Community 56 - "Building LLM-Powered Applications with Claude"
 Cohesion: 0.07
@@ -699,9 +711,9 @@ Nodes (27): Analyzing Benchmark Results, Categories for Suggestions, Guidelines,
 Cohesion: 0.06
 Nodes (33): absolute, brokenFiles, buffer, buildDiagnosticsReport, bytes, DiagnosticsFacts, _file, files (+25 more)
 
-### Community 63 - "return"
-Cohesion: 0.12
-Nodes (13): extension, setAsideCorruptFile, stem, target, _two, applyMigrations, LocalMigration, _metaTable (+5 more)
+### Community 63 - "identity_controller_test.dart"
+Cohesion: 0.05
+Nodes (42): auth, configured, container, controller, delete, error, exchangeCode, exchangeError (+34 more)
 
 ### Community 65 - "Spec: FlowPost Desktop Application (Windows)"
 Cohesion: 0.08
@@ -720,7 +732,7 @@ Cohesion: 0.10
 Nodes (20): corsHeaders, driveTokenCtx, FRONTEND_API_KEY, generateCaptions(), GROQ_API_KEY, json(), PLATFORM_ALLOWED_KEYS, supabase (+12 more)
 
 ### Community 70 - "ffmpeg_error.dart"
-Cohesion: 0.12
+Cohesion: 0.13
 Nodes (14): _controlPattern, error, ffmpegErrorReason, _knownPaths, lines, _mask, name, paths (+6 more)
 
 ### Community 71 - "CI/CD and Automation"
@@ -744,14 +756,14 @@ Cohesion: 0.09
 Nodes (22): Common Rationalizations, Contract-First Slicing, Implementation Rules, Increment Checklist, Incremental Implementation, Overview, Red Flags, Risk-First Slicing (+14 more)
 
 ### Community 76 - "package:flutter_test/flutter_test.dart"
-Cohesion: 0.06
-Nodes (21): MediaProbeException, allowed, main, main, main, audioCodec, height, main (+13 more)
+Cohesion: 0.07
+Nodes (16): main, part, token, allowed, main, contrast, dark, la (+8 more)
 
 ### Community 77 - "Managed Agents - cURL / Raw HTTP"
 Cohesion: 0.09
 Nodes (21): Create an Agent (required first step), Create an Environment, Delete a Session, Get Session Details, Interrupt a Running Session, List Agents, List and Download Session Files, List Sessions (+13 more)
 
-### Community 78 - "docx/scripts/office/helpers/pptx_theme.py"
+### Community 78 - "post_edit.dart"
 Cohesion: 0.13
 Nodes (18): part_text(), _canonical_ids(), _check_chart_axis_references(), _check_stacked_label_positions(), _declared_axes(), _ext_lst_spans(), _strip_ext_lst(), _undeclared_axes() (+10 more)
 
@@ -803,15 +815,15 @@ Nodes (19): 20-block lookback window, API reference, Architectural guidance, Aut
 Cohesion: 0.14
 Nodes (10): alsoCovers, AppShell, build, child, _Destination, _destinations, _icon, label (+2 more)
 
-### Community 92 - "settings_providers_test.dart"
-Cohesion: 0.13
-Nodes (9): main, _session, config, facts, fromValues, main, replace, upToDate (+1 more)
+### Community 92 - "auth_repository.dart"
+Cohesion: 0.05
+Nodes (35): auth, AuthGateway, AuthRepository, _awaitingQuestions, cachedAdmin, exchangeCode, functions, lookupAdmin (+27 more)
 
-### Community 93 - "List"
-Cohesion: 0.08
-Nodes (20): PostsException, _longRun, main, container, error, main, rows, send (+12 more)
+### Community 93 - "security_questions_page_test.dart"
+Cohesion: 0.04
+Nodes (40): auth, buildContainer, configured, container, delete, exchangeCode, functions, lastDate (+32 more)
 
-### Community 94 - "typing"
+### Community 94 - "docx/scripts/office/helpers/pptx_chart.py"
 Cohesion: 0.17
 Nodes (6): create_blank_frame(), create_gradient_background(), draw_circle(), draw_star(), draw_text(), Making Graphics Look Good
 
@@ -851,7 +863,7 @@ Nodes (23): Async/Await Best Practices, Code Best Practices, Code Composability 
 Cohesion: 0.11
 Nodes (18): Common Rationalizations, Output Files, Overview, Parallelization Opportunities, Plan Document Template, Planning and Task Breakdown, Red Flags, See Also (+10 more)
 
-### Community 104 - "Running Evaluations"
+### Community 104 - "media_workspace.dart"
 Cohesion: 0.12
 Nodes (15): 1. Local STDIO Server, 2. Server-Sent Events (SSE), 3. HTTP (Streamable HTTP), Command-Line Options, Complete Example Workflow, Connection Errors, Evaluation File Format, Low Accuracy (+7 more)
 
@@ -975,9 +987,9 @@ Nodes (13): @testing-library/react, BrandIconProps, BrandSvg(), ChromeIcon(), Fa
 Cohesion: 0.13
 Nodes (14): 1. Surface Assumptions, 2. Manage Confusion Actively, 3. Push Back When Warranted, 4. Enforce Simplicity, 5. Maintain Scope Discipline, 6. Verify, Don't Assume, Core Operating Behaviors, Failure Modes to Avoid (+6 more)
 
-### Community 135 - "offline_providers.dart"
-Cohesion: 0.13
-Nodes (7): cache, config, connectivity, postsTransportProvider, repository, config, scheduledPostsRepositoryProvider
+### Community 135 - "identity_client.dart"
+Cohesion: 0.05
+Nodes (31): anonKey, _attempt, _current, false, identityAuthOptions, IdentityClient, IdentityStartRequest, localStorage (+23 more)
 
 ### Community 136 - "Testing Patterns Reference (JavaScript/TypeScript)"
 Cohesion: 0.14
@@ -1032,8 +1044,8 @@ Cohesion: 0.18
 Nodes (11): AI Caption Generation Fails, CORS Errors in Browser Console, FlowPost Workflow Not Triggering, Getting Help, Google Drive / Mega Issues, Google Sheets Workflow Not Triggering, LinkedIn Post Fails, OAuth Errors (+3 more)
 
 ### Community 149 - "main.dart"
-Cohesion: 0.05
-Nodes (22): build, createState, initialDeepLink, refreshListenable, _router, checkCredentialsConnection, client, clock (+14 more)
+Cohesion: 0.08
+Nodes (8): _save, _appLinks, _ensureProtocol, _getInitialLink, _listenDeepLinks, main, _removeStaleMediaJobs, runZonedGuarded
 
 ### Community 150 - "Managed Agents - TypeScript"
 Cohesion: 0.12
@@ -1075,9 +1087,9 @@ Nodes (7): Connected Accounts, Connecting an Account, LinkedIn Notes, Managing C
 Cohesion: 0.13
 Nodes (14): Basic Message Request, Claude API - Java, Client Initialization, Discovering type and member names, Effort Parameter, Error Type, Installation, Key types per feature (+6 more)
 
-### Community 160 - "ref_npm_supabase"
+### Community 160 - "auth.ts"
 Cohesion: 0.08
-Nodes (18): authorize, corsHeaders, fetchMeta(), fetchSingleMetric(), supabase, SUPABASE_ANON_KEY, authorize, corsHeaders (+10 more)
+Nodes (31): Execution order (THIS session), Slice B — belt 5 non-OAuth functions + C3 ownership, Step 2: Identify Simplification Opportunities, authorize, corsHeaders, fetchMeta(), fetchSingleMetric(), supabase (+23 more)
 
 ### Community 161 - "Steering Patterns"
 Cohesion: 0.13
@@ -1116,7 +1128,7 @@ Cohesion: 0.67
 Nodes (3): Dashboard, Recent Activity, Stats Cards
 
 ### Community 171 - "credentials_form.dart"
-Cohesion: 0.08
+Cohesion: 0.09
 Nodes (21): build, _busy, _clear, createState, CredentialsForm, _CredentialsFormState, dispose, initial (+13 more)
 
 ### Community 172 - ".update"
@@ -1131,13 +1143,13 @@ Nodes (19): 1.1 Understand Modern MCP Design, 1.2 Study MCP Protocol Documentati
 Cohesion: 0.14
 Nodes (13): Common Rationalizations, Keeping the Spec Alive, Overview, Phase 0: Scope Check, Phase 1: Specify, Phase 2: Plan, Phase 3: Tasks, Phase 4: Implement (+5 more)
 
-### Community 175 - "media_workspace.dart"
-Cohesion: 0.14
-Nodes (11): _brokenFilePattern, _brokenFiles, files, found, gatherDiagnostics, logLines, logsRead, name (+3 more)
+### Community 175 - "auth_repository_test.dart"
+Cohesion: 0.05
+Nodes (35): auth, configured, delete, exchangeCode, exchangeError, exchanges, functions, lookup (+27 more)
 
-### Community 176 - "app_providers.dart"
-Cohesion: 0.15
-Nodes (7): authAccessTokenProvider, config, timeZoneProvider, _ScheduleFields, _schedule, _restoreOf, _save
+### Community 176 - "login_page_test.dart"
+Cohesion: 0.06
+Nodes (27): auth, delete, exchangeCode, exchanges, launched, launcherWorks, lookupAdmin, main (+19 more)
 
 ### Community 177 - "Contributing"
 Cohesion: 0.29
@@ -1259,9 +1271,9 @@ Nodes (9): Delete a File, Download a File, Files API - TypeScript, Key Facts, Li
 Cohesion: 0.20
 Nodes (10): 10. REFERENCE VOCABULARY (Pattern Names the Agent Should Know), Animation Library Choice, Cards & Containers, Galleries & Media, Hero Paradigms, Layout & Grids, Micro-Interactions & Effects, Navigation & Menus (+2 more)
 
-### Community 207 - "accounts_page.dart"
-Cohesion: 0.06
-Nodes (28): accountsControllerProvider, accountName, AccountStatus, ConnectedAccount, copyWith, fromJson, label, platform (+20 more)
+### Community 207 - "supabase_gateways.dart"
+Cohesion: 0.07
+Nodes (24): _isTransport, mapAuthFailure, mapFunctionFailure, mapGatewayFailure, mapPostgrestFailure, null, serverMessage, _asMap (+16 more)
 
 ### Community 208 - "upload_controller_test.dart"
 Cohesion: 0.04
@@ -1280,12 +1292,12 @@ Cohesion: 0.20
 Nodes (9): Design & Style Guidelines, Quick Start, Reference, Step 1: Initialize Project, Step 2: Develop Your Artifact, Step 3: Bundle to Single HTML File, Step 4: Share Artifact with User, Step 5: Testing/Visualizing the Artifact (Optional) (+1 more)
 
 ### Community 212 - "ffmpeg_service_test.dart"
-Cohesion: 0.04
-Nodes (43): MediaStage, fraction, MediaCancelled, MediaProcessingException, MediaProcessingProgress, message, stage, toString (+35 more)
+Cohesion: 0.03
+Nodes (54): MediaStage, MediaProbeException, fraction, MediaCancelled, MediaProcessingException, MediaProcessingProgress, message, stage (+46 more)
 
 ### Community 213 - "Phase 5 — Scheduling and Offline Slice"
-Cohesion: 0.09
-Nodes (20): offlineDB, PostQueueItem, GitHub production readiness (2026-10-30), Phase 5.1 evidence (2026-10-29), Phase 5.2b evidence (2026-10-29), Phase 5.2c evidence (2026-10-29), Phase 5.2d evidence (2026-10-29), Phase 5.3 evidence (2026-10-29) (+12 more)
+Cohesion: 0.05
+Nodes (40): offlineDB, PostQueueItem, Gate Commands, GitHub production readiness (2026-10-30), Phase 0 evidence (2026-10-28), Phase 0 — Shell Completion and Installability, Phase 1 — Identity and Session (DEFERRED by owner 2026-10-28), Phase 2 — Account Connections (no-auth local slice first) (+32 more)
 
 ### Community 214 - "tool-use-concepts.md"
 Cohesion: 0.29
@@ -1313,7 +1325,7 @@ Nodes (9): Behavioral shifts (prompt-tunable), Breaking changes (will 400 on Opu
 
 ### Community 220 - "media_providers.dart"
 Cohesion: 0.04
-Nodes (51): MediaProcessorFactory, MediaWorkspace, build, cancel, completeJob, _deleteJob, forApplication, fraction (+43 more)
+Nodes (56): sessionTokenProvider, captionControllerProvider, MediaProcessorFactory, build, cancel, chooseAnother, completeJob, _deleteJob (+48 more)
 
 ### Community 221 - "Ideation Frameworks Reference"
 Cohesion: 0.22
@@ -1328,8 +1340,8 @@ Cohesion: 0.33
 Nodes (5): ADR 0004: Credentials entered in Settings, not only at build time, Alternatives considered, Consequences, Context, Decision
 
 ### Community 224 - "package:flutter_riverpod/flutter_riverpod.dart"
-Cohesion: 0.08
-Nodes (22): _chip, false, main, _pump, pumpAndSettle, pumpWidget, repository, _tabToChip (+14 more)
+Cohesion: 0.05
+Nodes (40): CachedPosts, dir, file, main, post, _chip, false, main (+32 more)
 
 ### Community 225 - "Tool Use - C#"
 Cohesion: 0.25
@@ -1371,9 +1383,9 @@ Nodes (7): Best Practices, Common Pitfall, Decision Tree: Choosing Your Approach
 Cohesion: 0.25
 Nodes (7): Choosing formulas that survive verification, Dependencies, Financial models, openpyxl gotchas, Recalculate (mandatory whenever the file contains formulas), Requirements for every output, XLSX creation, editing, and analysis
 
-### Community 235 - "posts_cache.dart"
-Cohesion: 0.12
-Nodes (12): close, dir, load, _log, merge, _open, _openStore, remove (+4 more)
+### Community 235 - "media_controller_test.dart"
+Cohesion: 0.08
+Nodes (24): MediaWorkspace, calls, cancel, cancelCalls, completer, _container, created, createJob (+16 more)
 
 ### Community 236 - "Tool Use"
 Cohesion: 0.29
@@ -1447,9 +1459,9 @@ Nodes (25): _, bytes, dot, _emptyMessage, error, extension, imageMediaExtensions
 Cohesion: 0.33
 Nodes (5): Authentication, Claude Platform on AWS, Client & install, Required configuration, What to tell users
 
-### Community 255 - "calm_error_panel_test.dart"
-Cohesion: 0.08
-Nodes (14): build, CalmErrorPanel, calmPanelBody, calmPanelTitle, _Boom, build, main, main (+6 more)
+### Community 255 - "identity_models.dart"
+Cohesion: 0.09
+Nodes (24): accessToken, AdminLookup, AdminToken, AuthSession, AuthState, AwaitingQuestions, createdAt, email (+16 more)
 
 ### Community 256 - "Managed Agents - Overview"
 Cohesion: 0.33
@@ -1458,10 +1470,6 @@ Nodes (5): Beta Headers, Common Pitfalls, Managed Agents - Overview, Reading Gui
 ### Community 257 - "Migrating to Opus 4.8"
 Cohesion: 0.33
 Nodes (6): Behavioral shifts (prompt-tunable), Capability improvements, Migrating to Opus 4.8, New API feature: mid-session system prompts, No new API breaking changes (inherited from 4.7), Opus 4.8 Migration Checklist
-
-### Community 258 - "pathlib"
-Cohesion: 0.09
-Nodes (14): add_comment(), _append_xml(), _encode_smart_quotes(), _ensure_comment_content_types(), _ensure_comment_relationships(), _find_para_id(), _generate_hex_id(), _get_next_rid() (+6 more)
 
 ### Community 259 - "company-newsletter.md"
 Cohesion: 0.33
@@ -1489,7 +1497,7 @@ Nodes (4): Claude Academy guide, Purpose, Rules, The catalog
 
 ### Community 265 - "publishing_providers.dart"
 Cohesion: 0.05
-Nodes (52): draftsRepositoryProvider, PublishSelection, attempts, build, config, discard, draftPublished, DraftRestore (+44 more)
+Nodes (63): timeZoneProvider, draftsRepositoryProvider, PublishSelection, build, PublishPage, _ScheduleFields, _schedule, attempts (+55 more)
 
 ### Community 266 - "app_test.dart"
 Cohesion: 0.03
@@ -1500,15 +1508,15 @@ Cohesion: 0.04
 Nodes (39): caption, checkScheduleEdit, clock, containsAlteredContent, deleteSentence, EditCheck, hashtags, instant (+31 more)
 
 ### Community 268 - "docx/scripts/office/validate.py"
-Cohesion: 0.08
-Nodes (9): _fail(), _has_tracked_changes(), main(), _fail(), _has_tracked_changes(), main(), _fail(), _has_tracked_changes() (+1 more)
+Cohesion: 0.06
+Nodes (21): add_comment(), _append_xml(), _encode_smart_quotes(), _ensure_comment_content_types(), _ensure_comment_relationships(), _find_para_id(), _generate_hex_id(), _get_next_rid() (+13 more)
 
 ### Community 269 - "Token Counting"
 Cohesion: 0.40
 Nodes (4): CLI, Count a file or string, Diffing a file across two versions, Token Counting
 
 ### Community 270 - "config_controller.dart"
-Cohesion: 0.15
+Cohesion: 0.16
 Nodes (14): build, clear, config, ConfigController, ConfigSource, ConfigState, credentialsStoreProvider, initial (+6 more)
 
 ### Community 271 - "12. THE BLOCK LIBRARY (Contract - Implementations Land Here Iteratively)"
@@ -1532,8 +1540,8 @@ Cohesion: 0.20
 Nodes (9): ADR 0002: Bundle an LGPL FFmpeg build for local media processing, Alternatives rejected, Consequences, Context, Decision, Licensing notes, Open questions, Size evidence (+1 more)
 
 ### Community 276 - "caption_controller_test.dart"
-Cohesion: 0.06
-Nodes (38): build, cancel, CaptionController, CaptionFailed, captionGeneratorProvider, CaptionIdle, CaptionReady, CaptionRunning (+30 more)
+Cohesion: 0.04
+Nodes (49): build, cancel, CaptionController, CaptionFailed, captionGeneratorProvider, CaptionIdle, CaptionReady, CaptionRunning (+41 more)
 
 ### Community 277 - "ponytail-audit/SKILL.md"
 Cohesion: 0.40
@@ -1596,16 +1604,16 @@ Cohesion: 0.40
 Nodes (4): Best Used For, Color Palette, Tech Innovation, Typography
 
 ### Community 293 - "draft_store.dart"
-Cohesion: 0.10
-Nodes (16): all, close, _database, delete, _draft, draftsMigrations, draftsSchemaVersion, DraftStore (+8 more)
+Cohesion: 0.05
+Nodes (32): audio, frames, MediaOutputs, normalized, thumbnail, applyMigrations, LocalMigration, _metaTable (+24 more)
 
 ### Community 294 - "publish_controller_test.dart"
 Cohesion: 0.08
 Nodes (22): answers, _container, drafts, failure, failures, gate, insert, _instagram (+14 more)
 
 ### Community 295 - "calendar_page.dart"
-Cohesion: 0.05
-Nodes (44): build, latestVersion, onDownload, UpdateBanner, _OutputRow, _MediaSummary, anchor, _CalendarError (+36 more)
+Cohesion: 0.03
+Nodes (68): build, latestVersion, onDownload, UpdateBanner, accountsControllerProvider, account, _AccountCard, _AccountGrid (+60 more)
 
 ### Community 296 - "7. DIAL DEFINITIONS (Technical Reference)"
 Cohesion: 0.50
@@ -1617,7 +1625,7 @@ Nodes (3): How to use this skill, Keywords, When to use this skill
 
 ### Community 298 - "accounts_page_test.dart"
 Cohesion: 0.11
-Nodes (14): accounts, _config, initialLocation, load, main, _MemoryAccountsRepository, pumpAndSettle, _pumpApp (+6 more)
+Nodes (15): accounts, _config, initialLocation, load, main, _MemoryAccountsRepository, pumpAndSettle, _pumpApp (+7 more)
 
 ### Community 299 - "ponytail-debt/SKILL.md"
 Cohesion: 0.50
@@ -1631,21 +1639,21 @@ Nodes (46): Slice A — session-token invoke wrapper (browser), sonner, BetaBadg
 Cohesion: 0.05
 Nodes (39): api, _base64, base64Encode, bytes, cancel, CaptionProgressCallback, generate, _analysisPrompt (+31 more)
 
-### Community 314 - "publish_validation_test.dart"
-Cohesion: 0.11
-Nodes (15): captions, _facebookStory, _instagram, main, mediaKind, now, schedule, scheduleDate (+7 more)
+### Community 314 - "PPTXSchemaValidator"
+Cohesion: 0.06
+Nodes (23): main, captions, _facebookStory, _instagram, main, mediaKind, now, schedule (+15 more)
 
 ### Community 315 - "post-story/index.ts"
-Cohesion: 0.06
-Nodes (43): Execution order (THIS session), Slice B — belt 5 non-OAuth functions + C3 ownership, Step 2: Identify Simplification Opportunities, Security, authorize, corsHeaders, supabase, SUPABASE_ANON_KEY (+35 more)
+Cohesion: 0.08
+Nodes (22): Security, authorize, corsHeaders, supabase, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, ALLOWED_DOMAINS (+14 more)
 
-### Community 316 - "dart:convert"
-Cohesion: 0.15
-Nodes (9): email, emailFromAccessToken, jwtPayload, parts, subject, userIdFromAccessToken, main, part (+1 more)
+### Community 316 - "identity_controller.dart"
+Cohesion: 0.10
+Nodes (18): _apply, _authSession, build, cancelGoogleSignIn, completeGoogleSignIn, _ensure, IdentityController, refresh (+10 more)
 
 ### Community 319 - "scheduling_controller.dart"
-Cohesion: 0.08
-Nodes (36): connectivityProvider, postsCacheProvider, _publishRow, build, CalendarPage, _Toolbar, _confirmAndDelete, build (+28 more)
+Cohesion: 0.07
+Nodes (35): connectivityProvider, postsCacheProvider, _publishRow, build, CalendarPage, _Toolbar, _confirmAndDelete, build (+27 more)
 
 ### Community 320 - "ADR 0001: Supabase Auth plus the existing admin session"
 Cohesion: 0.33
@@ -1660,28 +1668,28 @@ Cohesion: 0.12
 Nodes (13): checkMediaLimits, maxDurationSeconds, maxPixels, MediaLimitError, MediaLimitRejection, mediaMaxDurationSeconds, mediaMaxPixels, message (+5 more)
 
 ### Community 324 - "fake_scheduled_posts.dart"
-Cohesion: 0.10
-Nodes (19): accountName, calls, caption, changeSucceeds, delete, error, gate, id (+11 more)
+Cohesion: 0.05
+Nodes (34): accountName, caption, containsAlteredContent, dir, file, hashtags, id, main (+26 more)
 
 ### Community 334 - "FlutterWindow"
 Cohesion: 0.12
 Nodes (4): FlutterWindow, flutter_controller_, FlutterWindow::FlutterWindow(), project_
 
 ### Community 335 - "Win32Window"
-Cohesion: 0.16
-Nodes (7): Size, height, width, Win32Window, child_content_, quit_on_close_, window_handle_
+Cohesion: 0.17
+Nodes (5): EnableFullDpiSupportIfAvailable(), Win32Window, child_content_, quit_on_close_, window_handle_
 
 ### Community 336 - "Spec: `credentials` — Backend Values the User Can Enter (Phase 6.4)"
 Cohesion: 0.17
 Nodes (11): Decisions (need the owner's yes), Objective, Open questions, Precedence, Scope, Spec: `credentials` — Backend Values the User Can Enter (Phase 6.4), States, Tests (+3 more)
 
-### Community 337 - "package:flutter_test/flutter_test.dart"
-Cohesion: 0.09
-Nodes (15): dir, file, main, post, id, main, _post, scheduledAt (+7 more)
+### Community 337 - "identity_providers.dart"
+Cohesion: 0.12
+Nodes (13): IdentityStore, SecureIdentityStore, OAuthFlow, auth, BrowserLauncher, client, config, identityClientProvider (+5 more)
 
 ### Community 338 - "app_logger.dart"
-Cohesion: 0.09
-Nodes (21): archive, bareEqualsOnlyKeys, cleaned, cleanFailureText, dir, flushLogging, initLogging, _lastWrite (+13 more)
+Cohesion: 0.06
+Nodes (33): archive, bareEqualsOnlyKeys, cleaned, cleanFailureText, dir, flushLogging, initLogging, _lastWrite (+25 more)
 
 ### Community 339 - "Security policy"
 Cohesion: 0.33
@@ -1707,21 +1715,21 @@ Nodes (13): Approval, Assumptions (correct before implementation), Boundaries, C
 Cohesion: 0.12
 Nodes (4): wWinMain(), CreateAndAttachConsole(), GetCommandLineArguments(), Utf8FromUtf16()
 
-### Community 345 - "accounts_providers.dart"
+### Community 345 - "home_page.dart"
 Cohesion: 0.15
-Nodes (12): AccountsController, accountsRepositoryProvider, build, dir, setStatus, AccountsRepository, file, load (+4 more)
+Nodes (12): appConfigProvider, appVersionProvider, UpdateResult, build, _checking, createState, _download, HomePage (+4 more)
 
-### Community 346 - "media_page.dart"
-Cohesion: 0.08
-Nodes (28): sessionTokenProvider, captionControllerProvider, chooseAnother, mediaControllerProvider, build, _CaptionField, captionKey, _captionSection (+20 more)
+### Community 346 - "draft_store_test.dart"
+Cohesion: 0.12
+Nodes (12): aiCaptions, captions, dir, draft, file, main, mode, scheduleDate (+4 more)
 
 ### Community 347 - "media_processor.dart"
 Cohesion: 0.05
 Nodes (35): _Budget, callback, cancel, _cancelled, _cannotStartMessage, defaultJobTimeout, _execute, executor (+27 more)
 
 ### Community 348 - "Win32Window"
-Cohesion: 0.12
-Nodes (8): EnableFullDpiSupportIfAvailable(), Scale(), Win32Window::Win32Window(), WindowClassRegistrar, class_registered_, instance_, Files API, Files API - Go
+Cohesion: 0.14
+Nodes (7): Scale(), Win32Window::Win32Window(), WindowClassRegistrar, class_registered_, instance_, Files API, Files API - Go
 
 ### Community 349 - "media_probe.dart"
 Cohesion: 0.05
@@ -1740,12 +1748,12 @@ Cohesion: 0.05
 Nodes (35): cacheMigrations, CacheOpenResult, cachePostLimit, cacheSchemaVersion, CacheStore, CacheUnavailable, close, _database (+27 more)
 
 ### Community 354 - "caption_generator_test.dart"
-Cohesion: 0.05
-Nodes (40): CaptionReply, CaptionException, CaptionProgress, CaptionResult, captions, CaptionStage, fraction, message (+32 more)
+Cohesion: 0.06
+Nodes (29): CaptionReply, audioBase64, audioFilename, cancel, captions, describeFrames, description, failure (+21 more)
 
 ### Community 355 - "pptx/scripts/office/helpers/pptx_theme.py"
-Cohesion: 0.15
-Nodes (19): part_text(), _canonical_ids(), _check_chart_axis_references(), _check_stacked_label_positions(), _declared_axes(), _ext_lst_spans(), find_chart_problems(), _strip_ext_lst() (+11 more)
+Cohesion: 0.16
+Nodes (18): part_text(), _canonical_ids(), _check_chart_axis_references(), _check_stacked_label_positions(), _declared_axes(), _ext_lst_spans(), _strip_ext_lst(), _undeclared_axes() (+10 more)
 
 ### Community 356 - "update_checker.dart"
 Cohesion: 0.07
@@ -1764,8 +1772,8 @@ Cohesion: 0.06
 Nodes (33): _addDays, byDay, CalendarDay, CalendarRange, calendarTitle, CalendarView, cells, clockLabel (+25 more)
 
 ### Community 360 - "post_actions.dart"
-Cohesion: 0.07
-Nodes (25): FlowPostApp, _FlowPostAppState, ScheduledPost, _altered, build, _busy, _canDelete, _caption (+17 more)
+Cohesion: 0.06
+Nodes (29): build, createState, FlowPostApp, _FlowPostAppState, initialDeepLink, refreshListenable, _router, ScheduledPost (+21 more)
 
 ### Community 361 - "FlowPost Studio — Native Windows Shell"
 Cohesion: 0.15
@@ -1784,12 +1792,12 @@ Cohesion: 0.12
 Nodes (13): acquire, currentPid, InstanceGuard, InstanceRole, _lock, lockFile, ownerFile, _ownerPid (+5 more)
 
 ### Community 367 - "compose_draft.dart"
-Cohesion: 0.11
+Cohesion: 0.10
 Nodes (18): aiCaptions, captions, ComposeDraft, fileName, fromSelection, isEmpty, mediaKind, mode (+10 more)
 
-### Community 368 - "package:flutter/material.dart"
-Cohesion: 0.05
-Nodes (29): background, border, card, destructive, FlowPostColors, flowPostLightTheme, foreground, muted (+21 more)
+### Community 368 - "app_theme.dart"
+Cohesion: 0.12
+Nodes (15): background, border, card, destructive, FlowPostColors, flowPostLightTheme, foreground, muted (+7 more)
 
 ### Community 369 - "upload_client.dart"
 Cohesion: 0.07
@@ -1800,16 +1808,16 @@ Cohesion: 0.07
 Nodes (27): _accountNames, _accounts, anonKey, delete, hasMore, _inList, _instant, load (+19 more)
 
 ### Community 371 - "time_zone.dart"
-Cohesion: 0.06
-Nodes (34): absolute, after, asWallFields, before, formatWallTime, formatZoneOffset, hours, instant (+26 more)
+Cohesion: 0.05
+Nodes (36): authAccessTokenProvider, config, absolute, after, asWallFields, before, formatWallTime, formatZoneOffset (+28 more)
 
 ### Community 372 - "Breaking Changes by Source Model"
 Cohesion: 0.40
 Nodes (5): All models, Breaking Changes by Source Model, Migrating from Sonnet 4.5 to Sonnet 4.6 (effort default change), Migrating to Opus 4.6 / Sonnet 4.6 (from any older model), Migrating to the 4.6 family (Opus 4.6 and Sonnet 4.6)
 
 ### Community 373 - "thumbnail.py"
-Cohesion: 0.26
-Nodes (6): build_slide_list(), create_grid(), create_grids(), create_hidden_placeholder(), _is_hidden(), main()
+Cohesion: 0.29
+Nodes (8): build_slide_list(), convert_to_images(), create_grid(), create_grids(), create_hidden_placeholder(), get_slide_info(), _is_hidden(), main()
 
 ### Community 374 - "ffmpeg_runner.dart"
 Cohesion: 0.08
@@ -1860,8 +1868,8 @@ Cohesion: 0.08
 Nodes (23): audioArguments, _baseArguments, canRemux, encodeArguments, first, frameArguments, frameTimestamps, frameTimestampsForKind (+15 more)
 
 ### Community 386 - "publish_target.dart"
-Cohesion: 0.10
-Nodes (21): acceptsImage, accountId, accountName, captionKeyFor, captionLimit, edgeFunction, hashCode, id (+13 more)
+Cohesion: 0.06
+Nodes (33): accountName, AccountStatus, ConnectedAccount, copyWith, fromJson, label, platform, seedAccounts (+25 more)
 
 ### Community 387 - "Spec: `scheduling` — Calendar and Queue"
 Cohesion: 0.09
@@ -1896,12 +1904,12 @@ Cohesion: 0.18
 Nodes (12): APP_ID, APP_SECRET, authorize, corsHeaders, exchangeCodeForShortLivedToken(), fetchIgProfile(), getLongLivedToken(), json() (+4 more)
 
 ### Community 395 - "ffmpeg_error.dart"
-Cohesion: 0.14
+Cohesion: 0.13
 Nodes (14): code, contains, isUnknownOutcome, lower, mapPublishFailure, _mentionsTheAccount, _mentionsTheMedia, message (+6 more)
 
 ### Community 396 - "drafts_repository.dart"
-Cohesion: 0.11
-Nodes (16): all, available, close, delete, dir, DraftsRepository, load, LocalDraftsRepository (+8 more)
+Cohesion: 0.05
+Nodes (35): all, available, close, delete, dir, DraftsRepository, load, LocalDraftsRepository (+27 more)
 
 ### Community 397 - "User-Defined Tools"
 Cohesion: 0.40
@@ -1915,9 +1923,9 @@ Nodes (16): 1. `package:sqlite3` 3.8.0, directly — not sqflite, not drift, 2. 
 Cohesion: 0.12
 Nodes (13): copyWith, displayName, id, kind, MediaJob, outputs, probe, sourceBytes (+5 more)
 
-### Community 400 - "package:flowpost_desktop/core/config/app_config.dart"
-Cohesion: 0.17
-Nodes (6): ConfigException, main, compiled, main, saved, seededConfig
+### Community 400 - "RedliningValidator"
+Cohesion: 0.25
+Nodes (3): RedliningValidator, group(), text_of()
 
 ### Community 401 - "SPEC — Accessibility (Phase 6.3)"
 Cohesion: 0.18
@@ -1931,17 +1939,17 @@ Nodes (3): How it was verified, Risk, What and why
 Cohesion: 0.50
 Nodes (4): Amazon Bedrock, Google Cloud Vertex AI, Microsoft Foundry, Provider Clients (Quick Reference)
 
-### Community 405 - "tiktok-auth/index.ts"
-Cohesion: 0.18
-Nodes (11): authorize, corsHeaders, exchangeCodeForToken(), json(), refreshAccessToken(), SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL (+3 more)
+### Community 405 - "RedliningValidator"
+Cohesion: 0.25
+Nodes (3): RedliningValidator, group(), text_of()
 
 ### Community 406 - "Prompt Caching"
 Cohesion: 0.50
 Nodes (4): Automatic Caching (Recommended), Manual Cache Control, Prompt Caching, Verifying Cache Hits
 
 ### Community 407 - "accounts_page_test.dart"
-Cohesion: 0.09
-Nodes (27): AppConfig, clear, config, CredentialsAbsent, credentialsFileName, CredentialsFound, CredentialsInvalid, CredentialsRead (+19 more)
+Cohesion: 0.06
+Nodes (35): email, emailFromAccessToken, jwtPayload, parts, subject, userIdFromAccessToken, AppConfig, ConfigException (+27 more)
 
 ### Community 408 - "Which Surface Should I Use?"
 Cohesion: 0.67
@@ -1952,16 +1960,16 @@ Cohesion: 0.67
 Nodes (3): 1. Use Prompt Caching for Repeated Context, 2. Use Token Counting Before Requests, Cost Optimization Strategies
 
 ### Community 410 - "settings_providers.dart"
-Cohesion: 0.04
-Nodes (47): appConfigProvider, appVersionProvider, UpdateResult, build, _checking, createState, _download, HomePage (+39 more)
+Cohesion: 0.06
+Nodes (31): cancelled, checking, DiagnosticsExportController, diagnosticsExporterProvider, DiagnosticsExportOutcome, DiagnosticsExportState, draftsAvailable, exportFolderPickerProvider (+23 more)
 
 ### Community 411 - "media_format.dart"
 Cohesion: 0.33
 Nodes (5): formatMediaBytes, formatMediaDuration, minutes, seconds, total
 
-### Community 412 - "fake_posts_cache.dart"
-Cohesion: 0.17
-Nodes (10): CachedPosts, cached, load, merge, remove, removed, save, saved (+2 more)
+### Community 412 - "protocol_registration.dart"
+Cohesion: 0.14
+Nodes (13): _command, commandKey, _commandOf, ensureRegistered, exePath, exitCode, key, ProtocolRegistrar (+5 more)
 
 ### Community 413 - "ffmpeg_progress.dart"
 Cohesion: 0.40
@@ -1971,19 +1979,19 @@ Nodes (4): isProgressComplete, micros, parseProgressOutTime, prefix
 Cohesion: 0.23
 Nodes (10): AuthContext, AuthContextValue, AuthProvider(), clearCache(), getCache(), setCache(), AuthEvent, AuthSession (+2 more)
 
-### Community 417 - "Evaluation Process"
+### Community 417 - "ref_npm_supabase"
 Cohesion: 0.33
 Nodes (6): Evaluation Process, Step 1: Documentation Inspection, Step 2: Tool Inspection, Step 3: Developing Understanding, Step 4: Read-Only Content Inspection, Step 5: Task Generation
 
-### Community 418 - "PostsCache"
-Cohesion: 0.50
-Nodes (4): LocalPostsCache, PostsCache, _FailingWipe, FakePostsCache
+### Community 418 - "facebook-auth/index.ts"
+Cohesion: 0.18
+Nodes (12): authorize, corsHeaders, exchangeCodeForUserToken(), FB_APP_ID, FB_APP_SECRET, fetchFacebookPages(), getLongLivedUserToken(), json() (+4 more)
 
-### Community 419 - "PostsRepository"
+### Community 419 - "contrast_test.dart"
 Cohesion: 0.50
 Nodes (4): PostgrestPostsRepository, PostsRepository, _FakeRepository, _FakeRepository
 
-### Community 420 - "Point"
+### Community 420 - ".MessageHandler"
 Cohesion: 0.50
 Nodes (3): Point, x, y
 
@@ -2003,6 +2011,18 @@ Nodes (9): authorize, corsHeaders, GD_CLIENT_ID, GD_CLIENT_SECRET, start(), SUPA
 Cohesion: 0.25
 Nodes (8): Advanced Features (where applicable), Code Quality, Implementation Quality, Project Configuration, Quality Checklist, Strategic Design, Testing and Build, TypeScript Quality
 
+### Community 426 - "startup_failure.dart"
+Cohesion: 0.17
+Nodes (8): _caption, _fallbackFolder, folder, reportStartupFailure, showStartupMessageBox, startupFailureMessage, StartupFailureReporter, text
+
+### Community 427 - "protocol_registration_test.dart"
+Cohesion: 0.17
+Nodes (10): RegistryResult, calls, command, exe, failAdd, key, main, queryResult (+2 more)
+
+### Community 428 - "Map"
+Cohesion: 0.17
+Nodes (10): checkCredentialsConnection, client, clock, defaultStatusTimeout, headers, httpStatus, left, probe (+2 more)
+
 ### Community 429 - "Spec: `diagnostics` — Failures, Evidence and Salvage (Phase 6.2)"
 Cohesion: 0.18
 Nodes (10): Decisions (need the owner's yes), Objective, Open questions, Scope, Spec: `diagnostics` — Failures, Evidence and Salvage (Phase 6.2), States, Tests, The evidence file (+2 more)
@@ -2011,29 +2031,61 @@ Nodes (10): Decisions (need the owner's yes), Objective, Open questions, Scope, 
 Cohesion: 0.33
 Nodes (6): Advanced MCP Features, Notification Support, Resource Registration, stdio (For Local Integrations), Streamable HTTP (Recommended for Remote Servers), Transport Options
 
+### Community 431 - "ref_npm_supabase"
+Cohesion: 0.17
+Nodes (8): corsHeaders, supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, corsHeaders, supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
+
+### Community 432 - "sessionProvider"
+Cohesion: 0.25
+Nodes (11): compiledConfigProvider, sessionProvider, _syncSession, _AccountSection, _clear, _CredentialsSection, _CredentialsSectionState, _save (+3 more)
+
+### Community 433 - "media_limits_test.dart"
+Cohesion: 0.22
+Nodes (6): audioCodec, duration, height, main, _probe, width
+
+### Community 434 - "configControllerProvider"
+Cohesion: 0.29
+Nodes (8): configControllerProvider, build, check, UpdateCheckController, UpdateCheckState, updateFetcherProvider, build, SetupPage
+
+### Community 435 - "static const String"
+Cohesion: 0.25
+Nodes (5): build, items, quitTag, showTag, TrayMenu
+
+### Community 436 - "FunctionsGateway"
+Cohesion: 0.29
+Nodes (7): FunctionsGateway, SupabaseFunctionsGateway, _FakeFunctions, _FakeFunctions, _FakeFunctions, _FakeFunctions, _FakeFunctions
+
+### Community 437 - "UsersGateway"
+Cohesion: 0.29
+Nodes (7): UsersGateway, SupabaseUsersGateway, _FakeUsers, _FakeUsers, _FakeUsers, _FakeUsers, _FakeUsers
+
+### Community 438 - "Size"
+Cohesion: 0.50
+Nodes (3): Size, height, width
+
 ### Community 443 - "Available Utilities"
 Cohesion: 0.40
 Nodes (5): Available Utilities, Easing Functions (`core.easing`), Frame Helpers (`core.frame_composer`), GIFBuilder (`core.gif_builder`), Validators (`core.validators`)
 
 ## Knowledge Gaps
-- **1777 isolated node(s):** `file`, `deadline`, `result`, `lines`, `directory` (+1772 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 5193 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **42 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **2153 isolated node(s):** `file`, `deadline`, `result`, `lines`, `directory` (+2148 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 5582 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **44 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `run_single_query()` connect `json` to `InsightsPage.tsx`, `tempfile`?**
-  _High betweenness centrality (0.118) - this node is a cross-community bridge._
+- **Why does `run_single_query()` connect `json` to `InsightsPage.tsx`, `evaluation.py`, `tempfile`?**
+  _High betweenness centrality (0.144) - this node is a cross-community bridge._
 - **What connects `file`, `deadline`, `result` to the rest of the system?**
-  _1777 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _2153 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `InsightsPage.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.0858974358974359 - nodes in this community are weakly interconnected._
-- **Why does `vitest` connect `package.json` to `StoragePage`, `PlatformIcon.tsx`, `generate-ai-captions/index.ts`, `verify-password/index.ts`, `process-workflow/index.ts`, `youtube-upload/index.ts`, `tiktok-auth/index.ts`, `upload-local-file/index.ts`, `post-story/index.ts`, `AuthContext.tsx`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+- **Why does `vitest` connect `package.json` to `auth.ts`, `StoragePage`, `PlatformIcon.tsx`, `generate-ai-captions/index.ts`, `verify-password/index.ts`, `process-workflow/index.ts`, `youtube-upload/index.ts`, `tiktok-auth/index.ts`, `upload-local-file/index.ts`, `post-story/index.ts`, `AuthContext.tsx`?**
+  _High betweenness centrality (0.039) - this node is a cross-community bridge._
 - **Should `App.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.08637873754152824 - nodes in this community are weakly interconnected._
-- **Why does `lucide-react` connect `WorkflowItemsPage.tsx` to `InsightsPage.tsx`, `App.tsx`, `StoragePage`, `PipelineLandingPage.tsx`, `package.json`, `use-toast.ts`, `cn`, `UploadPage.tsx`?**
-  _High betweenness centrality (0.022) - this node is a cross-community bridge._
+- **Why does `react` connect `package.json` to `InsightsPage.tsx`, `App.tsx`, `StoragePage`, `WorkflowItemsPage.tsx`, `PipelineLandingPage.tsx`, `PlatformIcon.tsx`, `use-toast.ts`, `cn`, `UploadPage.tsx`, `AuthContext.tsx`?**
+  _High betweenness centrality (0.038) - this node is a cross-community bridge._
 - **Should `StoragePage` be split into smaller, more focused modules?**
   _Cohesion score 0.061072261072261075 - nodes in this community are weakly interconnected._
