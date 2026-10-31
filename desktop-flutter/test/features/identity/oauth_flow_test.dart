@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flowpost_desktop/features/identity/data/auth_repository.dart';
 import 'package:flowpost_desktop/features/identity/data/identity_models.dart';
+import 'package:flowpost_desktop/core/security/secret_vault.dart';
 import 'package:flowpost_desktop/features/identity/data/identity_store.dart';
 import 'package:flowpost_desktop/features/identity/data/oauth_flow.dart';
 import 'package:flutter_test/flutter_test.dart';

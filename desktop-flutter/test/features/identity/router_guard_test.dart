@@ -4,6 +4,7 @@ import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/core/router/app_router.dart';
 import 'package:flowpost_desktop/features/identity/data/auth_repository.dart';
 import 'package:flowpost_desktop/features/identity/data/identity_models.dart';
+import 'package:flowpost_desktop/core/security/secret_vault.dart';
 import 'package:flowpost_desktop/features/identity/data/identity_store.dart';
 import 'package:flowpost_desktop/features/identity/data/oauth_flow.dart';
 import 'package:flowpost_desktop/features/identity/identity_providers.dart';
