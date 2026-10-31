@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flowpost_desktop/core/config/app_config.dart';
-import 'package:flowpost_desktop/core/router/app_router.dart';
 import 'package:flowpost_desktop/features/identity/data/auth_repository.dart';
 import 'package:flowpost_desktop/features/identity/data/identity_models.dart';
 import 'package:flowpost_desktop/core/security/secret_vault.dart';
@@ -222,24 +221,5 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const Key('callback-back')), findsOneWidget);
-  });
-
-  testWidgets('the way back goes to the login page', (tester) async {
-    final router = buildRouter(
-      initialDeepLink: '/auth-callback?code=abc&state=unknown',
-    );
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(routerConfig: router),
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.byKey(const Key('callback-back')));
-    await tester.pump();
-
-    expect(find.text('Sign in to FlowPost'), findsOneWidget);
   });
 }

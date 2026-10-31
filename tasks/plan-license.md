@@ -120,15 +120,18 @@ license key (user)            hash = sha256(key)              secure vault:
     keyboard submit, the semantics label, deactivation and the restored state.
   - Files: `lib/features/license/presentation/license_gate_page.dart`.
 
-- [ ] **L8 — Unwire identity, wire the guard** (M)
+- [x] **L8 — Unwire identity, wire the guard** (M)
   `app.dart`, `main.dart`, `app_router.dart`: drop every identity import and the
   `/login`, `/security-questions`, `/auth-callback` routes; add `/license`; the
   guard reads the license state. `identityGuard` becomes `licenseGuard` (default
-  false for the existing widget tests, true in `main.dart`). Files under
-  `features/identity/**` stay untouched and unreferenced.
-  - Acceptance: router tests (new) cover locked → `/license`, active → app,
-    loading → `/starting`, setup still wins when config is missing; the app builds
-    with `flutter analyze` clean.
+  false for the existing widget tests, true in `main.dart`). The three route
+  constants stay because the unwired pages still name them. Files under
+  `features/identity/**` stay untouched and unreferenced; the identity router
+  test and the callback's login-route assertion are removed with the routes,
+  replaced by `test/features/license/router_guard_test.dart`.
+  - Acceptance: router tests cover locked → `/license`, active → app,
+    loading → `/starting`, license reachable while active, pending link and
+    setup still wins when config is missing; `flutter analyze` clean.
 
 - [ ] **L9 — Settings and sign-out** (S)
   Replace the Account section with a License section (state line + expiry +

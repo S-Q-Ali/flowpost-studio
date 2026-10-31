@@ -3,10 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/presentation/accounts_page.dart';
 import '../../features/home/home_page.dart';
-import '../../features/identity/data/identity_models.dart';
-import '../../features/identity/presentation/auth_callback_page.dart';
-import '../../features/identity/presentation/login_page.dart';
-import '../../features/identity/presentation/security_questions_page.dart';
+import '../../features/license/data/license_models.dart';
+import '../../features/license/presentation/license_gate_page.dart';
 import '../../features/media/presentation/media_page.dart';
 import '../../features/publishing/presentation/publish_page.dart';
 import '../../features/scheduling/presentation/calendar_page.dart';
@@ -23,25 +21,29 @@ const String queueRoute = '/queue';
 const String calendarRoute = '/calendar';
 const String settingsRoute = '/settings';
 const String setupRoute = '/setup';
+const String licenseRoute = '/license';
+const String startingRoute = '/starting';
+
+/// The unwired identity module's screens still name these; no route serves
+/// them since the license replaced sign-in (SPEC-license).
 const String loginRoute = '/login';
 const String questionsRoute = '/security-questions';
 const String authCallbackRoute = '/auth-callback';
-const String startingRoute = '/starting';
 
 /// SPEC-shell Success Criterion 6: only these protocol paths are honoured.
-const List<String> deepLinkAllowlist = ['/', authCallbackRoute];
+const List<String> deepLinkAllowlist = ['/'];
 
-/// The guard only runs when [authState] is supplied; page-level widget tests
-/// build the app without identity and keep the old behaviour.
+/// The guard only runs when [licenseState] is supplied; page-level widget
+/// tests build the app without the license gate.
 GoRouter buildRouter({
   String? initialDeepLink,
   Listenable? refreshListenable,
   String? Function()? pendingDeepLink,
   bool Function()? needsSetup,
-  AuthState? Function()? authState,
-  bool Function()? authLoading,
+  LicenseState? Function()? licenseState,
+  bool Function()? licenseLoading,
 }) {
-  final guarded = authState != null;
+  final guarded = licenseState != null;
   return GoRouter(
     initialLocation: initialDeepLink ?? homeRoute,
     refreshListenable: refreshListenable,
@@ -54,18 +56,18 @@ GoRouter buildRouter({
       }
       if (state.uri.path == setupRoute) return homeRoute;
       if (!guarded) return pendingDeepLink?.call();
-      return _identityRedirect(state, authState, authLoading, pendingDeepLink);
+      return _licenseRedirect(
+        state,
+        licenseState,
+        licenseLoading,
+        pendingDeepLink,
+      );
     },
     routes: [
       GoRoute(path: setupRoute, builder: (context, state) => const SetupPage()),
-      GoRoute(path: loginRoute, builder: (context, state) => const LoginPage()),
       GoRoute(
-        path: questionsRoute,
-        builder: (context, state) => const SecurityQuestionsPage(),
-      ),
-      GoRoute(
-        path: authCallbackRoute,
-        builder: (context, state) => AuthCallbackPage(uri: state.uri),
+        path: licenseRoute,
+        builder: (context, state) => const LicenseGatePage(),
       ),
       GoRoute(
         path: startingRoute,
@@ -111,33 +113,25 @@ GoRouter buildRouter({
   );
 }
 
-/// Login, questions and the app shell, in that order of precedence.
+/// The license screen and the app shell, in that order of precedence.
 ///
-/// A callback arrives while signed out, so it is always allowed through; a
-/// pending link runs before the guard because it may be the callback itself.
-String? _identityRedirect(
+/// The license screen stays reachable while active (Settings links to it), and
+/// the starting screen only while no state is known yet.
+String? _licenseRedirect(
   GoRouterState state,
-  AuthState? Function() authState,
-  bool Function()? authLoading,
+  LicenseState? Function() licenseState,
+  bool Function()? licenseLoading,
   String? Function()? pendingDeepLink,
 ) {
   final path = state.uri.path;
-  if (path == authCallbackRoute) return null;
-  final pending = pendingDeepLink?.call();
-  if (pending != null) return pending;
-  if (authLoading?.call() ?? false) {
+  if (licenseLoading?.call() ?? false) {
     return path == startingRoute ? null : startingRoute;
   }
-  final auth = authState();
-  if (auth is SignedIn) {
-    return path == loginRoute || path == questionsRoute || path == startingRoute
-        ? homeRoute
-        : null;
+  if (licenseState() is! Active) {
+    return path == licenseRoute ? null : licenseRoute;
   }
-  if (auth is AwaitingQuestions) {
-    return path == questionsRoute ? null : questionsRoute;
-  }
-  return path == loginRoute ? null : loginRoute;
+  if (path == startingRoute) return homeRoute;
+  return pendingDeepLink?.call();
 }
 
 /// Shown while the stored session is read, so no screen flashes before the

@@ -103,7 +103,7 @@ Future<void> main({MediaFilePicker? picker}) async {
             if (picker != null) mediaPickerProvider.overrideWithValue(picker),
           ],
           child: FlowPostApp(
-            identityGuard: true,
+            licenseGuard: true,
             initialDeepLink: dispatcher.routeFor(initialLink),
             refreshListenable: pendingLink,
             pendingDeepLink: () {
