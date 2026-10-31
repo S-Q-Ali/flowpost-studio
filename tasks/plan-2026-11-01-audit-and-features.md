@@ -211,11 +211,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: none · Size: S.
   - Done: one `connection_failure.dart` holds the sentence and the test (`SocketException` for a host that will not resolve, a port nobody listens on, a dropped socket; `HandshakeException` for TLS). Both transports catch it and rethrow their own typed failure; anything else still escapes to the generic handler. Six transport tests, one per exception type per client, against real sockets.
 
-- [ ] **B9. Drain FFmpeg streams before closing** — Should (desktop 9)
+- [x] **B9. Drain FFmpeg streams before closing** — Should (desktop 9)
   - Accept: the runner waits for the buffered output to end after exit, so the last progress/error lines are not dropped.
   - Verify: fake process emitting a tail line after exit → the line is observed.
   - Files: `lib/features/media/data/ffmpeg_runner.dart`, test.
   - Dep: none · Size: S.
+  - Done: the runner reads both pipes to their end instead of cancelling where the tail still sits, with a two-second window as the backstop for a handle a child process holds open. `FfmpegRunner` takes a start function so a test can drive the pipes; the fake exits first and the line arrives after, which is the order that lost the summary.
 
 - [ ] **B10. Stop FFmpeg on quit** — Should (desktop 10)
   - Accept: tray Quit cancels and kills the active media process before `exit(0)`.

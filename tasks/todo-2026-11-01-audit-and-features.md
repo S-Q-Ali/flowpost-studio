@@ -53,7 +53,8 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - `SecureLicenseStore.clear()` tries all three records and reports one `storageUnavailable` failure; the session and cache still end in the app.
 - [x] B8. Report network failures properly
       - `connection_failure.dart` holds the sentence and the test for a socket or TLS failure; both media transports rethrow it as their own typed error instead of letting the raw exception reach the generic panel.
-- [ ] B9. Drain FFmpeg streams before closing
+- [x] B9. Drain FFmpeg streams before closing
+      - The runner reads both pipes to the end after the exit code lands (two-second backstop for a held handle) instead of cancelling mid-tail; `FfmpegRunner` gained a start seam so a fake process can prove the line after the exit survives.
 - [ ] B10. Stop FFmpeg on quit
 - [ ] B11. Delete the dead identity module
 - [ ] B12. Draft restore must not overwrite edits
