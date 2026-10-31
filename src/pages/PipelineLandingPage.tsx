@@ -14,6 +14,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import publishShot from "../../docs/screenshots/publish.webp";
+import uploadShot from "../../docs/screenshots/upload.webp";
+import queueShot from "../../docs/screenshots/queue.webp";
+import calendarShot from "../../docs/screenshots/calendar.webp";
+import settingsShot from "../../docs/screenshots/settings.webp";
+import licenseShot from "../../docs/screenshots/license.webp";
+
+const DOWNLOAD_URL = "https://github.com/S-Q-Ali/flowpost-studio/releases/latest";
+const REPO_URL = "https://github.com/S-Q-Ali/flowpost-studio";
+
 /* ────────────────────────── helpers ────────────────────────── */
 
 function useScrollReveal() {
@@ -97,17 +107,12 @@ function LandingNav() {
           <span className="text-lg font-semibold tracking-tight">FlowPost</span>
         </div>
         <div className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
+          <a href="#desktop" className="transition-colors hover:text-foreground">Desktop app</a>
           <a href="#how" className="transition-colors hover:text-foreground">How it works</a>
           <a href="#features" className="transition-colors hover:text-foreground">Features</a>
           <a href="#platforms" className="transition-colors hover:text-foreground">Platforms</a>
         </div>
         <div className="flex items-center gap-3">
-          <a
-            href="/dashboard"
-            className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:block"
-          >
-            Sign in
-          </a>
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="text-foreground"
@@ -116,10 +121,10 @@ function LandingNav() {
             {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
           <a
-            href="#cta"
+            href={DOWNLOAD_URL}
             className="gradient-primary rounded-full px-5 py-2 text-sm font-medium text-primary-foreground shadow-glow transition-transform duration-200 hover:scale-[1.03]"
           >
-            Get Started
+            Download
           </a>
         </div>
       </div>
@@ -184,18 +189,111 @@ function Hero() {
         Content that <span className="text-gradient">posts itself.</span>
       </h1>
       <p className="body-lg mx-auto mt-6 max-w-2xl text-muted-foreground">
-        From a file in your Drive to a post on every platform — automatically. You create. The pipeline does the rest.
+        From a file in your Drive to a post on every platform — automatically. A native Windows app: you create,
+        the pipeline does the rest.
       </p>
       <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-        <PillButton href="#cta">
-          Start your pipeline <ArrowRight className="h-4 w-4" />
+        <PillButton href={DOWNLOAD_URL}>
+          Download for Windows <ArrowRight className="h-4 w-4" />
         </PillButton>
-        <PillButton href="#how" variant="ghost">
-          See how it works
+        <PillButton href="#desktop" variant="ghost">
+          See the desktop app
         </PillButton>
       </div>
+      <p className="mt-5 text-sm text-muted-foreground">Windows 10 and 11 · MIT licensed · No account required</p>
       <HeroPipelineCard />
     </header>
+  );
+}
+
+/* ────────────────────────── Desktop app ────────────────────────── */
+
+function DesktopShowcase() {
+  const shots = [
+    {
+      src: uploadShot,
+      title: "Upload",
+      body: "Normalize once, then caption it automatically.",
+      alt: "Upload screen processing launch-teaser.mp4 with a 42% progress bar",
+      span: "lg:col-span-2",
+    },
+    {
+      src: queueShot,
+      title: "Queue",
+      body: "Every post, its platform and its publish time.",
+      alt: "Queue listing scheduled, published and failed posts with retry actions",
+      span: "lg:col-span-2",
+    },
+    {
+      src: calendarShot,
+      title: "Calendar",
+      body: "Month, week and list views over the same posts.",
+      alt: "October calendar with scheduled posts and today highlighted",
+      span: "lg:col-span-2",
+    },
+    {
+      src: settingsShot,
+      title: "Settings",
+      body: "License, credentials, updates and diagnostics in one place.",
+      alt: "Settings showing an active license, credentials, updates and diagnostics",
+      span: "lg:col-span-3",
+    },
+    {
+      src: licenseShot,
+      title: "Unlock",
+      body: "A license key instead of an account.",
+      alt: "Unlock screen asking for a license key",
+      span: "lg:col-span-3",
+    },
+  ];
+  return (
+    <section id="desktop" className="scroll-mt-24 px-6 py-16 md:py-24">
+      <div className="mx-auto max-w-6xl">
+        <div className="reveal mb-12 flex flex-col items-center justify-between gap-8 md:flex-row md:items-end">
+          <div className="text-center md:text-left">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-primary">Native Windows app</p>
+            <h2 className="headline-lg">
+              The whole pipeline, <span className="text-gradient">on your desktop.</span>
+            </h2>
+            <p className="body-lg mt-4 max-w-xl text-muted-foreground">
+              Upload, caption, schedule and retry without a browser tab. Offline cache and drafts come standard.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            <PillButton href={DOWNLOAD_URL}>
+              Download for Windows <ArrowRight className="h-4 w-4" />
+            </PillButton>
+            <PillButton href={REPO_URL} variant="ghost">
+              View on GitHub
+            </PillButton>
+          </div>
+        </div>
+        <figure className="reveal-scale overflow-hidden rounded-3xl border border-border bg-card shadow-glow">
+          <img
+            src={publishShot}
+            alt="FlowPost Studio publish screen with an Instagram target selected and a caption ready"
+            className="block w-full"
+          />
+        </figure>
+        <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-6">
+          {shots.map((shot) => (
+            <figure
+              key={shot.title}
+              className={`reveal overflow-hidden rounded-2xl border border-border bg-card shadow-card ${shot.span}`}
+            >
+              <img src={shot.src} alt={shot.alt} className="block w-full" />
+              <figcaption className="border-t border-border px-5 py-4">
+                <p className="text-sm font-semibold">{shot.title}</p>
+                <p className="text-xs text-muted-foreground">{shot.body}</p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+        <p className="mt-8 text-center text-sm text-muted-foreground">
+          Unlocks with a license key — no login, no sign-up.
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -460,11 +558,14 @@ function Cta() {
           — says thanks.
         </p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <PillButton href="/dashboard" className="!px-10 !py-4 text-lg">
-            Start your pipeline <ArrowRight className="h-5 w-5" />
+          <PillButton href={DOWNLOAD_URL} className="!px-10 !py-4 text-lg">
+            Download for Windows <ArrowRight className="h-5 w-5" />
+          </PillButton>
+          <PillButton href={REPO_URL} variant="ghost" className="!px-10 !py-4 text-lg">
+            View on GitHub
           </PillButton>
         </div>
-        <p className="mt-6 text-sm text-muted-foreground">Free to try · No credit card required</p>
+        <p className="mt-6 text-sm text-muted-foreground">Windows 10 and 11 · MIT licensed · No account required</p>
       </div>
     </section>
   );
@@ -483,7 +584,7 @@ function Footer() {
         <div className="flex gap-6">
           <a href="/terms" className="transition-colors hover:text-foreground">Terms</a>
           <a href="/privacy" className="transition-colors hover:text-foreground">Privacy</a>
-          <a href="/dashboard" className="transition-colors hover:text-foreground">Dashboard</a>
+          <a href={REPO_URL} className="transition-colors hover:text-foreground">GitHub</a>
         </div>
         <p>© {new Date().getFullYear()} FlowPost Studio</p>
       </div>
@@ -497,12 +598,12 @@ const PipelineLandingPage = () => {
   const rootRef = useScrollReveal();
 
   useEffect(() => {
-    document.title = "FlowPost Pipeline — Content that posts itself. | Social Media Automation";
+    document.title = "FlowPost Studio — Schedule and publish to every platform from Windows";
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
       metaDesc.setAttribute(
         "content",
-        "One pipeline connects your Google Drive or Mega storage to every social platform. AI captions, autopilot scheduling, live tracking — Facebook, Instagram, YouTube & more. TikTok & LinkedIn in beta."
+        "A native Windows app that turns one upload into posts on YouTube, Instagram, Facebook, TikTok and LinkedIn. AI captions, autopilot scheduling, offline drafts — MIT licensed, no account required."
       );
     }
   }, []);
@@ -518,6 +619,7 @@ const PipelineLandingPage = () => {
       <LandingNav />
       <main>
         <Hero />
+        <DesktopShowcase />
         <HowItWorks />
         <Features />
         <Platforms />
