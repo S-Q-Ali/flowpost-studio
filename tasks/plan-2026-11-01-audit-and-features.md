@@ -197,11 +197,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Done: the controller waits on the grant's own expiry (the service's clock, so the two cannot disagree) and drops the token before asking for a new one. A 401/403 from `posts-api` is now `PostsErrorKind.rejected`, which the reporting transport forwards to the same re-check with `refused: true` — that path ignores the local clock, because the server has already said no. Concurrent refusals share one re-check.
   - Limit: captions, upload and the publish function still only show their own error text; the re-check hangs off `posts-api`, which every queue and row write goes through.
 
-- [ ] **B7. Clear the vault even when one key fails** — Should (desktop 7)
+- [x] **B7. Clear the vault even when one key fails** — Should (desktop 7)
   - Accept: `clear()` attempts all three deletes, then reports one failure; a leftover token cannot keep the app signed in.
   - Verify: fake storage that fails one delete → other keys are deleted and the result is an error, not a partial success.
   - Files: `lib/features/license/data/license_store.dart`, test.
   - Dep: none · Size: XS.
+  - Done: `clear()` now loops over the three records, remembers a failure, and raises one `storageUnavailable` after trying all of them. The controller already ends the session and wipes the cache whatever the vault says, so a stuck record cannot keep this run signed in.
 
 - [ ] **B8. Report network failures properly** — Should (desktop 8)
   - Accept: `SocketException`, TLS and DNS failures map to "No connection — check your network and try again", not "invalid response"; both upload and captions.

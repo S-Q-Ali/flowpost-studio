@@ -19,6 +19,18 @@ class _MemoryVault implements SecretVault {
   Future<Map<String, String>> readAll() async => Map.of(values);
 }
 
+class _StickyVault extends _MemoryVault {
+  _StickyVault({required this.stuckOn});
+
+  final String stuckOn;
+
+  @override
+  Future<void> delete(String key) async {
+    if (key == stuckOn) throw StateError('locked');
+    await super.delete(key);
+  }
+}
+
 class _ThrowingVault implements SecretVault {
   @override
   Future<String?> read(String key) async => throw StateError('locked');
@@ -95,6 +107,32 @@ void main() {
       expect(vault.values, {'flowpost.identity.profile': '{"userId":"u1"}'});
     },
   );
+
+  test('one record that will not go does not stop the other two', () async {
+    final vault = _StickyVault(stuckOn: SecureLicenseStore.tokenKey);
+    final store = SecureLicenseStore(vault: vault);
+    await store.write(
+      LicenseRecord(
+        token: 'token-1',
+        expiresAt: DateTime.utc(2026, 11, 7),
+        key: 'key',
+      ),
+    );
+
+    await expectLater(
+      store.clear(),
+      throwsA(
+        isA<LicenseException>().having(
+          (e) => e.error,
+          'error',
+          LicenseError.storageUnavailable,
+        ),
+      ),
+    );
+
+    // Only the record the vault would not give up is left.
+    expect(vault.values.keys, [SecureLicenseStore.tokenKey]);
+  });
 
   test('a vault failure is the storage failure', () async {
     final broken = SecureLicenseStore(vault: _ThrowingVault());

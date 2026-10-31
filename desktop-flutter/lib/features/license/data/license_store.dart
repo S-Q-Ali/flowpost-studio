@@ -49,13 +49,22 @@ class SecureLicenseStore implements LicenseStore {
   });
 
   /// Removes the license records only; identity records from an older build
-  /// are not this module's to touch.
+  /// are not this module's to touch. Every record is attempted before the
+  /// failure is reported: a leftover token keeps the app signed in.
   @override
-  Future<void> clear() => _guard(() async {
-    await _vault.delete(tokenKey);
-    await _vault.delete(expiresAtKey);
-    await _vault.delete(keyKey);
-  });
+  Future<void> clear() async {
+    var failed = false;
+    for (final name in [tokenKey, expiresAtKey, keyKey]) {
+      try {
+        await _vault.delete(name);
+      } on Object {
+        failed = true;
+      }
+    }
+    if (failed) {
+      throw const LicenseException(LicenseError.storageUnavailable);
+    }
+  }
 
   Future<T> _guard<T>(Future<T> Function() run) async {
     try {

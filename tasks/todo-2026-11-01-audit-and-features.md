@@ -49,7 +49,8 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
 - [x] B6. Re-check session expiry (timer + 401)
       - `LicenseController` waits on the grant's expiry (the service's clock), drops the token, then tries the stored key; `posts-api`'s 401/403 now arrives as `PostsErrorKind.rejected` and drives the same re-check with `refused: true`, which ignores the local clock.
       - Captions, upload and the publish function still show only their own error text — the re-check hangs off `posts-api`.
-- [ ] B7. Clear the vault when one key fails
+- [x] B7. Clear the vault when one key fails
+      - `SecureLicenseStore.clear()` tries all three records and reports one `storageUnavailable` failure; the session and cache still end in the app.
 - [ ] B8. Report network failures properly
 - [ ] B9. Drain FFmpeg streams before closing
 - [ ] B10. Stop FFmpeg on quit
