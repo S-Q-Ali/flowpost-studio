@@ -57,7 +57,8 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - The runner reads both pipes to the end after the exit code lands (two-second backstop for a held handle) instead of cancelling mid-tail; `FfmpegRunner` gained a start seam so a fake process can prove the line after the exit survives.
 - [x] B10. Stop FFmpeg on quit
       - `quit()` calls `killRunningFfmpeg()` before anything that could end in `exit(0)`; the runner keeps its child in a process-global slot, the way the pipeline runs one encoder at a time.
-- [ ] B11. Delete the dead identity module
+- [x] B11. Delete the dead identity module
+      - 12 lib files and 8 test files (3,920 lines) gone, plus the three route constants no router served; `supabase_flutter` left `pubspec.yaml` with them because nothing else imported it. `flutter_secure_storage` stays — the license vault still uses it.
 - [ ] B12. Draft restore must not overwrite edits
 - [ ] B13. "Try again" retries the same file
 - [ ] B14. Sniff image types from bytes

@@ -24,12 +24,6 @@ const String setupRoute = '/setup';
 const String licenseRoute = '/license';
 const String startingRoute = '/starting';
 
-/// The unwired identity module's screens still name these; no route serves
-/// them since the license replaced sign-in (SPEC-license).
-const String loginRoute = '/login';
-const String questionsRoute = '/security-questions';
-const String authCallbackRoute = '/auth-callback';
-
 /// SPEC-shell Success Criterion 6: only these protocol paths are honoured.
 const List<String> deepLinkAllowlist = ['/'];
 

@@ -225,11 +225,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: B3 · Size: S.
   - Done: `killRunningFfmpeg()` in `ffmpeg_runner.dart` — the runner already holds its child, so the registry sits next to it and works without a container in the shell's hand. `quit()` calls it first, before any await that could end in `exit(0)`. The shell is built before `runApp`, so the controllers are not reachable there; the registry is process-global the way the single encoder is. Two tests with the fake process: the in-flight child is killed, and a run that already finished is not reached back to.
 
-- [ ] **B11. Delete the dead identity module** — Should (desktop 11, lean)
+- [x] **B11. Delete the dead identity module** — Should (desktop 11, lean)
   - Accept: `lib/features/identity/` and its 8 test files are removed; `flutter analyze` and the suite stay green; nothing is re-exported.
   - Verify: tree-wide grep, `flutter analyze`, `flutter test`.
   - Files: `desktop-flutter/lib/features/identity/`, `desktop-flutter/test/features/identity/`.
   - Dep: none · Size: S (-3,920 lines).
+  - Done: the module and its tests are gone, with `loginRoute`, `questionsRoute` and `authCallbackRoute` — the three constants no route served. `supabase_flutter` followed them out of `pubspec.yaml` (the identity files were its only importers; `Supabase.initialize` appeared nowhere, so nothing was ever bootstrapped). The specs that still describe it (`docs/adr/0001-dual-auth-session.md`, marked Proposed, and `SPEC-identity.md`, referenced by `SPEC-settings.md`) are left for a docs pass.
 
 - [ ] **B12. Stop the draft restore from overwriting edits** — Should (desktop 12)
   - Accept: the draft is applied once, before the user's first edit; a late restore never replaces typed text.
