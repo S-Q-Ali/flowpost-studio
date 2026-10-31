@@ -116,6 +116,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final state = ref.watch(identityControllerProvider).value;
+    final stateMessage = state is SignedOut ? state.message : null;
+    final shownError = _error ?? stateMessage;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -159,7 +162,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       decoration: const InputDecoration(labelText: 'Password'),
                       onSubmitted: (_) => _submit(),
                     ),
-                    if (_error case final message?) ...[
+                    if (shownError case final message?) ...[
                       const SizedBox(height: 16),
                       Semantics(
                         liveRegion: true,
