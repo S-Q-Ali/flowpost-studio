@@ -1,5 +1,19 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export function getSessionToken(): string | null {
   return localStorage.getItem("flowpost_token");
+}
+
+/**
+ * The operator token when the security gate minted one, otherwise the signed-in
+ * Supabase user's access token. Non-admin users never receive the gate token,
+ * so without the fallback every edge call returned 401.
+ */
+async function bearerForRequest(): Promise<string | null> {
+  const operatorToken = getSessionToken();
+  if (operatorToken) return operatorToken;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
 }
 
 export interface InvokeFunctionOptions {
@@ -41,7 +55,7 @@ export async function invokeFunction<T = any>(
 
   const parsedBody = stringifyBody(body);
   const outHeaders: Record<string, string> = {};
-  const token = getSessionToken();
+  const token = await bearerForRequest();
   if (token) outHeaders.Authorization = `Bearer ${token}`;
   if (parsedBody !== undefined && !(parsedBody instanceof FormData)) {
     outHeaders["Content-Type"] = "application/json";

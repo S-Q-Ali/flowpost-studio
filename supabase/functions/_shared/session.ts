@@ -1,18 +1,16 @@
 export const SESSION_TTL_DAYS = 7;
 
-/** The sentinel row the delete skips, so an empty table is not an error case. */
-export const EMPTY_SESSION_ID = "00000000-0000-0000-0000-000000000000";
-
 export interface NewSession {
   token: string;
   expiresAt: string;
 }
 
 /**
- * Replaces every session with a fresh one for `userId`.
+ * Replaces that user's sessions with a fresh one.
  *
- * One live session is the contract the desktop and the web gate already share:
- * a new token invalidates the others, and the client that lost it re-activates.
+ * One live session per user is the contract the desktop and the web gate
+ * share: a new token invalidates the user's others, and the client that lost
+ * it re-activates. Other users' sessions must survive.
  */
 export async function createSession(
   supabase: any,
@@ -24,7 +22,7 @@ export async function createSession(
     now.getTime() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000,
   ).toISOString();
 
-  await supabase.from("sessions").delete().neq("id", EMPTY_SESSION_ID);
+  await supabase.from("sessions").delete().eq("user_id", userId);
 
   const { error } = await supabase
     .from("sessions")

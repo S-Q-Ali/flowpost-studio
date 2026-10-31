@@ -72,15 +72,13 @@ describe("isRequestAuthorized", () => {
     expect(result).toEqual({ allowed: false, reason: "expired-session" });
   });
 
-  it("allows a valid session token sent via the Authorization header (captions pattern)", async () => {
+  it("rejects a valid session row that carries no user id", async () => {
     const inputs = makeInputs({
-      authorizationHeader: "Bearer valid-session-token",
-      sessionLookup: vi.fn(async (token: string) =>
-        token === "valid-session-token" ? { status: "valid" } : { status: "missing" },
-      ),
+      authorizationHeader: "Bearer orphan-token",
+      sessionLookup: vi.fn(async () => ({ status: "valid", userId: null })),
     });
     const result = await isRequestAuthorized(inputs);
-    expect(result).toEqual({ allowed: true, kind: "session" });
+    expect(result).toEqual({ allowed: false, reason: "session-without-user" });
   });
 
   it("returns the resolved userId for a valid session token", async () => {
@@ -98,11 +96,11 @@ describe("isRequestAuthorized", () => {
     const inputs = makeInputs({
       adminTokenHeader: "valid-admin-token",
       sessionLookup: vi.fn(async (token: string) =>
-        token === "valid-admin-token" ? { status: "valid" } : { status: "missing" },
+        token === "valid-admin-token" ? { status: "valid", userId: "admin-1" } : { status: "missing" },
       ),
     });
     const result = await isRequestAuthorized(inputs);
-    expect(result).toEqual({ allowed: true, kind: "session" });
+    expect(result).toEqual({ allowed: true, kind: "session", userId: "admin-1" });
   });
 
   it("rejects a session token when the lookup returns missing / unknown", async () => {
@@ -178,6 +176,8 @@ describe("createSessionLookup", () => {
     };
     return {
       from: vi.fn(() => builder),
+      // No session row means the token is checked as a Supabase access token.
+      auth: { getUser: vi.fn(async () => ({ data: { user: null }, error: null })) },
     };
   }
 
@@ -215,6 +215,71 @@ describe("createSessionLookup", () => {
   it("returns missing when the token record has no expiry at all", async () => {
     const result = await lookupResult({ data: { id: "1", expires_at: null }, error: null });
     expect(result).toEqual({ status: "missing" });
+  });
+
+  function stubSupabaseWithAuth(
+    session: { data: unknown; error: unknown },
+    user: { data: unknown; error: unknown } = { data: null, error: null },
+  ) {
+    const getUser = vi.fn(async () => user);
+    const builder: any = {
+      select: vi.fn(() => builder),
+      eq: vi.fn(() => builder),
+      maybeSingle: vi.fn(() => Promise.resolve(session)),
+    };
+    return {
+      supabase: { from: vi.fn(() => builder), auth: { getUser } },
+      getUser,
+    };
+  }
+
+  it("accepts a Supabase access token when no session row matches", async () => {
+    const { supabase, getUser } = stubSupabaseWithAuth(
+      { data: null, error: null },
+      { data: { user: { id: "auth-user-1" } }, error: null },
+    );
+    const result = await createSessionLookup(supabase)("supabase-jwt");
+    expect(result).toEqual({ status: "valid", userId: "auth-user-1" });
+    expect(getUser).toHaveBeenCalledWith("supabase-jwt");
+  });
+
+  it("does not consult the auth server for an operator session row", async () => {
+    const { supabase, getUser } = stubSupabaseWithAuth({
+      data: { id: "1", user_id: "user-1", expires_at: future },
+      error: null,
+    });
+    const result = await createSessionLookup(supabase)("session-token");
+    expect(result).toEqual({ status: "valid", userId: "user-1" });
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it("does not fall through to the auth server for an expired session row", async () => {
+    const { supabase, getUser } = stubSupabaseWithAuth({
+      data: { id: "1", user_id: "user-1", expires_at: past },
+      error: null,
+    });
+    const result = await createSessionLookup(supabase)("expired");
+    expect(result).toEqual({ status: "expired" });
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it("returns missing for a token that is neither a session nor a Supabase user", async () => {
+    const { supabase } = stubSupabaseWithAuth(
+      { data: null, error: null },
+      { data: { user: null }, error: null },
+    );
+    const result = await createSessionLookup(supabase)("random-token");
+    expect(result).toEqual({ status: "missing" });
+  });
+
+  it("fails closed when the auth server itself errors", async () => {
+    const authError = { message: "auth server down" };
+    const { supabase } = stubSupabaseWithAuth(
+      { data: null, error: null },
+      { data: null, error: authError },
+    );
+    const result = await createSessionLookup(supabase)("jwt");
+    expect(result).toEqual({ status: "error", error: authError });
   });
 });
 
@@ -256,20 +321,20 @@ describe("createRequestAuthorizer", () => {
 
   it("allows a valid session token from the Authorization header", async () => {
     const sessionLookup = vi.fn(async (token: string) =>
-      token === "flowpost-session" ? { status: "valid" } : { status: "missing" },
+      token === "flowpost-session" ? { status: "valid", userId: "user-1" } : { status: "missing" },
     );
     const { authorize } = makeAuthorizer(sessionLookup);
     const result = await authorize(fakeRequest({ Authorization: "Bearer flowpost-session" }));
-    expect(result).toEqual({ allowed: true, kind: "session" });
+    expect(result).toEqual({ allowed: true, kind: "session", userId: "user-1" });
   });
 
   it("reads the x-admin-token header for admin session requests", async () => {
     const sessionLookup = vi.fn(async (token: string) =>
-      token === "admin-session" ? { status: "valid" } : { status: "missing" },
+      token === "admin-session" ? { status: "valid", userId: "admin-1" } : { status: "missing" },
     );
     const { authorize } = makeAuthorizer(sessionLookup);
     const result = await authorize(fakeRequest({ "x-admin-token": "admin-session" }));
-    expect(result).toEqual({ allowed: true, kind: "session" });
+    expect(result).toEqual({ allowed: true, kind: "session", userId: "admin-1" });
     expect(sessionLookup).toHaveBeenCalledWith("admin-session");
   });
 
@@ -306,6 +371,14 @@ describe("resolveSessionOwner", () => {
   it("trusts the requested user for non-session credentials", () => {
     const result = resolveSessionOwner({ allowed: true, kind: "frontend-api-key" } as AuthResult, "user-3");
     expect(result).toEqual({ userId: "user-3", denied: false });
+  });
+
+  it("denies a session that carries no user id", () => {
+    const result = resolveSessionOwner(
+      { allowed: true, kind: "session" } as unknown as AuthResult,
+      "user-1",
+    );
+    expect(result).toEqual({ userId: null, denied: true });
   });
 
   it("returns no owner when there is no session and no requested user", () => {

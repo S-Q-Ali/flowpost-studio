@@ -5,7 +5,8 @@ export type SessionLookupResult =
   | { status: "error"; error?: unknown };
 
 export type AuthResult =
-  | { allowed: true; kind: "service-role" | "cron" | "frontend-api-key" | "session"; userId?: string | null }
+  | { allowed: true; kind: "service-role" | "cron" | "frontend-api-key"; userId?: string | null }
+  | { allowed: true; kind: "session"; userId: string }
   | {
       allowed: false;
       reason: string;
@@ -15,7 +16,10 @@ export function resolveSessionOwner(
   auth: AuthResult | null,
   requestedUserId?: string | null,
 ): { userId: string | null; denied: boolean } {
-  if (auth && auth.kind === "session" && auth.userId) {
+  if (auth && auth.kind === "session") {
+    // A session row without a user owns nothing; trusting the requested id
+    // here is what let a null-user token act as any account.
+    if (!auth.userId) return { userId: null, denied: true };
     if (requestedUserId && requestedUserId !== auth.userId) return { userId: null, denied: true };
     return { userId: auth.userId, denied: false };
   }
@@ -69,12 +73,22 @@ export async function isRequestAuthorized(inputs: AuthInputs): Promise<AuthResul
   }
 
   const lookup = await inputs.sessionLookup(sessionCandidate);
-  if (lookup.status === "valid") return { allowed: true, kind: "session", userId: lookup.userId };
+  if (lookup.status === "valid") {
+    if (!lookup.userId) return { allowed: false, reason: "session-without-user" };
+    return { allowed: true, kind: "session", userId: lookup.userId };
+  }
   if (lookup.status === "expired") return { allowed: false, reason: "expired-session" };
   if (lookup.status === "error") return { allowed: false, reason: "session-lookup-error" };
   return { allowed: false, reason: "invalid-session" };
 }
 
+/**
+ * Resolves a bearer to a user id.
+ *
+ * Operator sessions are one UUID pair stored in `sessions`; the web app signs
+ * in with Supabase, so its access token is verified by the auth server and its
+ * subject is the same `public.users.id` the RLS policies use.
+ */
 export function createSessionLookup(supabase: any) {
   return async (token: string): Promise<SessionLookupResult> => {
     const { data, error } = await supabase
@@ -84,9 +98,20 @@ export function createSessionLookup(supabase: any) {
       .maybeSingle();
 
     if (error) return { status: "error", error };
-    if (!data || !data.expires_at) return { status: "missing" };
-    if (new Date(data.expires_at).getTime() <= Date.now()) return { status: "expired" };
-    return { status: "valid", userId: data.user_id };
+    if (data) {
+      if (!data.expires_at) return { status: "missing" };
+      if (new Date(data.expires_at).getTime() <= Date.now()) return { status: "expired" };
+      return { status: "valid", userId: data.user_id };
+    }
+
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError) return { status: "error", error: authError };
+      const userId = authData?.user?.id;
+      return userId ? { status: "valid", userId } : { status: "missing" };
+    } catch (err) {
+      return { status: "error", error: err };
+    }
   };
 }
 
