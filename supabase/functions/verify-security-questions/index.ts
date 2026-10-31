@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { checkRateLimit, recordFailedAttempt, LOCKOUT_DURATION_MINUTES } from "../_shared/rate-limit.ts";
 import { requireAdminCaller } from "../_shared/admin-caller.ts";
+import { createSession } from "../_shared/session.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -32,23 +33,8 @@ function json(data: unknown, status = 200) {
 }
 
 async function createAdminSession(): Promise<string> {
-  const token = crypto.randomUUID() + crypto.randomUUID();
-  const expiresAt = new Date(
-    Date.now() + 7 * 24 * 60 * 60 * 1000,
-  ).toISOString();
-
-  await supabase.from("sessions").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-  const { error } = await supabase
-    .from("sessions")
-    .insert({ token, expires_at: expiresAt, user_id: await getAdminUserId() });
-
-  if (error) {
-    console.error("Failed to create admin session:", error);
-    throw new Error("Session creation failed");
-  }
-
-  return token;
+  const session = await createSession(supabase, await getAdminUserId());
+  return session.token;
 }
 
 Deno.serve(async (req) => {
