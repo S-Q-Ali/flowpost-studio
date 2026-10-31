@@ -41,8 +41,11 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
 - [x] B3. Fence a replaced media job
       - Fixed: `MediaController` keeps the current `MediaJob`; a run whose id is no longer current writes no state, deletes no folder and never takes `_processor`. A new pick cancels the old encode.
       - The old code also deleted the *new* file's folder when the replaced encode answered with a cancellation — that is the data-loss case now covered by a test.
-- [ ] B4. Release workflow for the desktop installer
-- [ ] B5. Fix the landing download CTA
+- [x] B4. Release workflow for the desktop installer
+      - `.github/workflows/release-desktop.yml` builds on a `desktop-v*` tag, passes the version to Inno Setup, writes a `.sha256` sidecar and publishes both with `gh release`.
+      - The first real tag is the owner's to push; no dry run has been done.
+- [x] B5. Fix the landing download CTA
+      - `src/lib/desktop-download.ts` gives the CTA the releases page today and the direct asset once `INSTALLER_ASSET` names it; `index.html` and the README no longer point at `releases/latest`.
 - [ ] B6. Re-check session expiry (timer + 401)
 - [ ] B7. Clear the vault when one key fails
 - [ ] B8. Report network failures properly

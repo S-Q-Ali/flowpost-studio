@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/S-Q-Ali/flowpost-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/S-Q-Ali/flowpost-studio/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
-[![Download for Windows](https://img.shields.io/badge/download-Windows%2010%2F11-2ea44f?logo=windows&logoColor=white)](https://github.com/S-Q-Ali/flowpost-studio/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/download-Windows%2010%2F11-2ea44f?logo=windows&logoColor=white)](https://github.com/S-Q-Ali/flowpost-studio/releases)
 
 > Upload once, publish everywhere. A native Windows app for scheduling video and images to YouTube Shorts, Instagram Reels and Stories, Facebook Pages, TikTok and LinkedIn.
 
-[Download for Windows](https://github.com/S-Q-Ali/flowpost-studio/releases/latest) · [Build from source](#build-from-source) · [How it works](#how-it-works)
+[Download for Windows](https://github.com/S-Q-Ali/flowpost-studio/releases) · [Build from source](#build-from-source) · [How it works](#how-it-works)
 
 ![Publish screen: an Instagram target selected, a caption written and Publish now enabled](docs/screenshots/publish.webp)
 
@@ -33,7 +33,7 @@ The images are rendered from the real widgets with fake data; `desktop-flutter/t
 
 ## Download
 
-Installers are attached to [GitHub Releases](https://github.com/S-Q-Ali/flowpost-studio/releases/latest). Requirements: Windows 10 or 11 on x64. The installer is not code-signed, so SmartScreen may warn on the first run.
+The Windows installer and its SHA-256 are attached to [GitHub Releases](https://github.com/S-Q-Ali/flowpost-studio/releases). Requirements: Windows 10 or 11 on x64. The installer is not code-signed, so SmartScreen may warn on the first run. Check the download with `certutil -hashfile FlowPostNativeSetup.exe SHA256` and compare it with the `.sha256` file next to it.
 
 On first start the app asks for a license key — there is no login and no sign-up. The key is hashed and checked by the `verify-license` edge function, which mints a short-lived session; the key and session stay in the Windows credential vault and the app opens offline until the session expires. Settings → License deactivates the device.
 

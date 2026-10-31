@@ -175,17 +175,19 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: none · Size: S.
   - Done: the controller now holds the current `MediaJob` (not a bare folder) and every state write, deletion and `_processor` hand-off checks its id. The pick of a new file cancels the encode of the old one — which, before this, let a cancelled run delete the folder of the file that replaced it.
 
-- [ ] **B4. Ship a real release for the download CTA** — Must (desktop 5)
+- [x] **B4. Ship a real release for the download CTA** — Must (desktop 5)
   - Accept: a tag `desktop-v*` builds the Windows installer, records a SHA-256, and uploads installer + checksum to a GitHub release.
   - Verify: dry run on a test tag; asset URLs resolve.
   - Files: `.github/workflows/release-desktop.yml`, `desktop-flutter/installer/flowpost.iss`.
   - Dep: none · Size: M (owner-assisted first release).
+  - Done: the workflow builds on the tag, passes its version to Inno Setup (`/DMyAppVersion`, which the `.iss` now accepts through `#ifndef`), writes a `.sha256` sidecar and publishes both with `gh release`. The first real tag is still the owner's to push — the dry run has not happened.
 
-- [ ] **B5. Fix the landing CTA** — Must (desktop 5)
+- [x] **B5. Fix the landing CTA** — Must (desktop 5)
   - Accept: the CTA points at a URL that exists today (`/releases`) and switches to the direct asset once a release exists; no dead `releases/latest`.
   - Verify: click on the built site; both states covered by a unit test of the URL helper.
   - Files: `src/pages/PipelineLandingPage.tsx` (+ helper + test).
   - Dep: B4 · Size: S.
+  - Done: `desktopDownloadUrl()` returns the releases page while `INSTALLER_ASSET` is null; set it to `FlowPostNativeSetup.exe` after the first release. The JSON-LD `downloadUrl` in `index.html` and the README links were switched to `/releases` for the same reason — neither can call the helper.
 
 - [ ] **B6. Re-check the session expiry** — Should (desktop 6)
   - Accept: a timer plus a 401 handler end the session and route to `/license` with a clear message; no silent dead state.

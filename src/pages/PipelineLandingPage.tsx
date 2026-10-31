@@ -20,8 +20,9 @@ import queueShot from "../../docs/screenshots/queue.webp";
 import calendarShot from "../../docs/screenshots/calendar.webp";
 import settingsShot from "../../docs/screenshots/settings.webp";
 import licenseShot from "../../docs/screenshots/license.webp";
+import { desktopDownloadUrl } from "../lib/desktop-download";
 
-const DOWNLOAD_URL = "https://github.com/S-Q-Ali/flowpost-studio/releases/latest";
+const DOWNLOAD_URL = desktopDownloadUrl();
 const REPO_URL = "https://github.com/S-Q-Ali/flowpost-studio";
 
 /* ────────────────────────── helpers ────────────────────────── */
