@@ -186,10 +186,10 @@ Deno.serve(async (req) => {
       const instant = retryInstant(body);
       if (!instant.ok) return json({ error: instant.error }, instant.status);
       // Only a row that is still failed moves back into the queue, so a retry
-      // never fires twice.
+      // never fires twice. Clearing the claim lets the next attempt publish.
       const { data, error } = await supabase
         .from("posts")
-        .update({ status: "scheduled", scheduled_at: instant.value })
+        .update({ status: "scheduled", scheduled_at: instant.value, claimed_at: null })
         .eq("id", id.value)
         .eq("user_id", userId)
         .eq("status", "failed")

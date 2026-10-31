@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { checkPostAccess } from "../_shared/post-access.ts";
+import { checkPostAccess, claimPost } from "../_shared/post-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -122,6 +122,11 @@ Deno.serve(async (req) => {
 
       const access = checkPostAccess(auth, storyPost);
       if (!access.ok) return json({ error: access.error }, access.status);
+
+      // A workflow row arrives already `publishing`; the claim still stops a
+      // second caller from sending the same story twice.
+      const claim = await claimPost(supabase, postId);
+      if (!claim.ok) return json({ error: claim.error }, claim.status);
 
       const rawFields = !!(body.videoUrl && body.accessToken && body.accountId);
       if (rawFields) {

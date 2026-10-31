@@ -3,8 +3,8 @@ import { File } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { checkPostAccess } from "../_shared/post-access.ts";
-import { isGoogleApiUrl } from "../_shared/url-guard.ts";
+import { checkPostAccess, claimPost } from "../_shared/post-access.ts";
+import { isAllowedDriveUrl, isGoogleApiUrl } from "../_shared/url-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -104,6 +104,10 @@ Deno.serve(async (req) => {
     driveDownloadUrl = typeof body?.driveDownloadUrl === "string"
       ? body.driveDownloadUrl
       : undefined;
+    // The bearer below goes to this URL, so it may only leave for Google.
+    if (driveDownloadUrl && !isAllowedDriveUrl(driveDownloadUrl)) {
+      return json({ error: "Unsupported download URL" }, 400);
+    }
     googleAccessToken = typeof body?.googleAccessToken === "string"
       ? body.googleAccessToken
       : undefined;
@@ -141,6 +145,9 @@ Deno.serve(async (req) => {
     if (!post.account_id) {
       return json({ error: "Post has no account_id" }, 400);
     }
+
+    const claim = await claimPost(supabase, post.id);
+    if (!claim.ok) return json({ error: claim.error }, claim.status);
 
     const { data: video, error: videoError } = await supabase
       .from("videos")

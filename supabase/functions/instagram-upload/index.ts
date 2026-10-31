@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { checkPostAccess } from "../_shared/post-access.ts";
+import { checkPostAccess, claimPost } from "../_shared/post-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -104,6 +104,9 @@ Deno.serve(async (req) => {
     if (!post.account_id) {
       return json({ error: "Post has no account_id" }, 400);
     }
+
+    const claim = await claimPost(supabase, post.id);
+    if (!claim.ok) return json({ error: claim.error }, claim.status);
 
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
