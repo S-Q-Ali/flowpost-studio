@@ -6,13 +6,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// the sign-out path and the screens that show the account state can be built
 /// and tested now.
 class Session {
-  const Session({required this.sessionToken, required this.accessToken});
+  const Session({
+    required this.sessionToken,
+    required this.accessToken,
+    this.offline = false,
+  });
 
   /// The bearer the backend functions take.
   final String sessionToken;
 
   /// The Supabase Auth token the table reads and writes take.
   final String accessToken;
+
+  /// True when the admin token was restored without reaching the backend.
+  final bool offline;
 }
 
 final sessionProvider = NotifierProvider<SessionController, Session?>(

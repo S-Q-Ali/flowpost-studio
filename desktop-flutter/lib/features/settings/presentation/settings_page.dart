@@ -100,12 +100,13 @@ class _AccountSection extends ConsumerWidget {
           children: [
             Text('Not signed in'),
             SizedBox(height: 4),
-            Text('Sign-in arrives with the production build.'),
+            Text('Sign in with the administrator account to use the app.'),
           ],
         ),
       );
     }
     final email = emailFromAccessToken(session.accessToken);
+    final stateLine = session.offline ? 'Signed in (offline)' : 'Signed in';
     return _Section(
       title: 'Account',
       child: Row(
@@ -113,9 +114,20 @@ class _AccountSection extends ConsumerWidget {
           const Icon(Icons.account_circle_outlined),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              email ?? 'Signed in',
-              style: Theme.of(context).textTheme.bodyMedium,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  email ?? 'Administrator',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  stateLine,
+                  key: const Key('settings-account-state'),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
           TextButton(

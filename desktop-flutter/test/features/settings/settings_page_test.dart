@@ -101,6 +101,7 @@ Future<ProviderContainer> _pump(
   AppConfig? live,
   ConfigSource source = ConfigSource.compiled,
   AppConfig? compiled,
+  void Function()? identityLogout,
 }) async {
   final draftsRepository = drafts ?? FakeDraftsRepository();
   final overrides = [
@@ -147,6 +148,9 @@ Future<ProviderContainer> _pump(
                 latestVersion: currentVersion,
               ),
     ),
+    identityLogoutProvider.overrideWithValue(
+      () async => identityLogout?.call(),
+    ),
     if (session != null) sessionProvider.overrideWith(() => _SignedIn(session)),
   ];
   await tester.pumpWidget(
@@ -168,7 +172,7 @@ void main() {
       expect(find.text('Settings'), findsOneWidget);
       expect(find.text('Not signed in'), findsOneWidget);
       expect(
-        find.text('Sign-in arrives with the production build.'),
+        find.text('Sign in with the administrator account to use the app.'),
         findsOneWidget,
       );
       expect(find.text('Version 1.2.3 (7)'), findsOneWidget);
@@ -186,6 +190,7 @@ void main() {
     tester,
   ) async {
     final cache = FakePostsCache();
+    var logouts = 0;
     final container = await _pump(
       tester,
       session: Session(
@@ -193,9 +198,11 @@ void main() {
         accessToken: token({'email': 'admin@flowpost.test'}),
       ),
       cache: cache,
+      identityLogout: () => logouts++,
     );
 
     expect(find.text('admin@flowpost.test'), findsOneWidget);
+    expect(find.text('Signed in'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('settings-sign-out')));
     await tester.pumpAndSettle();
@@ -211,9 +218,24 @@ void main() {
     await tester.tap(find.byKey(const Key('confirm-sign-out')));
     await tester.pumpAndSettle();
 
+    expect(logouts, 1);
     expect(container.read(sessionProvider), isNull);
     expect(cache.wipes, 1);
     expect(find.text('Not signed in'), findsOneWidget);
+  });
+
+  testWidgets('a session restored offline says so', (tester) async {
+    await _pump(
+      tester,
+      session: Session(
+        sessionToken: 'session',
+        accessToken: token({'email': 'admin@flowpost.test'}),
+        offline: true,
+      ),
+    );
+
+    expect(find.text('admin@flowpost.test'), findsOneWidget);
+    expect(find.text('Signed in (offline)'), findsOneWidget);
   });
 
   testWidgets('keeping the session changes nothing', (tester) async {

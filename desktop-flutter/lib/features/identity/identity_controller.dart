@@ -160,6 +160,7 @@ class IdentityController extends AsyncNotifier<AuthState> {
         session = Session(
           sessionToken: token.token,
           accessToken: auth.accessToken,
+          offline: next.offline,
         );
       }
     }

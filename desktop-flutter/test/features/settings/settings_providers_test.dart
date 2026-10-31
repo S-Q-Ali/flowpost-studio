@@ -7,6 +7,7 @@ import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/core/session/session.dart';
 import 'package:flowpost_desktop/core/update/app_version.dart';
 import 'package:flowpost_desktop/core/update/update_checker.dart';
+import 'package:flowpost_desktop/features/identity/data/identity_models.dart';
 import 'package:flowpost_desktop/features/offline/offline_providers.dart';
 import 'package:flowpost_desktop/features/settings/settings_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -189,10 +190,40 @@ void main() {
   });
 
   group('signing out', () {
-    test('clears the session and wipes the cache', () async {
+    test(
+      'revokes the identity session, clears it and wipes the cache',
+      () async {
+        final cache = FakePostsCache();
+        var logouts = 0;
+        final container = ProviderContainer(
+          overrides: [
+            postsCacheProvider.overrideWithValue(cache),
+            identityLogoutProvider.overrideWithValue(() async => logouts++),
+          ],
+        );
+        addTearDown(container.dispose);
+        container
+            .read(sessionProvider.notifier)
+            .signIn(const Session(sessionToken: 's', accessToken: 'a'));
+
+        await container.read(signOutProvider).run();
+
+        expect(logouts, 1);
+        expect(container.read(sessionProvider), isNull);
+        expect(container.read(sessionTokenProvider), isNull);
+        expect(cache.wipes, 1);
+      },
+    );
+
+    test('an offline identity logout still clears this PC', () async {
       final cache = FakePostsCache();
       final container = ProviderContainer(
-        overrides: [postsCacheProvider.overrideWithValue(cache)],
+        overrides: [
+          postsCacheProvider.overrideWithValue(cache),
+          identityLogoutProvider.overrideWithValue(
+            () async => throw const IdentityException(IdentityError.offline),
+          ),
+        ],
       );
       addTearDown(container.dispose);
       container
@@ -202,13 +233,15 @@ void main() {
       await container.read(signOutProvider).run();
 
       expect(container.read(sessionProvider), isNull);
-      expect(container.read(sessionTokenProvider), isNull);
       expect(cache.wipes, 1);
     });
 
     test('a cache that cannot be wiped still signs the admin out', () async {
       final container = ProviderContainer(
-        overrides: [postsCacheProvider.overrideWithValue(_FailingWipe())],
+        overrides: [
+          postsCacheProvider.overrideWithValue(_FailingWipe()),
+          identityLogoutProvider.overrideWithValue(() async {}),
+        ],
       );
       addTearDown(container.dispose);
       container

@@ -14,6 +14,8 @@ import '../../core/logging/app_logger.dart';
 import '../../core/session/session.dart';
 import '../../core/update/app_version.dart';
 import '../../core/update/update_checker.dart';
+import '../identity/data/identity_models.dart';
+import '../identity/identity_controller.dart';
 import '../offline/offline_providers.dart';
 import '../scheduling/scheduling_controller.dart';
 import 'data/connection_check.dart';
@@ -121,6 +123,16 @@ class UpdateCheckController extends Notifier<UpdateCheckState> {
 }
 
 final signOutProvider = Provider<SignOut>(SignOut.new);
+
+/// Revokes the Supabase session and clears the secure identity records.
+///
+/// Tests that do not mount the identity module replace this with a counter.
+typedef IdentityLogout = Future<void> Function();
+
+final identityLogoutProvider = Provider<IdentityLogout>(
+  (ref) =>
+      () => ref.read(identityControllerProvider.notifier).signOut(),
+);
 
 /// The machine's facts for the evidence file, as Settings sees them.
 final diagnosticsFactsProvider = FutureProvider<DiagnosticsFacts>((ref) async {
@@ -275,15 +287,22 @@ class SignOut {
   final Ref _ref;
 
   Future<void> run() async {
-    _ref.read(sessionProvider.notifier).clear();
-    // The rows on screen belong to the session that just ended.
-    _ref.invalidate(queueControllerProvider);
-    _ref.invalidate(calendarControllerProvider);
     try {
-      await _ref.read(postsCacheProvider).wipe();
-    } on Object {
-      // The store logs its own failure; a cache that will not go does not
-      // keep the admin signed in (SPEC-settings Decision 3).
+      await _ref.read(identityLogoutProvider)();
+    } on IdentityException {
+      // Offline still clears this PC inside the controller; the local wipe
+      // below must run either way (SPEC-identity Logout).
+    } finally {
+      _ref.read(sessionProvider.notifier).clear();
+      // The rows on screen belong to the session that just ended.
+      _ref.invalidate(queueControllerProvider);
+      _ref.invalidate(calendarControllerProvider);
+      try {
+        await _ref.read(postsCacheProvider).wipe();
+      } on Object {
+        // The store logs its own failure; a cache that will not go does not
+        // keep the admin signed in (SPEC-settings Decision 3).
+      }
     }
   }
 }
