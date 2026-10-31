@@ -384,10 +384,10 @@
     "semantic_hash": "56c0e8759328865e67fc2c480b916804"
   },
   "src/pages/PipelineLandingPage.tsx": {
-    "mtime": 1788543668.9698865,
-    "seen": 1789020917.2984962,
-    "ast_hash": "d9d99ea36b5d36b10e482b753dab5e4c",
-    "semantic_hash": "d9d99ea36b5d36b10e482b753dab5e4c"
+    "mtime": 1793474063.64053,
+    "seen": 1793474204.810442,
+    "ast_hash": "52f7e91a1990d8163cd5c0a70547abb9",
+    "semantic_hash": ""
   },
   "src/pages/PrivacyPage.tsx": {
     "mtime": 1785013983.983737,
@@ -1062,9 +1062,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793389038.883361,
-    "seen": 1793392570.0524201,
-    "ast_hash": "988f1394c407cc27cb963e1582642e02",
+    "mtime": 1793473269.8333676,
+    "seen": 1793474204.9100769,
+    "ast_hash": "1e023dd16fe9aedf9411bf6c9b0f99a1",
     "semantic_hash": ""
   },
   "USER_GUIDE.md": {
@@ -1074,9 +1074,9 @@
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1789130124.479313,
-    "seen": 1792963109.4807718,
-    "ast_hash": "50caf9badfad50c550c1a0f369a60603",
+    "mtime": 1793474003.516962,
+    "seen": 1793474204.9169266,
+    "ast_hash": "0a12278b760d737ccba2218d2312fb2d",
     "semantic_hash": ""
   },
   "pipeline-landing.html": {
