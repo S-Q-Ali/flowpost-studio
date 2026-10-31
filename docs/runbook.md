@@ -35,7 +35,7 @@ No token is written to disk: the Supabase session and the admin session live in 
 | Edge calls return 401 | The admin session token expired or another client minted a newer one | Sign in again through the security-questions gate (a new token invalidates the others) |
 | Queue row stuck on "processing" | The publish call died mid-flight | Delete the row after 30 minutes; the app offers it, then re-run the publish |
 | "Update check failed" | `UPDATE_MANIFEST_URL` empty or unreachable | Empty is valid before release hosting exists; the check is manual and non-blocking |
-| Deep link ignored | Path outside `/` and `/auth-callback`, or the app is not installed | The link is rejected and logged without its query string; reinstall to re-register `flowpost://` |
+| Deep link ignored | Path outside `/` and `/auth-callback`, or the app never ran for this user | The link is rejected and logged without its query string; launch the app once to re-register `flowpost://` |
 | Publish fails with a short sentence | The platform refused the upload | The service text is cleaned (no URLs or paths) before it reaches the screen and the log; retry from the row menu |
 
 ## Release checklist (desktop)
