@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "rea
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SecurityQuestionsGate } from "@/components/SecurityQuestionsGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { supabaseConfigured } from "@/integrations/supabase/client";
 import LoginPage from "./pages/LoginPage";
 import { AppLayout } from "@/components/AppLayout";
 import { Loader2 } from "lucide-react";
@@ -90,12 +91,25 @@ function AppRoutes() {
   );
 }
 
+function ConfigNotice() {
+  if (supabaseConfigured) return null;
+  return (
+    <div
+      role="status"
+      className="fixed inset-x-0 bottom-4 z-[100] mx-auto w-fit max-w-[calc(100%-2rem)] rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-center text-xs font-medium text-amber-700 backdrop-blur dark:text-amber-400"
+    >
+      Supabase is not configured. Copy .env.example to .env.local, fill in the VITE_ values, then restart the dev server.
+    </div>
+  );
+}
+
 const App = () => {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <ConfigNotice />
         <ErrorBoundary>
           <AuthProvider>
             <BrowserRouter>
