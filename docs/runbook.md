@@ -16,7 +16,7 @@ Support, release and rollback notes for the web dashboard and the Windows client
 | Media workspace | `%LOCALAPPDATA%\com.flowpost\FlowPost\media\jobs\<job-id>` |
 | Installation | `%LOCALAPPDATA%\Programs\FlowPost Studio` |
 
-No token is written to disk: the Supabase session and the admin session live in memory, so a restart starts at sign-in. OAuth codes, states, keys and paths are redacted before anything reaches the log.
+Tokens are kept in Windows Credential Manager through `flutter_secure_storage` (the Supabase session, the PKCE verifier and the `flowpost_token`); nothing token-like is written to the data root, SQLite or the log. OAuth codes, states, keys and paths are redacted before anything reaches the log. Signing out removes every stored record.
 
 ## First-line support
 

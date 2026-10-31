@@ -38,7 +38,7 @@ Let the existing FlowPost administrator sign in to the native Windows app with G
 | Supabase Auth session (access + refresh JWT) | Direct PostgREST reads (`public.users`), RLS, future cached reads | Access ~1 h; refresh until revoked | OS-protected secure storage |
 | `flowpost_token` admin session | `Authorization: Bearer <token>` for edge functions, via the existing `sessions` table | 7 days, server-defined | OS-protected secure storage |
 
-The Supabase JWT is **not** accepted by the edge functions today; their shared helper looks up the `sessions` table. The native app therefore signs in with Supabase Auth, then mints the admin session through `verify-security-questions`, exactly like the web app. No edge-function rewrite is needed.
+The Supabase JWT is **not** the credential the edge functions accept; their shared helper looks up the `sessions` table. The native app therefore signs in with Supabase Auth, then mints the admin session through `verify-security-questions`, exactly like the web app. That one function first requires the caller's JWT and an `is_admin = true` row, because it is the door that mints the admin session. The other functions are unchanged.
 
 ### 2. Secure storage on Windows
 
