@@ -630,10 +630,10 @@
     "semantic_hash": "9891195a2208c3f35359daeae6fbc307"
   },
   "supabase/functions/verify-security-questions/index.ts": {
-    "mtime": 1785991240.9199898,
-    "seen": 1789020917.2984962,
-    "ast_hash": "de001fb7d612c934d97ae341b3fd3479",
-    "semantic_hash": "de001fb7d612c934d97ae341b3fd3479"
+    "mtime": 1793465596.7167692,
+    "seen": 1793465777.819509,
+    "ast_hash": "928e8d2e2baef4ca1f894c6d25cde78f",
+    "semantic_hash": ""
   },
   "supabase/functions/verify-session/index.ts": {
     "mtime": 1792962288.9153202,
@@ -888,9 +888,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/auth.ts": {
-    "mtime": 1789046374.4435933,
-    "seen": 1792963109.4565692,
-    "ast_hash": "8bcb0bd4ebb7fe806df3b8abaa654a93",
+    "mtime": 1793465581.1634636,
+    "seen": 1793465777.7958906,
+    "ast_hash": "0867dd80534f2d143a36af1baf4dce67",
     "semantic_hash": ""
   },
   "supabase/functions/_shared/groq.test.ts": {
@@ -4353,6 +4353,18 @@
     "mtime": 1793464589.5126157,
     "seen": 1793464876.562796,
     "ast_hash": "be23a8c3475a6fc1a469095472865ecb",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/admin-caller.test.ts": {
+    "mtime": 1793465487.3984182,
+    "seen": 1793465777.7954125,
+    "ast_hash": "1dc6be0bd9c26879ec2a457d54a157f3",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/admin-caller.ts": {
+    "mtime": 1793465565.8207536,
+    "seen": 1793465777.795419,
+    "ast_hash": "ca0cb708f342116607acce41b8cb4865",
     "semantic_hash": ""
   }
 }
