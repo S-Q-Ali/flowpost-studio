@@ -27,7 +27,10 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - `verify-session` is kept on purpose: `desktop-flutter/lib/features/identity` calls it, and it now also serves logout revoke.
       - The `frontend-api-key` branch and `FRONTEND_API_KEY` reads are gone (no client ever sent that key).
 - [x] A14. Bind a license to a user
-- [ ] A15. Phase A gate
+- [x] A15. Phase A gate
+      - `npm test`: 196 passed (was 192 before Phase A). `npx tsc -b`: clean. `npm run build`: built.
+      - No Deno runtime in this sandbox, so the shared `_shared` tests run through vitest, as CI does. Lint remains advisory (pre-existing `any` baseline documented in `ci.yml`).
+      - Deploy stays owner-assisted (task I12).
 
 ## Phase B — Desktop correctness
 - [ ] B1. Close the duplicate-publish window

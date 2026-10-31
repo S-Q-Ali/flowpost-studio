@@ -145,13 +145,28 @@ Deno.serve(async (req) => {
       );
     }
 
+    const jobs = scheduledPosts.flatMap((post) => {
+      const functionName = publishFunction(post.platform, (post as any).post_type ?? null);
+      if (!functionName) {
+        console.log(`Skipping scheduled post ${post.id} for platform ${post.platform}`);
+        return [];
+      }
+      return [{ postId: post.id as string, functionName }];
+    });
+    if (jobs.length === 0) {
+      return new Response(
+        JSON.stringify({ processed: 0, total: scheduledPosts.length }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // One conditional update claims the whole batch: the status check makes
     // it atomic per row, so two overlapping cron runs never both publish the
     // same post.
     const { data: claimed, error: claimError } = await supabase
       .from("posts")
       .update({ status: "processing" })
-      .in("id", scheduledPosts.map((post) => post.id))
+      .in("id", jobs.map((job) => job.postId))
       .eq("status", "scheduled")
       .select("id");
 
@@ -164,20 +179,12 @@ Deno.serve(async (req) => {
     }
 
     const claimedIds = new Set((claimed ?? []).map((row) => row.id as string));
-    const jobs = scheduledPosts.flatMap((post) => {
-      if (!claimedIds.has(post.id)) return [];
-      const functionName = publishFunction(post.platform, (post as any).post_type ?? null);
-      if (!functionName) {
-        console.log(`Skipping claimed post ${post.id} for platform ${post.platform}`);
-        return [];
-      }
-      return [{ postId: post.id as string, functionName }];
-    });
+    const runnable = jobs.filter((job) => claimedIds.has(job.postId));
 
     // They publish independently, so the batch takes as long as its slowest
     // post instead of the sum of all of them.
     const results = await Promise.allSettled(
-      jobs.map((job) => dispatch(job.postId, job.functionName)),
+      runnable.map((job) => dispatch(job.postId, job.functionName)),
     );
     const processed = results.filter(
       (result) => result.status === "fulfilled" && result.value,
