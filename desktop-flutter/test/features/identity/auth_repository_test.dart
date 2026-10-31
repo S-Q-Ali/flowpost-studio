@@ -295,6 +295,10 @@ void main() {
     final state = await repository.stateFor(_FakeAuth.session);
 
     expect(state, isA<AwaitingQuestions>());
+    expect(
+      (state as AwaitingQuestions).message,
+      IdentityError.adminTokenExpired.message,
+    );
     expect(await store.readAdminToken(), isNull);
   });
 

@@ -102,7 +102,9 @@ class AuthRepository {
         return SignedIn(userId: session.userId, isAdmin: true);
       }
       await store.deleteAdminToken();
-      return _awaitingQuestions();
+      return _awaitingQuestions(
+        message: IdentityError.adminTokenExpired.message,
+      );
     });
   }
 
@@ -144,9 +146,9 @@ class AuthRepository {
   /// Logs out everywhere and leaves no token on this PC, even offline.
   Future<void> signOut() => _signOutAndClear();
 
-  Future<AuthState> _awaitingQuestions() async {
+  Future<AuthState> _awaitingQuestions({String? message}) async {
     final configured = await functions.questionsConfigured();
-    return AwaitingQuestions(questionsConfigured: configured);
+    return AwaitingQuestions(questionsConfigured: configured, message: message);
   }
 
   Future<void> _signOutAndClear() async {
