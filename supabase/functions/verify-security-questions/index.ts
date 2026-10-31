@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { checkRateLimit, recordFailedAttempt, LOCKOUT_DURATION_MINUTES } from "../_shared/rate-limit.ts";
+import { requireAdminCaller } from "../_shared/admin-caller.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -53,6 +54,25 @@ async function createAdminSession(): Promise<string> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  const caller = await requireAdminCaller(req.headers.get("Authorization"), {
+    resolveUserId: async (token) => {
+      const { data, error } = await supabase.auth.getUser(token);
+      return error ? { userId: null, error } : { userId: data.user?.id ?? null };
+    },
+    isAdmin: async (userId) => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("is_admin")
+        .eq("id", userId)
+        .maybeSingle();
+      return error ? { admin: false, error } : { admin: data?.is_admin === true };
+    },
+  });
+
+  if (!caller.allowed) {
+    return json({ success: false, error: "Unauthorized" }, caller.status);
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()

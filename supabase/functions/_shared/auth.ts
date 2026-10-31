@@ -33,12 +33,13 @@ export interface AuthInputs {
   sessionLookup: (token: string) => Promise<SessionLookupResult>;
 }
 
-function bearerOf(header: string | null): string | null {
+export function bearerOf(header: string | null): string | null {
   if (!header) return null;
   const trimmed = header.trim();
   if (!trimmed) return null;
-  const match = trimmed.match(/^Bearer\s+(.+)$/i);
-  return (match ? match[1] : trimmed).trim();
+  const match = trimmed.match(/^Bearer(?:\s+(.*))?$/i);
+  if (match) return match[1]?.trim() || null;
+  return trimmed;
 }
 
 export async function isRequestAuthorized(inputs: AuthInputs): Promise<AuthResult> {
