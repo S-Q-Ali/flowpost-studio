@@ -154,11 +154,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
 
 ## Phase B — Desktop correctness (fixes desktop findings 2–14)
 
-- [ ] **B1. Close the duplicate-publish window** — Must (desktop 2)
+- [x] **B1. Close the duplicate-publish window** — Must (desktop 2)
   - Accept: after `PublishDone`, the button stays disabled for the same media + selection + schedule; a new row id is minted only when an input changes.
   - Verify: test — publish, wait for Done, click again → still one row; change caption → a new run is allowed.
   - Files: `lib/features/publishing/publishing_providers.dart`, `publishing_controller.dart`, `test/features/publishing/publish_controller_test.dart`.
   - Dep: none · Size: S.
+  - Done: the signature is remembered only when every target went out, so a failed run stays retryable from the same button. Guarded in `publish_controller_test.dart` and `publish_page_test.dart`.
 
 - [ ] **B2. Delete stale media only as the primary instance** — Must (desktop 3)
   - Accept: `_removeStaleMediaJobs` runs after the single-instance lock is acquired; a second launch deletes nothing.

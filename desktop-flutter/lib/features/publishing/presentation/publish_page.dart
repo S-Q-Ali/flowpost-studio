@@ -106,7 +106,16 @@ class PublishPage extends ConsumerWidget {
                   runSpacing: 8,
                   children: [
                     FilledButton.icon(
-                      onPressed: canPublish && validation.isValid && !running
+                      onPressed:
+                          canPublish &&
+                              validation.isValid &&
+                              !running &&
+                              !_alreadySent(
+                                state,
+                                selection: selection,
+                                targets: selected,
+                                videoId: media.videoId,
+                              )
                           ? () => ref
                                 .read(publishControllerProvider.notifier)
                                 .publish(
@@ -122,6 +131,20 @@ class PublishPage extends ConsumerWidget {
                     ),
                   ],
                 ),
+                if (_alreadySent(
+                  state,
+                  selection: selection,
+                  targets: selected,
+                  videoId: media.videoId,
+                ))
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'This exact post is already sent. Change the file, the '
+                      'caption or the time to send another.',
+                      key: Key('publish-repeat-blocked'),
+                    ),
+                  ),
                 if (!canPublish)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
@@ -142,6 +165,25 @@ class PublishPage extends ConsumerWidget {
     );
   }
 }
+
+/// Whether these exact inputs already went out in the finished run.
+///
+/// The button is off while this holds: the rows are written, and a second
+/// click with the same file, picks, captions and time would only post the
+/// same thing again.
+bool _alreadySent(
+  PublishState state, {
+  required PublishSelection selection,
+  required List<PublishTarget> targets,
+  required String videoId,
+}) =>
+    state is PublishDone &&
+    state.signature ==
+        publishSignature(
+          selection: selection,
+          targets: targets,
+          videoId: videoId,
+        );
 
 /// The reasons the form is not ready.
 List<Widget> _issueLines(BuildContext context, PublishValidation validation) {

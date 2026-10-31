@@ -280,6 +280,79 @@ void main() {
     expect(find.text('Platform id: ig-99'), findsOneWidget);
   });
 
+  testWidgets('a run that is over keeps the button off for the same post', (
+    tester,
+  ) async {
+    final repository = _FakeRepository();
+    await _pump(tester, repository: repository);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Instagram: Published'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Publish now'),
+      ).onPressed,
+      isNull,
+    );
+    expect(find.byKey(const Key('publish-repeat-blocked')), findsOneWidget);
+
+    // A second click cannot slip through the widget layer: the run wrote one
+    // row and a repeat would write another.
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    expect(repository.drafts, hasLength(1));
+  });
+
+  testWidgets('an edited caption turns the button back on', (tester) async {
+    final repository = _FakeRepository();
+    await _pump(tester, repository: repository);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('caption-instagram:ig-1:feed')),
+      'Another take',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('publish-repeat-blocked')), findsNothing);
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    expect(repository.drafts, hasLength(2));
+  });
+
+  testWidgets('a failure leaves the button ready for the same post', (
+    tester,
+  ) async {
+    final client = _FakeClient()
+      ..failure = const PublishException(
+        PublishFailure(PublishErrorCode.platformRejected, 'Instagram said no.'),
+      );
+    await _pump(tester, client: client);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('publish-repeat-blocked')), findsNothing);
+    expect(
+      tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Publish now'),
+      ).onPressed,
+      isNotNull,
+    );
+  });
+
   testWidgets('a failure shows the sentence of the service', (tester) async {
     final client = _FakeClient()
       ..failure = const PublishException(
