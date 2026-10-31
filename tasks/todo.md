@@ -813,10 +813,10 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 
 ## License-key access for the desktop app (plan: `tasks/plan-license.md`)
 
-- [ ] L1 — Shared license logic (`normalize`, `hash`, `isLicenseUsable`) + vitest
-- [ ] L2 — Extract the session-minting helper used by both functions + tests
-- [ ] L3 — `licenses` migration (hashes only, RLS with no policies)
-- [ ] L4 — `verify-license` function (rate-limited, mints the 7-day session)
+- [x] L1 — Shared license logic (`normalize`, `hash`, `isLicenseUsable`) + vitest
+- [x] L2 — Extract the session-minting helper used by both functions + tests
+- [x] L3 — `licenses` migration (hashes only, RLS with no policies)
+- [x] L4 — `verify-license` function (rate-limited, mints the 7-day session)
 - [ ] L5 — Desktop license client, vault store and service + tests
 - [ ] L6 — License controller driving `sessionProvider`
 - [ ] L7 — `/license` screen + widget tests
