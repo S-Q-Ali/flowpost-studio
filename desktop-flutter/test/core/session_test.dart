@@ -3,10 +3,7 @@ import 'package:flowpost_desktop/core/session/session.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const Session _session = Session(
-  sessionToken: 'session-token',
-  accessToken: 'access-token',
-);
+const Session _session = Session(sessionToken: 'session-token');
 
 void main() {
   test('no one is signed in before a session exists', () {
@@ -15,17 +12,15 @@ void main() {
 
     expect(container.read(sessionProvider), isNull);
     expect(container.read(sessionTokenProvider), isNull);
-    expect(container.read(authAccessTokenProvider), isNull);
   });
 
-  test('a session hands both tokens to the calls', () {
+  test('a session hands its token to the calls', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
     container.read(sessionProvider.notifier).signIn(_session);
 
     expect(container.read(sessionTokenProvider), 'session-token');
-    expect(container.read(authAccessTokenProvider), 'access-token');
   });
 
   test('clearing the session leaves no token behind', () {
@@ -37,6 +32,5 @@ void main() {
 
     expect(container.read(sessionProvider), isNull);
     expect(container.read(sessionTokenProvider), isNull);
-    expect(container.read(authAccessTokenProvider), isNull);
   });
 }

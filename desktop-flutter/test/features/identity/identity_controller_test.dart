@@ -205,7 +205,6 @@ void main() {
 
     final session = container.read(sessionProvider);
     expect(session?.sessionToken, 'admin-token');
-    expect(session?.accessToken, 'access-token');
   });
 
   test('a non-admin is signed out and told why', () async {
@@ -336,7 +335,7 @@ void main() {
     );
 
     expect(container.read(identityControllerProvider).value, isA<SignedIn>());
-    expect(container.read(sessionProvider)?.accessToken, 'access-token');
+    expect(container.read(sessionProvider)?.sessionToken, 'admin-token');
   });
 
   test(

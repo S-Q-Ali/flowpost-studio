@@ -128,7 +128,7 @@ class PublishPage extends ConsumerWidget {
                     child: Text(
                       offline
                           ? 'A connection is needed to publish.'
-                          : 'Sign in required to publish.',
+                          : 'Activate a license to publish.',
                       key: const Key('publish-blocked'),
                     ),
                   ),

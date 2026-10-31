@@ -1,4 +1,4 @@
-import '../auth/access_token.dart';
+import 'dart:convert';
 
 /// Shell-level configuration parsed once from `--dart-define-from-file`.
 ///
@@ -112,5 +112,19 @@ bool _looksLikeServiceRole(String key) {
   }
   // A non-JWT key is not automatically a service key; presence checks
   // above still reject the names that matter.
-  return jwtPayload(key)?['role'] == 'service_role';
+  return _jwtPayload(key)?['role'] == 'service_role';
+}
+
+/// The claims a JWT carries, or null when the token cannot be read.
+Map<String, dynamic>? _jwtPayload(String token) {
+  final parts = token.split('.');
+  if (parts.length != 3) return null;
+  try {
+    final payload = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+    );
+    return payload is Map<String, dynamic> ? payload : null;
+  } on Object {
+    return null;
+  }
 }

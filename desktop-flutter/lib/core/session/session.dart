@@ -1,24 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The tokens a signed-in admin's calls are made with.
-///
-/// Both are null-shaped until the identity module exists; the type is here so
-/// the sign-out path and the screens that show the account state can be built
-/// and tested now.
+/// The token the backend calls are made with.
 class Session {
-  const Session({
-    required this.sessionToken,
-    required this.accessToken,
-    this.offline = false,
-  });
+  const Session({required this.sessionToken, this.offline = false});
 
-  /// The bearer the backend functions take.
+  /// The bearer the backend functions take. `posts-api` reads the owner from
+  /// it, so the app never needs a Supabase Auth token.
   final String sessionToken;
 
-  /// The Supabase Auth token the table reads and writes take.
-  final String accessToken;
-
-  /// True when the admin token was restored without reaching the backend.
+  /// True when the token was restored without reaching the backend.
   final bool offline;
 }
 

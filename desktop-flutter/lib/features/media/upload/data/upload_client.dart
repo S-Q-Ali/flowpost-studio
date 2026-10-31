@@ -150,7 +150,7 @@ class UploadClient implements UploadApi {
   }) async {
     final token = this.token;
     if (token == null || token.isEmpty) {
-      throw const UploadException('Sign in required to upload.');
+      throw const UploadException('Activate a license to upload.');
     }
     final body = MultipartBody(
       file: file,

@@ -194,7 +194,10 @@ void main() {
     await tester.tap(find.text('Calendar'));
     await tester.pumpAndSettle();
     // The calendar is real now; with no session it says what it needs.
-    expect(find.text('Sign in required to see the calendar.'), findsOneWidget);
+    expect(
+      find.text('Activate a license to see the calendar.'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();

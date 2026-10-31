@@ -54,22 +54,15 @@ class LicenseController extends AsyncNotifier<LicenseState> {
     state = AsyncData(next);
   }
 
-  /// An active grant opens the session every call is made with. The posts
-  /// table still takes a Supabase Auth token over PostgREST, which this grant
-  /// cannot mint; L9b moves those calls behind the session token.
+  /// An active grant opens the session every call is made with: the backend
+  /// functions and `posts-api` both take the session token alone.
   Future<void> _syncSession(LicenseState next) async {
     if (next is Active) {
       final token = await ref.read(licenseServiceProvider).token();
       if (token != null && token.isNotEmpty) {
         ref
             .read(sessionProvider.notifier)
-            .signIn(
-              Session(
-                sessionToken: token,
-                accessToken: '',
-                offline: next.offline,
-              ),
-            );
+            .signIn(Session(sessionToken: token, offline: next.offline));
         return;
       }
     }

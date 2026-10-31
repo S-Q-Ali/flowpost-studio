@@ -31,24 +31,19 @@ final publishClientProvider = Provider<PublishApi>((ref) {
 });
 
 final postsRepositoryProvider = Provider<PostsRepository>((ref) {
-  final config = ref.watch(appConfigProvider);
-  return PostgrestPostsRepository(
-    supabaseUrl: config.supabaseUrl,
-    anonKey: config.supabaseAnonKey,
-    token: ref.watch(authAccessTokenProvider),
+  return PostsApiRepository(
+    sessionToken: ref.watch(sessionTokenProvider),
     transport: ref.watch(postsTransportProvider),
   );
 });
 
 /// Whether the client can publish at all.
 ///
-/// The functions need the session token and the posts table needs the Auth
-/// token, so both have to be there. A machine with no connection cannot
-/// publish either: the row lives on the server (SPEC-offline).
+/// Every call needs the license session, and a machine with no connection
+/// cannot publish either: the row lives on the server (SPEC-offline).
 final canPublishProvider = Provider<bool>(
   (ref) =>
       ref.watch(sessionTokenProvider) != null &&
-      ref.watch(authAccessTokenProvider) != null &&
       ref.watch(connectivityProvider) != ConnectionStatus.offline,
 );
 

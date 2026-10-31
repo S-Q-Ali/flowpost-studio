@@ -425,7 +425,7 @@ void main() {
     expect(find.text('Audio codec: aac'), findsOneWidget);
     expect(find.text('Generate captions'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Upload'), findsOneWidget);
-    expect(find.textContaining('Sign in required'), findsOneWidget);
+    expect(find.textContaining('Activate a license'), findsOneWidget);
     expect(find.text('Normalized video — normalized.mp4'), findsOneWidget);
     expect(find.text('Transcription audio — audio.mp3'), findsOneWidget);
 
@@ -466,7 +466,7 @@ void main() {
       find.widgetWithText(FilledButton, 'Generate captions'),
     );
     expect(generate.onPressed, isNull);
-    expect(find.textContaining('Sign in required'), findsOneWidget);
+    expect(find.textContaining('Activate a license'), findsOneWidget);
   });
 
   testWidgets('the caption action runs when a session token exists', (
@@ -487,7 +487,7 @@ void main() {
     expect(find.text('Captions'), findsOneWidget);
     expect(find.text('TikTok caption'), findsOneWidget);
     expect(find.text('A caption'), findsOneWidget);
-    expect(find.textContaining('Sign in required'), findsNothing);
+    expect(find.textContaining('Activate a license'), findsNothing);
   });
 
   testWidgets('a failed caption run shows a readable error', (tester) async {
@@ -566,7 +566,7 @@ void main() {
       find.widgetWithText(FilledButton, 'Upload'),
     );
     expect(upload.onPressed, isNull);
-    expect(find.textContaining('Sign in required'), findsOneWidget);
+    expect(find.textContaining('Activate a license'), findsOneWidget);
   });
 
   testWidgets('the upload runs when a session token exists', (tester) async {
@@ -583,7 +583,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Uploaded — normalized.mp4 (2.0 KB)'), findsOneWidget);
-    expect(find.textContaining('Sign in required'), findsNothing);
+    expect(find.textContaining('Activate a license'), findsNothing);
   });
 
   testWidgets('the upload action is off while the captions are being made', (

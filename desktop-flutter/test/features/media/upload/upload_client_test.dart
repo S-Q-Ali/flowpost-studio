@@ -189,7 +189,7 @@ void main() {
           isA<UploadException>().having(
             (error) => error.message,
             'message',
-            contains('Sign in'),
+            contains('Activate a license'),
           ),
         ),
       );

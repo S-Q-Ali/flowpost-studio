@@ -6,49 +6,28 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// A transport that answers from memory.
 class _FakeTransport implements PostsTransport {
-  final List<String> methods = [];
-  final List<Uri> urls = [];
-  final List<String?> bodies = [];
+  final List<Map<String, Object?>> bodies = [];
   final List<String?> tokens = [];
 
-  /// The rows the table answers with.
+  /// The rows the function answers with.
   List<Map<String, Object?>> rows = const [];
 
   @override
   Future<List<Map<String, Object?>>> send({
-    required String method,
-    required Uri url,
-    String? body,
+    required Map<String, Object?> body,
     String? token,
   }) async {
-    methods.add(method);
-    urls.add(url);
     bodies.add(body);
     tokens.add(token);
     return rows;
   }
 }
 
-/// A token with the user id in the claim the Auth service puts it in.
-String _token(String userId) {
-  String segment(Map<String, Object?> claims) =>
-      base64Url.encode(utf8.encode(jsonEncode(claims))).replaceAll('=', '');
-  return '${segment({'alg': 'none'})}.${segment({'sub': userId})}.signature';
+PostsApiRepository _repository(_FakeTransport transport, {String? token}) {
+  return PostsApiRepository(sessionToken: token, transport: transport);
 }
 
-PostgrestPostsRepository _repository(
-  _FakeTransport transport, {
-  String? token,
-}) {
-  return PostgrestPostsRepository(
-    supabaseUrl: 'https://test.supabase.co',
-    anonKey: 'anon',
-    token: token,
-    transport: transport,
-  );
-}
-
-final _draft = PostDraft(
+final draft = PostDraft(
   id: '5c1f0a3e-7f5b-4a0e-9a4e-2f7c1d8b0a11',
   videoId: 'video-1',
   platform: 'instagram',
@@ -59,74 +38,6 @@ final _draft = PostDraft(
 );
 
 void main() {
-  test('the row carries the user of the token', () async {
-    final transport = _FakeTransport()
-      ..rows = [
-        {'id': 'post-1'},
-      ];
-
-    await _repository(transport, token: _token('user-1')).insert(_draft);
-
-    final row = jsonDecode(transport.bodies.single!) as Map<String, dynamic>;
-    expect(row['user_id'], 'user-1');
-    expect(transport.tokens.single, isNotNull);
-  });
-
-  test('the row carries the platform, the account and the post type', () async {
-    final transport = _FakeTransport()
-      ..rows = [
-        {'id': 'post-1'},
-      ];
-
-    await _repository(transport, token: _token('user-1')).insert(_draft);
-
-    final row = jsonDecode(transport.bodies.single!) as Map<String, dynamic>;
-    expect(row['platform'], 'instagram');
-    expect(row['account_id'], 'ig-1');
-    expect(row['post_type'], 'feed');
-    expect(row['video_id'], 'video-1');
-    expect(row['status'], 'processing');
-    expect(row['captions_enabled'], isTrue);
-  });
-
-  test('the instant is stored in UTC', () async {
-    final transport = _FakeTransport()
-      ..rows = [
-        {'id': 'post-1'},
-      ];
-
-    await _repository(transport, token: _token('user-1')).insert(_draft);
-
-    final row = jsonDecode(transport.bodies.single!) as Map<String, dynamic>;
-    expect(row['scheduled_at'], endsWith('Z'));
-  });
-
-  test('the row carries the id the client picked', () async {
-    final transport = _FakeTransport()
-      ..rows = [
-        {'id': 'post-42'},
-      ];
-
-    await _repository(transport, token: _token('user-1')).insert(_draft);
-
-    final row = jsonDecode(transport.bodies.single!) as Map<String, dynamic>;
-    expect(row['id'], _draft.id);
-  });
-
-  test('the id the client picked comes back', () async {
-    final transport = _FakeTransport()
-      ..rows = [
-        {'id': 'post-42'},
-      ];
-
-    final id = await _repository(
-      transport,
-      token: _token('user-1'),
-    ).insert(_draft);
-
-    expect(id, _draft.id);
-  });
-
   test('a new post id is a v4 uuid', () {
     expect(
       newPostId(),
@@ -142,11 +53,90 @@ void main() {
     expect(newPostId(), isNot(newPostId()));
   });
 
-  test('a table that answers nothing is a refused post', () async {
+  test('the insert is one call to the posts function', () async {
+    final transport = _FakeTransport()
+      ..rows = [
+        {'id': draft.id},
+      ];
+
+    await _repository(transport, token: 'license-session').insert(draft);
+
+    expect(transport.bodies.single['action'], 'insert');
+    expect(transport.tokens.single, 'license-session');
+  });
+
+  test('the row carries the platform, the account and the post type', () async {
+    final transport = _FakeTransport()
+      ..rows = [
+        {'id': draft.id},
+      ];
+
+    await _repository(transport, token: 'license-session').insert(draft);
+
+    final row = transport.bodies.single['row']! as Map<String, Object?>;
+    expect(row['platform'], 'instagram');
+    expect(row['account_id'], 'ig-1');
+    expect(row['post_type'], 'feed');
+    expect(row['video_id'], 'video-1');
+    expect(row['status'], 'processing');
+    expect(row['captions_enabled'], isTrue);
+  });
+
+  test('the row does not name an owner the client could fake', () async {
+    final transport = _FakeTransport()
+      ..rows = [
+        {'id': draft.id},
+      ];
+
+    await _repository(transport, token: 'license-session').insert(draft);
+
+    final row = transport.bodies.single['row']! as Map<String, Object?>;
+    expect(row.containsKey('user_id'), isFalse);
+  });
+
+  test('the instant is sent in UTC', () async {
+    final transport = _FakeTransport()
+      ..rows = [
+        {'id': draft.id},
+      ];
+
+    await _repository(transport, token: 'license-session').insert(draft);
+
+    final row = transport.bodies.single['row']! as Map<String, Object?>;
+    expect(row['scheduled_at'], endsWith('Z'));
+  });
+
+  test('the row carries the id the client picked', () async {
+    final transport = _FakeTransport()
+      ..rows = [
+        {'id': draft.id},
+      ];
+
+    await _repository(transport, token: 'license-session').insert(draft);
+
+    final row = transport.bodies.single['row']! as Map<String, Object?>;
+    expect(row['id'], draft.id);
+  });
+
+  test('the id the client picked comes back', () async {
+    final transport = _FakeTransport()
+      ..rows = [
+        {'id': 'a-different-id'},
+      ];
+
+    final id = await _repository(
+      transport,
+      token: 'license-session',
+    ).insert(draft);
+
+    expect(id, draft.id);
+  });
+
+  test('a function that answers nothing is a refused post', () async {
     final transport = _FakeTransport();
 
     await expectLater(
-      _repository(transport, token: _token('user-1')).insert(_draft),
+      _repository(transport, token: 'license-session').insert(draft),
       throwsA(
         isA<PostsException>().having(
           (error) => error.message,
@@ -157,32 +147,16 @@ void main() {
     );
   });
 
-  test('without a token nothing is written', () async {
+  test('without a session nothing is written', () async {
     final transport = _FakeTransport();
 
     await expectLater(
-      _repository(transport).insert(_draft),
+      _repository(transport).insert(draft),
       throwsA(
         isA<PostsException>().having(
           (error) => error.message,
           'message',
-          'Sign in required to publish.',
-        ),
-      ),
-    );
-    expect(transport.bodies, isEmpty);
-  });
-
-  test('a broken token does not make up an owner', () async {
-    final transport = _FakeTransport();
-
-    await expectLater(
-      _repository(transport, token: 'not-a-token').insert(_draft),
-      throwsA(
-        isA<PostsException>().having(
-          (error) => error.message,
-          'message',
-          'Sign in again to publish.',
+          'Activate a license to publish.',
         ),
       ),
     );
@@ -197,14 +171,32 @@ void main() {
 
     final row = await _repository(
       transport,
-      token: _token('user-1'),
+      token: 'license-session',
     ).read('post-1');
 
     expect(row, isNotNull);
     expect(row!.status, PostStatus.published);
     expect(row.platform, 'instagram');
-    expect(transport.methods.single, 'GET');
-    expect(transport.urls.single.queryParameters['id'], 'eq.post-1');
+    expect(transport.bodies.single, {'action': 'read', 'id': 'post-1'});
+  });
+
+  test('the publish instant comes back from the row', () async {
+    final transport = _FakeTransport()
+      ..rows = [
+        {
+          'id': 'post-1',
+          'platform': 'instagram',
+          'status': 'published',
+          'published_at': '2026-10-29T12:00:00Z',
+        },
+      ];
+
+    final row = await _repository(
+      transport,
+      token: 'license-session',
+    ).read('post-1');
+
+    expect(row!.publishedAt, DateTime.utc(2026, 10, 29, 12));
   });
 
   test('a status the database does not allow is not a success', () async {
@@ -215,7 +207,7 @@ void main() {
 
     final row = await _repository(
       transport,
-      token: _token('user-1'),
+      token: 'license-session',
     ).read('post-1');
 
     expect(row, isNull);
@@ -226,13 +218,22 @@ void main() {
 
     final row = await _repository(
       transport,
-      token: _token('user-1'),
+      token: 'license-session',
     ).read('post-1');
 
     expect(row, isNull);
   });
 
-  test('a retry only moves a row that is still failed', () async {
+  test('without a session the row is not asked for', () async {
+    final transport = _FakeTransport();
+
+    final row = await _repository(transport).read('post-1');
+
+    expect(row, isNull);
+    expect(transport.bodies, isEmpty);
+  });
+
+  test('a retry asks the function to move the row', () async {
     final transport = _FakeTransport()
       ..rows = [
         {'id': 'post-1'},
@@ -240,16 +241,15 @@ void main() {
 
     final moved = await _repository(
       transport,
-      token: _token('user-1'),
+      token: 'license-session',
     ).rescheduleFailed('post-1', DateTime.utc(2026, 10, 29, 12));
 
     expect(moved, isTrue);
-    expect(transport.methods.single, 'PATCH');
-    final url = transport.urls.single;
-    expect(url.queryParameters['id'], 'eq.post-1');
-    expect(url.queryParameters['status'], 'eq.failed');
-    final body = jsonDecode(transport.bodies.single!) as Map<String, dynamic>;
-    expect(body['status'], 'scheduled');
+    expect(transport.bodies.single, {
+      'action': 'retry',
+      'id': 'post-1',
+      'scheduledAt': '2026-10-29T12:00:00.000Z',
+    });
   });
 
   test('a retry that changed nothing is not a retry', () async {
@@ -257,23 +257,61 @@ void main() {
 
     final moved = await _repository(
       transport,
-      token: _token('user-1'),
+      token: 'license-session',
     ).rescheduleFailed('post-1', DateTime.utc(2026, 10, 29, 12));
 
     expect(moved, isFalse);
   });
 
+  test('without a session nothing is retried', () async {
+    final transport = _FakeTransport();
+
+    final moved = await _repository(transport)
+        .rescheduleFailed('post-1', DateTime.utc(2026, 10, 29, 12));
+
+    expect(moved, isFalse);
+    expect(transport.bodies, isEmpty);
+  });
+
   group('the http transport', () {
+    test('the call goes to the posts function', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final paths = <String>[];
+      final sent = <String>[];
+      final keys = <String?>[];
+      server.listen((request) async {
+        paths.add(request.uri.path);
+        keys.add(request.headers.value('apikey'));
+        sent.add(await utf8.decoder.bind(request).join());
+        request.response.headers.contentType = ContentType.json;
+        request.response.write('{"rows":[{"id":"post-1"}]}');
+        await request.response.close();
+      });
+
+      final rows = await HttpPostsTransport(
+        supabaseUrl: 'http://127.0.0.1:${server.port}',
+        anonKey: 'anon',
+      ).send(body: {'action': 'list'}, token: 'license-session');
+
+      expect(rows, [
+        {'id': 'post-1'},
+      ]);
+      expect(paths.single, '/functions/v1/posts-api');
+      expect(sent.single, '{"action":"list"}');
+      expect(keys.single, 'anon');
+    });
+
     test('a dropped connection is a refused answer', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final port = server.port;
       await server.close(force: true);
 
       await expectLater(
-        HttpPostsTransport(anonKey: 'anon').send(
-          method: 'GET',
-          url: Uri.parse('http://127.0.0.1:$port/rest/v1/posts'),
-        ),
+        HttpPostsTransport(
+          supabaseUrl: 'http://127.0.0.1:$port',
+          anonKey: 'anon',
+        ).send(body: {'action': 'list'}),
         throwsA(
           isA<PostsException>()
               .having(
@@ -295,12 +333,10 @@ void main() {
 
       await expectLater(
         HttpPostsTransport(
+          supabaseUrl: 'http://127.0.0.1:${server.port}',
           anonKey: 'anon',
           timeout: const Duration(milliseconds: 200),
-        ).send(
-          method: 'GET',
-          url: Uri.parse('http://127.0.0.1:${server.port}/rest/v1/posts'),
-        ),
+        ).send(body: {'action': 'list'}),
         throwsA(
           isA<PostsException>().having(
             (error) => error.kind,
@@ -321,44 +357,37 @@ void main() {
       });
 
       await expectLater(
-        HttpPostsTransport(anonKey: 'anon').send(
-          method: 'GET',
-          url: Uri.parse('http://127.0.0.1:${server.port}/rest/v1/posts'),
-        ),
+        HttpPostsTransport(
+          supabaseUrl: 'http://127.0.0.1:${server.port}',
+          anonKey: 'anon',
+        ).send(body: {'action': 'list'}),
         throwsA(
-          isA<PostsException>().having(
-            (error) => error.kind,
-            'kind',
-            PostsErrorKind.server,
-          ),
+          isA<PostsException>()
+              .having(
+                (error) => error.message,
+                'message',
+                'The queue did not accept the call (500).',
+              )
+              .having((error) => error.kind, 'kind', PostsErrorKind.server),
         ),
       );
     });
 
-    test('a call that runs out of time is a refused answer', () async {
+    test('a body that is not a rows answer reads as nothing', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(() => server.close(force: true));
-      // The server takes the request and never answers.
       server.listen((request) async {
         await request.drain<void>();
+        request.response.write('{"error":"Unauthorized"}');
+        await request.response.close();
       });
 
-      await expectLater(
-        HttpPostsTransport(
-          anonKey: 'anon',
-          timeout: const Duration(milliseconds: 200),
-        ).send(
-          method: 'GET',
-          url: Uri.parse('http://127.0.0.1:${server.port}/rest/v1/posts'),
-        ),
-        throwsA(
-          isA<PostsException>().having(
-            (error) => error.message,
-            'message',
-            'The queue did not answer. Try again.',
-          ),
-        ),
-      );
+      final rows = await HttpPostsTransport(
+        supabaseUrl: 'http://127.0.0.1:${server.port}',
+        anonKey: 'anon',
+      ).send(body: {'action': 'list'});
+
+      expect(rows, isEmpty);
     });
   });
 }

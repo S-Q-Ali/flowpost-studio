@@ -44,18 +44,11 @@ class ReportingTransport implements PostsTransport {
 
   @override
   Future<List<Map<String, Object?>>> send({
-    required String method,
-    required Uri url,
-    String? body,
+    required Map<String, Object?> body,
     String? token,
   }) async {
     try {
-      final rows = await inner.send(
-        method: method,
-        url: url,
-        body: body,
-        token: token,
-      );
+      final rows = await inner.send(body: body, token: token);
       onReached();
       return rows;
     } on PostsException catch (error) {

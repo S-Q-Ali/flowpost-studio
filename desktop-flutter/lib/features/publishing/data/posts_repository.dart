@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import '../../../core/auth/access_token.dart';
-
 /// The status of a post row (SPEC-publishing "Status model").
 enum PostStatus {
   scheduled,
@@ -69,9 +67,11 @@ class PostDraft {
   final Map<String, Object?>? metadata;
 
   /// The row as the table wants it.
-  Map<String, Object?> toRow(String userId) => {
+  ///
+  /// The owner is not named: `posts-api` writes every row under the session
+  /// that called it, whatever the client sends.
+  Map<String, Object?> toRow() => {
     'id': id,
-    'user_id': userId,
     'video_id': videoId,
     'platform': platform,
     'account_id': accountId,
@@ -101,14 +101,14 @@ class PostRow {
   final DateTime? publishedAt;
 }
 
-/// What kind of failure a call to the posts table hit.
+/// What kind of failure a call to the posts function hit.
 ///
 /// Only [connection] means the machine is offline: a timeout and an error
 /// answer both say the server was reached (SPEC-offline "What the app knows
 /// about the connection").
 enum PostsErrorKind { connection, timeout, server }
 
-/// A failure of the posts table.
+/// A failure of the posts function.
 class PostsException implements Exception {
   const PostsException(this.message, {this.kind = PostsErrorKind.server});
 
@@ -145,52 +145,31 @@ abstract class PostsRepository {
   Future<bool> rescheduleFailed(String postId, DateTime scheduledAt);
 }
 
-/// Carries the calls to the posts table.
+/// Carries one call to the posts function.
 abstract class PostsTransport {
-  /// Sends one request and returns the rows the table answered with.
+  /// Sends [body] and returns the rows the function answered with.
   Future<List<Map<String, Object?>>> send({
-    required String method,
-    required Uri url,
-    String? body,
+    required Map<String, Object?> body,
     String? token,
   });
 }
 
-/// Talks to the table through PostgREST.
-class PostgrestPostsRepository implements PostsRepository {
-  PostgrestPostsRepository({
-    required this.supabaseUrl,
-    required this.anonKey,
-    required this.token,
-    PostsTransport? transport,
-  }) : _transport = transport ?? HttpPostsTransport(anonKey: anonKey);
+/// Talks to the `posts-api` function with the license session.
+class PostsApiRepository implements PostsRepository {
+  PostsApiRepository({required this.sessionToken, required this.transport});
 
-  final String supabaseUrl;
-  final String anonKey;
+  /// The session token the activation minted. The function reads the owner
+  /// from it, so the rows are always the session's own.
+  final String? sessionToken;
 
-  /// The Supabase Auth token. The rows are written under the identity it
-  /// carries, because the table only lets a user write their own rows.
-  final String? token;
-
-  final PostsTransport _transport;
-
-  Uri get _rows => Uri.parse('$supabaseUrl/rest/v1/posts');
+  final PostsTransport transport;
 
   @override
   Future<String> insert(PostDraft draft) async {
-    final token = this.token;
-    if (token == null || token.isEmpty) {
-      throw const PostsException('Sign in required to publish.');
-    }
-    final userId = userIdFromAccessToken(token);
-    if (userId == null) {
-      throw const PostsException('Sign in again to publish.');
-    }
-    final rows = await _transport.send(
-      method: 'POST',
-      url: _rows.replace(queryParameters: {'select': 'id'}),
-      body: jsonEncode(draft.toRow(userId)),
-      token: token,
+    _requireToken('Activate a license to publish.');
+    final rows = await transport.send(
+      body: {'action': 'insert', 'row': draft.toRow()},
+      token: sessionToken,
     );
     if (rows.isEmpty) {
       throw const PostsException('The post could not be prepared.');
@@ -200,16 +179,10 @@ class PostgrestPostsRepository implements PostsRepository {
 
   @override
   Future<PostRow?> read(String postId) async {
-    final token = this.token;
+    final token = sessionToken;
     if (token == null || token.isEmpty) return null;
-    final rows = await _transport.send(
-      method: 'GET',
-      url: _rows.replace(
-        queryParameters: {
-          'id': 'eq.$postId',
-          'select': 'id,platform,status,published_at',
-        },
-      ),
+    final rows = await transport.send(
+      body: {'action': 'read', 'id': postId},
       token: token,
     );
     if (rows.isEmpty) return null;
@@ -229,32 +202,38 @@ class PostgrestPostsRepository implements PostsRepository {
 
   @override
   Future<bool> rescheduleFailed(String postId, DateTime scheduledAt) async {
-    final token = this.token;
+    final token = sessionToken;
     if (token == null || token.isEmpty) return false;
-    // The status filter is what makes the retry a compare-and-set: only a
-    // row that is still failed is moved back into the queue.
-    final rows = await _transport.send(
-      method: 'PATCH',
-      url: _rows.replace(
-        queryParameters: {'id': 'eq.$postId', 'status': 'eq.failed'},
-      ),
-      body: jsonEncode({
-        'status': 'scheduled',
-        'scheduled_at': scheduledAt.toUtc().toIso8601String(),
-      }),
+    // The function moves only a row that is still failed back into the
+    // queue, so the retry cannot fire twice.
+    final rows = await transport.send(
+      body: {
+        'action': 'retry',
+        'id': postId,
+        'scheduledAt': scheduledAt.toUtc().toIso8601String(),
+      },
       token: token,
     );
     return rows.isNotEmpty;
   }
+
+  void _requireToken(String message) {
+    final token = sessionToken;
+    if (token == null || token.isEmpty) {
+      throw PostsException(message);
+    }
+  }
 }
 
-/// The real transport: PostgREST over `dart:io`.
+/// The real transport: the `posts-api` function over `dart:io`.
 class HttpPostsTransport implements PostsTransport {
   HttpPostsTransport({
+    required this.supabaseUrl,
     required this.anonKey,
     this.timeout = const Duration(seconds: 30),
   });
 
+  final String supabaseUrl;
   final String anonKey;
 
   /// How long one call may take.
@@ -263,11 +242,11 @@ class HttpPostsTransport implements PostsTransport {
   /// that never comes back would freeze the screen.
   final Duration timeout;
 
+  Uri get _endpoint => Uri.parse('$supabaseUrl/functions/v1/posts-api');
+
   @override
   Future<List<Map<String, Object?>>> send({
-    required String method,
-    required Uri url,
-    String? body,
+    required Map<String, Object?> body,
     String? token,
   }) async {
     // A client per call: the table is asked a few times per publish, and a
@@ -278,16 +257,13 @@ class HttpPostsTransport implements PostsTransport {
     final clock = Stopwatch()..start();
     Duration left() => timeout - clock.elapsed;
     try {
-      final request = await client.openUrl(method, url).timeout(left());
+      final request = await client.openUrl('POST', _endpoint).timeout(left());
       request.headers.set('apikey', anonKey);
-      request.headers.set('Prefer', 'return=representation');
       if (token != null) {
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
       }
-      if (body != null) {
-        request.headers.contentType = ContentType.json;
-        request.write(body);
-      }
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(body));
       final response = await request.close().timeout(left());
       final text = await response
           .transform(utf8.decoder)
@@ -295,7 +271,7 @@ class HttpPostsTransport implements PostsTransport {
           .timeout(left());
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw PostsException(
-          'The queue did not accept the post (${response.statusCode}).',
+          'The queue did not accept the call (${response.statusCode}).',
         );
       }
       return _rowsOf(text);
@@ -325,9 +301,11 @@ class HttpPostsTransport implements PostsTransport {
     } on FormatException {
       return const [];
     }
-    if (decoded is! List) return const [];
+    if (decoded is! Map) return const [];
+    final rows = decoded['rows'];
+    if (rows is! List) return const [];
     return [
-      for (final row in decoded)
+      for (final row in rows)
         if (row is Map) Map<String, Object?>.from(row),
     ];
   }

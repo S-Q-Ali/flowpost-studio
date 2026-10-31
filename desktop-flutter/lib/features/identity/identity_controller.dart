@@ -15,7 +15,6 @@ final identityControllerProvider =
 
 class IdentityController extends AsyncNotifier<AuthState> {
   IdentityService? _service;
-  AuthSession? _authSession;
 
   @override
   Future<AuthState> build() async {
@@ -41,7 +40,6 @@ class IdentityController extends AsyncNotifier<AuthState> {
       email,
       password,
     );
-    _authSession = session;
     await _apply(service, await service.repository.stateFor(session));
   }
 
@@ -54,7 +52,6 @@ class IdentityController extends AsyncNotifier<AuthState> {
   Future<void> completeGoogleSignIn(String link) async {
     final service = await _ensure();
     final session = await service.oauth.accept(link);
-    _authSession = session;
     await _apply(service, await service.repository.stateFor(session));
   }
 
@@ -99,7 +96,6 @@ class IdentityController extends AsyncNotifier<AuthState> {
     } on IdentityException catch (error) {
       if (error.error != IdentityError.offline) rethrow;
     } finally {
-      _authSession = null;
       await _apply(service, const SignedOut());
     }
   }
@@ -121,11 +117,7 @@ class IdentityController extends AsyncNotifier<AuthState> {
   Future<AuthState> _resolveStart(IdentityService service) async {
     try {
       final session = await service.repository.restoreSession();
-      if (session == null) {
-        _authSession = null;
-        return const SignedOut();
-      }
-      _authSession = session;
+      if (session == null) return const SignedOut();
       return await service.repository.stateFor(session);
     } on IdentityException catch (error) {
       if (error.error == IdentityError.offline) {
@@ -149,19 +141,14 @@ class IdentityController extends AsyncNotifier<AuthState> {
     state = AsyncData(next);
   }
 
-  /// The signed-in tokens are the admin session token and the Supabase JWT;
-  /// every other state leaves both null.
+  /// The signed-in token is the admin session token; every other state
+  /// leaves it null.
   Future<void> _syncSession(IdentityService service, AuthState next) async {
     Session? session;
     if (next is SignedIn) {
       final token = await service.store.readAdminToken();
-      final auth = _authSession;
-      if (auth != null && token != null) {
-        session = Session(
-          sessionToken: token.token,
-          accessToken: auth.accessToken,
-          offline: next.offline,
-        );
+      if (token != null) {
+        session = Session(sessionToken: token.token, offline: next.offline);
       }
     }
     if (session != null) {

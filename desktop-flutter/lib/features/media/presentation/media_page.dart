@@ -343,7 +343,7 @@ class _ReadyState extends ConsumerWidget {
         ),
         if (!canGenerate) ...[
           const SizedBox(height: 8),
-          const Text('Sign in required to generate captions or upload.'),
+          const Text('Activate a license to generate captions or upload.'),
         ],
         const SizedBox(height: 16),
         ..._captionSection(context, ref, captionState),

@@ -27,7 +27,10 @@ final postsTransportProvider = Provider<PostsTransport>((ref) {
   final config = ref.watch(appConfigProvider);
   final connectivity = ref.read(connectivityProvider.notifier);
   return ReportingTransport(
-    inner: HttpPostsTransport(anonKey: config.supabaseAnonKey),
+    inner: HttpPostsTransport(
+      supabaseUrl: config.supabaseUrl,
+      anonKey: config.supabaseAnonKey,
+    ),
     onReached: connectivity.reached,
     onLost: connectivity.lost,
   );

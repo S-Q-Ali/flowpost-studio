@@ -1,18 +1,7 @@
-import 'dart:convert';
-
 import '../../publishing/data/posts_repository.dart';
 import '../../publishing/domain/publish_target.dart';
 import '../domain/post_edit.dart';
 import '../domain/scheduled_post.dart';
-
-/// The fields a read is allowed to ask for.
-///
-/// The account token fields are never named here, so they are never fetched,
-/// let alone cached or logged (SPEC-scheduling "Security and privacy").
-const String _postFields =
-    'id,platform,account_id,post_type,caption,hashtags,scheduled_at,'
-    'published_at,status,contains_altered_content,'
-    'videos(title,thumbnail_url)';
 
 /// One page of the queue.
 class ScheduledPostsPage {
@@ -58,26 +47,18 @@ abstract class ScheduledPostsRepository {
   Future<bool> delete(String postId, {PostStatus? onlyIf});
 }
 
-/// Reads the queue through PostgREST.
-class PostgrestScheduledPostsRepository implements ScheduledPostsRepository {
-  PostgrestScheduledPostsRepository({
-    required this.supabaseUrl,
-    required this.anonKey,
-    required this.token,
-    PostsTransport? transport,
-  }) : _transport = transport ?? HttpPostsTransport(anonKey: anonKey);
+/// Reads the queue through the `posts-api` function.
+class PostsApiScheduledPostsRepository implements ScheduledPostsRepository {
+  PostsApiScheduledPostsRepository({
+    required this.sessionToken,
+    required this.transport,
+  });
 
-  final String supabaseUrl;
-  final String anonKey;
+  /// The session token the activation minted. The function reads the owner
+  /// from it, so every read is scoped to the session's own rows.
+  final String? sessionToken;
 
-  /// The Supabase Auth token. The `posts` policy only lets a user read their
-  /// own rows, so the token is what makes the read possible.
-  final String? token;
-
-  final PostsTransport _transport;
-
-  Uri get _posts => Uri.parse('$supabaseUrl/rest/v1/posts');
-  Uri get _accounts => Uri.parse('$supabaseUrl/rest/v1/connected_accounts');
+  final PostsTransport transport;
 
   @override
   Future<ScheduledPostsPage> load({
@@ -86,30 +67,23 @@ class PostgrestScheduledPostsRepository implements ScheduledPostsRepository {
     int offset = 0,
     int limit = 200,
   }) async {
-    final token = this.token;
-    if (token == null || token.isEmpty) {
-      throw const PostsException('Sign in required to see the queue.');
-    }
+    _requireToken('Activate a license to see the queue.');
     // One row past the page is asked for, so "there is more" is known
-    // without counting the whole table, which has no index to count it with.
-    final rows = await _transport.send(
-      method: 'GET',
-      url: _posts.replace(
-        queryParameters: {
-          'select': _postFields,
-          'order': 'scheduled_at.asc.nullslast,created_at.asc',
-          'offset': '$offset',
-          'limit': '${limit + 1}',
-          if (filter.status != null) 'status': 'eq.${filter.status!.name}',
-          if (platform != null) 'platform': 'eq.${platform.name}',
-        },
-      ),
-      token: token,
+    // without counting the whole table.
+    final rows = await transport.send(
+      body: {
+        'action': 'list',
+        'offset': offset,
+        'limit': limit + 1,
+        if (filter.status != null) 'status': filter.status!.name,
+        if (platform != null) 'platform': platform.name,
+      },
+      token: sessionToken,
     );
     final page = rows.take(limit).toList();
     final names = await _accountNames([
       for (final row in page) row['account_id'],
-    ], token);
+    ]);
     return ScheduledPostsPage(
       posts: _shownPosts(page, names),
       hasMore: rows.length > limit,
@@ -118,74 +92,52 @@ class PostgrestScheduledPostsRepository implements ScheduledPostsRepository {
 
   @override
   Future<List<ScheduledPost>> loadBetween(DateTime from, DateTime to) async {
-    final token = this.token;
-    if (token == null || token.isEmpty) {
-      throw const PostsException('Sign in required to see the calendar.');
-    }
-    final rows = await _transport.send(
-      method: 'GET',
-      url: _posts.replace(
-        queryParameters: {
-          'select': _postFields,
-          'order': 'scheduled_at.asc.nullslast,created_at.asc',
-          // Both bounds name the same column, so PostgREST reads them as one
-          // range: the first instant of the first day up to, not including,
-          // the first instant of the day after the last.
-          'scheduled_at': [
-            'gte.${from.toUtc().toIso8601String()}',
-            'lt.${to.toUtc().toIso8601String()}',
-          ],
-        },
-      ),
-      token: token,
+    _requireToken('Activate a license to see the calendar.');
+    final rows = await transport.send(
+      body: {
+        'action': 'range',
+        'from': from.toUtc().toIso8601String(),
+        'to': to.toUtc().toIso8601String(),
+      },
+      token: sessionToken,
     );
     final names = await _accountNames([
       for (final row in rows) row['account_id'],
-    ], token);
+    ]);
     return _shownPosts(rows, names);
   }
 
   @override
   Future<bool> updateScheduled(String postId, PostEdit edit) async {
-    final token = this.token;
-    if (token == null || token.isEmpty) {
-      throw const PostsException('Sign in required to change a post.');
-    }
-    // The status filter makes the edit a compare-and-set: a row that moved
-    // to processing while the form was open is left alone.
-    final rows = await _transport.send(
-      method: 'PATCH',
-      url: _posts.replace(
-        queryParameters: {
-          'id': 'eq.$postId',
-          'status': 'eq.scheduled',
-          'select': 'id',
-        },
-      ),
-      body: jsonEncode(edit.toRow()),
-      token: token,
+    _requireToken('Activate a license to change a post.');
+    // The function writes only a row that is still scheduled, so a row that
+    // moved to processing while the form was open is left alone.
+    final rows = await transport.send(
+      body: {'action': 'update', 'id': postId, 'patch': edit.toRow()},
+      token: sessionToken,
     );
     return rows.isNotEmpty;
   }
 
   @override
   Future<bool> delete(String postId, {PostStatus? onlyIf}) async {
-    final token = this.token;
-    if (token == null || token.isEmpty) {
-      throw const PostsException('Sign in required to delete a post.');
-    }
-    final rows = await _transport.send(
-      method: 'DELETE',
-      url: _posts.replace(
-        queryParameters: {
-          'id': 'eq.$postId',
-          if (onlyIf != null) 'status': 'eq.${onlyIf.name}',
-          'select': 'id',
-        },
-      ),
-      token: token,
+    _requireToken('Activate a license to delete a post.');
+    final rows = await transport.send(
+      body: {
+        'action': 'delete',
+        'id': postId,
+        if (onlyIf != null) 'onlyIf': onlyIf.name,
+      },
+      token: sessionToken,
     );
     return rows.isNotEmpty;
+  }
+
+  void _requireToken(String message) {
+    final token = sessionToken;
+    if (token == null || token.isEmpty) {
+      throw PostsException(message);
+    }
   }
 
   /// The rows that can be shown, in the order they came back.
@@ -207,7 +159,6 @@ class PostgrestScheduledPostsRepository implements ScheduledPostsRepository {
   /// so a failed read leaves it out instead of failing the whole queue.
   Future<Map<String, String>> _accountNames(
     Iterable<Object?> accountIds,
-    String token,
   ) async {
     final ids = <String>{
       for (final id in accountIds)
@@ -216,15 +167,9 @@ class PostgrestScheduledPostsRepository implements ScheduledPostsRepository {
     if (ids.isEmpty) return const {};
     final List<Map<String, Object?>> rows;
     try {
-      rows = await _transport.send(
-        method: 'GET',
-        url: _accounts.replace(
-          queryParameters: {
-            'select': 'account_id,account_name,display_name',
-            'account_id': _inList(ids),
-          },
-        ),
-        token: token,
+      rows = await transport.send(
+        body: {'action': 'accounts', 'ids': ids.toList()},
+        token: sessionToken,
       );
     } on PostsException {
       return const {};
@@ -266,18 +211,6 @@ class PostgrestScheduledPostsRepository implements ScheduledPostsRepository {
       containsAlteredContent: row['contains_altered_content'] == true,
     );
   }
-}
-
-/// A PostgREST `in.(...)` list.
-///
-/// The ids are quoted and escaped, so an id with a comma or a bracket cannot
-/// change what the filter asks for.
-String _inList(Iterable<String> ids) {
-  final quoted = [
-    for (final id in ids)
-      '"${id.replaceAll(r'\', r'\\').replaceAll('"', r'\"')}"',
-  ];
-  return 'in.(${quoted.join(',')})';
 }
 
 PublishPlatform? _platformOf(Object? name) {

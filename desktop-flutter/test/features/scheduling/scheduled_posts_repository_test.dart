@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
 import 'package:flowpost_desktop/features/scheduling/data/scheduled_posts_repository.dart';
@@ -9,28 +7,22 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// A transport that answers from memory, one answer per call.
 class _FakeTransport implements PostsTransport {
-  final List<Uri> urls = [];
+  final List<Map<String, Object?>> bodies = [];
   final List<String?> tokens = [];
-  final List<String> methods = [];
-  final List<String?> bodies = [];
 
-  /// The rows each call answers with, in call order. Past the end the table
-  /// answers nothing.
+  /// The rows each call answers with, in call order. Past the end the
+  /// function answers nothing.
   final List<List<Map<String, Object?>>> answers = [];
 
   int _call = 0;
 
   @override
   Future<List<Map<String, Object?>>> send({
-    required String method,
-    required Uri url,
-    String? body,
+    required Map<String, Object?> body,
     String? token,
   }) async {
-    urls.add(url);
-    tokens.add(token);
-    methods.add(method);
     bodies.add(body);
+    tokens.add(token);
     final answer = _call < answers.length
         ? answers[_call]
         : const <Map<String, Object?>>[];
@@ -39,14 +31,12 @@ class _FakeTransport implements PostsTransport {
   }
 }
 
-PostgrestScheduledPostsRepository _repository(
+PostsApiScheduledPostsRepository _repository(
   _FakeTransport transport, {
   String? token = 'token',
 }) {
-  return PostgrestScheduledPostsRepository(
-    supabaseUrl: 'https://test.supabase.co',
-    anonKey: 'anon',
-    token: token,
+  return PostsApiScheduledPostsRepository(
+    sessionToken: token,
     transport: transport,
   );
 }
@@ -75,7 +65,7 @@ Map<String, Object?> _row({
 }
 
 void main() {
-  test('without a token the queue is not read', () async {
+  test('without a session the queue is not read', () async {
     final transport = _FakeTransport();
 
     await expectLater(
@@ -84,14 +74,14 @@ void main() {
         isA<PostsException>().having(
           (error) => error.message,
           'message',
-          'Sign in required to see the queue.',
+          'Activate a license to see the queue.',
         ),
       ),
     );
-    expect(transport.urls, isEmpty);
+    expect(transport.bodies, isEmpty);
   });
 
-  test('an empty table is an empty page, not an error', () async {
+  test('an empty answer is an empty page, not an error', () async {
     final page = await _repository(_FakeTransport()).load();
 
     expect(page.posts, isEmpty);
@@ -108,8 +98,11 @@ void main() {
 
       expect(page.posts, hasLength(2));
       expect(page.hasMore, isTrue);
-      expect(transport.urls.first.queryParameters['limit'], '3');
-      expect(transport.urls.first.queryParameters['offset'], '0');
+      expect(transport.bodies.first, {
+        'action': 'list',
+        'offset': 0,
+        'limit': 3,
+      });
     },
   );
 
@@ -127,26 +120,15 @@ void main() {
 
     await _repository(transport).load(offset: 200);
 
-    expect(transport.urls.first.queryParameters['offset'], '200');
+    expect(transport.bodies.first['offset'], 200);
   });
 
-  test('the rows are ordered by the time they go out, then by age', () async {
-    final transport = _FakeTransport();
-
-    await _repository(transport).load();
-
-    expect(
-      transport.urls.first.queryParameters['order'],
-      'scheduled_at.asc.nullslast,created_at.asc',
-    );
-  });
-
-  test('the filter asks the table for that status', () async {
+  test('the filter asks the function for that status', () async {
     final transport = _FakeTransport();
 
     await _repository(transport).load(filter: QueueFilter.scheduled);
 
-    expect(transport.urls.first.queryParameters['status'], 'eq.scheduled');
+    expect(transport.bodies.first['status'], 'scheduled');
   });
 
   test('the whole queue asks for no status', () async {
@@ -154,15 +136,15 @@ void main() {
 
     await _repository(transport).load(filter: QueueFilter.all);
 
-    expect(transport.urls.first.queryParameters.containsKey('status'), isFalse);
+    expect(transport.bodies.first.containsKey('status'), isFalse);
   });
 
-  test('the platform filter asks the table for that platform', () async {
+  test('the platform filter asks the function for that platform', () async {
     final transport = _FakeTransport();
 
     await _repository(transport).load(platform: PublishPlatform.instagram);
 
-    expect(transport.urls.first.queryParameters['platform'], 'eq.instagram');
+    expect(transport.bodies.first['platform'], 'instagram');
   });
 
   test('the whole queue asks for no platform', () async {
@@ -170,10 +152,7 @@ void main() {
 
     await _repository(transport).load();
 
-    expect(
-      transport.urls.first.queryParameters.containsKey('platform'),
-      isFalse,
-    );
+    expect(transport.bodies.first.containsKey('platform'), isFalse);
   });
 
   test('a row is read with its media, its status and its times', () async {
@@ -249,17 +228,14 @@ void main() {
 
       expect(page.posts[0].accountName, '@flow');
       expect(page.posts[1].accountName, 'FlowPost');
-      final asked = transport.urls[1];
-      expect(asked.queryParameters['account_id'], contains('"ig-1"'));
-      expect(asked.queryParameters['account_id'], contains('"yt-1"'));
-      expect(
-        asked.queryParameters['select'],
-        'account_id,account_name,display_name',
-      );
+      expect(transport.bodies[1], {
+        'action': 'accounts',
+        'ids': ['ig-1', 'yt-1'],
+      });
     },
   );
 
-  test('an account the table does not name leaves the name out', () async {
+  test('an account the function does not name leaves the name out', () async {
     final transport = _FakeTransport()..answers.add([_row()]);
 
     final post = (await _repository(transport).load()).posts.single;
@@ -267,15 +243,14 @@ void main() {
     expect(post.accountName, isNull);
   });
 
-  test('the read never asks for a token field', () async {
+  test('every call carries the session token and no owner', () async {
     final transport = _FakeTransport()..answers.add([_row()]);
 
-    await _repository(transport).load();
+    await _repository(transport, token: 'license-session').load();
 
-    for (final url in transport.urls) {
-      expect(url.toString(), isNot(contains('access_token')));
-      expect(url.toString(), isNot(contains('refresh_token')));
-      expect(url.toString(), isNot(contains('token_expiry')));
+    expect(transport.tokens, everyElement('license-session'));
+    for (final body in transport.bodies) {
+      expect(body.containsKey('user_id'), isFalse);
     }
   });
 
@@ -287,12 +262,10 @@ void main() {
 
       await _repository(transport).loadBetween(from, to);
 
-      final bounds = transport.urls.first.queryParametersAll['scheduled_at']!;
-      expect(bounds, hasLength(2));
-      final gte = bounds.firstWhere((bound) => bound.startsWith('gte.'));
-      final lt = bounds.firstWhere((bound) => bound.startsWith('lt.'));
-      expect(DateTime.parse(gte.substring(4)).toUtc(), from.toUtc());
-      expect(DateTime.parse(lt.substring(3)).toUtc(), to.toUtc());
+      final body = transport.bodies.first;
+      expect(body['action'], 'range');
+      expect(DateTime.parse(body['from']! as String).toUtc(), from.toUtc());
+      expect(DateTime.parse(body['to']! as String).toUtc(), to.toUtc());
     });
 
     test('reads the rows with their names, as the queue does', () async {
@@ -310,7 +283,7 @@ void main() {
       expect(posts.single.scheduledAt, DateTime.utc(2026, 10, 29, 8, 30));
     });
 
-    test('without a token the calendar is not read', () async {
+    test('without a session the calendar is not read', () async {
       final transport = _FakeTransport();
 
       await expectLater(
@@ -322,23 +295,11 @@ void main() {
           isA<PostsException>().having(
             (error) => error.message,
             'message',
-            'Sign in required to see the calendar.',
+            'Activate a license to see the calendar.',
           ),
         ),
       );
-      expect(transport.urls, isEmpty);
-    });
-
-    test('the rows are ordered by the time they go out', () async {
-      final transport = _FakeTransport();
-
-      await _repository(transport)
-          .loadBetween(DateTime(2026, 10, 1), DateTime(2026, 11, 1));
-
-      expect(
-        transport.urls.first.queryParameters['order'],
-        'scheduled_at.asc.nullslast,created_at.asc',
-      );
+      expect(transport.bodies, isEmpty);
     });
   });
 
@@ -350,7 +311,7 @@ void main() {
       scheduledAt: DateTime.utc(2026, 10, 30, 9),
     );
 
-    test('an edit is a compare-and-set on a scheduled row', () async {
+    test('an edit asks the function to change the scheduled row', () async {
       final transport = _FakeTransport()
         ..answers.add([
           {'id': 'post-1'},
@@ -360,15 +321,15 @@ void main() {
           .updateScheduled('post-1', edit());
 
       expect(saved, isTrue);
-      expect(transport.methods.single, 'PATCH');
-      final url = transport.urls.single;
-      expect(url.queryParameters['id'], 'eq.post-1');
-      expect(url.queryParameters['status'], 'eq.scheduled');
-      expect(jsonDecode(transport.bodies.single!), {
-        'caption': 'New caption',
-        'hashtags': '#new',
-        'contains_altered_content': true,
-        'scheduled_at': '2026-10-30T09:00:00.000Z',
+      expect(transport.bodies.single, {
+        'action': 'update',
+        'id': 'post-1',
+        'patch': {
+          'caption': 'New caption',
+          'hashtags': '#new',
+          'contains_altered_content': true,
+          'scheduled_at': '2026-10-30T09:00:00.000Z',
+        },
       });
     });
 
@@ -379,7 +340,7 @@ void main() {
       expect(saved, isFalse);
     });
 
-    test('an edit without a token is refused', () async {
+    test('an edit without a session is refused', () async {
       final transport = _FakeTransport();
 
       await expectLater(
@@ -388,14 +349,14 @@ void main() {
           isA<PostsException>().having(
             (error) => error.message,
             'message',
-            'Sign in required to change a post.',
+            'Activate a license to change a post.',
           ),
         ),
       );
-      expect(transport.urls, isEmpty);
+      expect(transport.bodies, isEmpty);
     });
 
-    test('a delete asks the table for that row', () async {
+    test('a delete asks the function for that row', () async {
       final transport = _FakeTransport()
         ..answers.add([
           {'id': 'post-1'},
@@ -404,8 +365,7 @@ void main() {
       final deleted = await _repository(transport).delete('post-1');
 
       expect(deleted, isTrue);
-      expect(transport.methods.single, 'DELETE');
-      expect(transport.urls.single.queryParameters['id'], 'eq.post-1');
+      expect(transport.bodies.single, {'action': 'delete', 'id': 'post-1'});
     });
 
     test('a delete names the status the row was in', () async {
@@ -418,8 +378,11 @@ void main() {
           .delete('post-1', onlyIf: PostStatus.scheduled);
 
       expect(deleted, isTrue);
-      expect(transport.urls.single.queryParameters['id'], 'eq.post-1');
-      expect(transport.urls.single.queryParameters['status'], 'eq.scheduled');
+      expect(transport.bodies.single, {
+        'action': 'delete',
+        'id': 'post-1',
+        'onlyIf': 'scheduled',
+      });
     });
 
     test('a delete of a row that is already gone says so', () async {
@@ -428,14 +391,14 @@ void main() {
       expect(deleted, isFalse);
     });
 
-    test('a delete without a token is refused', () async {
+    test('a delete without a session is refused', () async {
       await expectLater(
         _repository(_FakeTransport(), token: null).delete('post-1'),
         throwsA(
           isA<PostsException>().having(
             (error) => error.message,
             'message',
-            'Sign in required to delete a post.',
+            'Activate a license to delete a post.',
           ),
         ),
       );

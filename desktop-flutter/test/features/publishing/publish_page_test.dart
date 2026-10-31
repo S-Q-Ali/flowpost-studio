@@ -145,10 +145,7 @@ Future<void> _pump(
                   )
                 : null,
           ),
-        if (signedIn) ...[
-          sessionTokenProvider.overrideWithValue('session-token'),
-          authAccessTokenProvider.overrideWithValue('auth-token'),
-        ],
+        if (signedIn) sessionTokenProvider.overrideWithValue('session-token'),
         postsRepositoryProvider.overrideWithValue(
           repository ?? _FakeRepository(),
         ),
@@ -194,7 +191,7 @@ void main() {
       find.widgetWithText(FilledButton, 'Publish now'),
     );
     expect(button.onPressed, isNull);
-    expect(find.textContaining('Sign in required'), findsOneWidget);
+    expect(find.textContaining('Activate a license'), findsOneWidget);
   });
 
   testWidgets('offline, the publish action is off and says why', (

@@ -12,9 +12,7 @@ class _Transport implements PostsTransport {
 
   @override
   Future<List<Map<String, Object?>>> send({
-    required String method,
-    required Uri url,
-    String? body,
+    required Map<String, Object?> body,
     String? token,
   }) async {
     final error = this.error;
@@ -40,10 +38,8 @@ void main() {
     );
   }
 
-  Future<void> send(PostsTransport inner) => transport(inner).send(
-    method: 'GET',
-    url: Uri.parse('https://test.supabase.co/rest/v1/posts'),
-  );
+  Future<void> send(PostsTransport inner) =>
+      transport(inner).send(body: {'action': 'list'});
 
   test('the app starts online, before any call', () {
     expect(container.read(connectivityProvider), ConnectionStatus.online);

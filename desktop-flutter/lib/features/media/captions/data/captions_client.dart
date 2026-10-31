@@ -145,7 +145,7 @@ class CaptionsClient implements CaptionsApi {
   Future<CaptionReply> _post(Map<String, dynamic> body) async {
     final token = this.token;
     if (token == null || token.isEmpty) {
-      throw const CaptionException('Sign in required to generate captions.');
+      throw const CaptionException('Activate a license to generate captions.');
     }
     final reply = await _transport.post(
       url: endpoint,

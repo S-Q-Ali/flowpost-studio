@@ -303,7 +303,7 @@ void main() {
           isA<CaptionException>().having(
             (error) => error.message,
             'message',
-            contains('Sign in required'),
+            contains('Activate a license'),
           ),
         ),
       );

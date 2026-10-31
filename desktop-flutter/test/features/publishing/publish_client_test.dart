@@ -157,7 +157,7 @@ void main() {
         isA<PublishException>().having(
           (error) => error.failure.code,
           'code',
-          PublishErrorCode.notSignedIn,
+          PublishErrorCode.notLicensed,
         ),
       ),
     );
@@ -174,7 +174,7 @@ void main() {
     final failure = await _failureOf(transport);
 
     expect(failure.code, PublishErrorCode.unauthorized);
-    expect(failure.message, 'Sign in again to publish.');
+    expect(failure.message, 'Activate the license again to publish.');
   });
 
   test('a missing post is not in the queue any more', () async {
