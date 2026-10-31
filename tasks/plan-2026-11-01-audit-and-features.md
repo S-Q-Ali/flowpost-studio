@@ -1,6 +1,6 @@
 # Implementation Plan: Audit Fixes + Dark Mode, Guided Setup, Browser Account Connections
 
-**Status:** Awaiting owner approval. No code changed yet.
+**Status:** Approved and building. Phase A (web and edge security) is complete; Phase B onward is open.
 **Created:** 2026-11-01
 **Owner override carried forward:** the desktop app is the product; the web app is the landing page + backend.
 **Companion task list:** `tasks/todo-2026-11-01-audit-and-features.md`
@@ -64,91 +64,91 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
 
 ## Phase A — Edge and web security (fixes web findings 1–13)
 
-- [ ] **A1. Hard-deny sessions without a user id** — Must (web 1)
+- [x] **A1. Hard-deny sessions without a user id** — Must (web 1)
   - Accept: `isRequestAuthorized` rejects a `sessions` row with `user_id = NULL`; `resolveSessionOwner` denies any session without a user id; no `if (sessionUserId)` guard remains as the only check.
   - Verify: new `_shared/auth.test.ts` cases for null-user session and mismatched id; `deno test supabase/functions/_shared`.
   - Files: `supabase/functions/_shared/auth.ts`, `_shared/auth.test.ts`, `_shared/post-access.ts`.
   - Dep: none · Size: S.
 
-- [ ] **A2. Revoke sessions per user, not globally** — Must (web 2)
+- [x] **A2. Revoke sessions per user, not globally** — Must (web 2)
   - Accept: `createSession` deletes only rows for that user; a second sign-in no longer kills other sessions.
   - Verify: test that a session for user B survives `createSession(user A)`; `verify-license` / `verify-security-questions` pass the right user.
   - Files: `_shared/session.ts`, `_shared/session.test.ts`, `verify-license/index.ts`, `verify-security-questions/index.ts`.
   - Dep: A1 · Size: S.
 
-- [ ] **A3. Accept a Supabase access token from the web client** — Must (web 3)
+- [x] **A3. Accept a Supabase access token from the web client** — Must (web 3)
   - Accept: `src/lib/invoke.ts` sends the current Supabase access token as bearer; `_shared/auth.ts` resolves it via `auth.getUser` and maps it to the app user; `flowpost_token` still works for the admin gate.
   - Verify: `_shared/auth.test.ts` JWT branch; one contract test per representative function (uploads, captions, posts-api); manual non-admin publish on the web.
   - Files: `src/lib/invoke.ts`, `src/contexts/AuthContext.tsx`, `_shared/auth.ts`, tests.
   - Dep: A1 · Size: M.
 
-- [ ] **A4. Claim a post atomically before publishing** — Must (web 4)
+- [x] **A4. Claim a post atomically before publishing** — Must (web 4)
   - Accept: a shared `claimPost` updates `status: processing` only from `scheduled` (and the publish-now entry state) and returns no row for `processing`/`published`; all six upload functions use it.
   - Verify: `post-access.test.ts` — second claim on `processing` is rejected, first on `scheduled` wins; two parallel claims produce one winner.
   - Files: `_shared/post-access.ts`, `_shared/post-access.test.ts`, six `*-upload/index.ts`, `post-story/index.ts`.
   - Dep: A1 · Size: M.
 
-- [ ] **A5. Allowlist `driveDownloadUrl` in every fetch** — Must (web 5)
+- [x] **A5. Allowlist `driveDownloadUrl` in every fetch** — Must (web 5)
   - Accept: LinkedIn and TikTok run the existing `url-guard` check on `driveDownloadUrl` before any fetch; an internal or non-allowed host is rejected with 400.
   - Verify: `url-guard.test.ts` cases for `169.254.169.254`, `localhost`, and a valid Drive host; function-level test where practical.
   - Files: `supabase/functions/linkedin-upload/index.ts`, `tiktok-upload/index.ts`, `_shared/url-guard.test.ts`.
   - Dep: none · Size: S.
 
-- [ ] **A6. Stop a second publish-now row** — Must (web 6)
+- [x] **A6. Stop a second publish-now row** — Must (web 6)
   - Accept: the upload-page guard matches any non-terminal status; a partial unique index covers `(user_id, video_id, platform, account_id)` for `scheduled`/`processing`.
   - Verify: migration applied on a scratch DB; test that a duplicate insert conflicts; UI shows the existing row instead of inserting.
   - Files: `src/pages/UploadPage.tsx`, `supabase/migrations/<new>_post_claim_index.sql`, related test.
   - Dep: A4 · Size: S.
 
-- [ ] **A7. Sign-out revokes the admin token** — Should (web 7)
+- [x] **A7. Sign-out revokes the admin token** — Should (web 7)
   - Accept: `logout()` deletes the session row, removes `flowpost_token` from storage, and a later call with the old token gets 401.
   - Verify: unit test for logout side effects; manual replay of the old token.
   - Files: `src/contexts/AuthContext.tsx`, `src/lib/invoke.ts`, `verify-session` or a new revoke action.
   - Dep: A2 · Size: S.
 
-- [ ] **A8. Per-workflow lock** — Should (web 8)
+- [x] **A8. Per-workflow lock** — Should (web 8)
   - Accept: the lock key is `workflow:<id>` inside the loop; one user's long run no longer blocks every other workflow.
   - Verify: test two concurrent workflow ids both proceed; same id still serialises.
   - Files: `supabase/functions/process-workflow/index.ts`, test.
   - Dep: none · Size: S.
 
-- [ ] **A9. Batch the scheduler and heartbeat the reaper** — Should (web 9)
+- [x] **A9. Batch the scheduler and heartbeat the reaper** — Should (web 9)
   - Accept: the tick claims up to N rows, dispatches with `Promise.allSettled` inside the edge budget, and the reaper fails only rows with no heartbeat.
   - Verify: test 10 due rows all leave `processing`; a slow Instagram call no longer strands the rest.
   - Files: `process-scheduled-posts/index.ts`, reaper function, tests.
   - Dep: A4 · Size: M.
 
-- [ ] **A10. Rate-limit the real caller** — Should (web 10)
+- [x] **A10. Rate-limit the real caller** — Should (web 10)
   - Accept: the bucket uses a non-spoofable key (account or platform IP), lookup errors fail closed, and the counter increments atomically.
   - Verify: rotating `X-Forwarded-For` cannot bypass; 5 parallel wrong answers lock out.
   - Files: `_shared/rate-limit.ts`, `_shared/rate-limit.test.ts`, `verify-password` (deleted in A13) / `verify-license` call sites.
   - Dep: none · Size: S.
 
-- [ ] **A11. Cap uploads server-side** — Should (web 11)
+- [x] **A11. Cap uploads server-side** — Should (web 11)
   - Accept: `upload-local-file` rejects files over 200 MB and content types outside the allowlist, before touching R2.
   - Verify: unit test for both rejections; a valid image still uploads.
   - Files: `supabase/functions/upload-local-file/index.ts`, test.
   - Dep: none · Size: S.
 
-- [ ] **A12. Run the Deno tests in CI** — Should (web 12)
+- [x] **A12. Run the Deno tests in CI** — Should (web 12)
   - Accept: the web job runs `deno test supabase/functions` (or `_shared` plus the covered functions) and fails on a regression.
   - Verify: a deliberate break turns CI red; green run after revert.
   - Files: `.github/workflows/ci.yml`.
   - Dep: A1–A5 · Size: XS.
 
-- [ ] **A13. Delete the dead auth paths** — Nice (web 13)
+- [x] **A13. Delete the dead auth paths** — Nice (web 13)
   - Accept: `verify-password` and `verify-session` are gone (no `src/` caller); the `frontend-api-key` branch is removed once the desktop sends a license session.
   - Verify: `grep` shows no references; functions list and `config.toml` updated.
   - Files: `supabase/functions/verify-password/`, `verify-session/`, `_shared/auth.ts`, `supabase/config.toml`.
   - Dep: A1, A3 · Size: S.
 
-- [ ] **A14. Bind a license to a user** — Nice (web 13, second half)
+- [x] **A14. Bind a license to a user** — Nice (web 13, second half)
   - Accept: `licenses.user_id` exists; `verify-license` mints the session for that user and binds on first activation; two license keys no longer share one identity.
   - Verify: migration test; two keys resolve to their own user; desktop activation still works.
   - Files: new migration, `verify-license/index.ts`, `_shared/license.ts`, tests.
   - Dep: A2 · Size: S.
 
-- [ ] **A15. Phase A gate** — `deno test`, `npm run test`, `tsc`, format; deploy is owner-assisted (task I12 remains open).
+- [x] **A15. Phase A gate** — `deno test`, `npm run test`, `tsc`, format; deploy is owner-assisted (task I12 remains open).
 
 ---
 
