@@ -11,8 +11,9 @@ IdentityException mapGatewayFailure(Object error) {
   if (error is AuthException) return mapAuthFailure(error);
   if (error is FunctionException) return mapFunctionFailure(error);
   if (error is PostgrestException) return mapPostgrestFailure(error);
-  if (_isTransport(error))
+  if (_isTransport(error)) {
     return const IdentityException(IdentityError.offline);
+  }
   return const IdentityException(IdentityError.unexpected);
 }
 
