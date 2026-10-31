@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers/app_providers.dart';
 import 'data/auth_repository.dart';
@@ -15,6 +16,14 @@ final identityClientProvider = Provider<IdentityClient>(
 /// The vault the identity records live in; tests override it.
 final identityStoreProvider = Provider<SecureIdentityStore>(
   (ref) => SecureIdentityStore(),
+);
+
+typedef BrowserLauncher = Future<bool> Function(Uri url);
+
+/// Opens the system browser for the Google hand-off; tests record the URL.
+final browserLauncherProvider = Provider<BrowserLauncher>(
+  (ref) =>
+      (url) => launchUrl(url, mode: LaunchMode.externalApplication),
 );
 
 /// Everything the identity controller needs, built on one started client.

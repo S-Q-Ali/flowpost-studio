@@ -58,6 +58,12 @@ class IdentityController extends AsyncNotifier<AuthState> {
     await _apply(service, await service.repository.stateFor(session));
   }
 
+  /// Drops the pending state when the user stops waiting for the browser.
+  Future<void> cancelGoogleSignIn() async {
+    final service = await _ensure();
+    await service.store.deletePendingOAuth();
+  }
+
   Future<void> verifyQuestions({
     required String favTeacher,
     required String bestNightDate,
