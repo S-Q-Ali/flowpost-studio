@@ -32,3 +32,9 @@ export async function createSession(
 
   return { token, expiresAt };
 }
+
+/** Removes one session, so a signed-out client's token stops working. */
+export async function revokeSession(supabase: any, token: string): Promise<void> {
+  const { error } = await supabase.from("sessions").delete().eq("token", token);
+  if (error) throw new Error("Session revoke failed");
+}

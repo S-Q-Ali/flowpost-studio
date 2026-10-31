@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createSession, SESSION_TTL_DAYS } from "./session.ts";
+import { createSession, revokeSession, SESSION_TTL_DAYS } from "./session.ts";
 
 function fakeSupabase(insertError: unknown = null) {
   const calls: string[] = [];
@@ -72,6 +72,36 @@ describe("createSession", () => {
     const { supabase } = fakeSupabase({ message: "insert failed" });
     await expect(createSession(supabase, "admin-1", now)).rejects.toThrow(
       "Session creation failed",
+    );
+  });
+});
+
+function fakeDeleteSupabase(error: unknown = null) {
+  const calls: string[] = [];
+  const eq = vi.fn((column: string, value: string) => {
+    calls.push(`eq:${column}=${value}`);
+    return Promise.resolve({ error });
+  });
+  const supabase = {
+    from: vi.fn((table: string) => {
+      calls.push(`from:${table}`);
+      return { delete: () => ({ eq }) };
+    }),
+  };
+  return { supabase, calls };
+}
+
+describe("revokeSession", () => {
+  it("deletes only the presented token", async () => {
+    const { supabase, calls } = fakeDeleteSupabase();
+    await revokeSession(supabase, "tok-1");
+    expect(calls).toEqual(["from:sessions", "eq:token=tok-1"]);
+  });
+
+  it("throws when the delete fails", async () => {
+    const { supabase } = fakeDeleteSupabase({ message: "delete failed" });
+    await expect(revokeSession(supabase, "tok-1")).rejects.toThrow(
+      "Session revoke failed",
     );
   });
 });

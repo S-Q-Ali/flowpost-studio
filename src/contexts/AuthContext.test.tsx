@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "./AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 type AuthEvent = "INITIAL_SESSION" | "SIGNED_IN" | "SIGNED_OUT";
 type AuthSession = { user: { id: string } } | null;
@@ -41,6 +42,11 @@ function Probe() {
   );
 }
 
+function LogoutButton() {
+  const { logout } = useAuth();
+  return <button onClick={() => void logout()}>lock</button>;
+}
+
 describe("AuthProvider", () => {
   beforeEach(() => {
     listeners.length = 0;
@@ -64,5 +70,24 @@ describe("AuthProvider", () => {
     });
 
     expect(screen.getByTestId("state")).toHaveTextContent("in");
+  });
+
+  it("revokes the operator token on logout instead of only forgetting it", async () => {
+    localStorage.setItem("flowpost_token", "tok-operator");
+    render(
+      <AuthProvider>
+        <LogoutButton />
+      </AuthProvider>,
+    );
+
+    await act(async () => {
+      screen.getByRole("button", { name: "lock" }).click();
+    });
+
+    expect(localStorage.getItem("flowpost_token")).toBeNull();
+    expect(supabase.functions.invoke).toHaveBeenCalledWith("verify-session", {
+      body: { token: "tok-operator", action: "revoke" },
+    });
+    expect(supabase.auth.signOut).toHaveBeenCalled();
   });
 });
