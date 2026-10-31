@@ -30,9 +30,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1793389043.4984686,
-    "seen": 1793392570.0057304,
-    "ast_hash": "31f8ddf9f66c4652277ba91142bdbc52",
+    "mtime": 1793475496.5400703,
+    "seen": 1793475729.3814785,
+    "ast_hash": "a5afbb43ac21bdc4d07fa4c4e4f8e4ef",
     "semantic_hash": ""
   },
   "src/components/AppLayout.tsx": {
@@ -282,10 +282,10 @@
     "semantic_hash": "e181b4e62a4d5348e7a33102939b90eb"
   },
   "src/integrations/supabase/client.ts": {
-    "mtime": 1784372982.2843971,
-    "seen": 1789020917.2984962,
-    "ast_hash": "8c1d6873c567fdb745349b44bec9ac13",
-    "semantic_hash": "8c1d6873c567fdb745349b44bec9ac13"
+    "mtime": 1793475488.1482964,
+    "seen": 1793475729.399307,
+    "ast_hash": "48d573359467fbcb5c18279a210a558e",
+    "semantic_hash": ""
   },
   "src/integrations/supabase/types.ts": {
     "mtime": 1793389043.5145135,
@@ -4491,6 +4491,18 @@
     "mtime": 1793470077.4121082,
     "seen": 1793470706.8611906,
     "ast_hash": "49e3ee0d1424077529cfbb5b04346101",
+    "semantic_hash": ""
+  },
+  "src/integrations/supabase/config.test.ts": {
+    "mtime": 1793475444.469738,
+    "seen": 1793475729.3993113,
+    "ast_hash": "f73bbb66c6560a9c1863661146d474a4",
+    "semantic_hash": ""
+  },
+  "src/integrations/supabase/config.ts": {
+    "mtime": 1793475485.2215168,
+    "seen": 1793475729.399314,
+    "ast_hash": "c6cc7b635d1726d6626736ca5bc5d568",
     "semantic_hash": ""
   }
 }
