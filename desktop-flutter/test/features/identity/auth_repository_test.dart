@@ -55,6 +55,10 @@ class _FakeAuth implements AuthGateway {
   }
 
   @override
+  Future<String> oauthSignInUrl({required String redirectTo}) async =>
+      redirectTo;
+
+  @override
   Future<AuthSession?> restoreSession() async => restored;
 
   @override

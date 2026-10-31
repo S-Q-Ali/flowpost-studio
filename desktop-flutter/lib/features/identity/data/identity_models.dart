@@ -59,6 +59,14 @@ class IdentityException implements Exception {
   String toString() => 'IdentityException(${error.name})';
 }
 
+/// The one Google sign-in in flight, so a cold-start callback still checks.
+class PendingOAuth {
+  const PendingOAuth({required this.state, required this.createdAt});
+
+  final String state;
+  final DateTime createdAt;
+}
+
 /// The screens a signed-in session can be in (SPEC-identity Code Style).
 sealed class AuthState {
   const AuthState();

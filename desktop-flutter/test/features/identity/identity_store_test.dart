@@ -18,6 +18,21 @@ class _MemoryVault implements SecretVault {
   Future<Map<String, String>> readAll() async => Map.of(values);
 }
 
+class _ThrowingVault implements SecretVault {
+  @override
+  Future<String?> read(String key) async => throw StateError('locked');
+
+  @override
+  Future<void> write(String key, String value) async =>
+      throw StateError('locked');
+
+  @override
+  Future<void> delete(String key) async => throw StateError('locked');
+
+  @override
+  Future<Map<String, String>> readAll() async => throw StateError('locked');
+}
+
 void main() {
   late _MemoryVault vault;
   late SecureIdentityStore store;
@@ -97,9 +112,50 @@ void main() {
   test('malformed records are treated as absent', () async {
     vault.values[SecureIdentityStore.adminTokenKey] = 'not json';
     vault.values[SecureIdentityStore.profileKey] = '{"userId": 5}';
+    vault.values[SecureIdentityStore.pendingOAuthKey] = '{"state": ""}';
 
     expect(await store.readAdminToken(), isNull);
     expect(await store.readProfile(), isNull);
+    expect(await store.readPendingOAuth(), isNull);
+  });
+
+  test('the pending OAuth state round-trips and is deleted', () async {
+    final createdAt = DateTime.utc(2026, 10, 31, 12);
+    await store.writePendingOAuth(
+      PendingOAuth(state: 'state-123', createdAt: createdAt),
+    );
+
+    final stored = await store.readPendingOAuth();
+    expect(stored?.state, 'state-123');
+    expect(stored?.createdAt, createdAt);
+
+    await store.deletePendingOAuth();
+    expect(await store.readPendingOAuth(), isNull);
+  });
+
+  test('clear removes a pending OAuth state too', () async {
+    await store.writePendingOAuth(
+      PendingOAuth(state: 'state-123', createdAt: DateTime.utc(2026)),
+    );
+
+    await store.clear();
+
+    expect(await store.readPendingOAuth(), isNull);
+  });
+
+  test('a vault failure is reported as storage unavailable', () async {
+    final broken = SecureIdentityStore(vault: _ThrowingVault());
+
+    await expectLater(
+      broken.readSession(),
+      throwsA(
+        isA<IdentityException>().having(
+          (e) => e.error,
+          'error',
+          IdentityError.storageUnavailable,
+        ),
+      ),
+    );
   });
 
   test('clear removes every identity record but nothing else', () async {

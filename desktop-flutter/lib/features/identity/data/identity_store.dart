@@ -18,6 +18,10 @@ abstract interface class IdentityStore {
   Future<ProfileCache?> readProfile();
   Future<void> writeProfile(ProfileCache profile);
 
+  Future<PendingOAuth?> readPendingOAuth();
+  Future<void> writePendingOAuth(PendingOAuth pending);
+  Future<void> deletePendingOAuth();
+
   /// Removes every identity record: session, token, profile and PKCE verifiers.
   Future<void> clear();
 }
@@ -62,23 +66,24 @@ class SecureIdentityStore
   static const String sessionKey = '${namespace}supabase_session';
   static const String adminTokenKey = '${namespace}admin_token';
   static const String profileKey = '${namespace}profile';
+  static const String pendingOAuthKey = '${namespace}oauth_state';
   static const String _pkcePrefix = '${namespace}pkce.';
 
   final SecretVault _vault;
 
   @override
-  Future<String?> readSession() => _vault.read(sessionKey);
+  Future<String?> readSession() => _read(sessionKey);
 
   @override
   Future<void> writeSession(String sessionJson) =>
-      _vault.write(sessionKey, sessionJson);
+      _write(sessionKey, sessionJson);
 
   @override
-  Future<void> deleteSession() => _vault.delete(sessionKey);
+  Future<void> deleteSession() => _delete(sessionKey);
 
   @override
   Future<AdminToken?> readAdminToken() async {
-    final json = _decode(await _vault.read(adminTokenKey));
+    final json = _decode(await _read(adminTokenKey));
     final token = json?['token'];
     final issuedAt = json?['issuedAt'];
     if (token is! String || token.isEmpty || issuedAt is! String) return null;
@@ -88,7 +93,7 @@ class SecureIdentityStore
   }
 
   @override
-  Future<void> writeAdminToken(AdminToken token) => _vault.write(
+  Future<void> writeAdminToken(AdminToken token) => _write(
     adminTokenKey,
     jsonEncode({
       'token': token.token,
@@ -97,11 +102,11 @@ class SecureIdentityStore
   );
 
   @override
-  Future<void> deleteAdminToken() => _vault.delete(adminTokenKey);
+  Future<void> deleteAdminToken() => _delete(adminTokenKey);
 
   @override
   Future<ProfileCache?> readProfile() async {
-    final json = _decode(await _vault.read(profileKey));
+    final json = _decode(await _read(profileKey));
     final userId = json?['userId'];
     final isAdmin = json?['isAdmin'];
     final email = json?['email'];
@@ -114,7 +119,7 @@ class SecureIdentityStore
   }
 
   @override
-  Future<void> writeProfile(ProfileCache profile) => _vault.write(
+  Future<void> writeProfile(ProfileCache profile) => _write(
     profileKey,
     jsonEncode({
       'userId': profile.userId,
@@ -125,11 +130,34 @@ class SecureIdentityStore
 
   @override
   Future<void> clear() async {
-    final all = await _vault.readAll();
+    final all = await _readAll();
     for (final key in all.keys.where((key) => key.startsWith(namespace))) {
-      await _vault.delete(key);
+      await _delete(key);
     }
   }
+
+  @override
+  Future<PendingOAuth?> readPendingOAuth() async {
+    final json = _decode(await _read(pendingOAuthKey));
+    final state = json?['state'];
+    final createdAt = json?['createdAt'];
+    if (state is! String || state.isEmpty || createdAt is! String) return null;
+    final parsed = DateTime.tryParse(createdAt);
+    if (parsed == null) return null;
+    return PendingOAuth(state: state, createdAt: parsed);
+  }
+
+  @override
+  Future<void> writePendingOAuth(PendingOAuth pending) => _write(
+    pendingOAuthKey,
+    jsonEncode({
+      'state': pending.state,
+      'createdAt': pending.createdAt.toUtc().toIso8601String(),
+    }),
+  );
+
+  @override
+  Future<void> deletePendingOAuth() => _delete(pendingOAuthKey);
 
   // LocalStorage: the Supabase session.
 
@@ -155,16 +183,34 @@ class SecureIdentityStore
   // GotrueAsyncStorage: the PKCE verifier.
 
   @override
-  Future<String?> getItem({required String key}) =>
-      _vault.read('$_pkcePrefix$key');
+  Future<String?> getItem({required String key}) => _read('$_pkcePrefix$key');
 
   @override
   Future<void> setItem({required String key, required String value}) =>
-      _vault.write('$_pkcePrefix$key', value);
+      _write('$_pkcePrefix$key', value);
 
   @override
-  Future<void> removeItem({required String key}) =>
-      _vault.delete('$_pkcePrefix$key');
+  Future<void> removeItem({required String key}) => _delete('$_pkcePrefix$key');
+
+  Future<String?> _read(String key) => _guard(() => _vault.read(key));
+
+  Future<void> _write(String key, String value) =>
+      _guard(() => _vault.write(key, value));
+
+  Future<void> _delete(String key) => _guard(() => _vault.delete(key));
+
+  Future<Map<String, String>> _readAll() => _guard(_vault.readAll);
+
+  /// A credential-manager failure is the one failure with its own message, so
+  /// the screens can say the PC cannot store the sign-in instead of a generic
+  /// error (SPEC-identity Error States).
+  Future<T> _guard<T>(Future<T> Function() run) async {
+    try {
+      return await run();
+    } on Object {
+      throw const IdentityException(IdentityError.storageUnavailable);
+    }
+  }
 }
 
 Map<String, Object?>? _decode(String? raw) {

@@ -11,6 +11,7 @@ abstract interface class AuthGateway {
     required String password,
   });
   Future<AuthSession> exchangeCode(String code);
+  Future<String> oauthSignInUrl({required String redirectTo});
   Future<AuthSession?> restoreSession();
   Future<void> signOut();
 }

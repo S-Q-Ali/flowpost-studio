@@ -28,6 +28,15 @@ class SupabaseAuthGateway implements AuthGateway {
   }
 
   @override
+  Future<String> oauthSignInUrl({required String redirectTo}) async {
+    final response = await _client.auth.getOAuthSignInUrl(
+      provider: OAuthProvider.google,
+      redirectTo: redirectTo,
+    );
+    return response.url;
+  }
+
+  @override
   Future<AuthSession?> restoreSession() async =>
       _session(_client.auth.currentSession);
 
