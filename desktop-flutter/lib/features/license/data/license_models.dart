@@ -38,9 +38,14 @@ sealed class LicenseState {
 }
 
 final class Locked extends LicenseState {
-  const Locked(this.reason);
+  const Locked(this.reason, {this.message});
 
   final LicenseError reason;
+
+  /// The backend's own text (a lockout countdown), when it sent one.
+  final String? message;
+
+  String get text => message ?? reason.message;
 }
 
 final class Active extends LicenseState {

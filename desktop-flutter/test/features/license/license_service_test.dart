@@ -84,12 +84,16 @@ void main() {
     expect(store.record, isNull);
   });
 
-  test('a locked-out activation is Locked', () async {
-    api.failure = const LicenseException(LicenseError.rateLimited);
+  test('a locked-out activation keeps the server countdown', () async {
+    api.failure = const LicenseException(
+      LicenseError.rateLimited,
+      serverMessage: 'Too many attempts. Try again in 14 minutes.',
+    );
 
     final state = await service().activate('key-1');
 
     expect((state as Locked).reason, LicenseError.rateLimited);
+    expect(state.text, 'Too many attempts. Try again in 14 minutes.');
   });
 
   test('the stored token is readable after activation', () async {

@@ -32,7 +32,7 @@ class LicenseService {
       _token = grant.token;
       return Active(expiresAt: grant.expiresAt);
     } on LicenseException catch (error) {
-      return Locked(error.error);
+      return Locked(error.error, message: error.serverMessage);
     }
   }
 
@@ -59,7 +59,7 @@ class LicenseService {
       }
       return renewed;
     } on LicenseException catch (error) {
-      return Locked(error.error);
+      return Locked(error.error, message: error.serverMessage);
     }
   }
 

@@ -110,12 +110,15 @@ license key (user)            hash = sha256(key)              secure vault:
   `sessionProvider.signIn/clear` and loads at startup; `/starting` while loading.
   - Acceptance: provider tests cover activate, restore, expiry, clear.
 
-- [ ] **L7 — License screen** (M)
+- [x] **L7 — License screen** (M)
   `/license`: key field (`license-key`), submit (`license-submit`), busy state,
-  calm error (`license-error`, live region), sign-out/deactivate link, and the
-  setup link when config is missing. No key is echoed back or logged.
+  calm error (`license-error`, live region), the active license and its expiry
+  when one is stored, and a deactivate link. The setup link is dropped because
+  the router always sends the setup screen first when values are missing.
+  No key is echoed back or logged.
   - Acceptance: widget tests for success, 401, 429, network error, busy state,
-    keyboard submit, and the semantics label.
+    keyboard submit, the semantics label, deactivation and the restored state.
+  - Files: `lib/features/license/presentation/license_gate_page.dart`.
 
 - [ ] **L8 — Unwire identity, wire the guard** (M)
   `app.dart`, `main.dart`, `app_router.dart`: drop every identity import and the
