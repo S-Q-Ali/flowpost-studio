@@ -54,7 +54,6 @@ Future<void> main({MediaFilePicker? picker}) async {
       );
 
       final initialLink = await _getInitialLink();
-      await _removeStaleMediaJobs(log);
       final shell = FlowPostShell(
         trayIconPath:
             '${File(Platform.resolvedExecutable).parent.path}${Platform.pathSeparator}resources${Platform.pathSeparator}tray.ico',
@@ -62,12 +61,20 @@ Future<void> main({MediaFilePicker? picker}) async {
       // Before the window exists there is nowhere to show an error, so a
       // failed start names the log folder in a message box and exits.
       try {
-        await shell.prepareGuard();
-        if (!await shell.acquireSingleInstance(initialLink)) {
+        final isPrimary = await startAsPrimary(
+          acquireGuard: () async {
+            await shell.prepareGuard();
+            return shell.acquireSingleInstance(initialLink);
+          },
+          onlyForPrimary: () async {
+            await _removeStaleMediaJobs(log);
+            await _ensureProtocol(log);
+          },
+        );
+        if (!isPrimary) {
           await flushLogging();
           exit(0);
         }
-        await _ensureProtocol(log);
         await shell.startWindowAndTray();
       } on Object catch (error, stackTrace) {
         await reportStartupFailure(
@@ -124,6 +131,20 @@ Future<void> main({MediaFilePicker? picker}) async {
       stderr.writeln('FlowPost failed to start: $error\n$stackTrace');
     },
   );
+}
+
+/// Says whether this launch may show the window, and runs what only the
+/// instance holding the lock may run.
+///
+/// [onlyForPrimary] comes after [acquireGuard] because a second launch would
+/// otherwise clean up the files the first is working on.
+Future<bool> startAsPrimary({
+  required Future<bool> Function() acquireGuard,
+  required Future<void> Function() onlyForPrimary,
+}) async {
+  if (!await acquireGuard()) return false;
+  await onlyForPrimary();
+  return true;
 }
 
 /// The portable build has no installer, so the app points `flowpost://` at

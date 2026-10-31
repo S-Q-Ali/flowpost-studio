@@ -37,7 +37,7 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - `PublishDone` carries the run signature (media, mode, schedule, title, sorted `target=caption` rows). `publish()` returns early on a match; the button is off and says the post is already sent.
       - Deliberate limit: only a run where every target went out records the signature. A run with a failed or unconfirmed target leaves `signature` null, so the same inputs stay retryable — the retry button is not always available (the row must read back as failed).
       - Test: 5 controller tests (repeat, reordered targets, edited caption, another file, failed run) + 3 widget tests (button off, caption edit re-opens it, failure keeps it live).
-- [ ] B2. Delete stale media only in the primary instance
+- [x] B2. Delete stale media only in the primary instance
 - [ ] B3. Fence a replaced media job
 - [ ] B4. Release workflow for the desktop installer
 - [ ] B5. Fix the landing download CTA

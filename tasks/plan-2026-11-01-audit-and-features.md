@@ -161,11 +161,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: none · Size: S.
   - Done: the signature is remembered only when every target went out, so a failed run stays retryable from the same button. Guarded in `publish_controller_test.dart` and `publish_page_test.dart`.
 
-- [ ] **B2. Delete stale media only as the primary instance** — Must (desktop 3)
+- [x] **B2. Delete stale media only as the primary instance** — Must (desktop 3)
   - Accept: `_removeStaleMediaJobs` runs after the single-instance lock is acquired; a second launch deletes nothing.
   - Verify: test with a fake guard — blocked launch never calls the workspace cleanup; primary launch does.
   - Files: `lib/main.dart`, `lib/core/shell/single_instance.dart` (or the existing guard seam), test.
   - Dep: none · Size: S.
+  - Done: `startAsPrimary()` in `lib/main.dart` runs the guard first and the cleanup (stale media plus the protocol write) after; `test/core/startup_order_test.dart` covers both outcomes.
 
 - [ ] **B3. Fence a replaced media job** — Must (desktop 4)
   - Accept: each run carries its job id; progress and completion are ignored when the id no longer matches; picking a second file cancels the first processor.
