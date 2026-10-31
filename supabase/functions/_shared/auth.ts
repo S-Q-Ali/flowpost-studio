@@ -5,7 +5,7 @@ export type SessionLookupResult =
   | { status: "error"; error?: unknown };
 
 export type AuthResult =
-  | { allowed: true; kind: "service-role" | "cron" | "frontend-api-key"; userId?: string | null }
+  | { allowed: true; kind: "service-role" | "cron"; userId?: string | null }
   | { allowed: true; kind: "session"; userId: string }
   | {
       allowed: false;
@@ -29,10 +29,8 @@ export function resolveSessionOwner(
 export interface AuthInputs {
   authorizationHeader: string | null;
   adminTokenHeader: string | null;
-  apiKeyHeader: string | null;
   serviceRoleKey: string | null;
   cronApiKey: string | null;
-  frontendApiKey: string | null;
   anonKey: string | null;
   sessionLookup: (token: string) => Promise<SessionLookupResult>;
 }
@@ -49,7 +47,6 @@ export function bearerOf(header: string | null): string | null {
 export async function isRequestAuthorized(inputs: AuthInputs): Promise<AuthResult> {
   const bearer = bearerOf(inputs.authorizationHeader);
   const adminToken = inputs.adminTokenHeader?.trim() || null;
-  const apiKey = inputs.apiKeyHeader?.trim() || null;
 
   if (inputs.anonKey && (bearer === inputs.anonKey || adminToken === inputs.anonKey)) {
     return { allowed: false, reason: "anon-key" };
@@ -61,10 +58,6 @@ export async function isRequestAuthorized(inputs: AuthInputs): Promise<AuthResul
 
   if (inputs.cronApiKey && bearer === inputs.cronApiKey) {
     return { allowed: true, kind: "cron" };
-  }
-
-  if (inputs.frontendApiKey && (bearer === inputs.frontendApiKey || apiKey === inputs.frontendApiKey)) {
-    return { allowed: true, kind: "frontend-api-key" };
   }
 
   const sessionCandidate = adminToken || bearer;
@@ -118,7 +111,6 @@ export function createSessionLookup(supabase: any) {
 export interface RequestAuthorizerDeps {
   serviceRoleKey: string | null;
   cronApiKey: string | null;
-  frontendApiKey: string | null;
   anonKey: string | null;
   sessionLookup: (token: string) => Promise<SessionLookupResult>;
 }
@@ -134,10 +126,8 @@ export function createRequestAuthorizer(deps: RequestAuthorizerDeps): RequestAut
     isRequestAuthorized({
       authorizationHeader: req.headers.get("Authorization"),
       adminTokenHeader: req.headers.get("x-admin-token"),
-      apiKeyHeader: req.headers.get("apikey"),
       serviceRoleKey: deps.serviceRoleKey,
       cronApiKey: deps.cronApiKey,
-      frontendApiKey: deps.frontendApiKey,
       anonKey: deps.anonKey,
       sessionLookup: deps.sessionLookup,
     });

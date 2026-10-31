@@ -25,7 +25,6 @@ const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, { auth:
 const authorize = createRequestAuthorizer({
   serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
   cronApiKey: null,
-  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
   anonKey: SUPABASE_ANON_KEY,
   sessionLookup: createSessionLookup(supabase),
 });

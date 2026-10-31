@@ -28,7 +28,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 const authorize = createRequestAuthorizer({
   serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
   cronApiKey: null,
-  frontendApiKey: null,
   anonKey: SUPABASE_ANON_KEY,
   sessionLookup: createSessionLookup(supabase),
 });

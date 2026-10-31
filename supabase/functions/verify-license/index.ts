@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     const keyHash = await hashLicenseKey(key);
     const { data: license, error } = await supabase
       .from("licenses")
-      .select("id, active, expires_at")
+      .select("id, active, expires_at, user_id")
       .eq("key_hash", keyHash)
       .maybeSingle();
 
@@ -84,7 +84,11 @@ Deno.serve(async (req) => {
       return json({ valid: false, error: "Invalid license key" }, 401);
     }
 
-    const { token, expiresAt } = await createSession(supabase, await getAdminUserId());
+    // A key bound to a user mints that user's session; a legacy key without
+    // an owner keeps the admin fallback.
+    const ownerId = (license as { user_id?: string | null }).user_id
+      ?? await getAdminUserId();
+    const { token, expiresAt } = await createSession(supabase, ownerId);
 
     await supabase
       .from("licenses")

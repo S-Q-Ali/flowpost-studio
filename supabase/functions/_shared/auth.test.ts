@@ -12,10 +12,8 @@ function makeInputs(overrides: Partial<AuthInputs>): AuthInputs {
   return {
     authorizationHeader: null,
     adminTokenHeader: null,
-    apiKeyHeader: null,
     serviceRoleKey: "service-role-key",
     cronApiKey: "cron-key",
-    frontendApiKey: "frontend-key",
     anonKey: "public-anon-key",
     sessionLookup: vi.fn(async () => ({ status: "missing" })),
     ...overrides,
@@ -141,18 +139,6 @@ describe("isRequestAuthorized", () => {
     });
     const result = await isRequestAuthorized(inputs);
     expect(result.allowed).toBe(false);
-  });
-
-  it("allows the frontend API key sent via the apikey header", async () => {
-    const inputs = makeInputs({ apiKeyHeader: "frontend-key" });
-    const result = await isRequestAuthorized(inputs);
-    expect(result).toEqual({ allowed: true, kind: "frontend-api-key" });
-  });
-
-  it("allows the frontend API key sent as the Bearer credential", async () => {
-    const inputs = makeInputs({ authorizationHeader: "Bearer frontend-key" });
-    const result = await isRequestAuthorized(inputs);
-    expect(result).toEqual({ allowed: true, kind: "frontend-api-key" });
   });
 
   it("trims and tolerates case differences in the Bearer prefix", async () => {
@@ -299,7 +285,6 @@ describe("createRequestAuthorizer", () => {
       authorize: createRequestAuthorizer({
         serviceRoleKey: "service-role-key",
         cronApiKey: "cron-key",
-        frontendApiKey: "frontend-key",
         anonKey: "public-anon-key",
         sessionLookup,
       }),
@@ -369,7 +354,7 @@ describe("resolveSessionOwner", () => {
   });
 
   it("trusts the requested user for non-session credentials", () => {
-    const result = resolveSessionOwner({ allowed: true, kind: "frontend-api-key" } as AuthResult, "user-3");
+    const result = resolveSessionOwner({ allowed: true, kind: "cron" } as AuthResult, "user-3");
     expect(result).toEqual({ userId: "user-3", denied: false });
   });
 
