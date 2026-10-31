@@ -9,14 +9,17 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
 - [x] A4. Atomic post claim before publishing
 - [x] A5. Allowlist `driveDownloadUrl` in LinkedIn and TikTok
 - [x] A6. Unique index + non-terminal guard for publish-now
-- [ ] A7. Sign-out revokes the admin token
+- [x] A7. Sign-out revokes the admin token
 - [ ] A8. Per-workflow lock
 - [ ] A9. Batch scheduler + reaper heartbeat
 - [ ] A10. Rate-limit the real caller, fail closed
 - [ ] A11. Server-side upload size and type ceiling
 - [x] A12. Run Deno tests in CI — not a finding: `vitest.config.ts` already includes `supabase/functions/_shared/**` and CI runs `npm test` (155 tests pass)
-- [ ] A13. Delete `verify-password`, `verify-session`, frontend-api-key branch
-- [ ] A14. Bind a license to a user
+- [x] A13. Delete `verify-password`, `verify-session`, frontend-api-key branch
+      - `verify-password` is a 410 tombstone (file deletion is blocked in this sandbox).
+      - `verify-session` is kept on purpose: `desktop-flutter/lib/features/identity` calls it, and it now also serves logout revoke.
+      - The `frontend-api-key` branch and `FRONTEND_API_KEY` reads are gone (no client ever sent that key).
+- [x] A14. Bind a license to a user
 - [ ] A15. Phase A gate
 
 ## Phase B — Desktop correctness
