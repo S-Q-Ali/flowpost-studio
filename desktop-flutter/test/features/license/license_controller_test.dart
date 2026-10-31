@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flowpost_desktop/core/session/session.dart';
 import 'package:flowpost_desktop/features/license/data/license_client.dart';
 import 'package:flowpost_desktop/features/license/data/license_models.dart';
@@ -5,8 +7,12 @@ import 'package:flowpost_desktop/features/license/data/license_service.dart';
 import 'package:flowpost_desktop/features/license/data/license_store.dart';
 import 'package:flowpost_desktop/features/license/license_controller.dart';
 import 'package:flowpost_desktop/features/license/license_providers.dart';
+import 'package:flowpost_desktop/features/offline/offline_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/fake_posts_cache.dart';
 
 class _FakeApi implements LicenseApi {
   LicenseGrant? grant;
@@ -24,6 +30,7 @@ class _FakeApi implements LicenseApi {
 
 class _MemoryStore implements LicenseStore {
   LicenseRecord? record;
+  bool failClear = false;
 
   @override
   Future<LicenseRecord?> read() async => record;
@@ -32,19 +39,25 @@ class _MemoryStore implements LicenseStore {
   Future<void> write(LicenseRecord record) async => this.record = record;
 
   @override
-  Future<void> clear() async => record = null;
+  Future<void> clear() async {
+    if (failClear) {
+      throw const LicenseException(LicenseError.storageUnavailable);
+    }
+    record = null;
+  }
 }
 
 void main() {
   late _FakeApi api;
   late _MemoryStore store;
 
-  ProviderContainer container() {
+  ProviderContainer container({List<Override> overrides = const []}) {
     final created = ProviderContainer(
       overrides: [
         licenseServiceProvider.overrideWithValue(
           LicenseService(api: api, store: store),
         ),
+        ...overrides,
       ],
     );
     addTearDown(created.dispose);
@@ -132,11 +145,73 @@ void main() {
     await scope.read(licenseControllerProvider.future);
     await scope.read(licenseControllerProvider.notifier).activate('key-1');
 
-    await scope.read(licenseControllerProvider.notifier).deactivate();
+    final cleared = await scope
+        .read(licenseControllerProvider.notifier)
+        .deactivate();
 
     final state = scope.read(licenseControllerProvider).value;
+    expect(cleared, isTrue);
     expect((state as Locked).reason, LicenseError.missing);
     expect(store.record, isNull);
     expect(scope.read(sessionProvider), isNull);
   });
+
+  test('deactivation wipes the rows of the grant that ended', () async {
+    final cache = FakePostsCache();
+    final scope = container(
+      overrides: [postsCacheProvider.overrideWithValue(cache)],
+    );
+    await scope.read(licenseControllerProvider.future);
+    await scope.read(licenseControllerProvider.notifier).activate('key-1');
+
+    await scope.read(licenseControllerProvider.notifier).deactivate();
+
+    expect(cache.wipes, 1);
+  });
+
+  test(
+    'a vault that will not clear still ends the session and the cache',
+    () async {
+      final cache = FakePostsCache();
+      final scope = container(
+        overrides: [postsCacheProvider.overrideWithValue(cache)],
+      );
+      await scope.read(licenseControllerProvider.future);
+      await scope.read(licenseControllerProvider.notifier).activate('key-1');
+      store.failClear = true;
+
+      final cleared = await scope
+          .read(licenseControllerProvider.notifier)
+          .deactivate();
+
+      final state = scope.read(licenseControllerProvider).value;
+      expect(cleared, isFalse);
+      expect((state as Locked).reason, LicenseError.storageUnavailable);
+      expect(scope.read(sessionProvider), isNull);
+      expect(cache.wipes, 1);
+    },
+  );
+
+  test('a cache that will not wipe still ends the session', () async {
+    final scope = container(
+      overrides: [postsCacheProvider.overrideWithValue(_FailingWipe())],
+    );
+    await scope.read(licenseControllerProvider.future);
+    await scope.read(licenseControllerProvider.notifier).activate('key-1');
+
+    final cleared = await scope
+        .read(licenseControllerProvider.notifier)
+        .deactivate();
+
+    expect(cleared, isTrue);
+    expect(scope.read(sessionProvider), isNull);
+    expect(store.record, isNull);
+  });
+}
+
+class _FailingWipe extends FakePostsCache {
+  @override
+  Future<void> wipe() async {
+    throw const FileSystemException('locked');
+  }
 }

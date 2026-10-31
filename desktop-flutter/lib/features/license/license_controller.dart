@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/session/session.dart';
+import '../offline/offline_providers.dart';
+import '../scheduling/scheduling_controller.dart';
 import 'data/license_models.dart';
 import 'license_providers.dart';
 
@@ -26,11 +28,22 @@ class LicenseController extends AsyncNotifier<LicenseState> {
     state = AsyncData(next);
   }
 
-  /// Forgets this PC: no token, no key, no session.
-  Future<void> deactivate() async {
-    await ref.read(licenseServiceProvider).clear();
-    ref.read(sessionProvider.notifier).clear();
-    state = const AsyncData(Locked(LicenseError.missing));
+  /// Forgets this PC: no token, no key, no session, no rows of the old grant.
+  ///
+  /// Returns false when the vault could not be cleared; the session and the
+  /// cache still end, so a stale key never keeps the app open in this run.
+  Future<bool> deactivate() async {
+    var cleared = true;
+    try {
+      await ref.read(licenseServiceProvider).clear();
+    } on LicenseException {
+      cleared = false;
+    }
+    await _endSession();
+    state = AsyncData(
+      Locked(cleared ? LicenseError.missing : LicenseError.storageUnavailable),
+    );
+    return cleared;
   }
 
   /// Re-reads the vault; the retry path after a storage failure.
@@ -41,8 +54,9 @@ class LicenseController extends AsyncNotifier<LicenseState> {
     state = AsyncData(next);
   }
 
-  /// An active grant opens the session every call is made with. The Supabase
-  /// Auth token is gone from the desktop, so it stays empty (L9 removes it).
+  /// An active grant opens the session every call is made with. The posts
+  /// table still takes a Supabase Auth token over PostgREST, which this grant
+  /// cannot mint; L9b moves those calls behind the session token.
   Future<void> _syncSession(LicenseState next) async {
     if (next is Active) {
       final token = await ref.read(licenseServiceProvider).token();
@@ -60,5 +74,18 @@ class LicenseController extends AsyncNotifier<LicenseState> {
       }
     }
     ref.read(sessionProvider.notifier).clear();
+  }
+
+  /// Drops everything that belonged to the grant: the token, the rows on
+  /// screen and the cache on disk. None of the failures may keep the user in.
+  Future<void> _endSession() async {
+    ref.read(sessionProvider.notifier).clear();
+    ref.invalidate(queueControllerProvider);
+    ref.invalidate(calendarControllerProvider);
+    try {
+      await ref.read(postsCacheProvider).wipe();
+    } on Object {
+      // The store logs its own failure (SPEC-settings Decision 3).
+    }
   }
 }

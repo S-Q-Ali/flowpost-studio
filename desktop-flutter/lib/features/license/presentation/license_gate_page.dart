@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/router/app_router.dart';
 import '../data/license_models.dart';
 import '../license_controller.dart';
 
@@ -51,10 +53,14 @@ class _LicenseGatePageState extends ConsumerState<LicenseGatePage> {
 
   Future<void> _deactivate() async {
     if (_busy) return;
-    await ref.read(licenseControllerProvider.notifier).deactivate();
+    final cleared = await ref
+        .read(licenseControllerProvider.notifier)
+        .deactivate();
     if (!mounted) return;
     _key.clear();
-    setState(() => _error = null);
+    setState(
+      () => _error = cleared ? null : LicenseError.storageUnavailable.message,
+    );
   }
 
   @override
@@ -88,6 +94,12 @@ class _LicenseGatePageState extends ConsumerState<LicenseGatePage> {
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.primary,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton(
+                      key: const Key('license-back'),
+                      onPressed: () => context.go(homeRoute),
+                      child: const Text('Back to the app'),
                     ),
                   ],
                   const SizedBox(height: 24),

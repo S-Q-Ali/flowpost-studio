@@ -5,18 +5,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/auth/access_token.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/config/config_controller.dart';
 import '../../../core/diagnostics/diagnostics_report.dart';
 import '../../../core/router/app_router.dart';
-import '../../../core/session/session.dart';
 import '../../../core/update/app_version.dart';
+import '../../license/data/license_models.dart';
+import '../../license/license_controller.dart';
 import '../settings_providers.dart';
 import 'credentials_form.dart';
 
-/// Who is signed in, which build this is, where the log lives, and what the
-/// app is (SPEC-settings).
+/// The license, which build this is, where the log lives, and what the app is
+/// (SPEC-settings).
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
@@ -35,12 +35,12 @@ class SettingsPage extends ConsumerWidget {
                 Text('Settings', style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 4),
                 Text(
-                  'Who is signed in, which build this is, and where the app '
-                  'keeps its log.',
+                  'Your license, which build this is, and where the app keeps '
+                  'its log.',
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 24),
-                const _AccountSection(),
+                const _LicenseSection(),
                 const SizedBox(height: 16),
                 const _CredentialsSection(),
                 const SizedBox(height: 16),
@@ -86,89 +86,140 @@ class _Section extends StatelessWidget {
   }
 }
 
-class _AccountSection extends ConsumerWidget {
-  const _AccountSection();
+class _LicenseSection extends ConsumerWidget {
+  const _LicenseSection();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(sessionProvider);
-    if (session == null) {
-      return const _Section(
-        title: 'Account',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Not signed in'),
-            SizedBox(height: 4),
-            Text('Sign in with the administrator account to use the app.'),
-          ],
-        ),
-      );
-    }
-    final email = emailFromAccessToken(session.accessToken);
-    final stateLine = session.offline ? 'Signed in (offline)' : 'Signed in';
+    final state = ref.watch(licenseControllerProvider);
     return _Section(
-      title: 'Account',
-      child: Row(
-        children: [
-          const Icon(Icons.account_circle_outlined),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  email ?? 'Administrator',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  stateLine,
-                  key: const Key('settings-account-state'),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          TextButton(
-            key: const Key('settings-sign-out'),
-            onPressed: () => _signOut(context, ref),
-            child: const Text('Sign out'),
-          ),
-        ],
+      title: 'License',
+      child: state.when(
+        loading: () => const Text('Checking the license…'),
+        error: (error, stackTrace) =>
+            const Text('The license could not be read.'),
+        data: (license) => license is Active
+            ? _active(context, ref, license)
+            : _locked(context, license),
       ),
     );
   }
 
-  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+  Widget _active(BuildContext context, WidgetRef ref, Active license) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.verified_user_outlined),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Active license',
+                    key: const Key('settings-license-state'),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Expires ${_date(license.expiresAt)}'
+                    '${license.offline ? ' · offline' : ''}',
+                    key: const Key('settings-license-expiry'),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: [
+            TextButton(
+              key: const Key('settings-change-license'),
+              onPressed: () => context.go(licenseRoute),
+              child: const Text('Change license'),
+            ),
+            TextButton(
+              key: const Key('settings-deactivate'),
+              onPressed: () => _deactivate(context, ref),
+              child: const Text('Deactivate this PC'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _locked(BuildContext context, LicenseState license) {
+    final text = license is Locked && license.reason == LicenseError.missing
+        ? 'No active license.'
+        : license is Locked
+        ? license.text
+        : LicenseError.missing.message;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(text, key: const Key('settings-license-state')),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          key: const Key('settings-activate-license'),
+          onPressed: () => context.go(licenseRoute),
+          child: const Text('Activate license'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _deactivate(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         content: const Text(
-          'Signing out removes the saved posts from this machine. '
+          'Deactivating removes the license from this machine. '
           'Your drafts are kept.',
         ),
         actions: [
           TextButton(
-            key: const Key('confirm-sign-out-keep'),
+            key: const Key('confirm-deactivate-keep'),
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Stay signed in'),
+            child: const Text('Stay activated'),
           ),
           FilledButton(
-            key: const Key('confirm-sign-out'),
+            key: const Key('confirm-deactivate'),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Sign out'),
+            child: const Text('Deactivate'),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
-    await ref.read(signOutProvider).run();
+    final cleared = await ref
+        .read(licenseControllerProvider.notifier)
+        .deactivate();
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Signed out.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          cleared
+              ? 'License deactivated.'
+              : 'The license could not be removed from this machine.',
+        ),
+      ),
+    );
   }
 }
+
+String _date(DateTime value) {
+  final local = value.toLocal();
+  return '${local.year}-${_two(local.month)}-${_two(local.day)}';
+}
+
+String _two(int value) => value.toString().padLeft(2, '0');
 
 /// Where the backend values are entered and changed (SPEC-credentials).
 class _CredentialsSection extends ConsumerStatefulWidget {
@@ -220,10 +271,11 @@ class _CredentialsSectionState extends ConsumerState<_CredentialsSection> {
       return 'The values could not be saved on this machine. Check the app '
           'folder and try again.';
     }
-    // A post from the old backend must not look like one from the new one
+    // A post from the old backend must not look like one from the new one,
+    // and the grant was minted by the old backend
     // (SPEC-credentials "A backend change while signed in").
-    if (backendChanged && ref.read(sessionProvider) != null) {
-      await ref.read(signOutProvider).run();
+    if (backendChanged && ref.read(licenseControllerProvider).value is Active) {
+      await ref.read(licenseControllerProvider.notifier).deactivate();
     }
     return null;
   }
@@ -238,10 +290,10 @@ class _CredentialsSectionState extends ConsumerState<_CredentialsSection> {
             after.supabaseAnonKey != current.supabaseAnonKey);
     final cleared = await ref.read(configControllerProvider.notifier).clear();
     if (!cleared) return false;
-    // The session belongs to the backend that is no longer in use, the same
+    // The grant belongs to the backend that is no longer in use, the same
     // rule a save follows.
-    if (backendChanged && ref.read(sessionProvider) != null) {
-      await ref.read(signOutProvider).run();
+    if (backendChanged && ref.read(licenseControllerProvider).value is Active) {
+      await ref.read(licenseControllerProvider.notifier).deactivate();
     }
     if (ref.read(configControllerProvider).needsSetup) {
       if (mounted) context.go(setupRoute);

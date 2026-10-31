@@ -3,11 +3,13 @@ import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/features/accounts/accounts_providers.dart';
 import 'package:flowpost_desktop/features/accounts/data/accounts_repository.dart';
 import 'package:flowpost_desktop/features/accounts/domain/connected_account.dart';
+import 'package:flowpost_desktop/features/license/license_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/config_overrides.dart';
+import '../../support/fake_license.dart';
 
 const _config = AppConfig(
   supabaseUrl: 'https://test.supabase.co',
@@ -60,6 +62,7 @@ Future<void> _pumpApp(
       overrides: [
         seededConfig(_config),
         accountsRepositoryProvider.overrideWith((ref) => repository),
+        licenseStoreProvider.overrideWithValue(MemoryLicenseStore()),
       ],
       child: FlowPostApp(initialDeepLink: initialLocation),
     ),
@@ -195,7 +198,7 @@ void main() {
 
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
-    expect(find.text('Not signed in'), findsOneWidget);
+    expect(find.text('No active license.'), findsOneWidget);
     expect(find.text('This build has no update source.'), findsOneWidget);
   });
 }
