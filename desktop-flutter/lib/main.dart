@@ -17,6 +17,7 @@ import 'core/logging/startup_failure.dart';
 import 'core/router/app_router.dart' show deepLinkAllowlist;
 import 'core/router/deep_link_dispatcher.dart';
 import 'core/shell/flowpost_shell.dart';
+import 'core/shell/protocol_registration.dart';
 import 'features/media/data/media_file_picker.dart';
 import 'features/media/data/media_workspace.dart';
 import 'features/media/media_providers.dart';
@@ -66,6 +67,7 @@ Future<void> main({MediaFilePicker? picker}) async {
           await flushLogging();
           exit(0);
         }
+        await _ensureProtocol(log);
         await shell.startWindowAndTray();
       } on Object catch (error, stackTrace) {
         await reportStartupFailure(
@@ -121,6 +123,21 @@ Future<void> main({MediaFilePicker? picker}) async {
       stderr.writeln('FlowPost failed to start: $error\n$stackTrace');
     },
   );
+}
+
+/// The portable build has no installer, so the app points `flowpost://` at
+/// itself on first run; the installer writes the same keys.
+Future<void> _ensureProtocol(Logger log) async {
+  try {
+    final registered = await ProtocolRegistrar(
+      exePath: Platform.resolvedExecutable,
+    ).ensureRegistered();
+    if (!registered) {
+      log.warning('flowpost:// could not be registered for this user.');
+    }
+  } on Object catch (error) {
+    log.warning('flowpost:// registration failed: $error');
+  }
 }
 
 Future<String?> _getInitialLink() async {

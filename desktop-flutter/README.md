@@ -130,7 +130,8 @@ The old Pake app uses a different data root and is not migrated.
 
 ## Deep link
 
-The installed app registers `flowpost://`. Auth callbacks use:
+The app registers `flowpost://` for the current user on launch (the installer
+writes the same keys). Auth callbacks use:
 
 ```text
 flowpost://auth-callback?code=...&state=...
