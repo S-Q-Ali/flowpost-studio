@@ -32,8 +32,7 @@ class SupabaseAuthGateway implements AuthGateway {
       _session(_client.auth.currentSession);
 
   @override
-  Future<void> signOut() =>
-      _client.auth.signOut(scope: SignOutScope.global);
+  Future<void> signOut() => _client.auth.signOut(scope: SignOutScope.global);
 }
 
 class SupabaseUsersGateway implements UsersGateway {

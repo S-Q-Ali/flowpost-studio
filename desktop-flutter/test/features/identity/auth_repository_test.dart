@@ -144,7 +144,11 @@ void main() {
       throwsA(
         isA<IdentityException>()
             .having((e) => e.error, 'error', IdentityError.invalidCredentials)
-            .having((e) => e.message, 'message', 'Email or password is incorrect.'),
+            .having(
+              (e) => e.message,
+              'message',
+              'Email or password is incorrect.',
+            ),
       ),
     );
   });
@@ -261,19 +265,22 @@ void main() {
     expect((state as AwaitingQuestions).questionsConfigured, isTrue);
   });
 
-  test('a valid stored token signs the admin in and caches the profile', () async {
-    await store.writeAdminToken(
-      AdminToken(token: 'token', issuedAt: DateTime.utc(2026)),
-    );
+  test(
+    'a valid stored token signs the admin in and caches the profile',
+    () async {
+      await store.writeAdminToken(
+        AdminToken(token: 'token', issuedAt: DateTime.utc(2026)),
+      );
 
-    final state = await repository.stateFor(_FakeAuth.session);
-    final profile = await store.readProfile();
+      final state = await repository.stateFor(_FakeAuth.session);
+      final profile = await store.readProfile();
 
-    expect(state, isA<SignedIn>());
-    expect((state as SignedIn).userId, 'user-1');
-    expect(profile?.isAdmin, isTrue);
-    expect(profile?.email, 'admin@example.com');
-  });
+      expect(state, isA<SignedIn>());
+      expect((state as SignedIn).userId, 'user-1');
+      expect(profile?.isAdmin, isTrue);
+      expect(profile?.email, 'admin@example.com');
+    },
+  );
 
   test('an invalid token is removed and the questions return', () async {
     await store.writeAdminToken(
