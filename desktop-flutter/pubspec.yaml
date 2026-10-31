@@ -49,6 +49,10 @@ dependencies:
   # The local cache and the local drafts. The build hook compiles SQLite from
   # source, so the app carries its own library (ADR 0003).
   sqlite3: ^3.8.0
+  # Supabase Auth for the admin sign-in; tokens live in the Windows
+  # Credential Manager, never in a file (SPEC-identity).
+  supabase_flutter: ^2.18.3
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:
