@@ -133,15 +133,39 @@ license key (user)            hash = sha256(key)              secure vault:
     loading → `/starting`, license reachable while active, pending link and
     setup still wins when config is missing; `flutter analyze` clean.
 
-- [ ] **L9 — Settings and sign-out** (S)
-  Replace the Account section with a License section (state line + expiry +
-  "Change license" → `/license`, "Deactivate this PC" with the same confirmation
-  and cache wipe). `Session` drops the unused `accessToken` and
-  `authAccessTokenProvider`; removing the Supabase JWT from the app is part of the
-  unwiring.
+- [x] **L9 — Settings license section and deactivation** (S)
+  Replace the Account section with a License section: the state line, the expiry,
+  "Change license" → `/license`, and "Deactivate this PC" behind the existing
+  confirmation. Deactivation clears the vault record, the session, the queue and
+  calendar reads and the posts cache, whichever of those fail. `settings_providers`
+  stops importing the identity module. The diagnostics line becomes
+  "License: active/inactive".
   - Acceptance: settings tests show Active/expired/offline copy; deactivation
     clears the token and the caches even when identity is not present; no settings
-    copy mentions signing in.
+    copy mentions signing in; a failed vault clear still ends the session and the
+    caches.
+  - Note: `Session.accessToken` stays until **L9b**, because the queue and publish
+    writes still need it (see below).
+  - Done 2026-10-31: `deactivate()` returns whether the vault was cleared but ends
+    the session and caches either way; the license page gained a "Back to the app"
+    link so Settings → "Change license" is not a dead end; `signedIn` in the
+    diagnostics facts became `licensed`. All 858 tests, analyzer and formatter
+    green; no `lib/` file outside `features/identity/**` imports identity.
+
+- [ ] **L9b — Posts access without Supabase Auth** (M) — found while reading L9
+  The queue, calendar and publish writes talk to `posts` over PostgREST with the
+  Supabase Auth JWT (`auth.uid() = user_id`). With login gone there is no JWT to
+  send, and the 7-day session token is not one. Add a `posts-api` edge function
+  (service role, `_shared/auth.ts` session lookup, ownership from the session's
+  user) exposing only the calls the desktop makes: list, range, read, insert,
+  update, delete. Move `PostgrestPostsRepository` and
+  `PostgrestScheduledPostsRepository` onto it, rewrite their tests, then delete
+  `Session.accessToken`, `authAccessTokenProvider` and the JWT helpers, and change
+  the remaining "Sign in required" copy.
+  - Acceptance: no `rest/v1` call from the desktop app; a session can only touch
+    its own rows; the queue/calendar/publish tests run against a fake function
+    transport; no `lib/` file imports `core/auth/access_token.dart`.
+  - Deploy: ships with L11 (owner-assisted).
 
 ### Phase 3 — Docs, deploy and gate
 

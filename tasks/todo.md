@@ -821,7 +821,7 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 - [x] L6 — License controller driving `sessionProvider`
 - [x] L7 — `/license` screen + widget tests
 - [x] L8 — Unwire identity from `app.dart`, `main.dart`, the router; add the guard
-- [ ] L9 — Settings license section; drop `Session.accessToken`
+- [x] L9 — Settings license section and deactivation (`Session.accessToken` moves in L9b)
 - [ ] L10 — SPEC-license, ADR 0005, inactive note on SPEC-identity, runbook
 - [ ] L11 — **Owner:** deploy migration + functions, seed a key, manual Windows gate
 - [ ] L12 — Gate: format, analyze, full tests, graph, atomic commits
