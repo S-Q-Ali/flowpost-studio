@@ -105,7 +105,7 @@ license key (user)            hash = sha256(key)              secure vault:
     clear removes all three records.
   - Files: `lib/features/license/data/*.dart`, tests beside them.
 
-- [ ] **L6 — Controller and session wiring** (S)
+- [x] **L6 — Controller and session wiring** (S)
   `licenseControllerProvider` (AsyncNotifier) that drives
   `sessionProvider.signIn/clear` and loads at startup; `/starting` while loading.
   - Acceptance: provider tests cover activate, restore, expiry, clear.
