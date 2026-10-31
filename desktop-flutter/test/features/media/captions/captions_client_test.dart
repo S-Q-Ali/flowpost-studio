@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flowpost_desktop/features/media/captions/data/captions_client.dart';
 import 'package:flowpost_desktop/features/media/captions/domain/caption_processing.dart';
+import 'package:flowpost_desktop/features/media/data/connection_failure.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// A transport that answers with one canned reply and records what it sent.
@@ -308,6 +309,78 @@ void main() {
         ),
       );
       expect(transport.bodies, isEmpty);
+    });
+  });
+
+  group('a call that never reaches the service', () {
+    test('nothing listens on the port', () async {
+      // Bound once and given back, so the port is certainly empty.
+      final closed = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final port = closed.port;
+      await closed.close(force: true);
+
+      final client = CaptionsClient(
+        endpoint: Uri.parse('http://127.0.0.1:$port/captions'),
+        token: 'session-token',
+      );
+
+      await expectLater(
+        client.transcribe(audioBase64: 'AAAA', filename: 'audio.mp3'),
+        throwsA(
+          isA<CaptionException>().having(
+            (error) => error.message,
+            'message',
+            noConnectionMessage,
+          ),
+        ),
+      );
+    });
+
+    test('the host does not resolve', () async {
+      final client = CaptionsClient(
+        endpoint: Uri.parse(
+          'http://flowpost-studio-does-not-exist.invalid/captions',
+        ),
+        token: 'session-token',
+      );
+
+      await expectLater(
+        client.transcribe(audioBase64: 'AAAA', filename: 'audio.mp3'),
+        throwsA(
+          isA<CaptionException>().having(
+            (error) => error.message,
+            'message',
+            noConnectionMessage,
+          ),
+        ),
+      );
+    });
+
+    test('the TLS handshake does not complete', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      // A plain HTTP server answering a TLS hello: the handshake dies.
+      server.listen((request) async {
+        await request.drain<void>();
+        request.response.write('not tls');
+        await request.response.close();
+      });
+
+      final client = CaptionsClient(
+        endpoint: Uri.parse('https://127.0.0.1:${server.port}/captions'),
+        token: 'session-token',
+      );
+
+      await expectLater(
+        client.transcribe(audioBase64: 'AAAA', filename: 'audio.mp3'),
+        throwsA(
+          isA<CaptionException>().having(
+            (error) => error.message,
+            'message',
+            noConnectionMessage,
+          ),
+        ),
+      );
     });
   });
 

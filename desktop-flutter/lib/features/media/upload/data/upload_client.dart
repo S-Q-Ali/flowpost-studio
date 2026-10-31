@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import '../../data/connection_failure.dart';
 import '../domain/upload_processing.dart';
 
 /// What the upload service answered.
@@ -271,6 +272,11 @@ class HttpUploadTransport implements UploadTransport {
     } on TimeoutException {
       cancel();
       throw const UploadException('The upload did not answer. Try again.');
+    } on Object catch (error) {
+      // A socket that would not open is the user's network, not the file:
+      // left to escape, it reaches the screen as "something went wrong".
+      if (!isNoConnection(error)) rethrow;
+      throw const UploadException(noConnectionMessage);
     }
   }
 

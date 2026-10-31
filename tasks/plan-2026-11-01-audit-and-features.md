@@ -204,11 +204,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: none · Size: XS.
   - Done: `clear()` now loops over the three records, remembers a failure, and raises one `storageUnavailable` after trying all of them. The controller already ends the session and wipes the cache whatever the vault says, so a stuck record cannot keep this run signed in.
 
-- [ ] **B8. Report network failures properly** — Should (desktop 8)
+- [x] **B8. Report network failures properly** — Should (desktop 8)
   - Accept: `SocketException`, TLS and DNS failures map to "No connection — check your network and try again", not "invalid response"; both upload and captions.
   - Verify: transport tests for each exception type.
   - Files: `lib/features/media/upload/data/upload_client.dart`, `lib/features/media/captions/data/captions_client.dart`, tests.
   - Dep: none · Size: S.
+  - Done: one `connection_failure.dart` holds the sentence and the test (`SocketException` for a host that will not resolve, a port nobody listens on, a dropped socket; `HandshakeException` for TLS). Both transports catch it and rethrow their own typed failure; anything else still escapes to the generic handler. Six transport tests, one per exception type per client, against real sockets.
 
 - [ ] **B9. Drain FFmpeg streams before closing** — Should (desktop 9)
   - Accept: the runner waits for the buffered output to end after exit, so the last progress/error lines are not dropped.

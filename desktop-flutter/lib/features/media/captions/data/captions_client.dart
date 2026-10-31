@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../data/connection_failure.dart';
 import '../domain/caption_processing.dart';
 import '../domain/caption_prompt.dart';
 
@@ -291,6 +292,11 @@ class HttpCaptionTransport implements CaptionTransport {
       throw const CaptionException(
         'The caption service did not answer. Try again.',
       );
+    } on Object catch (error) {
+      // A socket that would not open is the user's network, not the video:
+      // left to escape, it reaches the screen as "something went wrong".
+      if (!isNoConnection(error)) rethrow;
+      throw const CaptionException(noConnectionMessage);
     }
   }
 

@@ -51,7 +51,8 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - Captions, upload and the publish function still show only their own error text — the re-check hangs off `posts-api`.
 - [x] B7. Clear the vault when one key fails
       - `SecureLicenseStore.clear()` tries all three records and reports one `storageUnavailable` failure; the session and cache still end in the app.
-- [ ] B8. Report network failures properly
+- [x] B8. Report network failures properly
+      - `connection_failure.dart` holds the sentence and the test for a socket or TLS failure; both media transports rethrow it as their own typed error instead of letting the raw exception reach the generic panel.
 - [ ] B9. Drain FFmpeg streams before closing
 - [ ] B10. Stop FFmpeg on quit
 - [ ] B11. Delete the dead identity module
