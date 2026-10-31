@@ -38,7 +38,9 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - Deliberate limit: only a run where every target went out records the signature. A run with a failed or unconfirmed target leaves `signature` null, so the same inputs stay retryable — the retry button is not always available (the row must read back as failed).
       - Test: 5 controller tests (repeat, reordered targets, edited caption, another file, failed run) + 3 widget tests (button off, caption edit re-opens it, failure keeps it live).
 - [x] B2. Delete stale media only in the primary instance
-- [ ] B3. Fence a replaced media job
+- [x] B3. Fence a replaced media job
+      - Fixed: `MediaController` keeps the current `MediaJob`; a run whose id is no longer current writes no state, deletes no folder and never takes `_processor`. A new pick cancels the old encode.
+      - The old code also deleted the *new* file's folder when the replaced encode answered with a cancellation — that is the data-loss case now covered by a test.
 - [ ] B4. Release workflow for the desktop installer
 - [ ] B5. Fix the landing download CTA
 - [ ] B6. Re-check session expiry (timer + 401)

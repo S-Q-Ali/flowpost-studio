@@ -168,11 +168,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: none · Size: S.
   - Done: `startAsPrimary()` in `lib/main.dart` runs the guard first and the cleanup (stale media plus the protocol write) after; `test/core/startup_order_test.dart` covers both outcomes.
 
-- [ ] **B3. Fence a replaced media job** — Must (desktop 4)
+- [x] **B3. Fence a replaced media job** — Must (desktop 4)
   - Accept: each run carries its job id; progress and completion are ignored when the id no longer matches; picking a second file cancels the first processor.
   - Verify: test — start job A, pick B, let A complete → state stays on B; no "ready" flash from A.
   - Files: `lib/features/media/media_providers.dart`, `test/features/media/media_controller_test.dart`.
   - Dep: none · Size: S.
+  - Done: the controller now holds the current `MediaJob` (not a bare folder) and every state write, deletion and `_processor` hand-off checks its id. The pick of a new file cancels the encode of the old one — which, before this, let a cancelled run delete the folder of the file that replaced it.
 
 - [ ] **B4. Ship a real release for the download CTA** — Must (desktop 5)
   - Accept: a tag `desktop-v*` builds the Windows installer, records a SHA-256, and uploads installer + checksum to a GitHub release.
