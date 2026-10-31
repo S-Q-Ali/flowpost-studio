@@ -59,7 +59,9 @@ async function chatQuota(
   if (quota.allowed) return { allowed: true };
   return {
     allowed: false,
-    error: "The caption quota for this hour is used up. Try again later.",
+    error: quota.resetAt
+      ? "The caption quota for this hour is used up. Try again later."
+      : "The caption service is unavailable. Try again shortly.",
   };
 }
 

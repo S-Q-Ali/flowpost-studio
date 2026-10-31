@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { checkRateLimit, recordFailedAttempt, LOCKOUT_DURATION_MINUTES } from "../_shared/rate-limit.ts";
+import { consumeRateLimit, type RateLimitResult } from "../_shared/rate-limit.ts";
 import { hashLicenseKey, isLicenseUsable, normalizeLicenseKey } from "../_shared/license.ts";
 import { createSession } from "../_shared/session.ts";
 
@@ -11,7 +11,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ADMIN_USER_ID_FALLBACK = "00000000-0000-0000-0000-000000000000";
-const RATE_LIMIT_KEY = "verify-license";
 
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
@@ -33,6 +32,26 @@ function json(data: unknown, status = 200) {
   });
 }
 
+/** The refusal for a spent bucket, or null when the attempt may go on. */
+function refused(rate: RateLimitResult): Response | null {
+  if (rate.allowed) return null;
+  if (!rate.resetAt) {
+    return json(
+      { valid: false, error: "The license check is unavailable. Try again shortly." },
+      503,
+    );
+  }
+  const minutes = Math.max(
+    1,
+    Math.ceil((new Date(rate.resetAt).getTime() - Date.now()) / 60000),
+  );
+  return json({
+    valid: false,
+    error: `Too many attempts. Try again in ${minutes} minutes.`,
+    lockoutUntil: rate.resetAt,
+  }, 429);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -47,27 +66,26 @@ Deno.serve(async (req) => {
     || "unknown";
 
   try {
-    const rateCheck = await checkRateLimit(supabase, RATE_LIMIT_KEY, ip);
-    if (!rateCheck.allowed) {
-      const lockoutDate = rateCheck.lockoutUntil ? new Date(rateCheck.lockoutUntil) : null;
-      const remainingMinutes = lockoutDate
-        ? Math.max(1, Math.ceil((lockoutDate.getTime() - Date.now()) / 60000))
-        : LOCKOUT_DURATION_MINUTES;
-      return json({
-        valid: false,
-        error: `Too many attempts. Try again in ${remainingMinutes} minutes.`,
-        lockoutUntil: rateCheck.lockoutUntil,
-      }, 429);
-    }
+    // Every attempt counts against both buckets: the caller's IP, so one
+    // machine cannot guess in a loop, and the key itself, so many machines
+    // cannot guess one key.
+    const ipRefusal = refused(
+      await consumeRateLimit(supabase, `verify-license:ip:${ip}`, { max: 10 }),
+    );
+    if (ipRefusal) return ipRefusal;
 
     const body = await req.json() as { licenseKey?: string };
     const key = normalizeLicenseKey(body?.licenseKey);
     if (!key) {
-      await recordFailedAttempt(supabase, RATE_LIMIT_KEY, ip);
       return json({ valid: false, error: "Invalid license key" }, 400);
     }
 
     const keyHash = await hashLicenseKey(key);
+    const keyRefusal = refused(
+      await consumeRateLimit(supabase, `verify-license:key:${keyHash}`, { max: 10 }),
+    );
+    if (keyRefusal) return keyRefusal;
+
     const { data: license, error } = await supabase
       .from("licenses")
       .select("id, active, expires_at, user_id")
@@ -80,7 +98,6 @@ Deno.serve(async (req) => {
     }
 
     if (!license || !isLicenseUsable(license)) {
-      await recordFailedAttempt(supabase, RATE_LIMIT_KEY, ip);
       return json({ valid: false, error: "Invalid license key" }, 401);
     }
 
