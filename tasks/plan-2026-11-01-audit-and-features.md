@@ -232,11 +232,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: none · Size: S (-3,920 lines).
   - Done: the module and its tests are gone, with `loginRoute`, `questionsRoute` and `authCallbackRoute` — the three constants no route served. `supabase_flutter` followed them out of `pubspec.yaml` (the identity files were its only importers; `Supabase.initialize` appeared nowhere, so nothing was ever bootstrapped). The specs that still describe it (`docs/adr/0001-dual-auth-session.md`, marked Proposed, and `SPEC-identity.md`, referenced by `SPEC-settings.md`) are left for a docs pass.
 
-- [ ] **B12. Stop the draft restore from overwriting edits** — Should (desktop 12)
+- [x] **B12. Stop the draft restore from overwriting edits** — Should (desktop 12)
   - Accept: the draft is applied once, before the user's first edit; a late restore never replaces typed text.
   - Verify: test — type, then let the restore resolve → the typed caption stays; reopen a saved draft → it loads.
   - Files: `lib/features/publishing/publishing_providers.dart`, test.
   - Dep: none · Size: S.
+  - Done: `PublishComposer` counts the changes that go through `_update`, and `_restore` drops a draft that arrives after the count moved. `FakeDraftsRepository` grew a `holdLoads` completer so a widget test can type into the empty form and then release the read.
 
 - [ ] **B13. "Try again" retries the same file** — Nice (desktop 13)
   - Accept: the failed state retries the kept file path; the picker opens only from "Choose another file".

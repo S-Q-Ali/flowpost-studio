@@ -59,7 +59,8 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - `quit()` calls `killRunningFfmpeg()` before anything that could end in `exit(0)`; the runner keeps its child in a process-global slot, the way the pipeline runs one encoder at a time.
 - [x] B11. Delete the dead identity module
       - 12 lib files and 8 test files (3,920 lines) gone, plus the three route constants no router served; `supabase_flutter` left `pubspec.yaml` with them because nothing else imported it. `flutter_secure_storage` stays — the license vault still uses it.
-- [ ] B12. Draft restore must not overwrite edits
+- [x] B12. Draft restore must not overwrite edits
+      - `_restore` compares the number of form changes it saw when the read started with the number now; any edit in between means the draft is the older form and is dropped.
 - [ ] B13. "Try again" retries the same file
 - [ ] B14. Sniff image types from bytes
 - [ ] B15. Phase B gate

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flowpost_desktop/app.dart';
 import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
@@ -593,6 +595,32 @@ void main() {
         find.byKey(const Key('caption-instagram:ig-1:feed')),
         findsOneWidget,
       );
+    });
+
+    testWidgets('does not replace what was typed while it was read', (
+      tester,
+    ) async {
+      final drafts = FakeDraftsRepository({'video-1': saved()})
+        ..holdLoads = Completer<void>();
+
+      await _pump(tester, drafts: drafts);
+
+      // The store is still reading, so the admin starts on an empty form.
+      await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('caption-instagram:ig-1:feed')),
+        'Typed while waiting',
+      );
+      await tester.pumpAndSettle();
+
+      // The saved form is the older one, so it arrives to nothing to show.
+      drafts.holdLoads!.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Typed while waiting'), findsOneWidget);
+      expect(find.text('Saved caption'), findsNothing);
+      expect(find.byKey(const Key('draft-restored')), findsNothing);
     });
 
     testWidgets('kept by a restart is listed and opens without an upload', (
