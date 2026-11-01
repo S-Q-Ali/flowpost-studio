@@ -97,7 +97,10 @@ void main() {
   ) async {
     await _pumpApp(tester, FakeAccountsRepository(const []));
 
-    expect(find.text('No accounts yet.'), findsOneWidget);
+    expect(
+      find.textContaining('No accounts yet. Connect a platform'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('an offline read says the list came from this PC', (
@@ -110,8 +113,8 @@ void main() {
 
     expect(
       find.text(
-        'Showing the accounts this PC kept. Reconnect to see the live '
-        'list.',
+        'Showing the accounts this PC kept. The live list returns with '
+        'a connection.',
       ),
       findsOneWidget,
     );
@@ -123,7 +126,8 @@ void main() {
   ) async {
     await _pumpApp(tester, FakeAccountsRepository(const [])..offline = true);
 
-    expect(find.text('No accounts yet.'), findsOneWidget);
+    expect(find.textContaining('No accounts yet'), findsOneWidget);
+    expect(find.textContaining('this PC kept'), findsNothing);
   });
 
   testWidgets('a live read does not claim to be a copy', (tester) async {

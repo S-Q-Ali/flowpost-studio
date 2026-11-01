@@ -176,7 +176,8 @@ String _noTargetsMessage(AsyncValue<List<PublishTarget>> targets) {
   if (targets.hasError) {
     return 'The connected accounts could not be read. Open Accounts to see why.';
   }
-  return 'No account is connected yet. Open Accounts to connect one.';
+  return 'No account is connected yet. '
+      'Connect a platform in the web dashboard.';
 }
 
 /// Whether these exact inputs already went out in the finished run.

@@ -22,16 +22,18 @@ class AccountsPage extends ConsumerWidget {
           Text('Accounts', style: theme.textTheme.headlineMedium),
           const SizedBox(height: 4),
           Text(
-            'Connect the channels FlowPost publishes to.',
+            'The channels FlowPost publishes to. '
+            'Connect a platform in the web dashboard.',
             style: theme.textTheme.bodyMedium,
           ),
           // The list is the server's whenever the server answered; only a
-          // read that could not reach it is the copy this PC kept.
-          if (read != null && read.offline) ...[
+          // read that could not reach it is the copy this PC kept. Nothing
+          // kept is not a copy, it is the empty state.
+          if (read != null && read.offline && read.accounts.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
-              'Showing the accounts this PC kept. Reconnect to see the live '
-              'list.',
+              'Showing the accounts this PC kept. The live list returns with '
+              'a connection.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -48,7 +50,12 @@ class AccountsPage extends ConsumerWidget {
                 },
               ),
               data: (read) => read.accounts.isEmpty
-                  ? const Center(child: Text('No accounts yet.'))
+                  ? const Center(
+                      child: Text(
+                        'No accounts yet. '
+                        'Connect a platform in the web dashboard.',
+                      ),
+                    )
                   : _AccountGrid(items: read.accounts),
             ),
           ),
