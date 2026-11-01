@@ -83,3 +83,9 @@ verify_jwt = false
 
 [functions.google-oauth]
 verify_jwt = false
+
+[functions.operator-config]
+verify_jwt = false
+
+[functions.config-status]
+verify_jwt = false
