@@ -369,10 +369,11 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: B11 · Size: S.
   - Done `8a7cc7d`: both files with 23 tests. A link must state a result, an absent `result` answers nothing; the wait lives in memory only, because a nonce on disk is a replayable token and a restart re-reads the account list from the server anyway.
 
-- [ ] **F2. `return_to` allowlist in the auth functions** — Accept: each `*-auth` accepts `return_to` only for `flowpost://connect-callback` and the existing Vercel URL, stores it with the state, and redirects there; anything else falls back to Vercel.
+- [x] **F2. `return_to` allowlist in the auth functions** — Accept: each `*-auth` accepts `return_to` only for `flowpost://connect-callback` and the existing Vercel URL, stores it with the state, and redirects there; anything else falls back to Vercel.
   - Verify: `oauth-state.test.ts` and a redirect test per function family; an attacker-supplied host cannot change the `Location`.
   - Files: `_shared/oauth-state.ts`, `_shared/oauth-state.test.ts`, six `*-auth/index.ts`.
   - Dep: none · Size: M.
+  - Done `e228202`: `normalizeReturnTo` + `callbackLocation` in `_shared/oauth-state.ts`, a `return_to` column on `oauth_states`, and all seven state-carrying `*-auth` functions wired (the plan said six; `google-drive-auth` carries state too). `callbackLocation` re-checks the stored row, so even a hand-written `return_to` cannot put a foreign host in `Location`. The per-family redirect tests live in the shared suite rather than seven near-copies; `oauth-state.test.ts` grew 17 tests and the full web gate is green.
 
 - [ ] **F3. `connect-url` and `disconnect` in posts-api** — Accept: `connect-url` returns the provider URL + state for a platform with the license session, binding the desktop nonce; `disconnect` deletes only the caller's row and best-effort revokes at the provider.
   - Verify: function tests — wrong user cannot disconnect; unknown platform rejected; no token in the response.
