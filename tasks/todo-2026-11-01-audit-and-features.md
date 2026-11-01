@@ -63,7 +63,8 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - `_restore` compares the number of form changes it saw when the read started with the number now; any edit in between means the draft is the older form and is dropped.
 - [x] B13. "Try again" retries the same file
       - `MediaFailed` holds the job that failed and `retry()` re-runs it; the picker opens only from "Choose another file" or when no file was kept.
-- [ ] B14. Sniff image types from bytes
+- [x] B14. Sniff image types from bytes
+      - The upload reads the first 12 bytes of an image: JPEG/PNG/WEBP come from the signatures, and only an unrecognized header falls back to the extension. Videos keep the type the pipeline settled, and their path never awaits, so a cancel still stops the request.
 - [ ] B15. Phase B gate
 
 ## Phase C — Real publish targets

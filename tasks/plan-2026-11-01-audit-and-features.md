@@ -246,11 +246,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: none · Size: XS.
   - Done: `MediaFailed` carries the job whose run failed, and `retry()` runs that job through the pipeline again — the folder of a failed run is still on disk. With no job behind the message (a rejected file, no workspace) it falls back to the picker, which is the only way forward there.
 
-- [ ] **B14. Sniff image types from bytes** — Nice (desktop 14)
+- [x] **B14. Sniff image types from bytes** — Nice (desktop 14)
   - Accept: JPEG/PNG/WEBP are detected from magic bytes; a mislabelled extension cannot set the wrong content type.
   - Verify: unit test per signature plus an unknown file fallback.
   - Files: `lib/features/media/upload/upload_providers.dart`, test.
   - Dep: none · Size: S.
+  - Done: the controller reads the first 12 bytes of an image and answers JPEG/PNG/WEBP from the signatures; only bytes that match none of them fall back to the extension, which is what the picker already allowed through. The type the service stores is the one the bytes give, so `media_type` and the platform link are right. Videos are untouched — the pipeline already fixed their type, and the read stays off that path so a cancel still has a request to abort.
 
 - [ ] **B15. Phase B gate** — analyze, format, `flutter test`, release build.
 
