@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,8 @@ import 'core/router/app_router.dart' show deepLinkAllowlist;
 import 'core/router/deep_link_dispatcher.dart';
 import 'core/shell/flowpost_shell.dart';
 import 'core/shell/protocol_registration.dart';
+import 'core/theme/theme_controller.dart';
+import 'core/theme/theme_store.dart';
 import 'features/media/data/media_file_picker.dart';
 import 'features/media/data/media_workspace.dart';
 import 'features/media/media_providers.dart';
@@ -97,6 +100,11 @@ Future<void> main({MediaFilePicker? picker}) async {
       );
       unawaited(_listenDeepLinks(dispatcher));
 
+      // Read before the first frame: the window never shows the system look
+      // to a user who left the app in the dark one.
+      final themeStore = ThemeStore();
+      final themeMode = await themeStore.read() ?? ThemeMode.system;
+
       final compiledValues = compiled;
       runApp(
         ProviderScope(
@@ -106,6 +114,10 @@ Future<void> main({MediaFilePicker? picker}) async {
               compiledConfigProvider.overrideWithValue(compiledValues),
             configControllerProvider.overrideWith(
               () => ConfigController(initial: configState),
+            ),
+            themeStoreProvider.overrideWithValue(themeStore),
+            themeControllerProvider.overrideWith(
+              () => ThemeController(initial: themeMode),
             ),
             if (picker != null) mediaPickerProvider.overrideWithValue(picker),
           ],

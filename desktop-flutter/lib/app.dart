@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'core/config/config_controller.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_controller.dart';
 import 'features/license/data/license_models.dart';
 import 'features/license/license_controller.dart';
 
@@ -73,6 +74,8 @@ class _FlowPostAppState extends ConsumerState<FlowPostApp> {
       title: 'FlowPost Studio',
       debugShowCheckedModeBanner: false,
       theme: flowPostLightTheme(),
+      darkTheme: flowPostDarkTheme(),
+      themeMode: ref.watch(themeControllerProvider),
       routerConfig: _router,
     );
   }
