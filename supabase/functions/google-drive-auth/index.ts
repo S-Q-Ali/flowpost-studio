@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
-import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
+import { createOAuthState, consumeOAuthState, callbackLocation, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
@@ -14,6 +14,7 @@ const GD_CLIENT_ID = Deno.env.get("GD_CLIENT_ID");
 const GD_CLIENT_SECRET = Deno.env.get("GD_CLIENT_SECRET");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const APP_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || DEFAULT_APP_ORIGIN;
 
 const R2_ENDPOINT = Deno.env.get("R2_ENDPOINT");
 const R2_ACCESS_KEY = Deno.env.get("R2_ACCESS_KEY");
@@ -151,7 +152,11 @@ Deno.serve(async (req) => {
       if (!owner.userId) return json({ error: "Missing userId" }, 400);
       const reqUserId = owner.userId;
       const loginHint = url.searchParams.get("login_hint");
-      const state = await createOAuthState(supabaseAdmin, { userId: reqUserId });
+      const state = await createOAuthState(supabaseAdmin, {
+        userId: reqUserId,
+        returnTo: url.searchParams.get("return_to") || body?.return_to,
+        appOrigin: APP_ORIGIN,
+      });
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", GD_CLIENT_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
@@ -227,7 +232,7 @@ Deno.serve(async (req) => {
 
       return new Response(null, {
         status: 302,
-        headers: { Location: "https://flowpost-studio.vercel.app/accounts?connected=drive" },
+        headers: { Location: callbackLocation(oauthState.returnTo, APP_ORIGIN, "google_drive") },
       });
     }
 

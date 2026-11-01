@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
-import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
+import { createOAuthState, consumeOAuthState, callbackLocation, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -13,6 +13,7 @@ const TIKTOK_CLIENT_SECRET = Deno.env.get("TIKTOK_CLIENT_SECRET");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+const APP_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || DEFAULT_APP_ORIGIN;
 
 if (!TIKTOK_CLIENT_KEY || !TIKTOK_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing required secrets for tiktok-auth function");
@@ -189,7 +190,7 @@ Deno.serve(async (req) => {
 
       return new Response(null, {
         status: 302,
-        headers: { Location: "https://flowpost-studio.vercel.app/accounts?connected=tiktok" },
+        headers: { Location: callbackLocation(oauthState.returnTo, APP_ORIGIN, "tiktok") },
       });
     }
 
@@ -199,7 +200,11 @@ Deno.serve(async (req) => {
       const owner = resolveSessionOwner(auth, url.searchParams.get("userId"));
       if (owner.denied) return json({ error: "Unauthorized" }, 401);
       if (!owner.userId) return json({ error: "Missing userId" }, 400);
-      const state = await createOAuthState(supabaseAdmin, { userId: owner.userId });
+      const state = await createOAuthState(supabaseAdmin, {
+        userId: owner.userId,
+        returnTo: url.searchParams.get("return_to"),
+        appOrigin: APP_ORIGIN,
+      });
 
       const authUrl = new URL("https://www.tiktok.com/v2/auth/authorize/");
       authUrl.searchParams.set("client_key", TIKTOK_CLIENT_KEY!);

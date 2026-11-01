@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { newOAuthStateValue, createOAuthState, consumeOAuthState } from "./oauth-state.ts";
+import {
+  newOAuthStateValue,
+  createOAuthState,
+  consumeOAuthState,
+  normalizeReturnTo,
+  callbackLocation,
+} from "./oauth-state.ts";
+
+const APP_ORIGIN = "https://flowpost-studio.vercel.app";
+const NONCE = "a".repeat(64);
 
 function makeSupabase(handlers: {
   insert?: (payload: unknown) => Promise<{ error: { message: string } | null }>;
@@ -97,7 +106,7 @@ describe("consumeOAuthState", () => {
       maybeSingleResult: { user_id: "user-1", mode: "facebook" },
     });
     const result = await consumeOAuthState(supabase as never, "abc");
-    expect(result).toEqual({ userId: "user-1", mode: "facebook" });
+    expect(result).toEqual({ userId: "user-1", mode: "facebook", returnTo: null });
     expect(calls).toContain("from:oauth_states");
     expect(calls).toContain("update");
     expect(calls).toContain("eq:state");
@@ -113,5 +122,124 @@ describe("consumeOAuthState", () => {
   it("returns null for an empty state", async () => {
     const { supabase } = makeSupabase({ maybeSingleResult: undefined });
     expect(await consumeOAuthState(supabase as never, "")).toBeNull();
+  });
+});
+
+describe("normalizeReturnTo", () => {
+  const desktop = `flowpost://connect-callback?platform=youtube&nonce=${NONCE}`;
+
+  it("accepts a desktop connect callback whole", () => {
+    expect(normalizeReturnTo(desktop, APP_ORIGIN)).toBe(desktop);
+  });
+
+  it("accepts every server platform token on the desktop link", () => {
+    for (const platform of ["youtube", "instagram", "facebook", "tiktok", "linkedin", "google_drive", "mega"]) {
+      const link = `flowpost://connect-callback?platform=${platform}&nonce=${NONCE}`;
+      expect(normalizeReturnTo(link, APP_ORIGIN)).toBe(link);
+    }
+  });
+
+  it("refuses a desktop link without a platform", () => {
+    expect(normalizeReturnTo(`flowpost://connect-callback?nonce=${NONCE}`, APP_ORIGIN)).toBeNull();
+  });
+
+  it("refuses a desktop link with a platform the server does not know", () => {
+    expect(normalizeReturnTo(`flowpost://connect-callback?platform=myspace&nonce=${NONCE}`, APP_ORIGIN)).toBeNull();
+  });
+
+  it("refuses a desktop link whose nonce is not 32 bytes of lower-case hex", () => {
+    expect(normalizeReturnTo("flowpost://connect-callback?platform=youtube&nonce=" + "a".repeat(32), APP_ORIGIN)).toBeNull();
+    expect(normalizeReturnTo(`flowpost://connect-callback?platform=youtube&nonce=${NONCE}aa`, APP_ORIGIN)).toBeNull();
+    expect(normalizeReturnTo(`flowpost://connect-callback?platform=youtube&nonce=${"A".repeat(64)}`, APP_ORIGIN)).toBeNull();
+    expect(normalizeReturnTo(`flowpost://connect-callback?platform=youtube&nonce=${"z".repeat(64)}`, APP_ORIGIN)).toBeNull();
+    expect(normalizeReturnTo("flowpost://connect-callback?platform=youtube", APP_ORIGIN)).toBeNull();
+  });
+
+  it("refuses a flowpost link to any host but the callback", () => {
+    expect(normalizeReturnTo(`flowpost://accounts?platform=youtube&nonce=${NONCE}`, APP_ORIGIN)).toBeNull();
+    expect(normalizeReturnTo(`flowpost://connect-callback/../../accounts?platform=youtube&nonce=${NONCE}`, APP_ORIGIN)).toBeNull();
+  });
+
+  it("refuses a desktop link carrying a result the app did not earn", () => {
+    expect(normalizeReturnTo(`${desktop}&result=connected`, APP_ORIGIN)).toBeNull();
+  });
+
+  it("accepts an app-origin http(s) URL and only that origin", () => {
+    expect(normalizeReturnTo(`${APP_ORIGIN}/accounts`, APP_ORIGIN)).toBe(`${APP_ORIGIN}/accounts`);
+    expect(normalizeReturnTo(`${APP_ORIGIN}.evil.example/accounts`, APP_ORIGIN)).toBeNull();
+    expect(normalizeReturnTo("https://evil.example/accounts", APP_ORIGIN)).toBeNull();
+  });
+
+  it("refuses anything that is not an absolute http(s) or flowpost URL", () => {
+    expect(normalizeReturnTo("/accounts", APP_ORIGIN)).toBeNull();
+    expect(normalizeReturnTo("//evil.example/accounts", APP_ORIGIN)).toBeNull();
+    expect(normalizeReturnTo("javascript:alert(1)", APP_ORIGIN)).toBeNull();
+    expect(normalizeReturnTo("", APP_ORIGIN)).toBeNull();
+  });
+});
+
+describe("callbackLocation", () => {
+  const desktop = `flowpost://connect-callback?platform=youtube&nonce=${NONCE}`;
+
+  it("answers a desktop wait with the outcome, keeping its nonce", () => {
+    expect(callbackLocation(desktop, APP_ORIGIN, "youtube")).toBe(`${desktop}&result=connected`);
+  });
+
+  it("falls back to the app accounts page for a web flow", () => {
+    expect(callbackLocation(null, APP_ORIGIN, "youtube")).toBe(`${APP_ORIGIN}/accounts?connected=youtube`);
+  });
+
+  it("sends a stored app-origin link back with the connected flag", () => {
+    expect(callbackLocation(`${APP_ORIGIN}/accounts`, APP_ORIGIN, "tiktok")).toBe(`${APP_ORIGIN}/accounts?connected=tiktok`);
+  });
+
+  it("keeps a query the web flow already asked for", () => {
+    expect(callbackLocation(`${APP_ORIGIN}/accounts?tab=recent`, APP_ORIGIN, "facebook")).toBe(`${APP_ORIGIN}/accounts?tab=recent&connected=facebook`);
+  });
+
+  it("never puts a foreign host in the location", () => {
+    const location = callbackLocation("https://evil.example/accounts", APP_ORIGIN, "youtube");
+    expect(location).not.toContain("evil.example");
+    expect(new URL(location).origin).toBe(APP_ORIGIN);
+  });
+
+  it("answers a desktop wait that somehow holds a foreign link with the fallback", () => {
+    // return_to is normalised before storing, so this only fires on hand-written
+    // rows; the caller still must not send the browser to the attacker host.
+    expect(callbackLocation(`flowpost://evil/step?platform=youtube&nonce=${NONCE}`, APP_ORIGIN, "youtube")).toBe(
+      `${APP_ORIGIN}/accounts?connected=youtube`,
+    );
+  });
+});
+
+describe("return_to through the state row", () => {
+  it("inserts the normalized desktop link and selects return_to back", async () => {
+    let captured: Record<string, unknown> | undefined;
+    const { supabase, calls } = makeSupabase({
+      insert: async (payload: unknown) => {
+        captured = payload as Record<string, unknown>;
+        return { error: null };
+      },
+    });
+    const desktop = `flowpost://connect-callback?platform=youtube&nonce=${NONCE}`;
+    await createOAuthState(supabase as never, { userId: "user-1", mode: "youtube", returnTo: desktop });
+    expect(captured?.return_to).toBe(desktop);
+    // The consume side has to hand return_to back to the callback.
+    void calls;
+    const { supabase: s2 } = makeSupabase({ maybeSingleResult: { user_id: "u", mode: "youtube", return_to: desktop } });
+    const consumed = await consumeOAuthState(s2 as never, "abc");
+    expect(consumed?.returnTo).toBe(desktop);
+  });
+
+  it("stores a null return_to when the caller gives nothing usable", async () => {
+    let captured: Record<string, unknown> | undefined;
+    const { supabase } = makeSupabase({
+      insert: async (payload: unknown) => {
+        captured = payload as Record<string, unknown>;
+        return { error: null };
+      },
+    });
+    await createOAuthState(supabase as never, { userId: "user-1", returnTo: "https://evil.example/x" });
+    expect(captured?.return_to).toBeNull();
   });
 });
