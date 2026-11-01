@@ -64,7 +64,7 @@ void main() {
 
   setUp(() {
     api = _FakeApi();
-    store = FakeCredentialsStore()..stored = const CredentialsFound(_config);
+    store = FakeCredentialsStore();
     records = [];
     Logger.root.level = Level.ALL;
     subscription = Logger.root.onRecord.listen(records.add);
@@ -74,19 +74,24 @@ void main() {
 
   void build({
     String? token = 'session-token',
+    bool configured = true,
     List<Override> extra = const [],
   }) {
+    store.stored = configured
+        ? const CredentialsFound(_config)
+        : const CredentialsAbsent();
     container = ProviderContainer(
       overrides: [
         credentialsStoreProvider.overrideWithValue(store),
-        configControllerProvider.overrideWith(
-          () => ConfigController(
-            initial: const ConfigState(
-              config: _config,
-              source: ConfigSource.saved,
+        if (configured)
+          configControllerProvider.overrideWith(
+            () => ConfigController(
+              initial: const ConfigState(
+                config: _config,
+                source: ConfigSource.saved,
+              ),
             ),
           ),
-        ),
         sessionTokenProvider.overrideWithValue(token),
         setupApiProvider.overrideWithValue(api),
         ...extra,
@@ -234,6 +239,22 @@ void main() {
       expect(store.written?.supabaseAnonKey, 'other-anon-key');
     },
   );
+
+  test('the first run writes the file there is none of yet', () async {
+    build(configured: false);
+
+    final problem = await container.read(setupControllerProvider.notifier).save(
+      serverStep,
+      {
+        'SUPABASE_URL': 'https://first.supabase.co',
+        'SUPABASE_ANON_KEY': 'first-anon-key',
+      },
+    );
+
+    expect(problem, isNull);
+    expect(store.written?.supabaseUrl, 'https://first.supabase.co');
+    expect(progress().stateOf(serverStep), SetupStepState.ready);
+  });
 
   test('a step with nothing to type is not saved, and says so', () async {
     build();

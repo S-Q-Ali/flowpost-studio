@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/config/config_controller.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/logging/app_logger.dart';
 import 'data/setup_client.dart';
+import 'data/wizard_resume_store.dart';
 import 'domain/setup_steps.dart';
 
 /// Where one step stands.
@@ -61,6 +63,16 @@ final setupApiProvider = Provider<SetupApi?>((ref) {
 final setupControllerProvider =
     NotifierProvider<SetupController, SetupProgress>(SetupController.new);
 
+/// Where the wizard left off, as a file the tests answer.
+final Provider<WizardResumeStore> wizardResumeStoreProvider =
+    Provider<WizardResumeStore>((ref) => WizardResumeStore());
+
+/// Opens an address in the browser, as a seam the tests answer.
+final Provider<Future<bool> Function(Uri)> urlLauncherProvider =
+    Provider<Future<bool> Function(Uri)>((ref) {
+      return (url) => launchUrl(url, mode: LaunchMode.externalApplication);
+    });
+
 /// The state of each guided step, read from the server and updated by a save.
 ///
 /// The wizard is the only writer of these values, and every write is followed
@@ -74,13 +86,19 @@ class SetupController extends Notifier<SetupProgress> {
 
   /// Asks the server which of its keys hold a value and marks the steps that
   /// are complete. A step whose values live on this PC is read from them.
+  ///
+  /// Only the steps passed in are re-read; the rest keep what the last answer
+  /// said, so a Test on one step does not blank the whole list.
   Future<void> reload(List<SetupStep> steps) async {
     final server = await _read();
     final next = <String, SetupStepState>{};
     for (final step in steps) {
       next[step.id] = _stepState(step, server);
     }
-    state = SetupProgress(steps: next, problems: state.problems);
+    state = SetupProgress(
+      steps: {...state.steps, ...next},
+      problems: state.problems,
+    );
   }
 
   /// The server's report, or null when it could not be read.
@@ -177,17 +195,18 @@ class SetupController extends Notifier<SetupProgress> {
   }
 
   Future<String?> _saveLocal(Map<String, String> values) async {
-    final current = ref.read(configControllerProvider).config;
-    if (current == null) {
-      return 'Set the server address on this PC first.';
-    }
+    // The first run has no config to merge with: the wizard is what makes one.
+    final current =
+        ref.read(configControllerProvider).config ??
+        ref.read(compiledConfigProvider);
     final AppConfig next;
     try {
       next = AppConfig.fromValues(
-        supabaseUrl: values['SUPABASE_URL'] ?? current.supabaseUrl,
-        supabaseAnonKey: values['SUPABASE_ANON_KEY'] ?? current.supabaseAnonKey,
+        supabaseUrl: values['SUPABASE_URL'] ?? current?.supabaseUrl ?? '',
+        supabaseAnonKey:
+            values['SUPABASE_ANON_KEY'] ?? current?.supabaseAnonKey ?? '',
         updateManifestUrl:
-            values['UPDATE_MANIFEST_URL'] ?? current.updateManifestUrl,
+            values['UPDATE_MANIFEST_URL'] ?? current?.updateManifestUrl ?? '',
       );
     } on ConfigException catch (error) {
       return error.message;

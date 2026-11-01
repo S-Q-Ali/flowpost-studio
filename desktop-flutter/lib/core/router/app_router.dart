@@ -10,7 +10,7 @@ import '../../features/publishing/presentation/publish_page.dart';
 import '../../features/scheduling/presentation/calendar_page.dart';
 import '../../features/scheduling/presentation/queue_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
-import '../../features/setup/presentation/setup_page.dart';
+import '../../features/setup/presentation/setup_wizard_page.dart';
 import '../shell/app_shell.dart';
 
 const String homeRoute = '/';
@@ -48,7 +48,8 @@ GoRouter buildRouter({
       if (needsSetup?.call() ?? false) {
         return state.uri.path == setupRoute ? null : setupRoute;
       }
-      if (state.uri.path == setupRoute) return homeRoute;
+      // The wizard keeps its own place once there are values: it still has
+      // steps left, and Settings links back into it.
       if (!guarded) return pendingDeepLink?.call();
       return _licenseRedirect(
         state,
@@ -58,7 +59,10 @@ GoRouter buildRouter({
       );
     },
     routes: [
-      GoRoute(path: setupRoute, builder: (context, state) => const SetupPage()),
+      GoRoute(
+        path: setupRoute,
+        builder: (context, state) => const SetupWizardPage(),
+      ),
       GoRoute(
         path: licenseRoute,
         builder: (context, state) => const LicenseGatePage(),
