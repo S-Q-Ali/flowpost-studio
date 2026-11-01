@@ -73,8 +73,9 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - `ACCOUNT_COLUMNS` carries the display fields plus `token_expiry` and no token; `listAccounts` scopes the read to the session user, and the fake table proves another user's row stays out of the answer.
 - [x] C2. Desktop accounts repository from the server
       - `account-list` is the source; `accounts.json` is only the cache used when there is no session or the network is unreachable. The six seeded placeholder cards and the local Connect/Disconnect toggle are deleted, so an empty server renders the empty state. 27 accounts tests, desktop suite 832.
-- [ ] C3. Publish targets derived from connected accounts
-- [ ] C4. Checkpoint: connect + publish on a real server
+- [x] C3. Publish targets derived from connected accounts
+      - `publishTargetsFor` turns a connected row into its targets (Instagram feed + story; drive rows and rows without the platform id name nothing). `publishTargetsProvider` is a FutureProvider over the accounts read, so the compose screen tells loading, unreadable and genuinely empty apart. 12 more tests, desktop suite 844.
+- [ ] C4. Checkpoint: connect + publish on a real server (needs Phase F and a deployed `posts-api`)
 
 ## Phase D — Dark mode
 - [ ] D1. Dark palette + contrast tests

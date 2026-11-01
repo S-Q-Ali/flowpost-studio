@@ -284,7 +284,9 @@ void main() {
       route: '/publish',
       overrides: [
         ..._app(token: 'demo-session'),
-        publishTargetsProvider.overrideWithValue(const [_instagram, _youtube]),
+        publishTargetsProvider.overrideWithValue(
+          const AsyncData([_instagram, _youtube]),
+        ),
         publishedMediaProvider.overrideWithValue(
           const PublishedMedia(
             videoId: 'video-1',

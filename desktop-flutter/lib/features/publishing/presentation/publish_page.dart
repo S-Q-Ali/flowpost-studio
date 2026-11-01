@@ -20,7 +20,8 @@ class PublishPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final media = ref.watch(publishedMediaProvider);
-    final targets = ref.watch(publishTargetsProvider);
+    final targetsState = ref.watch(publishTargetsProvider);
+    final targets = targetsState.value ?? const [];
     final selection = ref.watch(publishSelectionProvider);
     final selected = ref.watch(selectedTargetsProvider);
     final validation = ref.watch(publishValidationProvider);
@@ -67,7 +68,7 @@ class PublishPage extends ConsumerWidget {
                 ],
                 const SizedBox(height: 24),
                 if (targets.isEmpty)
-                  const Text('No accounts are connected yet.')
+                  Text(_noTargetsMessage(targetsState))
                 else ...[
                   Text('Platforms', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
@@ -164,6 +165,18 @@ class PublishPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// What the compose screen says when there is nothing to pick.
+///
+/// A list that is still being read, or could not be read, is not an empty
+/// list: the admin would look for a connection that may already be there.
+String _noTargetsMessage(AsyncValue<List<PublishTarget>> targets) {
+  if (targets.isLoading) return 'Loading the accounts on your server.';
+  if (targets.hasError) {
+    return 'The connected accounts could not be read. Open Accounts to see why.';
+  }
+  return 'No account is connected yet. Open Accounts to connect one.';
 }
 
 /// Whether these exact inputs already went out in the finished run.

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/app_providers.dart';
 import '../../core/time/time_zone.dart';
+import '../accounts/accounts_providers.dart';
 import '../media/captions/captions_providers.dart';
 import '../media/domain/media_validation.dart';
 import '../media/upload/upload_providers.dart';
@@ -18,9 +19,13 @@ import 'domain/publish_validation.dart';
 
 /// The accounts the admin can publish to.
 ///
-/// They come from the server's `connected_accounts` table, which needs the
-/// identity module, so the list stays empty until that exists.
-final publishTargetsProvider = Provider<List<PublishTarget>>((ref) => const []);
+/// These are the server's connected accounts, so the list follows the accounts
+/// read: what the server named, or what this PC kept for it. Nothing is
+/// seeded - an account that was never connected is not a target.
+final publishTargetsProvider = FutureProvider<List<PublishTarget>>((ref) async {
+  final read = await ref.watch(accountsControllerProvider.future);
+  return [for (final account in read.accounts) ...publishTargetsFor(account)];
+});
 
 final publishClientProvider = Provider<PublishApi>((ref) {
   final config = ref.watch(appConfigProvider);
@@ -431,7 +436,7 @@ class PublishComposer extends Notifier<PublishSelection> {
 
 /// The targets the admin picked.
 final selectedTargetsProvider = Provider<List<PublishTarget>>((ref) {
-  final targets = ref.watch(publishTargetsProvider);
+  final targets = ref.watch(publishTargetsProvider).value ?? const [];
   final ids = ref.watch(publishSelectionProvider.select((s) => s.targetIds));
   return [
     for (final target in targets)

@@ -274,13 +274,15 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: C1 · Size: M.
   - Done: `ServerAccountsRepository.read()` asks `account-list` through the existing posts transport and returns `AccountsRead(accounts, offline)`. With no session, or when the network fails (connection/timeout), it serves `FileAccountsCache`; a refused or broken server answer is a rethrow, not a stale list, and a cache write that fails cannot lose a fresh answer. `seedAccounts` and the six placeholder cards are gone — an empty server means an empty list — and with them went the local Connect/Disconnect toggle, because a button that only rewrites a file would be a lie; real connect and disconnect arrive with the browser OAuth phase. Row → account mapping keeps `account_id` and the server platform name on the model so publish targets can be derived (C3). The accounts tests are 27 (18 repository, 9 page), net 14 over the Phase B gate. the desktop suite is at 832.
 
-- [ ] **C3. Derive publish targets from real accounts** — Must (desktop 1)
+- [x] **C3. Derive publish targets from real accounts** — Must (desktop 1)
   - Accept: `publishTargetsProvider` lists one target per connected account (plus feed/story for Instagram), refreshes after connect/disconnect, and is empty only when nothing is connected.
   - Verify: test — one YouTube account yields one target; a disconnected account disappears; publish is blocked with a "connect an account" hint when empty.
   - Files: `lib/features/publishing/publishing_providers.dart`, `lib/features/accounts/`, tests.
   - Dep: C2 · Size: M.
+  - Done: `publishTargetsFor(account)` turns one row into its targets - only a connected account, only a platform the client publishes to (the drive rows store media), the feed post and the story for Instagram, nothing at all without the platform's own account id. `publishTargetsProvider` is now a `FutureProvider` over the accounts read, so it follows every refresh of that read and carries its loading and failure states to the compose screen, which says "Loading the accounts on your server.", "the connected accounts could not be read", or "No account is connected yet. Open Accounts to connect one." instead of claiming an empty list it never read. The desktop suite is at 844.
 
 - [ ] **C4. Checkpoint** — connect an account on a real server and publish to it.
+  - Blocked: it needs the browser connect flow (Phase F) and a deployed `posts-api`, which is owner-assisted (same gate as I12). Until then C2/C3 are proven against fakes only.
 
 ---
 

@@ -1,3 +1,5 @@
+import '../../accounts/domain/connected_account.dart';
+
 /// The platforms the client can publish to (SPEC-publishing "Platform
 /// contract").
 enum PublishPlatform { youtube, facebook, instagram, tiktok, linkedin }
@@ -105,6 +107,41 @@ class PublishTarget {
 
   @override
   String toString() => 'PublishTarget($id)';
+}
+
+/// The targets one connected account offers the compose screen.
+///
+/// Only a connected account can take a post, and a row without the platform's
+/// own id cannot: that id is what the publish function reads. The drive
+/// accounts store the media, they are not published to, so they name nothing
+/// here.
+List<PublishTarget> publishTargetsFor(ConnectedAccount account) {
+  if (account.status != AccountStatus.connected) return const [];
+  final platform = switch (account.serverPlatform) {
+    'youtube' => PublishPlatform.youtube,
+    'facebook' => PublishPlatform.facebook,
+    'instagram' => PublishPlatform.instagram,
+    'tiktok' => PublishPlatform.tiktok,
+    'linkedin' => PublishPlatform.linkedin,
+    _ => null,
+  };
+  if (platform == null || account.accountId.isEmpty) return const [];
+  return [
+    PublishTarget(
+      platform: platform,
+      accountId: account.accountId,
+      accountName: account.accountName,
+    ),
+    // The feed post and the story of one Instagram are two different
+    // functions on the server, so they are two picks here.
+    if (platform == PublishPlatform.instagram)
+      PublishTarget(
+        platform: platform,
+        accountId: account.accountId,
+        accountName: account.accountName,
+        postType: PostType.story,
+      ),
+  ];
 }
 
 /// The caption key the AI wrote for this platform.

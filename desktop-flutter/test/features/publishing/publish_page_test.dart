@@ -116,7 +116,7 @@ class _Connectivity extends ConnectivityController {
 
 Future<void> _pump(
   WidgetTester tester, {
-  List<PublishTarget> targets = const [_instagram],
+  AsyncValue<List<PublishTarget>> targets = const AsyncData([_instagram]),
   bool signedIn = true,
   bool withMedia = true,
   bool realMedia = false,
@@ -184,6 +184,37 @@ void main() {
     await _pump(tester, withMedia: false);
 
     expect(find.textContaining('Upload a file first'), findsOneWidget);
+  });
+
+  testWidgets('nothing connected says to connect an account', (tester) async {
+    await _pump(tester, targets: const AsyncData(<PublishTarget>[]));
+
+    expect(find.textContaining('No account is connected'), findsOneWidget);
+    expect(find.textContaining('Accounts'), findsWidgets);
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Publish now'),
+    );
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('accounts still being read are not called empty', (tester) async {
+    await _pump(tester, targets: const AsyncLoading());
+
+    expect(find.textContaining('Loading'), findsOneWidget);
+    expect(find.textContaining('No account is connected'), findsNothing);
+  });
+
+  testWidgets('accounts that could not be read say so', (tester) async {
+    await _pump(
+      tester,
+      targets: const AsyncError(
+        PostsException('no connection', kind: PostsErrorKind.connection),
+        StackTrace.empty,
+      ),
+    );
+
+    expect(find.textContaining('could not be read'), findsOneWidget);
+    expect(find.textContaining('No account is connected'), findsNothing);
   });
 
   testWidgets('the publish action is off without a sign-in', (tester) async {
@@ -261,7 +292,7 @@ void main() {
   });
 
   testWidgets('a YouTube post asks for a title', (tester) async {
-    await _pump(tester, targets: const [_youtube]);
+    await _pump(tester, targets: const AsyncData([_youtube]));
 
     await tester.tap(find.byKey(const Key('target-youtube:yt-1:feed')));
     await tester.pumpAndSettle();

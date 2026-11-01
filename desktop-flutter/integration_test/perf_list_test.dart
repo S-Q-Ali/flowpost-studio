@@ -148,7 +148,7 @@ void main() {
       ProviderScope(
         overrides: [
           seededConfig(_config),
-          publishTargetsProvider.overrideWithValue(_targets),
+          publishTargetsProvider.overrideWithValue(const AsyncData(_targets)),
           draftsRepositoryProvider.overrideWithValue(FakeDraftsRepository()),
           publishedMediaProvider.overrideWithValue(
             const PublishedMedia(

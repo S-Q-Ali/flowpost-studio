@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/config_overrides.dart';
+import '../../support/fake_accounts.dart';
 import '../../support/fake_license.dart';
 
 const _config = AppConfig(
@@ -33,29 +34,6 @@ const _instagram = ConnectedAccount(
   accountId: 'ig-1',
   serverPlatform: 'instagram',
 );
-
-/// Answers what the test names, so each state of the screen has its own.
-class _FakeAccountsRepository implements AccountsRepository {
-  _FakeAccountsRepository([List<ConnectedAccount>? accounts])
-    : accounts = accounts ?? [_youtube, _instagram];
-
-  List<ConnectedAccount> accounts;
-
-  /// Whether the answer came from this PC rather than the server.
-  bool offline = false;
-
-  /// What the read throws instead of answering.
-  Object? error;
-
-  int reads = 0;
-
-  @override
-  Future<AccountsRead> read() async {
-    reads++;
-    if (error != null) throw error!;
-    return AccountsRead(accounts: accounts, offline: offline);
-  }
-}
 
 Future<void> _pumpApp(
   WidgetTester tester,
@@ -82,7 +60,7 @@ Future<void> _pumpApp(
 
 void main() {
   testWidgets('one card per account the server named', (tester) async {
-    await _pumpApp(tester, _FakeAccountsRepository());
+    await _pumpApp(tester, FakeAccountsRepository([_youtube, _instagram]));
 
     expect(find.byKey(const Key('account-youtube-UC-1')), findsOneWidget);
     expect(find.byKey(const Key('account-meta-ig-1')), findsOneWidget);
@@ -96,7 +74,7 @@ void main() {
   testWidgets('an account that is not connected says so', (tester) async {
     await _pumpApp(
       tester,
-      _FakeAccountsRepository([
+      FakeAccountsRepository([
         const ConnectedAccount(
           platform: SocialPlatform.tiktok,
           accountName: 'FlowPost',
@@ -117,7 +95,7 @@ void main() {
   testWidgets('no account is the empty state, not six placeholders', (
     tester,
   ) async {
-    await _pumpApp(tester, _FakeAccountsRepository(const []));
+    await _pumpApp(tester, FakeAccountsRepository(const []));
 
     expect(find.text('No accounts yet.'), findsOneWidget);
   });
@@ -125,7 +103,10 @@ void main() {
   testWidgets('an offline read says the list came from this PC', (
     tester,
   ) async {
-    await _pumpApp(tester, _FakeAccountsRepository()..offline = true);
+    await _pumpApp(
+      tester,
+      FakeAccountsRepository([_youtube, _instagram])..offline = true,
+    );
 
     expect(
       find.text(
@@ -140,13 +121,13 @@ void main() {
   testWidgets('an offline read with nothing kept is still empty', (
     tester,
   ) async {
-    await _pumpApp(tester, _FakeAccountsRepository(const [])..offline = true);
+    await _pumpApp(tester, FakeAccountsRepository(const [])..offline = true);
 
     expect(find.text('No accounts yet.'), findsOneWidget);
   });
 
   testWidgets('a live read does not claim to be a copy', (tester) async {
-    await _pumpApp(tester, _FakeAccountsRepository());
+    await _pumpApp(tester, FakeAccountsRepository([_youtube, _instagram]));
 
     expect(find.textContaining('this PC kept'), findsNothing);
   });
@@ -154,7 +135,7 @@ void main() {
   testWidgets('a refused session shows a readable error', (tester) async {
     await _pumpApp(
       tester,
-      _FakeAccountsRepository()
+      FakeAccountsRepository([_youtube, _instagram])
         ..error = const PostsException(
           'Your session is no longer accepted.',
           kind: PostsErrorKind.rejected,
@@ -172,7 +153,7 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await _pumpApp(
       tester,
-      _FakeAccountsRepository(),
+      FakeAccountsRepository([_youtube, _instagram]),
       size: const Size(1024, 640),
     );
 
@@ -182,7 +163,11 @@ void main() {
   });
 
   testWidgets('navigation rail moves between screens', (tester) async {
-    await _pumpApp(tester, _FakeAccountsRepository(), initialLocation: '/');
+    await _pumpApp(
+      tester,
+      FakeAccountsRepository([_youtube, _instagram]),
+      initialLocation: '/',
+    );
 
     expect(
       find.text('The native desktop experience starts here.'),
