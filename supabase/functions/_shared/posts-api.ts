@@ -6,6 +6,8 @@
  * owner.
  */
 
+import { CONNECT_PLATFORMS, desktopReturnTo, normalizeReturnTo } from "./oauth-state.ts";
+
 export const POST_STATUSES = [
   "scheduled",
   "processing",
@@ -51,6 +53,142 @@ const EDIT_FIELDS = [
 export const ACCOUNT_COLUMNS =
   "id,platform,account_id,account_name,display_name,is_connected," +
   "connected_at,token_expiry";
+
+/**
+ * What a disconnect reads: the ciphertext `revokeRequest` needs, held by a
+ * service-role call and never copied into a response. A separate list keeps
+ * `account-list` free of token material.
+ */
+export const DISCONNECT_COLUMNS =
+  "platform,account_id,access_token,refresh_token,metadata";
+
+export interface AccountSecrets {
+  access_token: string | null;
+  refresh_token: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+/** The caller's own row, with its encrypted tokens, for a disconnect. */
+export function findAccountForDisconnect(
+  supabase: any,
+  userId: string,
+  platform: string,
+  accountId: string,
+): PromiseLike<{ data: AccountSecrets | null; error: unknown }> {
+  return supabase
+    .from("connected_accounts")
+    .select(DISCONNECT_COLUMNS)
+    .eq("user_id", userId)
+    .eq("platform", platform)
+    .eq("account_id", accountId)
+    .maybeSingle()
+    .then(
+      ({ data, error }: { data: AccountSecrets | null; error: unknown }) => ({
+        data: error ? null : data,
+        error,
+      }),
+    );
+}
+
+export const AUTH_FUNCTION_FOR_PLATFORM: Record<string, string> = {
+  youtube: "youtube-auth",
+  instagram: "instagram-auth",
+  facebook: "facebook-auth",
+  tiktok: "tiktok-auth",
+  linkedin: "linkedin-auth",
+  google_drive: "google-drive-auth",
+};
+
+const REVOKE_URLS = {
+  google: "https://oauth2.googleapis.com/revoke",
+  tiktok: "https://api.tiktok.com/v2/oauth/revokes/",
+} as const;
+
+/**
+ * The provider call that revokes a stored token, or null when there is
+ * nothing to revoke. Best-effort by contract: the row delete stands alone.
+ * TikTok's refresh token lives encrypted in `metadata`; the Google column is
+ * the access token, which `https://oauth2.googleapis.com/revoke` accepts.
+ * Facebook and LinkedIn have no single-token revoke endpoint, so their
+ * disconnect is the row delete alone.
+ */
+export function revokeRequest(
+  platform: string,
+  secrets: AccountSecrets,
+  options: { tiktokClientKey?: string | null } = {},
+): { url: string; body: URLSearchParams } | null {
+  if (platform === "youtube" || platform === "google_drive") {
+    return secrets.access_token
+      ? { url: REVOKE_URLS.google, body: new URLSearchParams({ token: secrets.access_token }) }
+      : null;
+  }
+  if (platform === "tiktok") {
+    const stored = secrets.metadata?.refresh_token ?? secrets.refresh_token;
+    if (typeof stored !== "string" || !stored || !options.tiktokClientKey) return null;
+    return {
+      url: REVOKE_URLS.tiktok,
+      body: new URLSearchParams({ client_key: options.tiktokClientKey, refresh_token: stored }),
+    };
+  }
+  return null;
+}
+
+/** The platform + the desktop nonce a connect names; never an owner. */
+export function connectTarget(
+  input: unknown,
+): Checked<{ platform: string; nonce: string }> {
+  const source = sourceOf(input);
+  if (!source) return refuse(400, "A connect is required");
+  const platform = source.platform;
+  if (typeof platform !== "string" || !AUTH_FUNCTION_FOR_PLATFORM[platform]) {
+    return refuse(400, "The platform is not known");
+  }
+  const nonce = source.nonce;
+  if (typeof nonce !== "string" || !/^[0-9a-f]{64}$/.test(nonce)) {
+    return refuse(400, "A connect nonce is required");
+  }
+  return { ok: true, value: { platform, nonce } };
+}
+
+/** The platform + account id a disconnect names; never an owner. */
+export function disconnectTarget(
+  input: unknown,
+): Checked<{ platform: string; accountId: string }> {
+  const source = sourceOf(input);
+  if (!source) return refuse(400, "A disconnect is required");
+  const platform = source.platform;
+  if (typeof platform !== "string" || !CONNECT_PLATFORMS.has(platform)) {
+    return refuse(400, "The platform is not known");
+  }
+  const accountId = source.accountId;
+  if (typeof accountId !== "string" || !accountId.trim()) {
+    return refuse(400, "An account id is required");
+  }
+  return { ok: true, value: { platform, accountId: accountId.trim() } };
+}
+
+/**
+ * The auth-function URL for a browser connect, or null when the platform or
+ * the desktop link is not usable. The link carries the caller's own nonce and
+ * is re-checked against the allowlist before it is ever put in a query.
+ */
+export function connectUrlRequest(
+  supabaseUrl: string,
+  input: { platform: string; nonce: string; userId: string; appOrigin: string },
+): { url: string; body: Record<string, unknown> } | null {
+  const functionName = AUTH_FUNCTION_FOR_PLATFORM[input.platform];
+  if (!functionName) return null;
+  const link = desktopReturnTo(input.platform, input.nonce);
+  if (normalizeReturnTo(link, input.appOrigin, input.platform) === null) return null;
+  const url = new URL(`${supabaseUrl}/functions/v1/${functionName}`);
+  url.searchParams.set("action", "url");
+  url.searchParams.set("userId", input.userId);
+  url.searchParams.set("return_to", link);
+  return {
+    url: url.toString(),
+    body: { action: "url", userId: input.userId, return_to: link },
+  };
+}
 
 export interface AccountRows {
   data: Record<string, unknown>[] | null;

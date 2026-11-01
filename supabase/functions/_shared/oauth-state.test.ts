@@ -5,6 +5,7 @@ import {
   consumeOAuthState,
   normalizeReturnTo,
   callbackLocation,
+  desktopReturnTo,
 } from "./oauth-state.ts";
 
 const APP_ORIGIN = "https://flowpost-studio.vercel.app";
@@ -175,6 +176,20 @@ describe("normalizeReturnTo", () => {
     expect(normalizeReturnTo("//evil.example/accounts", APP_ORIGIN)).toBeNull();
     expect(normalizeReturnTo("javascript:alert(1)", APP_ORIGIN)).toBeNull();
     expect(normalizeReturnTo("", APP_ORIGIN)).toBeNull();
+  });
+
+  it("refuses a link whose platform is not the one the state row is keyed to", () => {
+    const link = `flowpost://connect-callback?platform=tiktok&nonce=${NONCE}`;
+    expect(normalizeReturnTo(link, APP_ORIGIN, "youtube")).toBeNull();
+    expect(normalizeReturnTo(link, APP_ORIGIN, "tiktok")).toBe(link);
+    expect(normalizeReturnTo(link, APP_ORIGIN)).toBe(link);
+  });
+});
+
+describe("desktopReturnTo", () => {
+  it("builds exactly the link the desktop parser answers", () => {
+    expect(desktopReturnTo("youtube", NONCE)).toBe(`flowpost://connect-callback?platform=youtube&nonce=${NONCE}`);
+    expect(normalizeReturnTo(desktopReturnTo("tiktok", NONCE), APP_ORIGIN, "tiktok")).not.toBeNull();
   });
 });
 

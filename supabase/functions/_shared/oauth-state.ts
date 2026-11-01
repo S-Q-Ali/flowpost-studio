@@ -9,7 +9,7 @@ const CONNECT_CALLBACK_HOST = "connect-callback";
 /// `ALLOWED_ORIGIN` fallback; a deployment that sets the env must pass it in.
 export const DEFAULT_APP_ORIGIN = "https://flowpost-studio.vercel.app";
 
-const CONNECT_PLATFORMS = new Set([
+export const CONNECT_PLATFORMS = new Set([
   "youtube",
   "instagram",
   "facebook",
@@ -18,6 +18,11 @@ const CONNECT_PLATFORMS = new Set([
   "google_drive",
   "mega",
 ]);
+
+/// The link the desktop waits for, naming the platform and its nonce.
+export function desktopReturnTo(platform: string, nonce: string): string {
+  return `flowpost://${CONNECT_CALLBACK_HOST}?platform=${platform}&nonce=${nonce}`;
+}
 
 function randomHex(bytes: number): string {
   const buf = new Uint8Array(bytes);
@@ -37,7 +42,11 @@ export function newOAuthStateValue(): OAuthStateValue {
 /// is accepted whole (minus any result the caller tried to pre-fill); an
 /// http(s) URL must be on [appOrigin] exactly. Anything else is refused, so a
 /// hand-written `return_to` can never steer the 302 to another host.
-export function normalizeReturnTo(raw: string, appOrigin: string): string | null {
+export function normalizeReturnTo(
+  raw: string,
+  appOrigin: string,
+  mode?: string | null,
+): string | null {
   if (!raw) return null;
   let parsed: URL;
   try {
@@ -50,7 +59,11 @@ export function normalizeReturnTo(raw: string, appOrigin: string): string | null
     if (parsed.pathname !== "" && parsed.pathname !== "/") return null;
     const query = parsed.searchParams;
     if (!CONNECT_PLATFORMS.has(query.get("platform") ?? "")) return null;
-    if (!/^[0-9a-f]{64}$/.test(query.get("nonce") ?? "")) return null;
+    const nonce = query.get("nonce") ?? "";
+    if (!/^[0-9a-f]{64}$/.test(nonce)) return null;
+    // The state row is keyed by mode, so a youtube row must not answer for a
+    // tiktok wait: the platform has to be the one that starts with this nonce.
+    if (mode && query.get("platform") !== mode) return null;
     if (query.has("result")) return null;
     return raw;
   }
@@ -79,7 +92,7 @@ export function callbackLocation(
 ): string {
   const fallback = `${appOrigin}/accounts?connected=${encodeURIComponent(platform)}`;
   if (!returnTo) return fallback;
-  const trusted = normalizeReturnTo(returnTo, appOrigin);
+  const trusted = normalizeReturnTo(returnTo, appOrigin, platform);
   if (trusted === null) return fallback;
   if (trusted.startsWith("flowpost://")) {
     const sep = trusted.endsWith("?") || trusted.endsWith("&") ? "" : "&";
@@ -95,7 +108,7 @@ export async function createOAuthState(
 ): Promise<string> {
   const { state, expiresAt } = newOAuthStateValue();
   const trusted = args.returnTo
-    ? normalizeReturnTo(args.returnTo, args.appOrigin ?? DEFAULT_APP_ORIGIN)
+    ? normalizeReturnTo(args.returnTo, args.appOrigin ?? DEFAULT_APP_ORIGIN, args.mode)
     : null;
   const { error } = await supabase.from("oauth_states").insert({
     user_id: args.userId,

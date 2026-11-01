@@ -3,13 +3,19 @@ import {
   ACCOUNT_COLUMNS,
   POST_COLUMNS,
   accountIdList,
+  connectTarget,
+  connectUrlRequest,
+  disconnectTarget,
+  DISCONNECT_COLUMNS,
   editPatch,
+  findAccountForDisconnect,
   idOf,
   insertRow,
   listAccounts,
   listQuery,
   rangeQuery,
   retryInstant,
+  revokeRequest,
 } from "./posts-api";
 
 describe("insertRow", () => {
@@ -313,5 +319,252 @@ describe("retryInstant", () => {
 describe("POST_COLUMNS", () => {
   it("never names a token field", () => {
     expect(POST_COLUMNS).not.toMatch(/token/i);
+  });
+});
+
+/**
+ * One `connected_accounts` row, read the way PostgREST answers a single row:
+ * every filter narrows it, and the awaited builder gives `{ data, error }`.
+ */
+function fakeAccountRow(rows: Record<string, unknown>[], error: unknown = null) {
+  const calls: string[] = [];
+  const selects: string[] = [];
+  let kept = rows;
+  const chain: Record<string, any> = {};
+  chain.select = (columns: string) => {
+    calls.push("select");
+    selects.push(columns);
+    return chain;
+  };
+  chain.eq = (column: string, value: unknown) => {
+    calls.push(`eq:${column}=${String(value)}`);
+    kept = kept.filter((row) => row[column] === value);
+    return chain;
+  };
+  chain.maybeSingle = () =>
+    Promise.resolve({ data: kept.length === 1 ? kept[0] : null, error });
+  const supabase = {
+    from: (table: string) => {
+      calls.push(`from:${table}`);
+      return chain;
+    },
+  };
+  return { supabase, calls, selects };
+}
+
+describe("findAccountForDisconnect", () => {
+  const row = {
+    platform: "youtube",
+    account_id: "ch-1",
+    user_id: "user-1",
+    access_token: "cipher",
+    refresh_token: null,
+    metadata: {},
+  };
+
+  it("reads one row only under the caller's own filter", async () => {
+    const { supabase, calls, selects } = fakeAccountRow([row]);
+
+    const { data, error } = await findAccountForDisconnect(
+      supabase,
+      "user-1",
+      "youtube",
+      "ch-1",
+    );
+
+    expect(error).toBeNull();
+    expect(data).toEqual(row);
+    expect(selects).toEqual([DISCONNECT_COLUMNS]);
+    expect(calls).toContain("eq:user_id=user-1");
+    expect(calls).toContain("eq:platform=youtube");
+    expect(calls).toContain("eq:account_id=ch-1");
+  });
+
+  it("finds nothing for a row owned by another user", async () => {
+    const { supabase } = fakeAccountRow([{ ...row, user_id: "user-2" }]);
+
+    const { data } = await findAccountForDisconnect(supabase, "user-1", "youtube", "ch-1");
+
+    expect(data).toBeNull();
+  });
+
+  it("hands a table failure back to the handler with no row", async () => {
+    const { supabase } = fakeAccountRow([row], { message: "db down" });
+
+    const { data, error } = await findAccountForDisconnect(
+      supabase,
+      "user-1",
+      "youtube",
+      "ch-1",
+    );
+
+    expect(error).toEqual({ message: "db down" });
+    expect(data).toBeNull();
+  });
+});
+
+describe("connectTarget", () => {
+  const nonce = "a".repeat(64);
+
+  it("reads a platform that has an auth function and a desktop nonce", () => {
+    expect(connectTarget({ platform: "youtube", nonce })).toEqual({
+      ok: true,
+      value: { platform: "youtube", nonce },
+    });
+  });
+
+  it("refuses mega — it has no browser connect to ask for", () => {
+    expect(connectTarget({ platform: "mega", nonce })).toMatchObject({ ok: false, status: 400 });
+  });
+
+  it("refuses a platform it does not know and a nonce that is not 32 bytes of hex", () => {
+    expect(connectTarget({ platform: "twitter", nonce })).toMatchObject({
+      ok: false,
+      status: 400,
+    });
+    expect(connectTarget({ platform: "youtube" })).toMatchObject({ ok: false, status: 400 });
+    expect(connectTarget({ platform: "youtube", nonce: "A".repeat(64) })).toMatchObject({
+      ok: false,
+      status: 400,
+    });
+    expect(connectTarget({ platform: "youtube", nonce: `${nonce}aa` })).toMatchObject({
+      ok: false,
+      status: 400,
+    });
+  });
+});
+
+describe("connectUrlRequest", () => {
+  const nonce = "a".repeat(64);
+  const base = { userId: "user-1", appOrigin: "https://flowpost-studio.vercel.app" };
+
+  it("asks the platform's own auth function with the desktop link bound to the nonce", () => {
+    const request = connectUrlRequest("https://proj.supabase.co", {
+      platform: "youtube",
+      nonce,
+      ...base,
+    });
+    const url = new URL(request!.url);
+    expect(url.pathname).toBe("/functions/v1/youtube-auth");
+    expect(url.searchParams.get("action")).toBe("url");
+    expect(url.searchParams.get("userId")).toBe("user-1");
+    expect(url.searchParams.get("return_to")).toBe(
+      `flowpost://connect-callback?platform=youtube&nonce=${nonce}`,
+    );
+  });
+
+  it("sends the same link in the body, for the functions that read a body", () => {
+    const request = connectUrlRequest("https://proj.supabase.co", {
+      platform: "linkedin",
+      nonce,
+      ...base,
+    });
+    expect(request!.body.return_to).toBe(new URL(request!.url).searchParams.get("return_to"));
+    expect(request!.body.action).toBe("url");
+  });
+
+  it("gives nothing for a platform without an auth function or a malformed nonce", () => {
+    expect(connectUrlRequest("https://proj.supabase.co", { platform: "mega", nonce, ...base })).toBeNull();
+    expect(
+      connectUrlRequest("https://proj.supabase.co", { platform: "youtube", nonce: "short", ...base }),
+    ).toBeNull();
+  });
+});
+
+describe("disconnectTarget", () => {
+  it("reads a platform and one account id", () => {
+    expect(disconnectTarget({ platform: "youtube", accountId: "ch-1" })).toEqual({
+      ok: true,
+      value: { platform: "youtube", accountId: "ch-1" },
+    });
+  });
+
+  it("refuses a platform it does not know", () => {
+    expect(disconnectTarget({ platform: "twitter", accountId: "x" })).toMatchObject({
+      ok: false,
+      status: 400,
+    });
+  });
+
+  it("refuses a blank account id", () => {
+    expect(disconnectTarget({ platform: "youtube", accountId: "" })).toMatchObject({
+      ok: false,
+      status: 400,
+    });
+    expect(disconnectTarget({ platform: "youtube" })).toMatchObject({ ok: false, status: 400 });
+  });
+
+  it("never takes an owner from the body", () => {
+    const withOwner = disconnectTarget({
+      platform: "youtube",
+      accountId: "ch-1",
+      user_id: "victim",
+    });
+    expect(withOwner.ok && withOwner.value).not.toHaveProperty("user_id");
+  });
+});
+
+describe("revokeRequest", () => {
+  const enc = "gcm-ciphertext";
+
+  it("revokes the access token at Google for every Google-backed platform", () => {
+    for (const platform of ["youtube", "google_drive"]) {
+      const request = revokeRequest(platform, {
+        access_token: enc,
+        refresh_token: null,
+        metadata: {},
+      });
+      expect(request).not.toBeNull();
+      expect(request!.url).toBe("https://oauth2.googleapis.com/revoke");
+      expect(request!.body.get("token")).toBe(enc);
+    }
+  });
+
+  it("revokes the stored refresh token at TikTok", () => {
+    const request = revokeRequest(
+      "tiktok",
+      { access_token: "stale-access", refresh_token: null, metadata: { refresh_token: enc } },
+      { tiktokClientKey: "client-key-1" },
+    );
+    expect(request!.url).toBe("https://api.tiktok.com/v2/oauth/revokes/");
+    expect(request!.body.get("refresh_token")).toBe(enc);
+    expect(request!.body.get("client_key")).toBe("client-key-1");
+  });
+
+  it("skips the TikTok revoke when no client key is configured", () => {
+    expect(
+      revokeRequest("tiktok", { access_token: null, refresh_token: null, metadata: { refresh_token: enc } }, {}),
+    ).toBeNull();
+  });
+
+  it("leaves facebook and linkedin to the row delete — no single-token revoke exists", () => {
+    for (const platform of ["facebook", "linkedin"]) {
+      expect(
+        revokeRequest(platform, { access_token: enc, refresh_token: null, metadata: {} }),
+      ).toBeNull();
+    }
+  });
+
+  it("revokes nothing without a token to revoke", () => {
+    expect(revokeRequest("youtube", { access_token: null, refresh_token: null, metadata: {} })).toBeNull();
+    expect(revokeRequest("tiktok", { access_token: enc, refresh_token: null, metadata: {} })).toBeNull();
+  });
+
+  it("refuses an unknown platform rather than posting a token anywhere", () => {
+    expect(
+      revokeRequest("myspace", { access_token: enc, refresh_token: null, metadata: {} }),
+    ).toBeNull();
+  });
+});
+
+describe("ACCOUNT_COLUMNS", () => {
+  it("keeps the ciphertext out of the list a screen renders", () => {
+    expect(ACCOUNT_COLUMNS).not.toMatch(/access_token|refresh_token|metadata/);
+  });
+
+  it("gives the disconnect read its own column list", () => {
+    expect(DISCONNECT_COLUMNS).toContain("access_token");
+    expect(DISCONNECT_COLUMNS).toContain("refresh_token");
+    expect(DISCONNECT_COLUMNS).not.toMatch(/account_name|display_name|password|secret/i);
   });
 });

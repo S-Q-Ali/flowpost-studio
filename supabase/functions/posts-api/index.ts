@@ -1,16 +1,23 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { decrypt } from "../_shared/crypto.ts";
+import { DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 import {
   POST_COLUMNS,
   POST_STATUSES,
   accountIdList,
+  connectTarget,
+  connectUrlRequest,
+  disconnectTarget,
   editPatch,
+  findAccountForDisconnect,
   idOf,
   insertRow,
   listAccounts,
   listQuery,
   rangeQuery,
   retryInstant,
+  revokeRequest,
 } from "../_shared/posts-api.ts";
 
 const corsHeaders = {
@@ -21,6 +28,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+const APP_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || DEFAULT_APP_ORIGIN;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
@@ -149,6 +157,92 @@ Deno.serve(async (req) => {
       const { data, error } = await listAccounts(supabase, userId);
       if (error) return tableFailure("account-list", error);
       return json({ rows: data ?? [] });
+    }
+
+    case "connect-url": {
+      const target = connectTarget(body);
+      if (!target.ok) return json({ error: target.error }, target.status);
+      const request = connectUrlRequest(SUPABASE_URL, {
+        platform: target.value.platform,
+        nonce: target.value.nonce,
+        userId,
+        appOrigin: APP_ORIGIN,
+      });
+      if (!request) return json({ error: "The platform is not known" }, 400);
+      // The auth function mints the state row and its own redirect; the
+      // service key is the internal caller, so a desktop cannot ask for a
+      // connect belonging to someone else.
+      const res = await fetch(request.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+        },
+        body: JSON.stringify(request.body),
+        signal: AbortSignal.timeout(15_000),
+      }).catch(() => null);
+      if (!res) return json({ error: "The connect did not answer." }, 502);
+      const payload = (await res.json().catch(() => null)) as { url?: string } | null;
+      if (!res.ok || !payload?.url) {
+        console.error("connect-url upstream failed", res?.status, payload);
+        return json({ error: "The connect could not start." }, 502);
+      }
+      // The desktop opens this in the system browser; the state it names is
+      // already stored with the caller's nonce as its return link.
+      return json({ url: payload.url, platform: target.value.platform });
+    }
+
+    case "disconnect": {
+      const target = disconnectTarget(body);
+      if (!target.ok) return json({ error: target.error }, target.status);
+      const { data: account, error: findError } = await findAccountForDisconnect(
+        supabase,
+        userId,
+        target.value.platform,
+        target.value.accountId,
+      );
+      if (findError) return tableFailure("disconnect", findError);
+      if (!account) return json({ error: "No such connected account" }, 404);
+
+      // Best effort at the provider first: a token we cannot open, or a
+      // provider that is down, must not leave the row behind.
+      const stored = (value: string | null) => (value ? await decrypt(value) : null);
+      const secrets = {
+        access_token: await stored(account.access_token),
+        refresh_token: await stored(account.refresh_token),
+        metadata: account.metadata
+          ? {
+              ...account.metadata,
+              ...(typeof account.metadata.refresh_token === "string"
+                ? { refresh_token: await decrypt(account.metadata.refresh_token) }
+                : {}),
+            }
+          : null,
+      };
+      const revoke = revokeRequest(target.value.platform, secrets, {
+        tiktokClientKey: Deno.env.get("TIKTOK_CLIENT_KEY"),
+      });
+      if (revoke) {
+        await fetch(revoke.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: revoke.body.toString(),
+          signal: AbortSignal.timeout(10_000),
+        }).catch((err) => console.error("provider revoke failed", err));
+      }
+
+      const { data: removed, error: deleteError } = await supabase
+        .from("connected_accounts")
+        .delete()
+        .eq("user_id", userId)
+        .eq("platform", target.value.platform)
+        .eq("account_id", target.value.accountId)
+        .select("id");
+      if (deleteError) return tableFailure("disconnect", deleteError);
+      // The desktop refreshes its list from the server, so the answer is
+      // simply which rows went; no token material is ever copied out.
+      return json({ rows: removed ?? [] });
     }
 
     case "update": {
