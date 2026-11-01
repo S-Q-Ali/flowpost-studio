@@ -52,7 +52,7 @@ Future<void> main({MediaFilePicker? picker}) async {
       }
       log.info(
         configState.needsSetup
-            ? 'No backend values; the setup screen starts the app.'
+            ? 'No backend values; the setup wizard starts the app.'
             : 'Using the ${configState.source == ConfigSource.saved ? 'saved' : 'build'} values.',
       );
 
