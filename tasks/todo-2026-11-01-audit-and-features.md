@@ -79,11 +79,16 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
 - [ ] C4. Checkpoint: connect + publish on a real server (needs Phase F and a deployed `posts-api`)
 
 ## Phase D — Dark mode
-- [ ] D1. Dark palette + contrast tests
-- [ ] D2. Replace hardcoded colours
-- [ ] D3. Persist and apply the mode
-- [ ] D4. Settings appearance section
+- [x] D1. Dark palette + contrast tests
+      - `FlowPostDarkColors` is the web `.dark` block ported to ARGB, with two tokens lifted where the web value measures below WCAG on this surface (destructive at 65%, the outline from the web's muted-foreground). The accent text and the published green go into a `FlowPostTones` extension because Material 3 has no slot for them. The contrast test measures both themes on the screen and on a card: 18 assertions, `606fb4f`.
+- [x] D2. Replace hardcoded colours
+      - The rail, the media errors, the post actions, the publish status rows, the account badge and `postStatusColor` read from the active `ThemeData` now; `postStatusColor` takes the theme, so the queue and the calendar cannot name different greens for a published post. Same commit.
+- [x] D3. Persist and apply the mode
+      - `preferences.json` in the data root, written atomically, written before the state changes: a refused write leaves the screen on the look it is showing and says so. `main()` reads it before `runApp`, so a machine left in the dark opens in the dark. `2941270`.
+- [x] D4. Settings appearance section
+      - One `SegmentedButton` — System / Light / Dark, the mode in use selected, applied on the same frame; System stays unresolved so Flutter follows the Windows setting. Three tests added to the Settings screen. `cb888f4`, and the spec plus the README follow in `a152143`.
 - [ ] D5. Checkpoint: both modes on every screen
+      - Gates done: format 0 changed, analyze clean, 873 tests passed, release build produced `flowpost.exe`. `theme_mode_test.dart` covers the dark shell at 200% text in the smallest window; the walk of each screen in both looks on the installed build is the owner's.
 
 ## Phase E — Guided setup wizard
 - [ ] E1. Step model and copy

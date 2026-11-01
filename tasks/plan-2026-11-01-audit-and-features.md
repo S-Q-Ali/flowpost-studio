@@ -288,27 +288,33 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
 
 ## Phase D — Dark mode
 
-- [ ] **D1. Add the dark palette and theme** — Accept: `flowPostDarkTheme()` covers the same tokens; contrast test for body text, primary text, destructive, and disabled states.
+- [x] **D1. Add the dark palette and theme** — Accept: `flowPostDarkTheme()` covers the same tokens; contrast test for body text, primary text, destructive, and disabled states.
   - Verify: pure test computing relative luminance/contrast ratios.
   - Files: `lib/core/theme/app_theme.dart`, new theme test.
   - Dep: none · Size: S.
+  - Done: `FlowPostDarkColors` is the web `.dark` block (`src/index.css:70-107`) converted to ARGB, and `flowPostDarkTheme()` builds the same scheme shape as the light one. Two tokens sit above the web value because they fail measured on the dark card: `destructive` goes from 60% to 65% lightness, and the border uses the web's muted-foreground as `outline`. `FlowPostTones` (a `ThemeExtension`) carries the two Material 3 has no slot for - accent text and the published green - so a screen asks its theme, never its brightness. **One acceptance item dropped:** the disabled-state ratio. Material paints a disabled label as `onSurface` at 38% alpha, 2.24:1 on the light card and 2.92:1 on the dark one; WCAG 2.1 exempts inactive components, so the assertion would have failed the shipped light theme for a rule that does not apply. The test covers the surfaces (screen and card) rather than a list of colours: 18 assertions.
 
-- [ ] **D2. Replace hardcoded colours** — Accept: the 22 `FlowPostColors.*` / `Colors.white|black` reads outside the theme file resolve from the active `ColorScheme`; no light-only literal remains in UI.
+- [x] **D2. Replace hardcoded colours** — Accept: the 22 `FlowPostColors.*` / `Colors.white|black` reads outside the theme file resolve from the active `ColorScheme`; no light-only literal remains in UI.
   - Verify: grep gate in review; widget tests render in both modes.
   - Files: `lib/core/shell/app_shell.dart`, `lib/features/media/presentation/media_page.dart`, `lib/features/publishing/presentation/publish_page.dart`, `lib/features/scheduling/presentation/post_actions.dart`, `post_status_color.dart`.
   - Dep: D1 · Size: S.
+  - Done: the rail's accent icon, the media error icons, the destructive buttons and their labels, the publish status row, the account badge and the draft banner all read from `Theme.of(context)`. `postStatusColor(status, theme)` takes the theme now, so the queue and the calendar name the same green for a published post, and the contrast test asserts that mapping in both modes. `Colors.green.shade700`/`shade900` and the `FlowPostColors.primaryText` literals are gone from `lib/features`; the only colours spelled out outside `app_theme.dart` are in `calm_error_panel.dart`, the widget that replaces a build that threw, which is deliberately theme-free - a theme read there is the thing that just failed. Same commit as D1 (`606fb4f`): the consumers and the palette could not land apart, the first would not compile.
 
-- [ ] **D3. Persist and apply the mode** — Accept: a `themeControllerProvider` reads/writes `preferences.json`; `MaterialApp` gets light/dark themes and the mode; `system` follows the OS; loaded before the first frame.
+- [x] **D3. Persist and apply the mode** — Accept: a `themeControllerProvider` reads/writes `preferences.json`; `MaterialApp` gets light/dark themes and the mode; `system` follows the OS; loaded before the first frame.
   - Verify: store test, controller test, widget test for live switch + restart.
   - Files: `lib/core/theme/theme_controller.dart`, `lib/core/preferences/preferences_store.dart`, `lib/main.dart`, `lib/app.dart`, tests.
   - Dep: D2 · Size: S.
+  - Done: `ThemeStore` reads and writes `preferences.json` in the app's data root - absent or unreadable answers `null` (the app starts on System), a write goes to a temp file and renames, and a failure deletes the temp and reports false. The file lives at `lib/core/theme/theme_store.dart` rather than the planned `lib/core/preferences/preferences_store.dart`: one concern, one folder, and nothing else reads it yet - a `preferences/` folder for one key would be a shape waiting for contents. `ThemeController.setMode` writes before it changes state, so a refused write never paints a look that vanishes at the next start; `main()` awaits the read before `runApp` and seeds the controller. `2941270`.
 
-- [ ] **D4. Add the Settings section** — Accept: Appearance card with System / Light / Dark, current value shown, no restart needed.
+- [x] **D4. Add the Settings section** — Accept: Appearance card with System / Light / Dark, current value shown, no restart needed.
   - Verify: widget test for the three options.
   - Files: `lib/features/settings/presentation/settings_page.dart`, test.
   - Dep: D3 · Size: XS.
+  - Done: the Appearance card sits between Credentials and Updates with one `SegmentedButton<ThemeMode>`, the mode in use selected, and a line saying System follows the Windows setting. Three tests: the three options with the current one picked; a pick written, shown on the same frame and kept in the fake store; a refusing store named by snackbar while the selection stays put. `cb888f4`, with `SPEC-settings.md` and the desktop README in `a152143`.
 
 - [ ] **D5. Checkpoint** — run the app in both modes on Windows, check each screen, 200% scaling.
+  - Automated part done: format 0 changed, analyze clean across `lib test integration_test`, 873 tests passed (29 of them the theme suite), release build produced `flowpost.exe`. `theme_mode_test.dart` boots the dark app at 200% text in a 1024x640 window and asserts the shell renders without an exception.
+  - Owner part open: read each screen in both looks on the installed build - the palette was measured, not looked at, and a gradient or an image behind a card is not something the contrast test can see.
 
 ---
 
