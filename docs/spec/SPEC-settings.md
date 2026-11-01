@@ -1,7 +1,7 @@
 # Spec: `settings` — Settings Screen (Phase 6.1)
 
 **Module:** `settings` (see `docs/spec/flowpost-native-capability-map.md`)
-**Status:** Proposed 2026-10-29 (Phase 6.1). The license (2026-10-31), the credentials (2026-10-30) and the look (2026-11-01) sections are on screen; the account rows the first draft planned for are not — the app is licensed by key.
+**Status:** Proposed 2026-10-29 (Phase 6.1). The license (2026-10-31), the credentials (2026-10-30), the look (2026-11-01) and the guided-setup entry (2026-11-02) sections are on screen; the account rows the first draft planned for are not — the app is licensed by key.
 **Depends on:** `shell` (the route and the rail entry), `license` (the grant and the session it mints), `credentials` (the backend values), `offline` (the cache wipe when a grant ends)
 **Blocks:** 6.2 (the export action sits beside the log location), 6.7 (the About text)
 
@@ -36,12 +36,13 @@ Out:
 
 ## The screen
 
-`/settings` replaces the placeholder (`desktop-flutter/lib/core/router/app_router.dart:62`). The rail entry already exists (`core/shell/app_shell.dart:18`). Sections in this order, one scroll:
+`/settings` replaces the placeholder (`desktop-flutter/lib/core/router/app_router.dart`). The rail entry already exists (`core/shell/app_shell.dart:18`). Sections in this order, one scroll:
 
 | Section | Shows | Actions |
 |---|---|---|
 | License | the grant and its expiry, or why there is none | **Activate license** / **Change license** (the license screen); **Deactivate this PC** |
 | Credentials | which values are live and the reason | **Save**, **Test connection**, **Clear** |
+| Guided setup | one line on what the wizard walks through | **Open the setup wizard** |
 | Appearance | the look in use | **System** / **Light** / **Dark** |
 | Updates | the version, the check's answer | **Check for updates**; **Download** when there is one |
 | Diagnostics | the log file's folder, the local files, what could not be opened | **Open folder**; **Save diagnostics**; **Salvage drafts** when the file will not open |
@@ -51,6 +52,7 @@ Out:
 
 - **License.** No grant: "No active license." with **Activate license**. An active one: the expiry date, `· offline` when it was read from the machine rather than confirmed by the server. An expired one names what to do. **Deactivate this PC** is behind a confirmation that names the trade: "Deactivating removes the license from this machine. Your drafts are kept." A grant that cannot be removed still ends the session and wipes the cache; the failure says so.
 - **Credentials** is the shared form (SPEC-credentials): the live values, a line on where they came from, and a service-role key refused before anything is written. A backend change deactivates the grant and wipes `cache.db`, because a post from the old backend must not look like one from the new one.
+- **Guided setup** is the door back to the wizard (SPEC-setup): `/setup` stays reachable after the first run, so the steps left — the keys the server holds, the platform connections — can be finished without clearing the credentials first. The wizard keeps its own place, so this tap lands on the step last left.
 - **Appearance.** One `SegmentedButton`, the mode in use selected. **System** follows the Windows setting through `MaterialApp.themeMode`. The pick applies on the same frame — no restart — and is written to `preferences.json` first: a look the file refused keeps what is on screen and says "The look could not be saved on this machine." rather than showing a look that will be gone after a restart. Startup reads the file before the first frame, so the saved look is the one shown.
 - **Updates.** No manifest URL configured: the button is off and the section says the build has no update source, rather than showing a failure that looks like a network fault. Configured: **Check for updates** → a spinner → "You're up to date (1.2.3)" or "Version 1.3.0 is available" with **Download** (system browser) or "Update check failed." with the button back on. The download URL must be https (`core/update/update_checker.dart` already enforces it).
 - **Diagnostics.** The folder is the app's own `logs` folder under the support directory (`core/logging/app_logger.dart`). **Open folder** reveals it in Explorer. If the folder cannot be resolved, the section says the log is not available yet and shows no path.
@@ -73,7 +75,7 @@ Out:
 ## Tests
 
 - Unit: the version provider answers the platform's version and falls back without throwing when the channel is unavailable; the update states (unset URL, up to date, available, failed) with a fake manifest fetch; deactivating clears the session, wipes the cache and leaves the drafts (fake cache and fake drafts repository, including a wipe that throws); the preferences file round-trips, replaces rather than merges, and answers `null` for a file it cannot read (theme store test).
-- Widget: the six sections render in order; each license state and the confirmation sentence with its two outcomes; the three looks offered with the current one picked, a pick kept and shown on the same frame, and a refused write named while the screen stays as it was; the update button off with no manifest URL and its three answers with one; the log folder shown and **Open folder** calling the seam; About shows the version.
+- Widget: the seven sections render in order; each license state and the confirmation sentence with its two outcomes; **Open the setup wizard** moves to `/setup`; the three looks offered with the current one picked, a pick kept and shown on the same frame, and a refused write named while the screen stays as it was; the update button off with no manifest URL and its three answers with one; the log folder shown and **Open folder** calling the seam; About shows the version.
 - Contrast: every text and non-text token of both themes measured against the surface it sits on (`test/core/theme/contrast_test.dart`), so a palette edit that drops a colour below WCAG 2.1 fails here rather than on a screen.
 - Manual: the installed build opens Settings from the rail; the version matches the installer; Open folder opens Explorer at `logs\app.log`; each screen is read in both looks at 200% text.
 

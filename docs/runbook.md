@@ -29,7 +29,7 @@ Tokens are kept in Windows Credential Manager through `flutter_secure_storage` (
 
 | Symptom | Likely cause | What to do |
 |---|---|---|
-| Window never appears; message box about the start | Unreadable `credentials.json`, or another instance holds the lock | Read `app.log`. If the file is invalid, the client refuses to start rather than guessing: fix or delete `credentials.json` and reopen the setup screen |
+| Window never appears; message box about the start | Unreadable `credentials.json`, or another instance holds the lock | Read `app.log`. If the file is invalid, the client refuses to start rather than guessing: fix or delete `credentials.json` and reopen the setup wizard |
 | "Checking the file…" never ends | FFmpeg missing or a probe timeout | Confirm `third_party\ffmpeg\bin\ffmpeg.exe` shipped next to the executable; the log distinguishes a missing build from a damaged file |
 | Sign-in rejected | Signups are closed, or the password is wrong | Only an existing `public.users` row may sign in; check the account in Supabase |
 | Edge calls return 401 | The admin session token expired or another client minted a newer one | Sign in again through the security-questions gate (a new token invalidates the others) |
@@ -63,7 +63,7 @@ Quit the tray app before a build: Windows locks `cnativeapi.dll` while it runs. 
 
 ## Rollback
 
-**Desktop.** Keep the previous installer artifact. Run it over the current install; the data root (`%APPDATA%\com.flowpost\FlowPost`) is untouched. If the new build migrated a local database, the older build may refuse the file: move `cache.db` (safe, it is rebuilt) or `drafts.db` aside only after exporting the drafts. Deleting `credentials.json` sends the next start to the setup screen.
+**Desktop.** Keep the previous installer artifact. Run it over the current install; the data root (`%APPDATA%\com.flowpost\FlowPost`) is untouched. If the new build migrated a local database, the older build may refuse the file: move `cache.db` (safe, it is rebuilt) or `drafts.db` aside only after exporting the drafts. Deleting `credentials.json` sends the next start to the setup wizard.
 
 **Edge functions.** The previous code is in git:
 
