@@ -124,6 +124,7 @@ v1 is **unsigned**. Windows SmartScreen shows "Windows protected your PC"; use
   platform, account id, display name, status). The server is the truth; this
   file is only what the app can show offline.
 - Log: `%APPDATA%\com.flowpost\FlowPost\logs\app.log` (rotates to `app.log.1` at 1 MB)
+- Look: `preferences.json` (`themeMode`: `system`, `light` or `dark`)
 - Media workspace: `%LOCALAPPDATA%\com.flowpost\FlowPost\media\jobs\<job-id>`
   (one folder per picked file; removed at startup and when the file is replaced)
 - Media jobs are logged by id only; a path would leak the user's folders.
@@ -168,7 +169,7 @@ picker and extension/size/duration validation, and local media processing
 (probe, normalize to MP4, thumbnail, caption frames, transcription audio)
 through the bundled FFmpeg. AI captions, uploads, compose and publish with
 schedules, a queue and calendar over a local SQLite cache, local drafts, and
-Settings with diagnostics export.
+Settings with diagnostics export and a light, dark or system look.
 
 Out: connecting a platform from the desktop — accounts are connected in the web
 dashboard until the in-app browser OAuth flow lands — plus insights, silent
