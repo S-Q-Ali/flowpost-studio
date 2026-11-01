@@ -6,6 +6,7 @@ import 'package:flowpost_desktop/core/config/config_controller.dart';
 import 'package:flowpost_desktop/core/config/credentials_store.dart';
 import 'package:flowpost_desktop/core/router/app_router.dart';
 import 'package:flowpost_desktop/core/session/session.dart';
+import 'package:flowpost_desktop/core/theme/theme_controller.dart';
 import 'package:flowpost_desktop/core/update/app_version.dart';
 import 'package:flowpost_desktop/core/update/update_checker.dart';
 import 'package:flowpost_desktop/features/license/data/license_models.dart';
@@ -23,6 +24,7 @@ import '../../support/fake_credentials_store.dart';
 import '../../support/fake_drafts.dart';
 import '../../support/fake_license.dart';
 import '../../support/fake_posts_cache.dart';
+import '../../support/fake_theme_store.dart';
 
 const AppVersionInfo _version = AppVersionInfo(
   version: '1.2.3',
@@ -68,6 +70,9 @@ DiagnosticsFacts testFacts({
 TextField _field(WidgetTester tester, String key) =>
     tester.widget<TextField>(find.byKey(Key(key)));
 
+SegmentedButton<ThemeMode> _segments(WidgetTester tester) => tester
+    .widget<SegmentedButton<ThemeMode>>(find.byKey(const Key('theme-mode')));
+
 /// The Settings screen scrolls; a control low on the card must be brought
 /// into the viewport before the tap lands on it.
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
@@ -94,6 +99,7 @@ Future<ProviderContainer> _pump(
   Future<DiagnosticsExportOutcome> Function()? exporter,
   List<LocalFileFact> broken = const [],
   FakeCredentialsStore? store,
+  FakeThemeStore? themeStore,
   Future<String> Function(AppConfig config)? connectionCheck,
   AppConfig? live,
   ConfigSource source = ConfigSource.compiled,
@@ -103,6 +109,7 @@ Future<ProviderContainer> _pump(
   final vault = licenseStore ?? MemoryLicenseStore(grant);
   vault.failClear = failLicenseClear;
   final overrides = [
+    themeStoreProvider.overrideWithValue(themeStore ?? FakeThemeStore()),
     seededConfig(
       live ??
           AppConfig.fromValues(
@@ -690,6 +697,43 @@ void main() {
     expect(vault.record, isNull);
     expect(container.read(sessionProvider), isNull);
     expect(cache.wipes, 1);
+  });
+
+  testWidgets('the looks are offered with the current one picked', (
+    tester,
+  ) async {
+    await _pump(tester);
+
+    expect(find.text('Appearance'), findsOneWidget);
+    expect(_segments(tester).selected, {ThemeMode.system});
+  });
+
+  testWidgets('choosing a look keeps it and shows it at once', (tester) async {
+    final store = FakeThemeStore();
+    final container = await _pump(tester, themeStore: store);
+
+    await _tapVisible(tester, find.text('Dark'));
+
+    expect(container.read(themeControllerProvider), ThemeMode.dark);
+    expect(store.saved, ThemeMode.dark);
+    expect(_segments(tester).selected, {ThemeMode.dark});
+  });
+
+  testWidgets('a look that will not save says so and stays put', (
+    tester,
+  ) async {
+    final store = FakeThemeStore()..refusesWrite = true;
+    final container = await _pump(tester, themeStore: store);
+
+    await _tapVisible(tester, find.text('Dark'));
+
+    expect(
+      find.text('The look could not be saved on this machine.'),
+      findsOneWidget,
+    );
+    expect(container.read(themeControllerProvider), ThemeMode.system);
+    expect(_segments(tester).selected, {ThemeMode.system});
+    expect(store.writes, isEmpty);
   });
 
   testWidgets('grows with large text at the minimum window size', (

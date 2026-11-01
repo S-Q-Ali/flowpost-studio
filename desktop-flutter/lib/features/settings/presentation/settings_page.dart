@@ -9,14 +9,15 @@ import '../../../core/config/app_config.dart';
 import '../../../core/config/config_controller.dart';
 import '../../../core/diagnostics/diagnostics_report.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/theme_controller.dart';
 import '../../../core/update/app_version.dart';
 import '../../license/data/license_models.dart';
 import '../../license/license_controller.dart';
 import '../settings_providers.dart';
 import 'credentials_form.dart';
 
-/// The license, which build this is, where the log lives, and what the app is
-/// (SPEC-settings).
+/// The license, the look, which build this is, where the log lives, and what
+/// the app is (SPEC-settings).
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
@@ -35,14 +36,16 @@ class SettingsPage extends ConsumerWidget {
                 Text('Settings', style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 4),
                 Text(
-                  'Your license, which build this is, and where the app keeps '
-                  'its log.',
+                  'Your license, how the app looks, which build this is, and '
+                  'where the app keeps its log.',
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 24),
                 const _LicenseSection(),
                 const SizedBox(height: 16),
                 const _CredentialsSection(),
+                const SizedBox(height: 16),
+                const _AppearanceSection(),
                 const SizedBox(height: 16),
                 const _UpdatesSection(),
                 const SizedBox(height: 16),
@@ -301,6 +304,55 @@ class _CredentialsSectionState extends ConsumerState<_CredentialsSection> {
     }
     setState(() => _generation++);
     return true;
+  }
+}
+
+/// Light, dark, or whatever Windows is showing (SPEC-settings).
+class _AppearanceSection extends ConsumerWidget {
+  const _AppearanceSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return _Section(
+      title: 'Appearance',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SegmentedButton<ThemeMode>(
+            key: const Key('theme-mode'),
+            segments: const [
+              ButtonSegment(value: ThemeMode.system, label: Text('System')),
+              ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+              ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+            ],
+            selected: {ref.watch(themeControllerProvider)},
+            onSelectionChanged: (selection) =>
+                _choose(context, ref, selection.first),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'System follows the Windows setting. The choice applies at once '
+            'and is kept for the next start.',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _choose(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeMode mode,
+  ) async {
+    final kept = await ref.read(themeControllerProvider.notifier).setMode(mode);
+    if (kept || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('The look could not be saved on this machine.'),
+      ),
+    );
   }
 }
 
