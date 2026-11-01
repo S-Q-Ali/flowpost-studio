@@ -75,6 +75,7 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - `account-list` is the source; `accounts.json` is only the cache used when there is no session or the network is unreachable. The six seeded placeholder cards and the local Connect/Disconnect toggle are deleted, so an empty server renders the empty state. 27 accounts tests, desktop suite 832.
 - [x] C3. Publish targets derived from connected accounts
       - `publishTargetsFor` turns a connected row into its targets (Instagram feed + story; drive rows and rows without the platform id name nothing). `publishTargetsProvider` is a FutureProvider over the accounts read, so the compose screen tells loading, unreadable and genuinely empty apart. 12 more tests, desktop suite 844.
+      - Follow-up (`fe1b0d1`, `3b9c3bf`): the accounts screen no longer hints at a connect button it does not have — the empty state and the compose notice say to connect in the web dashboard, the offline note only shows when something was actually kept, and `SPEC-accounts.md` plus both READMEs describe the server-owned list.
 - [ ] C4. Checkpoint: connect + publish on a real server (needs Phase F and a deployed `posts-api`)
 
 ## Phase D — Dark mode
