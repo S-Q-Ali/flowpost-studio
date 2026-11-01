@@ -267,11 +267,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: A1 · Size: S.
   - Done: `ACCOUNT_COLUMNS` names the display fields plus `token_expiry` and nothing else, `listAccounts(supabase, userId)` builds the read with the owner from the session, and the handler answers the action with `{rows: [...]}`. The tests use a fake table that applies the filter, so a second user's row is proven to stay out of the answer.
 
-- [ ] **C2. Build the desktop accounts repository** — Must (desktop 1)
+- [x] **C2. Build the desktop accounts repository** — Must (desktop 1)
   - Accept: accounts come from `account-list`, not `accounts.json`; loading/offline/empty states exist; the local preview becomes a cache.
   - Verify: tests with a fake client for list, offline and empty.
   - Files: `lib/features/accounts/accounts_providers.dart`, `lib/features/accounts/data/accounts_repository.dart`, tests.
   - Dep: C1 · Size: M.
+  - Done: `ServerAccountsRepository.read()` asks `account-list` through the existing posts transport and returns `AccountsRead(accounts, offline)`. With no session, or when the network fails (connection/timeout), it serves `FileAccountsCache`; a refused or broken server answer is a rethrow, not a stale list, and a cache write that fails cannot lose a fresh answer. `seedAccounts` and the six placeholder cards are gone — an empty server means an empty list — and with them went the local Connect/Disconnect toggle, because a button that only rewrites a file would be a lie; real connect and disconnect arrive with the browser OAuth phase. Row → account mapping keeps `account_id` and the server platform name on the model so publish targets can be derived (C3). The accounts tests are 27 (18 repository, 9 page), net 14 over the Phase B gate. the desktop suite is at 832.
 
 - [ ] **C3. Derive publish targets from real accounts** — Must (desktop 1)
   - Accept: `publishTargetsProvider` lists one target per connected account (plus feed/story for Instagram), refreshes after connect/disconnect, and is empty only when nothing is connected.

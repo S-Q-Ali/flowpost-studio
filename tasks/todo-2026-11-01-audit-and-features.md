@@ -71,7 +71,8 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
 ## Phase C — Real publish targets
 - [x] C1. `account-list` in posts-api
       - `ACCOUNT_COLUMNS` carries the display fields plus `token_expiry` and no token; `listAccounts` scopes the read to the session user, and the fake table proves another user's row stays out of the answer.
-- [ ] C2. Desktop accounts repository from the server
+- [x] C2. Desktop accounts repository from the server
+      - `account-list` is the source; `accounts.json` is only the cache used when there is no session or the network is unreachable. The six seeded placeholder cards and the local Connect/Disconnect toggle are deleted, so an empty server renders the empty state. 27 accounts tests, desktop suite 832.
 - [ ] C3. Publish targets derived from connected accounts
 - [ ] C4. Checkpoint: connect + publish on a real server
 

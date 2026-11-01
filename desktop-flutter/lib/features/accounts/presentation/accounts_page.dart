@@ -13,6 +13,7 @@ class AccountsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final accounts = ref.watch(accountsControllerProvider);
+    final read = accounts.value;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -24,13 +25,18 @@ class AccountsPage extends ConsumerWidget {
             'Connect the channels FlowPost publishes to.',
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Local preview: connections are saved on this PC until sign-in is wired.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          // The list is the server's whenever the server answered; only a
+          // read that could not reach it is the copy this PC kept.
+          if (read != null && read.offline) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Showing the accounts this PC kept. Reconnect to see the live '
+              'list.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 20),
           Expanded(
             child: accounts.when(
@@ -41,45 +47,21 @@ class AccountsPage extends ConsumerWidget {
                   ref.invalidate(accountsControllerProvider);
                 },
               ),
-              data: (items) => items.isEmpty
+              data: (read) => read.accounts.isEmpty
                   ? const Center(child: Text('No accounts yet.'))
-                  : _AccountGrid(
-                      items: items,
-                      onAction: (account) => _setStatus(context, ref, account),
-                    ),
+                  : _AccountGrid(items: read.accounts),
             ),
           ),
         ],
       ),
     );
   }
-
-  Future<void> _setStatus(
-    BuildContext context,
-    WidgetRef ref,
-    ConnectedAccount account,
-  ) async {
-    final next = account.status == AccountStatus.connected
-        ? AccountStatus.disconnected
-        : AccountStatus.connected;
-    try {
-      await ref
-          .read(accountsControllerProvider.notifier)
-          .setStatus(account.platform, next);
-    } on Object {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save the account. Try again.')),
-      );
-    }
-  }
 }
 
 class _AccountGrid extends StatelessWidget {
-  const _AccountGrid({required this.items, required this.onAction});
+  const _AccountGrid({required this.items});
 
   final List<ConnectedAccount> items;
-  final ValueChanged<ConnectedAccount> onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -103,10 +85,7 @@ class _AccountGrid extends StatelessWidget {
               for (final account in items)
                 SizedBox(
                   width: cardWidth,
-                  child: _AccountCard(
-                    account: account,
-                    onAction: () => onAction(account),
-                  ),
+                  child: _AccountCard(account: account),
                 ),
             ],
           ),
@@ -117,18 +96,18 @@ class _AccountGrid extends StatelessWidget {
 }
 
 class _AccountCard extends StatelessWidget {
-  const _AccountCard({required this.account, required this.onAction});
+  const _AccountCard({required this.account});
 
   final ConnectedAccount account;
-  final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final connected = account.status == AccountStatus.connected;
     return Card(
-      key: Key('account-${account.platform.name}'),
+      // Two accounts of one platform are two cards, so the account id is
+      // part of the key.
+      key: Key('account-${account.platform.name}-${account.accountId}'),
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -159,36 +138,15 @@ class _AccountCard extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(account.platform.label, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 2),
-            Text(
-              account.accountName,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
+            if (account.accountName.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                account.accountName,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: connected
-                  ? OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: scheme.onSurface,
-                      ),
-                      onPressed: onAction,
-                      child: const Text('Disconnect'),
-                    )
-                  : FilledButton(
-                      style: FilledButton.styleFrom(
-                        foregroundColor: scheme.onSurface,
-                      ),
-                      onPressed: onAction,
-                      child: Text(
-                        account.status == AccountStatus.expired
-                            ? 'Reconnect'
-                            : 'Connect',
-                      ),
-                    ),
-            ),
+            ],
           ],
         ),
       ),

@@ -4,6 +4,7 @@ import 'package:flowpost_desktop/features/accounts/accounts_providers.dart';
 import 'package:flowpost_desktop/features/accounts/data/accounts_repository.dart';
 import 'package:flowpost_desktop/features/accounts/domain/connected_account.dart';
 import 'package:flowpost_desktop/features/license/license_providers.dart';
+import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,34 +18,43 @@ const _config = AppConfig(
   updateManifestUrl: '',
 );
 
-class _MemoryAccountsRepository implements AccountsRepository {
-  _MemoryAccountsRepository([List<ConnectedAccount>? initial])
-    : accounts = initial ?? seedAccounts;
+const _youtube = ConnectedAccount(
+  platform: SocialPlatform.youtube,
+  accountName: 'FlowPost Studio',
+  status: AccountStatus.connected,
+  accountId: 'UC-1',
+  serverPlatform: 'youtube',
+);
+
+const _instagram = ConnectedAccount(
+  platform: SocialPlatform.meta,
+  accountName: 'flowpost.studio',
+  status: AccountStatus.connected,
+  accountId: 'ig-1',
+  serverPlatform: 'instagram',
+);
+
+/// Answers what the test names, so each state of the screen has its own.
+class _FakeAccountsRepository implements AccountsRepository {
+  _FakeAccountsRepository([List<ConnectedAccount>? accounts])
+    : accounts = accounts ?? [_youtube, _instagram];
 
   List<ConnectedAccount> accounts;
 
-  @override
-  Future<List<ConnectedAccount>> load() async => accounts;
+  /// Whether the answer came from this PC rather than the server.
+  bool offline = false;
+
+  /// What the read throws instead of answering.
+  Object? error;
+
+  int reads = 0;
 
   @override
-  Future<void> save(List<ConnectedAccount> accounts) async {
-    this.accounts = accounts;
+  Future<AccountsRead> read() async {
+    reads++;
+    if (error != null) throw error!;
+    return AccountsRead(accounts: accounts, offline: offline);
   }
-}
-
-class _FailingAccountsRepository implements AccountsRepository {
-  @override
-  Future<List<ConnectedAccount>> load() async =>
-      throw StateError('disk unavailable');
-
-  @override
-  Future<void> save(List<ConnectedAccount> accounts) async {}
-}
-
-class _SaveFailingRepository extends _MemoryAccountsRepository {
-  @override
-  Future<void> save(List<ConnectedAccount> accounts) async =>
-      throw StateError('disk full');
 }
 
 Future<void> _pumpApp(
@@ -71,95 +81,88 @@ Future<void> _pumpApp(
 }
 
 void main() {
-  testWidgets('shows the six platform cards', (tester) async {
-    await _pumpApp(tester, _MemoryAccountsRepository());
+  testWidgets('one card per account the server named', (tester) async {
+    await _pumpApp(tester, _FakeAccountsRepository());
 
-    for (final platform in SocialPlatform.values) {
-      expect(find.byKey(Key('account-${platform.name}')), findsOneWidget);
-    }
+    expect(find.byKey(const Key('account-youtube-UC-1')), findsOneWidget);
+    expect(find.byKey(const Key('account-meta-ig-1')), findsOneWidget);
+    expect(find.text('FlowPost Studio'), findsOneWidget);
+    expect(find.text('Instagram & Facebook'), findsOneWidget);
+    // The list is the server's, so no card is offered for a platform that
+    // was never connected.
+    expect(find.byKey(const Key('account-mega-')), findsNothing);
   });
 
-  testWidgets('connect and disconnect update the stored account', (
-    tester,
-  ) async {
-    final repository = _MemoryAccountsRepository();
-    await _pumpApp(tester, repository);
-    final card = find.byKey(const Key('account-youtube'));
-
-    expect(
-      find.descendant(of: card, matching: find.text('Not connected')),
-      findsOneWidget,
+  testWidgets('an account that is not connected says so', (tester) async {
+    await _pumpApp(
+      tester,
+      _FakeAccountsRepository([
+        const ConnectedAccount(
+          platform: SocialPlatform.tiktok,
+          accountName: 'FlowPost',
+          status: AccountStatus.expired,
+          accountId: 'tt-1',
+          serverPlatform: 'tiktok',
+        ),
+      ]),
     );
 
-    await tester.tap(find.descendant(of: card, matching: find.text('Connect')));
-    await tester.pumpAndSettle();
-
-    expect(
-      repository.accounts
-          .firstWhere((account) => account.platform == SocialPlatform.youtube)
-          .status,
-      AccountStatus.connected,
-    );
-    expect(
-      find.descendant(of: card, matching: find.text('Connected')),
-      findsOneWidget,
-    );
-
-    await tester.tap(
-      find.descendant(of: card, matching: find.text('Disconnect')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(
-      repository.accounts
-          .firstWhere((account) => account.platform == SocialPlatform.youtube)
-          .status,
-      AccountStatus.disconnected,
-    );
-  });
-
-  testWidgets('expired account offers reconnect', (tester) async {
-    final repository = _MemoryAccountsRepository([
-      const ConnectedAccount(
-        platform: SocialPlatform.tiktok,
-        accountName: 'FlowPost Studio',
-        status: AccountStatus.expired,
-      ),
-    ]);
-    await _pumpApp(tester, repository);
-    final card = find.byKey(const Key('account-tiktok'));
-
+    final card = find.byKey(const Key('account-tiktok-tt-1'));
     expect(
       find.descendant(of: card, matching: find.text('Expired')),
       findsOneWidget,
     );
-    expect(
-      find.descendant(of: card, matching: find.text('Reconnect')),
-      findsOneWidget,
-    );
   });
 
-  testWidgets('load failure shows a readable error', (tester) async {
-    await _pumpApp(tester, _FailingAccountsRepository());
+  testWidgets('no account is the empty state, not six placeholders', (
+    tester,
+  ) async {
+    await _pumpApp(tester, _FakeAccountsRepository(const []));
+
+    expect(find.text('No accounts yet.'), findsOneWidget);
+  });
+
+  testWidgets('an offline read says the list came from this PC', (
+    tester,
+  ) async {
+    await _pumpApp(tester, _FakeAccountsRepository()..offline = true);
+
+    expect(
+      find.text(
+        'Showing the accounts this PC kept. Reconnect to see the live '
+        'list.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('account-youtube-UC-1')), findsOneWidget);
+  });
+
+  testWidgets('an offline read with nothing kept is still empty', (
+    tester,
+  ) async {
+    await _pumpApp(tester, _FakeAccountsRepository(const [])..offline = true);
+
+    expect(find.text('No accounts yet.'), findsOneWidget);
+  });
+
+  testWidgets('a live read does not claim to be a copy', (tester) async {
+    await _pumpApp(tester, _FakeAccountsRepository());
+
+    expect(find.textContaining('this PC kept'), findsNothing);
+  });
+
+  testWidgets('a refused session shows a readable error', (tester) async {
+    await _pumpApp(
+      tester,
+      _FakeAccountsRepository()
+        ..error = const PostsException(
+          'Your session is no longer accepted.',
+          kind: PostsErrorKind.rejected,
+        ),
+    );
 
     expect(find.text('Could not load your accounts.'), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
-  });
-
-  testWidgets('save failure leaves the card unchanged and shows a message', (
-    tester,
-  ) async {
-    await _pumpApp(tester, _SaveFailingRepository());
-    final card = find.byKey(const Key('account-youtube'));
-
-    await tester.tap(find.descendant(of: card, matching: find.text('Connect')));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.descendant(of: card, matching: find.text('Not connected')),
-      findsOneWidget,
-    );
-    expect(find.text('Could not save the account. Try again.'), findsOneWidget);
   });
 
   testWidgets('cards grow with large text at the minimum window size', (
@@ -169,18 +172,17 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await _pumpApp(
       tester,
-      _MemoryAccountsRepository(),
+      _FakeAccountsRepository(),
       size: const Size(1024, 640),
     );
 
     expect(tester.takeException(), isNull);
-    for (final platform in SocialPlatform.values) {
-      expect(find.byKey(Key('account-${platform.name}')), findsOneWidget);
-    }
+    expect(find.byKey(const Key('account-youtube-UC-1')), findsOneWidget);
+    expect(find.byKey(const Key('account-meta-ig-1')), findsOneWidget);
   });
 
   testWidgets('navigation rail moves between screens', (tester) async {
-    await _pumpApp(tester, _MemoryAccountsRepository(), initialLocation: '/');
+    await _pumpApp(tester, _FakeAccountsRepository(), initialLocation: '/');
 
     expect(
       find.text('The native desktop experience starts here.'),
@@ -189,7 +191,7 @@ void main() {
 
     await tester.tap(find.text('Accounts'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('account-youtube')), findsOneWidget);
+    expect(find.byKey(const Key('account-youtube-UC-1')), findsOneWidget);
 
     await tester.tap(find.text('Calendar'));
     await tester.pumpAndSettle();
