@@ -239,11 +239,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: none · Size: S.
   - Done: `PublishComposer` counts the changes that go through `_update`, and `_restore` drops a draft that arrives after the count moved. `FakeDraftsRepository` grew a `holdLoads` completer so a widget test can type into the empty form and then release the read.
 
-- [ ] **B13. "Try again" retries the same file** — Nice (desktop 13)
+- [x] **B13. "Try again" retries the same file** — Nice (desktop 13)
   - Accept: the failed state retries the kept file path; the picker opens only from "Choose another file".
   - Verify: widget test for both buttons.
   - Files: `lib/features/media/presentation/media_page.dart`, `media_providers.dart`, test.
   - Dep: none · Size: XS.
+  - Done: `MediaFailed` carries the job whose run failed, and `retry()` runs that job through the pipeline again — the folder of a failed run is still on disk. With no job behind the message (a rejected file, no workspace) it falls back to the picker, which is the only way forward there.
 
 - [ ] **B14. Sniff image types from bytes** — Nice (desktop 14)
   - Accept: JPEG/PNG/WEBP are detected from magic bytes; a mislabelled extension cannot set the wrong content type.

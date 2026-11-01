@@ -68,6 +68,9 @@ class _FakeProcessor implements MediaProcessor {
 
   final Object? error;
 
+  /// The source of every run, in order.
+  final List<String> sources = [];
+
   /// The normalized file. It has to exist, because the upload counts its
   /// bytes.
   final File? normalized;
@@ -77,6 +80,7 @@ class _FakeProcessor implements MediaProcessor {
     MediaJob job, {
     MediaProgressCallback? onProgress,
   }) async {
+    sources.add(job.sourcePath);
     onProgress?.call(
       const MediaProcessingProgress(
         stage: MediaStage.processing,
@@ -452,6 +456,46 @@ void main() {
     expect(find.textContaining("can't be read"), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
     expect(find.text('Choose another file'), findsOneWidget);
+  });
+
+  testWidgets('"Try again" runs the file that failed again', (tester) async {
+    final picker = _FakePicker([File('C:\\clips\\clip.mp4')]);
+    final processor = _FakeProcessor(
+      error: const MediaProcessingException("This file can't be read."),
+    );
+    await pumpUploadPage(tester, picker, processor: processor);
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+
+    // The folder of the failed run is still there, so the same file goes
+    // through the pipeline again without a trip through the picker.
+    expect(processor.sources, [r'C:\clips\clip.mp4', r'C:\clips\clip.mp4']);
+    expect(picker.calls, 1);
+  });
+
+  testWidgets('the picker opens from "Choose another file"', (tester) async {
+    final picker = _FakePicker([
+      File('C:\\clips\\clip.mp4'),
+      File('C:\\clips\\other.mp4'),
+    ]);
+    final processor = _FakeProcessor(
+      error: const MediaProcessingException("This file can't be read."),
+    );
+    await pumpUploadPage(tester, picker, processor: processor);
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose another file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+
+    expect(picker.calls, 2);
+    expect(processor.sources.last, r'C:\clips\other.mp4');
   });
 
   testWidgets('the caption action is off without a session token', (

@@ -191,7 +191,7 @@ class _FailedState extends ConsumerWidget {
           children: [
             FilledButton.icon(
               onPressed: () =>
-                  ref.read(mediaControllerProvider.notifier).pickFile(),
+                  ref.read(mediaControllerProvider.notifier).retry(),
               icon: const Icon(Icons.refresh),
               label: const Text('Try again'),
             ),

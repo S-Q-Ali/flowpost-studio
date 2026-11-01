@@ -91,9 +91,12 @@ class MediaReady extends MediaState {
 }
 
 class MediaFailed extends MediaState {
-  const MediaFailed(this.message);
+  const MediaFailed(this.message, {this.job});
 
   final String message;
+
+  /// The job whose run failed, when the screen still holds a file to retry.
+  final MediaJob? job;
 }
 
 final mediaControllerProvider = NotifierProvider<MediaController, MediaState>(
@@ -201,12 +204,13 @@ class MediaController extends Notifier<MediaState> {
     } on MediaProcessingException catch (error) {
       if (_current?.id != job.id) return;
       // The folder stays so the action can be retried.
-      state = MediaFailed(error.message);
+      state = MediaFailed(error.message, job: job);
       _log.warning('Media job ${job.id} failed: ${error.message}');
     } catch (error, stackTrace) {
       if (_current?.id != job.id) return;
-      state = const MediaFailed(
+      state = MediaFailed(
         'Something went wrong while processing the file.',
+        job: job,
       );
       // The type and the stack trace are logged, never the message: a
       // message can carry the path of the user's file.
@@ -223,6 +227,22 @@ class MediaController extends Notifier<MediaState> {
   /// Stops the running FFmpeg process.
   void cancel() {
     _processor?.cancel();
+  }
+
+  /// Runs the file that failed through the pipeline again.
+  ///
+  /// A failed run keeps its folder, so the same file needs no second trip
+  /// through the picker. With no file kept behind the message there is only
+  /// the picker to open.
+  Future<void> retry() async {
+    final failure = state;
+    final job = failure is MediaFailed ? failure.job : null;
+    if (job == null) {
+      await pickFile();
+      return;
+    }
+    state = MediaProcessing(job: job, fraction: 0);
+    unawaited(_process(job));
   }
 
   /// Finishes a job: the file is uploaded or the upload was cancelled, so
