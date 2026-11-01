@@ -338,15 +338,17 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: E2 · Size: S.
   - Done `daeb3fa`: stored value wins, env is the fallback, a value that will not open is an error rather than a silent fallback.
 
-- [ ] **E4. Desktop client + controller** — Accept: a typed client for `config-status` / `operator-config` with the license session; controller exposes per-step state (unknown/testing/ready/failed), re-tests, and masks secrets.
+- [x] **E4. Desktop client + controller** — Accept: a typed client for `config-status` / `operator-config` with the license session; controller exposes per-step state (unknown/testing/ready/failed), re-tests, and masks secrets.
   - Verify: fake-client tests for success, 401, network failure, and secret redaction in logs.
   - Files: `lib/features/setup/data/setup_client.dart`, `setup_controller.dart`, tests.
   - Dep: E2 · Size: S.
+  - Done `805ee27`: the client turns each refusal into the server's own sentence, a step is ready only from what the server reports back after the write, and one test scans every log record and state string for the value typed.
 
-- [ ] **E5. Wizard UI** — Accept: two-track chooser, stepper with per-step "why", free-tier note, "Open dashboard" button, masked fields, "Test" with a real result, "Skip for now", Back/Next, progress saved.
+- [x] **E5. Wizard UI** — Accept: two-track chooser, stepper with per-step "why", free-tier note, "Open dashboard" button, masked fields, "Test" with a real result, "Skip for now", Back/Next, progress saved.
   - Verify: widget tests per track, per step state, skip, and resume; keyboard-only walkthrough.
   - Files: `lib/features/setup/presentation/`, `lib/core/router/app_router.dart`, tests.
   - Dep: E4, D1 · Size: L (split step widgets if needed).
+  - Done `fffbe3c`: the whole page is one widget file over the step model; opening a dashboard link and writing the place-mark are seams, so no test needs a browser or a disk. A first-run fix came out of it: saving the server address had nothing to merge with and refused, so the config is now built over the compiled defaults.
 
 - [ ] **E6. First run and Settings entry** — Accept: first run with no config opens the wizard; the wizard is reachable from Settings later; the old setup screen is absorbed; no dead route.
   - Verify: widget tests for redirect and re-entry; manual first run on an empty data folder.
