@@ -253,7 +253,8 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: none · Size: S.
   - Done: the controller reads the first 12 bytes of an image and answers JPEG/PNG/WEBP from the signatures; only bytes that match none of them fall back to the extension, which is what the picker already allowed through. The type the service stores is the one the bytes give, so `media_type` and the platform link are right. Videos are untouched — the pipeline already fixed their type, and the read stays off that path so a cancel still has a request to abort.
 
-- [ ] **B15. Phase B gate** — analyze, format, `flutter test`, release build.
+- [x] **B15. Phase B gate** — analyze, format, `flutter test`, release build.
+  - Done: `dart format --set-exit-if-changed lib test` 0 changed, `flutter analyze lib test` no issues, `flutter test` 818 passed, `flutter build windows --release` produced `build\windows\x64\runner\Release\flowpost.exe`. The build first failed on `atlstr.h` — the VS 2022 Build Tools had no ATL component, which `flutter_secure_storage_windows` needs — and passed once the owner added `Microsoft.VisualStudio.Component.VC.ATL`.
 
 ---
 

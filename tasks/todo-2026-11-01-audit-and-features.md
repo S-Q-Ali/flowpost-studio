@@ -65,7 +65,8 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - `MediaFailed` holds the job that failed and `retry()` re-runs it; the picker opens only from "Choose another file" or when no file was kept.
 - [x] B14. Sniff image types from bytes
       - The upload reads the first 12 bytes of an image: JPEG/PNG/WEBP come from the signatures, and only an unrecognized header falls back to the extension. Videos keep the type the pipeline settled, and their path never awaits, so a cancel still stops the request.
-- [ ] B15. Phase B gate
+- [x] B15. Phase B gate
+      - Format 0 changed, analyze clean, 818 tests passed, release build produced `flowpost.exe`. The first build attempt failed on `atlstr.h` because the VS Build Tools had no ATL component; the owner installed it and the build passed.
 
 ## Phase C — Real publish targets
 - [ ] C1. `account-list` in posts-api
