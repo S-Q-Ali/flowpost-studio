@@ -346,11 +346,7 @@ class _DraftBanner extends ConsumerWidget {
       children: [
         Row(
           children: [
-            const Icon(
-              Icons.restore,
-              size: 18,
-              color: FlowPostColors.primaryText,
-            ),
+            Icon(Icons.restore, size: 18, color: theme.primaryText),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -658,11 +654,11 @@ class _StatusRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final (label, color) = switch (status.phase) {
       PublishPhase.waiting => ('Waiting', theme.colorScheme.onSurfaceVariant),
-      PublishPhase.publishing => ('Publishing...', FlowPostColors.primaryText),
-      PublishPhase.published => ('Published', Colors.green.shade900),
+      PublishPhase.publishing => ('Publishing...', theme.primaryText),
+      PublishPhase.published => ('Published', theme.success),
       PublishPhase.failed => ('Failed', theme.colorScheme.error),
       PublishPhase.unconfirmed => ('Not confirmed', theme.colorScheme.tertiary),
-      PublishPhase.scheduled => ('Scheduled', FlowPostColors.primaryText),
+      PublishPhase.scheduled => ('Scheduled', theme.primaryText),
     };
     final messageColor = switch (status.phase) {
       PublishPhase.failed => theme.colorScheme.error,

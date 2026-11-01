@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../accounts_providers.dart';
 import '../domain/connected_account.dart';
 
@@ -168,9 +169,10 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final (label, color) = switch (status) {
-      AccountStatus.connected => ('Connected', Colors.green.shade700),
+      AccountStatus.connected => ('Connected', theme.success),
       AccountStatus.disconnected => ('Not connected', scheme.onSurfaceVariant),
       AccountStatus.expired => ('Expired', scheme.error),
     };

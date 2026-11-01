@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/app_providers.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../offline/offline_providers.dart';
 import '../../publishing/data/posts_repository.dart';
 import '../../publishing/domain/publish_validation.dart';
@@ -92,7 +91,7 @@ class _PostDetailsState extends ConsumerState<_PostDetails> {
             key: const Key('post-cancel'),
             onPressed: _busy ? null : _confirmAndDelete,
             style: TextButton.styleFrom(
-              foregroundColor: FlowPostColors.destructive,
+              foregroundColor: Theme.of(context).colorScheme.error,
             ),
             child: const Text('Cancel post'),
           ),
@@ -101,7 +100,7 @@ class _PostDetailsState extends ConsumerState<_PostDetails> {
             key: const Key('post-delete'),
             onPressed: _busy ? null : _confirmAndDelete,
             style: TextButton.styleFrom(
-              foregroundColor: FlowPostColors.destructive,
+              foregroundColor: Theme.of(context).colorScheme.error,
             ),
             child: const Text('Delete'),
           ),
@@ -141,8 +140,8 @@ class _PostDetailsState extends ConsumerState<_PostDetails> {
             key: const Key('confirm-delete'),
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(
-              backgroundColor: FlowPostColors.destructive,
-              foregroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
             ),
             child: const Text('Delete'),
           ),
