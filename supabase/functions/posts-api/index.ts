@@ -7,6 +7,7 @@ import {
   editPatch,
   idOf,
   insertRow,
+  listAccounts,
   listQuery,
   rangeQuery,
   retryInstant,
@@ -141,6 +142,12 @@ Deno.serve(async (req) => {
         .eq("user_id", userId)
         .in("account_id", ids.value);
       if (error) return tableFailure("accounts", error);
+      return json({ rows: data ?? [] });
+    }
+
+    case "account-list": {
+      const { data, error } = await listAccounts(supabase, userId);
+      if (error) return tableFailure("account-list", error);
       return json({ rows: data ?? [] });
     }
 

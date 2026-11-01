@@ -43,6 +43,39 @@ const EDIT_FIELDS = [
   "scheduled_at",
 ] as const;
 
+/**
+ * What `account-list` returns: the fields a screen shows about an account.
+ * `token_expiry` tells the caller a refresh is due; the tokens themselves
+ * never leave the table.
+ */
+export const ACCOUNT_COLUMNS =
+  "id,platform,account_id,account_name,display_name,is_connected," +
+  "connected_at,token_expiry";
+
+export interface AccountRows {
+  data: Record<string, unknown>[] | null;
+  error: unknown;
+}
+
+/**
+ * The caller's own connected accounts, ready to await.
+ *
+ * The owner comes from the session and never from the body, so the read the
+ * service-role client makes carries the same `user_id` filter the row-level
+ * policy would apply to an anon key.
+ */
+export function listAccounts(
+  supabase: any,
+  userId: string,
+): PromiseLike<AccountRows> {
+  return supabase
+    .from("connected_accounts")
+    .select(ACCOUNT_COLUMNS)
+    .eq("user_id", userId)
+    .order("platform")
+    .order("account_name");
+}
+
 export type Checked<T> =
   | { ok: true; value: T }
   | { ok: false; status: number; error: string };

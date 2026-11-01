@@ -260,11 +260,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
 
 ## Phase C — Real publish targets (web + desktop, unblocks feature 3)
 
-- [ ] **C1. Add `account-list` to posts-api** — Must (desktop 1)
+- [x] **C1. Add `account-list` to posts-api** — Must (desktop 1)
   - Accept: `{action:"account-list"}` returns the caller's connected accounts (platform, account_id, display name, connection state, token expiry) with no token fields.
   - Verify: function test — one user cannot see another's rows; response has no `access_token`/`refresh_token`.
   - Files: `supabase/functions/posts-api/index.ts`, `supabase/functions/_shared/posts-api.test.ts`.
   - Dep: A1 · Size: S.
+  - Done: `ACCOUNT_COLUMNS` names the display fields plus `token_expiry` and nothing else, `listAccounts(supabase, userId)` builds the read with the owner from the session, and the handler answers the action with `{rows: [...]}`. The tests use a fake table that applies the filter, so a second user's row is proven to stay out of the answer.
 
 - [ ] **C2. Build the desktop accounts repository** — Must (desktop 1)
   - Accept: accounts come from `account-list`, not `accounts.json`; loading/offline/empty states exist; the local preview becomes a cache.

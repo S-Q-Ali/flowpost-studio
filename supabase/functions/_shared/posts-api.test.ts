@@ -1,10 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
+  ACCOUNT_COLUMNS,
   POST_COLUMNS,
   accountIdList,
   editPatch,
   idOf,
   insertRow,
+  listAccounts,
   listQuery,
   rangeQuery,
   retryInstant,
@@ -198,6 +200,96 @@ describe("accountIdList", () => {
   it("refuses more accounts than one page holds", () => {
     const ids = Array.from({ length: 101 }, (_, index) => `account-${index}`);
     expect(accountIdList({ ids })).toMatchObject({ ok: false, status: 400 });
+  });
+});
+
+/**
+ * A `connected_accounts` table that answers the way PostgREST does: every
+ * filter narrows the rows, and the awaited builder returns `{ data, error }`.
+ */
+function fakeAccounts(rows: Record<string, unknown>[], error: unknown = null) {
+  const calls: string[] = [];
+  const selects: string[] = [];
+  let kept = rows;
+  const chain: Record<string, any> = {};
+  chain.select = vi.fn((columns: string) => {
+    calls.push("select");
+    selects.push(columns);
+    return chain;
+  });
+  chain.eq = vi.fn((column: string, value: unknown) => {
+    calls.push(`eq:${column}=${String(value)}`);
+    kept = kept.filter((row) => row[column] === value);
+    return chain;
+  });
+  chain.order = vi.fn((column: string) => {
+    calls.push(`order:${column}`);
+    return chain;
+  });
+  chain.then = (
+    resolve: (value: { data: Record<string, unknown>[]; error: unknown }) => void,
+  ) => resolve({ data: kept, error });
+  const supabase = {
+    from: vi.fn((table: string) => {
+      calls.push(`from:${table}`);
+      return chain;
+    }),
+  };
+  return { supabase, calls, selects };
+}
+
+describe("listAccounts", () => {
+  it("reads only the rows that belong to the caller", async () => {
+    const { supabase } = fakeAccounts([
+      { user_id: "user-1", account_id: "yt-1" },
+      { user_id: "user-2", account_id: "ig-1" },
+    ]);
+
+    const { data } = await listAccounts(supabase, "user-1");
+
+    expect(data).toEqual([{ user_id: "user-1", account_id: "yt-1" }]);
+  });
+
+  it("takes the owner from the session, not from the body", async () => {
+    const { supabase, calls } = fakeAccounts([]);
+
+    await listAccounts(supabase, "user-1");
+
+    expect(calls).toEqual([
+      "from:connected_accounts",
+      "select",
+      "eq:user_id=user-1",
+      "order:platform",
+      "order:account_name",
+    ]);
+  });
+
+  it("asks for the display fields and never a token", async () => {
+    const { supabase, selects } = fakeAccounts([]);
+
+    await listAccounts(supabase, "user-1");
+
+    expect(selects).toEqual([ACCOUNT_COLUMNS]);
+    for (const field of [
+      "platform",
+      "account_id",
+      "account_name",
+      "display_name",
+      "is_connected",
+      "token_expiry",
+    ]) {
+      expect(ACCOUNT_COLUMNS).toContain(field);
+    }
+    expect(ACCOUNT_COLUMNS).not.toMatch(/access_token|refresh_token/);
+  });
+
+  it("hands a table failure back to the handler", async () => {
+    const { supabase } = fakeAccounts([], { message: "db down" });
+
+    const { data, error } = await listAccounts(supabase, "user-1");
+
+    expect(error).toEqual({ message: "db down" });
+    expect(data).toEqual([]);
   });
 });
 

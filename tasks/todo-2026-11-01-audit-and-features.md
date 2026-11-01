@@ -69,7 +69,8 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - Format 0 changed, analyze clean, 818 tests passed, release build produced `flowpost.exe`. The first build attempt failed on `atlstr.h` because the VS Build Tools had no ATL component; the owner installed it and the build passed.
 
 ## Phase C — Real publish targets
-- [ ] C1. `account-list` in posts-api
+- [x] C1. `account-list` in posts-api
+      - `ACCOUNT_COLUMNS` carries the display fields plus `token_expiry` and no token; `listAccounts` scopes the read to the session user, and the fake table proves another user's row stays out of the answer.
 - [ ] C2. Desktop accounts repository from the server
 - [ ] C3. Publish targets derived from connected accounts
 - [ ] C4. Checkpoint: connect + publish on a real server
