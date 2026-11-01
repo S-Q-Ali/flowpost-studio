@@ -49,7 +49,7 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
 - End-user track: 3 steps — server URL + anon key (test connection), license key (activate), done.
 - Operator track: Supabase → deploy functions → Groq (captions) → Cloudflare R2 (media) → Google OAuth → Meta (Instagram + Facebook) → TikTok → LinkedIn → optional license.
 - Each step: exact dashboard links, what to copy, masked fields, a real "Test" that hits the server, "Skip for now", resumable progress.
-- Secrets travel desktop → `operator-config` (license-session guarded) → Supabase Vault. The desktop keeps only "configured" booleans from `config-status`; values are never returned, logged or put in diagnostics.
+- Secrets travel desktop → `operator-config` (license-session guarded) → the server's own config store (`public.operator_config`, sealed with `TOKEN_ENCRYPTION_KEY`; Supabase Vault has no in-request API). The desktop keeps only "configured" booleans from `config-status`; values are never returned, logged or put in diagnostics.
 
 ### Browser account connections
 
@@ -320,20 +320,23 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
 
 ## Phase E — Guided setup wizard
 
-- [ ] **E1. Wizard domain model and copy** — Accept: steps are plain Dart data (id, title, why, free-tier note, dashboard URL, fields with validation, test action, optional); content covers Supabase, deploy, Groq, R2, Google, Meta, TikTok, LinkedIn, license.
+- [x] **E1. Wizard domain model and copy** — Accept: steps are plain Dart data (id, title, why, free-tier note, dashboard URL, fields with validation, test action, optional); content covers Supabase, deploy, Groq, R2, Google, Meta, TikTok, LinkedIn, license.
   - Verify: unit tests for validation and step order; no UI required.
   - Files: `lib/features/setup/domain/setup_steps.dart`, tests.
   - Dep: none · Size: S.
+  - Done `34983b0`: nine steps as data, two tracks, per-field store (`this PC` / `the server`), `httpsUrlProblem` shared with the app config.
 
-- [ ] **E2. Vault-backed operator config** — Accept: migration adds a Vault-backed store; `operator-config` (license-session guarded) writes and lists names only; `config-status` reports booleans; values never returned.
+- [x] **E2. Vault-backed operator config** — Accept: migration adds a Vault-backed store; `operator-config` (license-session guarded) writes and lists names only; `config-status` reports booleans; values never returned.
   - Verify: Deno tests — unauthorised write rejected, values absent from responses, unknown keys rejected, allowlist enforced.
   - Files: new migration, `supabase/functions/operator-config/index.ts`, `supabase/functions/config-status/index.ts`, tests.
   - Dep: A14, A1 · Size: M.
+  - Done `2ffed84`. Implemented on `public.operator_config` (RLS on, no client policy, AES-GCM `value`) rather than Supabase Vault: Edge Functions have no Vault API in the request path, and the existing `TOKEN_ENCRYPTION_KEY` + `encrypt()/decrypt()` seam already does the sealing. The caller-visible contract is unchanged.
 
-- [ ] **E3. Read secrets from Vault with env fallback** — Accept: a `_shared/secrets.ts` helper resolves a key from Vault, then `Deno.env`; R2 upload and the caption function use it; existing deployments unchanged.
+- [x] **E3. Read secrets from Vault with env fallback** — Accept: a `_shared/secrets.ts` helper resolves a key from Vault, then `Deno.env`; R2 upload and the caption function use it; existing deployments unchanged.
   - Verify: helper test (vault hit, env fallback, missing → clear error).
   - Files: `supabase/functions/_shared/secrets.ts`, `_shared/secrets.test.ts`, `upload-local-file/index.ts`, `generate-ai-captions/index.ts`.
   - Dep: E2 · Size: S.
+  - Done `daeb3fa`: stored value wins, env is the fallback, a value that will not open is an error rather than a silent fallback.
 
 - [ ] **E4. Desktop client + controller** — Accept: a typed client for `config-status` / `operator-config` with the license session; controller exposes per-step state (unknown/testing/ready/failed), re-tests, and masks secrets.
   - Verify: fake-client tests for success, 401, network failure, and secret redaction in logs.

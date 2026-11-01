@@ -91,9 +91,14 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
       - Gates done: format 0 changed, analyze clean, 873 tests passed, release build produced `flowpost.exe`. `theme_mode_test.dart` covers the dark shell at 200% text in the smallest window; the walk of each screen in both looks on the installed build is the owner's.
 
 ## Phase E — Guided setup wizard
-- [ ] E1. Step model and copy
-- [ ] E2. Vault-backed `operator-config` + `config-status`
-- [ ] E3. Vault read path with env fallback
+- [x] E1. Step model and copy
+      - `lib/features/setup/domain/setup_steps.dart` holds the nine steps as plain data: two tracks (`setupStepsFor`), fields with their store (this PC / the server), obscuring, validation rule, optionality, plus links, OAuth callback URIs and the "Test" action. Names are the `Deno.env.get` reads in the functions; the callback paths are the ones the six auth functions build. Service-role and encryption keys appear only as instructions to set on the server. `httpsUrlProblem` is exported from `app_config.dart` so the wizard and the config share one address rule. 23 tests in `setup_steps_test.dart`; suite 890 green, analyze clean. `34983b0`.
+- [x] E2. Vault-backed `operator-config` + `config-status`
+      - `public.operator_config` (name / AES-GCM ciphertext / updated_at / updated_by) with RLS on and no policy for anon or authenticated, so only a function holding the service role touches it; the name is checked to look like an env var. `operator-config` stores values for the account that runs the server only — the caller must be a license session whose user owns the server, checked by `resolveConfigCaller` in `_shared/operator-config.ts` — and writes with `encrypt()`; if `TOKEN_ENCRYPTION_KEY` is missing nothing reaches the table in the clear. `config-status` answers which names have a value and never returns one. `verify_jwt = false` for both, like the other functions that authenticate their own caller. 31 tests in `operator-config.test.ts`. `2ffed84`.
+      - Deviation from the plan: the spec said "Vault". Supabase Edge Functions have no Vault API in the request path, so the server keeps the values itself in this table, sealed with the same AES-GCM key the platform credentials already use. The wizard-facing contract is unchanged.
+- [x] E3. Vault read path with env fallback
+      - `_shared/secrets.ts`: `readSecrets(supabase, names)` takes the stored value, falls back to `Deno.env`, and raises `SecretProblem` with the words "add it in the guided setup, or set it under Supabase → Edge Functions → Secrets". A stored value that will not open is reported, not replaced by the env: two answers for one name is worse than a visible failure. A failed config read only logs, so a deployment that still uses env secrets keeps serving. `upload-local-file` builds its R2 client per request from the five `R2_*` names and `generate-ai-captions` reads `GROQ_API_KEY` per request in all four modes, so a key saved in the wizard works on the next call without a redeploy. 9 tests in `secrets.test.ts`, `npx vitest run supabase/functions` 207 green. `daeb3fa`.
+      - `google-drive-auth` and `process-workflow` still read R2 from the env; they are on the scheduler path and move in Phase G once the wizard is proven.
 - [ ] E4. Desktop client + controller
 - [ ] E5. Wizard UI (two tracks, stepper, tests)
 - [ ] E6. First run and Settings entry
