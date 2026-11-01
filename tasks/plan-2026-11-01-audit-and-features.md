@@ -1,6 +1,6 @@
 # Implementation Plan: Audit Fixes + Dark Mode, Guided Setup, Browser Account Connections
 
-**Status:** Approved and building. Phase A (web and edge security) is complete; Phase B onward is open.
+**Status:** Approved and building. Phases A–E (web and edge security, the desktop fixes and release workflow, the connected-account read model, dark mode, the guided setup) are complete on `feature/license-access`; Phase F (browser account connections) and Phase G (docs and the final audit) are open.
 **Created:** 2026-11-01
 **Owner override carried forward:** the desktop app is the product; the web app is the landing page + backend.
 **Companion task list:** `tasks/todo-2026-11-01-audit-and-features.md`
@@ -350,12 +350,14 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Dep: E4, D1 · Size: L (split step widgets if needed).
   - Done `fffbe3c`: the whole page is one widget file over the step model; opening a dashboard link and writing the place-mark are seams, so no test needs a browser or a disk. A first-run fix came out of it: saving the server address had nothing to merge with and refused, so the config is now built over the compiled defaults.
 
-- [ ] **E6. First run and Settings entry** — Accept: first run with no config opens the wizard; the wizard is reachable from Settings later; the old setup screen is absorbed; no dead route.
+- [x] **E6. First run and Settings entry** — Accept: first run with no config opens the wizard; the wizard is reachable from Settings later; the old setup screen is absorbed; no dead route.
   - Verify: widget tests for redirect and re-entry; manual first run on an empty data folder.
   - Files: `lib/core/router/app_router.dart`, `lib/main.dart`, `lib/features/settings/settings_providers.dart`, tests.
   - Dep: E5 · Size: S.
+  - Done `04535f7`: **Open the setup wizard** in Settings plus the two router tests (clean machine starts on the wizard, `/setup` keeps its place once there are values). The manual first run on an empty data folder is E7's, and needs the owner: this agent cannot drive the installed window.
 
-- [ ] **E7. Checkpoint** — clean data folder → wizard → server ready → license active → app usable.
+- [x] **E7. Checkpoint** — clean data folder → wizard → server ready → license active → app usable.
+  - Done: the automated half is green (933 tests, release build), and the walk from no values to Home is a test, not a description. "Server ready" and "license active" against the real deployment is the owner's run, listed in the todo note.
 
 ---
 

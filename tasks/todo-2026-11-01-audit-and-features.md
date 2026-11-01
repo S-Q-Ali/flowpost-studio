@@ -1,6 +1,6 @@
 # Todo — Audit Fixes + Dark Mode, Guided Setup, Browser Connect
 
-Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Status: awaiting approval
+Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Approved; Phases A–E shipped, F–G open
 
 ## Phase A — Edge and web security
 - [x] A1. Hard-deny sessions with a null user id
@@ -104,8 +104,11 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · Sta
 - [x] E5. Wizard UI (two tracks, stepper, tests)
       - `setup_wizard_page.dart` mounted at `/setup`: a two-track chooser (the account that runs the server gets all nine steps, a licence holder the two that need no server key), the step list with each step's "why", optional/free-tier notes and its state (ready, needs attention, checking), links that open the dashboard page for the value being set, the OAuth callback URIs as text to select and paste, secret fields hidden behind a reveal, "Test", "Skip for now", Back, and "Save and continue" / "Continue" / "Finish". The place-mark goes to `setup-wizard.json` beside the other preferences, so a restart opens on the step left behind; the licence gate still wins over the wizard and the wizard keeps its own place once there are values. `fffbe3c`.
       - The old `setup_page.dart` is absorbed and deleted. Two defects came out of writing the tests: `SetupController` refused to save the server address on a clean machine because the merge had no config to merge with (a first run could never create `credentials.json`), and `reload()` replaced the whole step list, so testing one step blanked the others' answers. Both pinned with tests. 23 widget tests drive the flow through the router with the browser launch and the resume file behind seams; gate 930 tests green, analyze clean, release build produced.
-- [ ] E6. First run and Settings entry
-- [ ] E7. Checkpoint: clean folder → wizard → usable
+- [x] E6. First run and Settings entry
+      - Settings gains a **Guided setup** section with **Open the setup wizard** (`settings-open-setup`), so the steps after the server address are reachable without clearing the credentials first. Two router tests hold the other half: a machine with nothing saved starts on the wizard even with an active licence, and once there are values `/setup` keeps its place instead of bouncing to Home. The old setup screen and its test were deleted with E5, so no route is dead. `04535f7`, and the specs that still described a three-field screen (SPEC-credentials' first-run state, its Decision 7, SPEC-settings' section table, two runbook rows) were corrected in `1ba885f`.
+- [x] E7. Checkpoint: clean folder → wizard → usable
+      - Gate: format 0 changed, analyze clean, 933 tests green, release build produced `flowpost.exe`. The walk is held by tests, not by a description: no values opens the two tracks, the server step writes `credentials.json` on this machine and moves to the licence step, **Finish** opens Home, a step change is kept and the next start lands where the last one stopped, a refused save keeps the step open with the server's own sentence, and a stored key never returns to a field. `ef73d1a` names the wizard in the startup log line that says which screen a clean machine starts on.
+      - Owner-only half (this agent cannot drive the installed window against a real server): clear `%APPDATA%\com.flowpost\FlowPost`, start the installed build and walk the end-user track; then the operator track with `operator-config` / `config-status` deployed and `TOKEN_ENCRYPTION_KEY` set, and check that a key saved in the wizard works on the next caption request without a redeploy (E3's read path) and that **Settings → Open the setup wizard** comes back to the step left behind.
 
 ## Phase F — Browser account connections
 - [ ] F1. Deep-link contract + pending nonce store
