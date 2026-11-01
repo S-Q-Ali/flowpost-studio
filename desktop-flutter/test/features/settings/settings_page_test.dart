@@ -301,6 +301,25 @@ void main() {
     expect(find.text('License screen'), findsOneWidget);
   });
 
+  testWidgets('the guided setup is one tap away after the first run', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (context, state) => const SettingsPage()),
+        GoRoute(
+          path: setupRoute,
+          builder: (context, state) => const Scaffold(body: Text('Wizard')),
+        ),
+      ],
+    );
+    await _pump(tester, grant: activeGrant(), router: router);
+
+    await _tapVisible(tester, find.byKey(const Key('settings-open-setup')));
+
+    expect(find.text('Wizard'), findsOneWidget);
+  });
+
   testWidgets('a build with no update source says so and the button is off', (
     tester,
   ) async {

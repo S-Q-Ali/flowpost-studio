@@ -157,4 +157,27 @@ void main() {
     expect(find.text('Set up FlowPost'), findsOneWidget);
     expect(find.text('Unlock FlowPost'), findsNothing);
   });
+
+  testWidgets('a machine with nothing saved starts on the wizard', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      initial: homeRoute,
+      license: active,
+      needsSetup: true,
+    );
+
+    expect(find.text('Set up FlowPost'), findsOneWidget);
+    expect(find.text('Home'), findsNothing);
+  });
+
+  testWidgets('the wizard keeps its place once there are values', (
+    tester,
+  ) async {
+    await pumpApp(tester, initial: setupRoute, license: active);
+
+    expect(find.text('Set up FlowPost'), findsOneWidget);
+    expect(find.text('Home'), findsNothing);
+  });
 }

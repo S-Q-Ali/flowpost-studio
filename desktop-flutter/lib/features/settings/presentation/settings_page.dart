@@ -45,6 +45,8 @@ class SettingsPage extends ConsumerWidget {
                 const SizedBox(height: 16),
                 const _CredentialsSection(),
                 const SizedBox(height: 16),
+                const _SetupSection(),
+                const SizedBox(height: 16),
                 const _AppearanceSection(),
                 const SizedBox(height: 16),
                 const _UpdatesSection(),
@@ -304,6 +306,35 @@ class _CredentialsSectionState extends ConsumerState<_CredentialsSection> {
     }
     setState(() => _generation++);
     return true;
+  }
+}
+
+/// The wizard one tap away after the first run (SPEC-settings).
+class _SetupSection extends StatelessWidget {
+  const _SetupSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return _Section(
+      title: 'Guided setup',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'The wizard walks through the server, the license and the keys the '
+            'server needs. What is already saved stays saved.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            key: const Key('settings-open-setup'),
+            onPressed: () => context.go(setupRoute),
+            child: const Text('Open the setup wizard'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
