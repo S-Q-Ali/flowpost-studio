@@ -111,7 +111,10 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · App
       - Owner-only half (this agent cannot drive the installed window against a real server): clear `%APPDATA%\com.flowpost\FlowPost`, start the installed build and walk the end-user track; then the operator track with `operator-config` / `config-status` deployed and `TOKEN_ENCRYPTION_KEY` set, and check that a key saved in the wizard works on the next caption request without a redeploy (E3's read path) and that **Settings → Open the setup wizard** comes back to the step left behind.
 
 ## Phase F — Browser account connections
-- [ ] F1. Deep-link contract + pending nonce store
+- [x] F1. Deep-link contract + pending nonce store
+      - `domain/connect_link.dart` parses `flowpost://connect-callback?platform=…&nonce=…&result=…` against one fixed shape and answers null for everything else: scheme, host, no path below it, a platform `socialPlatformOf` can name, 64 lower-case hex characters, and a stated outcome (an unknown word in `result` is a failure, never a success). `data/pending_connect_store.dart` holds the waits in memory — a 32-byte `Random.secure()` nonce per platform, ten minutes, spent on the first link that names it — and answers `trusted / unknown / expired / wrongPlatform`.
+      - Deliberately not on disk: a wait that outlives the process has nothing to check a link against, and the account list read from the server is the truth either way; a nonce in a plain JSON file would be a live token anyone holding the folder could replay.
+      - 23 tests, including the 9m59s / 10m boundary and a replay. Desktop gate: format clean, analyze clean, 956 tests green. `8a7cc7d`. F2 has to send exactly this link and F3 carries the nonce into the state row.
 - [ ] F2. `return_to` allowlist in the six auth functions
 - [ ] F3. `connect-url` and `disconnect` in posts-api
 - [ ] F4. Desktop connect / disconnect / reconnect

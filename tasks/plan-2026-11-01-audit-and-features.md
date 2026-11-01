@@ -363,10 +363,11 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
 
 ## Phase F — Browser account connections
 
-- [ ] **F1. Deep-link contract and desktop nonce store** — Accept: `flowpost://connect-callback` is parsed strictly (scheme, host, no path), pending connect entries hold a 32-byte nonce and a 10-minute expiry, and a wrong/expired/replayed nonce is rejected.
+- [x] **F1. Deep-link contract and desktop nonce store** — Accept: `flowpost://connect-callback` is parsed strictly (scheme, host, no path), pending connect entries hold a 32-byte nonce and a 10-minute expiry, and a wrong/expired/replayed nonce is rejected.
   - Verify: unit tests for valid, wrong-scheme, wrong-host, expired, replayed, and platform-mismatch links.
   - Files: `lib/features/accounts/domain/connect_link.dart`, `lib/features/accounts/data/pending_connect_store.dart`, tests.
   - Dep: B11 · Size: S.
+  - Done `8a7cc7d`: both files with 23 tests. A link must state a result, an absent `result` answers nothing; the wait lives in memory only, because a nonce on disk is a replayable token and a restart re-reads the account list from the server anyway.
 
 - [ ] **F2. `return_to` allowlist in the auth functions** — Accept: each `*-auth` accepts `return_to` only for `flowpost://connect-callback` and the existing Vercel URL, stores it with the state, and redirects there; anything else falls back to Vercel.
   - Verify: `oauth-state.test.ts` and a redirect test per function family; an attacker-supplied host cannot change the `Location`.
