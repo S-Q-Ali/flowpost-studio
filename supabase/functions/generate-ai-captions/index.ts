@@ -4,6 +4,7 @@ import { createSessionLookup, isRequestAuthorized, resolveSessionOwner } from ".
 import type { AuthResult } from "../_shared/auth.ts";
 import { sanitizeChatOptions } from "../_shared/groq.ts";
 import { consumeQuota } from "../_shared/rate-limit.ts";
+import { readSecret, secretNotSetMessage, SecretProblem } from "../_shared/secrets.ts";
 import { getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
 import { PROMPT_TEMPLATES, getDefaultMasterPrompt } from "./prompt-templates.ts";
 
@@ -15,13 +16,9 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for generate-ai-captions");
-}
-if (!GROQ_API_KEY) {
-  console.error("Missing GROQ_API_KEY â€” caption generation will fail");
 }
 
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
@@ -42,6 +39,19 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+/** The Groq key this deployment uses, read per request so the guided setup can set it. */
+function groqApiKey(): Promise<string> {
+  return readSecret(supabase, "GROQ_API_KEY");
+}
+
+/** The reply for a request that needs Groq and has no key to use. */
+function noGroqKey(err: unknown) {
+  const message = err instanceof SecretProblem
+    ? err.message
+    : secretNotSetMessage(["GROQ_API_KEY"]);
+  return json({ error: message }, 500);
 }
 
 /// Counts a proxy call against the caller's hourly quota.
@@ -65,7 +75,12 @@ async function chatQuota(
   };
 }
 
-async function transcribeAudio(audioUrl: string, mimeType: string, driveToken: string): Promise<string> {
+async function transcribeAudio(
+  audioUrl: string,
+  mimeType: string,
+  driveToken: string,
+  groqKey: string,
+): Promise<string> {
   const response = await fetch(audioUrl, {
     headers: { Authorization: `Bearer ${driveToken}` },
   });
@@ -80,7 +95,7 @@ async function transcribeAudio(audioUrl: string, mimeType: string, driveToken: s
 
   const groqRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
     method: "POST",
-    headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+    headers: { Authorization: `Bearer ${groqKey}` },
     body: formData,
   });
 
@@ -104,7 +119,8 @@ async function generateCaptions(
   transcript: string,
   masterPrompt: Record<string, unknown>,
   fileName: string,
-  platforms?: string[],
+  platforms: string[] | undefined,
+  groqKey: string,
 ): Promise<Record<string, string>> {
   const rawPrompt = masterPrompt.raw_prompt as string | undefined;
   const promptJson = rawPrompt
@@ -129,7 +145,7 @@ Return ONLY valid JSON â€” no markdown, no code fences, no explanation.`;
   const chatRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${GROQ_API_KEY}`,
+      Authorization: `Bearer ${groqKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -205,8 +221,11 @@ Deno.serve(async (req) => {
 
   // --- GROQ-TRANSCRIBE mode: proxy audio transcription ---
   if (body.mode === "groq-transcribe") {
-    if (!GROQ_API_KEY) {
-      return json({ error: "Groq API key not configured" }, 500);
+    let groqKey: string;
+    try {
+      groqKey = await groqApiKey();
+    } catch (err) {
+      return noGroqKey(err);
     }
     const quota = await chatQuota(authResult, "captions-transcribe", 20);
     if (!quota.allowed) return json({ error: quota.error }, 429);
@@ -228,7 +247,7 @@ Deno.serve(async (req) => {
       formData.append("response_format", "text");
       const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
         method: "POST",
-        headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+        headers: { Authorization: `Bearer ${groqKey}` },
         body: formData,
       });
       if (!res.ok) {
@@ -245,8 +264,11 @@ Deno.serve(async (req) => {
 
   // --- GROQ-CHAT mode: proxy chat completions ---
   if (body.mode === "groq-chat") {
-    if (!GROQ_API_KEY) {
-      return json({ error: "Groq API key not configured" }, 500);
+    let groqKey: string;
+    try {
+      groqKey = await groqApiKey();
+    } catch (err) {
+      return noGroqKey(err);
     }
     const quota = await chatQuota(authResult, "captions-chat", 60);
     if (!quota.allowed) return json({ error: quota.error }, 429);
@@ -258,7 +280,7 @@ Deno.serve(async (req) => {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${GROQ_API_KEY}`,
+          Authorization: `Bearer ${groqKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -339,6 +361,13 @@ Deno.serve(async (req) => {
   const generateQuota = await chatQuota(authResult, "captions-generate", 30);
   if (!generateQuota.allowed) return json({ error: generateQuota.error }, 429);
 
+  let groqKey: string;
+  try {
+    groqKey = await groqApiKey();
+  } catch (err) {
+    return noGroqKey(err);
+  }
+
   try {
     const { data: item, error: itemError } = await supabase
       .from("workflow_items")
@@ -393,10 +422,16 @@ Deno.serve(async (req) => {
     const downloadUrl = `https://www.googleapis.com/drive/v3/files/${item.drive_file_id}?alt=media`;
     const mimeType = item.mime_type || "video/mp4";
 
-    const transcript = await transcribeAudio(downloadUrl, mimeType, driveToken);
+    const transcript = await transcribeAudio(downloadUrl, mimeType, driveToken, groqKey);
 
     const wfPlatforms = (workflow.platforms as string[]) ?? [];
-    const captions = await generateCaptions(transcript, masterPrompt, item.file_name, wfPlatforms);
+    const captions = await generateCaptions(
+      transcript,
+      masterPrompt,
+      item.file_name,
+      wfPlatforms,
+      groqKey,
+    );
 
     return json({
       item_id: itemId,
