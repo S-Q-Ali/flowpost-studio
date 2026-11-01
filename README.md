@@ -16,7 +16,7 @@
 - **Scheduled posting** — pick a time per platform; a scheduler edge function publishes when it is due
 - **Queue and calendar** — month, week and list views; edit, reschedule, retry or delete pending posts
 - **AI captions** — Groq Whisper transcription, frame analysis and an LLM write per-platform captions
-- **Accounts** — OAuth connections per platform, with tokens encrypted at rest
+- **Accounts** — OAuth connections per platform, managed in the web dashboard; tokens stay encrypted at rest and the desktop app publishes to the accounts you connected
 - **Offline-friendly** — posts cached in SQLite, drafts autosaved and restored after a restart
 - **Desktop-native** — single instance, tray, allowlisted deep links, bundled FFmpeg and a diagnostics export
 - **License-key access** — the app unlocks with a license key, with no account and no sign-up
