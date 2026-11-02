@@ -405,6 +405,18 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Not yet done: the live YouTube + Instagram sign-out run is the owner's, folded into F7 alongside C4. The note describes what the architecture guarantees; the manual pass confirms it on a real grant.
 
 - [ ] **F7. Checkpoint** — connect, close browser, quit the app, reopen, publish.
+  - Blocked on the owner's live server; the code and tests are in place.
+
+## Post-G2 follow-ups (the two Should-fix notes, both now closed)
+
+- [x] **G3. Purge expired `oauth_states` rows** — the table only grew; a connect now sweeps rows a day past expiry before inserting.
+  - Files: `supabase/functions/_shared/oauth-state.ts`, `oauth-state.test.ts`.
+  - Dep: G2 · Size: XS.
+  - Done: test-first — a RED test asserting the sweep, then a best-effort `purgeExpiredStates(supabase)` ahead of the insert. A second test pins that a failing sweep never refuses the connect. Gate: `tsc -b` 0, 285 web/Deno tests green (2 new), `npm run build` 0. Commit `186256a`.
+- [x] **G4. Check the drive URL at the facebook/instagram edge** — both sealed a client `driveDownloadUrl` into a `get-file` token without a host check.
+  - Files: `supabase/functions/facebook-upload/index.ts`, `supabase/functions/instagram-upload/index.ts`.
+  - Dep: G2 · Size: XS.
+  - Done: the `isAllowedDriveUrl` entry guard that linkedin and tiktok already run, now in both, so the bearer never heads for a foreign host instead of relying only on `get-file`'s check. The guard itself was already covered by `_shared/url-guard.test.ts`. Commit `38e74fb`.
 
 ---
 

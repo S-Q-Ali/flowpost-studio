@@ -151,6 +151,12 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · App
       - Web gate green: `npx tsc -b`, `npm test` (283 passing, Deno `_shared` suites included via vitest), `npm run build`, `npm audit --omit=dev` → 0 vulnerabilities. Desktop gate held from F5 (no Dart changed since): format 0 changed, analyze clean, 1011 tests, Windows release build. `graphify update .` run and committed as `chore(graph)`.
       - `ponytail-audit` re-run — **no Must-fix remaining**. The Phase F connect path is clean on every axis checked: spend-once 256-bit nonce matching the server's hex-64 rule, owner derived from the session only, `return_to` re-validated against the allowlist before use, token columns confined to the service-role disconnect read and never serialized, disconnect delete scoped to `user_id`. Two Should-fix notes, neither blocking: `oauth_states` grows unbounded (rows consumed once, never purged despite the `expires_at` index), and facebook/instagram-upload take `driveDownloadUrl` unvalidated at the edge — safe because the only fetch happens in `get-file` behind `isAllowedDriveUrl`, but the linkedin/tiktok entry check is the stricter pattern.
 
+## Post-G2 follow-ups (both Should-fix notes from the audit re-run)
+- [x] G3. Purge expired `oauth_states` rows (`186256a`)
+      - Test-first: the RED test asserted a delete sweep, then `createOAuthState` calls a best-effort `purgeExpiredStates` before inserting — rows a day past `expires_at` are dead (consume claims only live ones), so abandoned waits and finished rows no longer accumulate. A second test pins that a failing sweep never refuses a connect. Gate: `tsc -b` clean, 285 tests green (2 new), build clean.
+- [x] G4. `isAllowedDriveUrl` at the facebook + instagram upload edges (`38e74fb`)
+      - Both accepted a client `driveDownloadUrl` and sealed it into a `get-file` token unchecked; the only real guard sat in `get-file` at fetch time. They now refuse at their own edge exactly as linkedin and tiktok do, so the Google bearer never travels toward a foreign host. The predicate was already tested in `_shared/url-guard.test.ts`.
+
 ## Audit coverage
 
 | Web/edge finding | Task |
