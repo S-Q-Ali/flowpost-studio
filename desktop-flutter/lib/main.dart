@@ -21,6 +21,7 @@ import 'core/shell/flowpost_shell.dart';
 import 'core/shell/protocol_registration.dart';
 import 'core/theme/theme_controller.dart';
 import 'core/theme/theme_store.dart';
+import 'features/accounts/connect_controller.dart' show connectCallbackProvider;
 import 'features/media/data/media_file_picker.dart';
 import 'features/media/data/media_workspace.dart';
 import 'features/media/media_providers.dart';
@@ -92,11 +93,15 @@ Future<void> main({MediaFilePicker? picker}) async {
       }
 
       final pendingLink = ValueNotifier<String?>(null);
+      // The browser connect's answer link names no screen, so the dispatcher
+      // hands it here and the accounts feature reads it.
+      final connectLink = ValueNotifier<String?>(null);
       final dispatcher = DeepLinkDispatcher(
         pendingRoute: pendingLink,
         showWindow: shell.showFromTray,
         log: log,
         allowedPaths: deepLinkAllowlist,
+        pendingConnect: connectLink,
       );
       unawaited(_listenDeepLinks(dispatcher));
 
@@ -120,6 +125,7 @@ Future<void> main({MediaFilePicker? picker}) async {
               () => ThemeController(initial: themeMode),
             ),
             if (picker != null) mediaPickerProvider.overrideWithValue(picker),
+            connectCallbackProvider.overrideWithValue(connectLink),
           ],
           child: FlowPostApp(
             licenseGuard: true,

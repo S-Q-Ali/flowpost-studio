@@ -107,6 +107,25 @@ void main() {
     expect(store.answer(_callbackOf(second)), ConnectAnswer.trusted);
   });
 
+  test('cancelling a platform takes its wait away', () {
+    final wait = store.start('youtube');
+
+    store.cancel('youtube');
+
+    expect(store.waiting(), isEmpty);
+    expect(store.answer(_callbackOf(wait)), ConnectAnswer.unknown);
+  });
+
+  test('cancelling one platform leaves the others waiting', () {
+    final youtube = store.start('youtube');
+    final tiktok = store.start('tiktok');
+
+    store.cancel('youtube');
+
+    expect(store.answer(_callbackOf(youtube)), ConnectAnswer.unknown);
+    expect(store.answer(_callbackOf(tiktok)), ConnectAnswer.trusted);
+  });
+
   test('the open waits are listed and a spent one is not', () {
     final youtube = store.start('youtube');
     store.start('mega');

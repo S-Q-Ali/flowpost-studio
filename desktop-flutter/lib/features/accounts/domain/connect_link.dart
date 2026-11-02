@@ -1,10 +1,11 @@
+import '../../../core/router/deep_links.dart';
 import 'connected_account.dart';
 
 /// The one address a desktop connect tells the browser to come back to.
 ///
 /// The auth functions accept this string and nothing else that starts with
 /// `flowpost:`, so a link that reaches the app can only be this one.
-const String desktopConnectReturnTo = 'flowpost://connect-callback';
+const String desktopConnectReturnTo = 'flowpost://$connectCallbackHost';
 
 /// What the browser reports about a connect.
 enum ConnectResult { connected, denied, failed }
@@ -36,7 +37,7 @@ class ConnectCallback {
 ConnectCallback? parseConnectCallback(String raw) {
   final uri = Uri.tryParse(raw);
   if (uri == null || uri.scheme != 'flowpost') return null;
-  if (uri.host != _callbackHost) return null;
+  if (uri.host != connectCallbackHost) return null;
   if (uri.path.isNotEmpty && uri.path != '/') return null;
 
   final query = uri.queryParameters;
@@ -55,8 +56,6 @@ ConnectCallback? parseConnectCallback(String raw) {
     result: _resultOf(result),
   );
 }
-
-const String _callbackHost = 'connect-callback';
 
 final RegExp _nonceFormat = RegExp(r'^[0-9a-f]{64}$');
 

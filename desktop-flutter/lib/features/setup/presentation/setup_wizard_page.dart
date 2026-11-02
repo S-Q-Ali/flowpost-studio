@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/config/config_controller.dart';
+import '../../../core/providers/app_providers.dart';
 import '../../../core/router/app_router.dart';
 import '../../settings/settings_providers.dart';
 import '../data/wizard_resume_store.dart';

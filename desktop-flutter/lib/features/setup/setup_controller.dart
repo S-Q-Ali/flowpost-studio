@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/config/config_controller.dart';
@@ -66,12 +65,6 @@ final setupControllerProvider =
 /// Where the wizard left off, as a file the tests answer.
 final Provider<WizardResumeStore> wizardResumeStoreProvider =
     Provider<WizardResumeStore>((ref) => WizardResumeStore());
-
-/// Opens an address in the browser, as a seam the tests answer.
-final Provider<Future<bool> Function(Uri)> urlLauncherProvider =
-    Provider<Future<bool> Function(Uri)>((ref) {
-      return (url) => launchUrl(url, mode: LaunchMode.externalApplication);
-    });
 
 /// The state of each guided step, read from the server and updated by a save.
 ///

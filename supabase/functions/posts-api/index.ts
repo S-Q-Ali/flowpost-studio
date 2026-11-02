@@ -189,8 +189,9 @@ Deno.serve(async (req) => {
         return json({ error: "The connect could not start." }, 502);
       }
       // The desktop opens this in the system browser; the state it names is
-      // already stored with the caller's nonce as its return link.
-      return json({ url: payload.url, platform: target.value.platform });
+      // already stored with the caller's nonce as its return link. It travels in
+      // `rows` like every other answer here, because the desktop reads one shape.
+      return json({ rows: [{ url: payload.url, platform: target.value.platform }] });
     }
 
     case "disconnect": {

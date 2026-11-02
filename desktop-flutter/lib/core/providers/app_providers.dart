@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_config.dart';
 import '../config/config_controller.dart';
@@ -24,6 +25,16 @@ final Provider<AppConfig> appConfigProvider = Provider<AppConfig>((ref) {
 final Provider<TimeZone> timeZoneProvider = Provider<TimeZone>(
   (ref) => const SystemTimeZone(),
 );
+
+/// Opens an address in the system browser, as a seam the tests answer.
+///
+/// A sign-in always happens in the admin's own browser, never inside this
+/// window: the app must not see the platform's page, and a window it cannot
+/// close would strand the connect.
+final Provider<Future<bool> Function(Uri)> urlLauncherProvider =
+    Provider<Future<bool> Function(Uri)>((ref) {
+      return (url) => launchUrl(url, mode: LaunchMode.externalApplication);
+    });
 
 /// The session token the backend calls are made with.
 ///

@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../accounts_providers.dart';
+import '../connect_controller.dart';
+import '../domain/connect_target.dart';
 import '../domain/connected_account.dart';
 
 class AccountsPage extends ConsumerWidget {
@@ -14,6 +16,8 @@ class AccountsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final accounts = ref.watch(accountsControllerProvider);
+    final connect = ref.watch(connectControllerProvider);
+    final controller = ref.read(connectControllerProvider.notifier);
     final read = accounts.value;
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -23,8 +27,8 @@ class AccountsPage extends ConsumerWidget {
           Text('Accounts', style: theme.textTheme.headlineMedium),
           const SizedBox(height: 4),
           Text(
-            'The channels FlowPost publishes to. '
-            'Connect a platform in the web dashboard.',
+            'The channels FlowPost publishes to. A connect opens the browser '
+            'and comes back here.',
             style: theme.textTheme.bodyMedium,
           ),
           // The list is the server's whenever the server answered; only a
@@ -50,26 +54,133 @@ class AccountsPage extends ConsumerWidget {
                   ref.invalidate(accountsControllerProvider);
                 },
               ),
-              data: (read) => read.accounts.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No accounts yet. '
-                        'Connect a platform in the web dashboard.',
+              data: (read) => SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _ConnectChips(
+                      busy: connect.waitingOn != null,
+                      onStart: controller.start,
+                    ),
+                    const SizedBox(height: 20),
+                    if (read.accounts.isEmpty)
+                      Text(
+                        'No accounts yet. Connect a platform above.',
+                        style: theme.textTheme.bodyMedium,
+                      )
+                    else
+                      _AccountGrid(
+                        items: read.accounts,
+                        onDisconnect: (account) =>
+                            _confirmDisconnect(context, controller, account),
+                        onReconnect: controller.start,
                       ),
-                    )
-                  : _AccountGrid(items: read.accounts),
+                  ],
+                ),
+              ),
             ),
+          ),
+          // Both stay out of the scroll: a wait the admin cannot see is a
+          // connect they will start twice.
+          if (connect.waitingOn != null) ...[
+            const SizedBox(height: 12),
+            _WaitingBar(
+              label: connect.waitingLabel ?? connect.waitingOn!,
+              onCancel: controller.stop,
+            ),
+          ],
+          if (connect.message != null) ...[
+            const SizedBox(height: 12),
+            _MessageBar(
+              message: connect.message!,
+              onDismiss: () {
+                controller.clearMessage();
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Disconnect answers a question first: cutting a grant is the one account
+  /// action the admin cannot undo by pressing back.
+  Future<void> _confirmDisconnect(
+    BuildContext context,
+    ConnectController controller,
+    ConnectedAccount account,
+  ) async {
+    final platform = connectLabelOf(account.serverPlatform);
+    final cut = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Disconnect $platform?'),
+        content: Text(
+          'FlowPost stops publishing there and lets go of the sign-in it '
+          'holds${account.accountName.isEmpty ? '' : ' for ${account.accountName}'}.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('disconnect-cancel'),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('disconnect-confirm'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Disconnect'),
           ),
         ],
       ),
+    );
+    if (cut == true) await controller.disconnect(account);
+  }
+}
+
+class _ConnectChips extends StatelessWidget {
+  const _ConnectChips({required this.busy, required this.onStart});
+
+  final bool busy;
+  final void Function(String serverPlatform) onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Connect a platform', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final target in connectTargets)
+              ActionChip(
+                // The key names the server platform: Instagram and Facebook
+                // are two connects and one card.
+                key: Key('connect-${target.serverPlatform}'),
+                avatar: const Icon(Icons.add_rounded, size: 16),
+                label: Text(target.label),
+                onPressed: busy ? null : () => onStart(target.serverPlatform),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
 
 class _AccountGrid extends StatelessWidget {
-  const _AccountGrid({required this.items});
+  const _AccountGrid({
+    required this.items,
+    required this.onDisconnect,
+    required this.onReconnect,
+  });
 
   final List<ConnectedAccount> items;
+  final void Function(ConnectedAccount account) onDisconnect;
+  final void Function(String serverPlatform) onReconnect;
 
   @override
   Widget build(BuildContext context) {
@@ -85,18 +196,28 @@ class _AccountGrid extends StatelessWidget {
           maxCardWidth,
           (constraints.maxWidth - spacing * (columns - 1)) / columns,
         );
-        return SingleChildScrollView(
-          child: Wrap(
-            spacing: spacing,
-            runSpacing: spacing,
-            children: [
-              for (final account in items)
-                SizedBox(
-                  width: cardWidth,
-                  child: _AccountCard(account: account),
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final account in items)
+              SizedBox(
+                width: cardWidth,
+                child: _AccountCard(
+                  account: account,
+                  // A row the server never gave an id to cannot be named in a
+                  // disconnect, so no button offers one.
+                  onDisconnect: account.accountId.isEmpty
+                      ? null
+                      : () => onDisconnect(account),
+                  onReconnect:
+                      account.status == AccountStatus.expired &&
+                          canConnect(account.serverPlatform)
+                      ? () => onReconnect(account.serverPlatform)
+                      : null,
                 ),
-            ],
-          ),
+              ),
+          ],
         );
       },
     );
@@ -104,9 +225,15 @@ class _AccountGrid extends StatelessWidget {
 }
 
 class _AccountCard extends StatelessWidget {
-  const _AccountCard({required this.account});
+  const _AccountCard({
+    required this.account,
+    this.onDisconnect,
+    this.onReconnect,
+  });
 
   final ConnectedAccount account;
+  final VoidCallback? onDisconnect;
+  final VoidCallback? onReconnect;
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +282,87 @@ class _AccountCard extends StatelessWidget {
                 ),
               ),
             ],
+            if (onReconnect != null || onDisconnect != null) ...[
+              const SizedBox(height: 16),
+              // Wrap again: at 200% text two buttons do not fit one line.
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (onReconnect != null)
+                    FilledButton.tonal(
+                      key: Key(
+                        'reconnect-${account.platform.name}-'
+                        '${account.accountId}',
+                      ),
+                      onPressed: onReconnect,
+                      child: const Text('Reconnect'),
+                    ),
+                  if (onDisconnect != null)
+                    OutlinedButton(
+                      key: Key(
+                        'disconnect-${account.platform.name}-'
+                        '${account.accountId}',
+                      ),
+                      onPressed: onDisconnect,
+                      child: const Text('Disconnect'),
+                    ),
+                ],
+              ),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WaitingBar extends StatelessWidget {
+  const _WaitingBar({required this.label, required this.onCancel});
+
+  final String label;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('connect-waiting'),
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: const SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        title: Text('Waiting for $label to finish in the browser.'),
+        trailing: TextButton(
+          key: const Key('connect-cancel'),
+          onPressed: onCancel,
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageBar extends StatelessWidget {
+  const _MessageBar({required this.message, required this.onDismiss});
+
+  final String message;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('connect-message'),
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        title: Text(message),
+        trailing: IconButton(
+          key: const Key('connect-message-dismiss'),
+          icon: const Icon(Icons.close_rounded),
+          tooltip: 'Dismiss',
+          onPressed: onDismiss,
         ),
       ),
     );

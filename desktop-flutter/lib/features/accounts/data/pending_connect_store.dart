@@ -56,6 +56,13 @@ class PendingConnectStore {
     return wait;
   }
 
+  /// Gives up the waits for [platform] — the user cancelled, or the browser
+  /// never opened — so a callback that arrives afterwards is not taken for an
+  /// answer to a connect this app is no longer waiting on.
+  void cancel(String platform) {
+    _waits.removeWhere((_, open) => open.platform == platform);
+  }
+
   /// Checks a link against the open waits and spends the one it answers, so
   /// the same link cannot be used twice.
   ConnectAnswer answer(ConnectCallback callback) {
