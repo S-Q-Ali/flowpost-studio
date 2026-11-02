@@ -1,6 +1,7 @@
 # Deploy the merged server side (#68), then verify the browser connect (#69)
 
-Written 2026-11-03 against `feature/license-access` at `2e1e643`. Every claim here
+Written 2026-11-03 against `feature/license-access` at `2e1e643`; the commits
+after it touch desktop tests and this file only, not the server. Every claim here
 was checked against the files in this branch; the deploy itself is owner-side,
 because it needs the project's Supabase credentials.
 
