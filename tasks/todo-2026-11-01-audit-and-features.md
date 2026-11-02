@@ -147,7 +147,9 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · App
       - **README**: new **Guided setup** section (end-user vs operator tracks, `credentials.json` vs `operator_config`, browser connect returns a nonce not a token); corrected the stale "accounts managed in the web dashboard" bullet; Secrets section now points at `.env.example`, the wizard, and ADR 0005; `TOKEN_ENCRYPTION_KEY` row reworded.
       - **`.env.example`**: full server-secret manifest — infrastructure (env-only) + the 18 wizard-storable names, placeholders only, with the operator-config/env-fallback relationship noted.
       - **runbook**: `TOKEN_ENCRYPTION_KEY` rotation warning — rotating or losing it makes every stored key and platform token unreadable; accounts must reconnect, env-held secrets survive. Docs-only change; no gate beyond markdown review.
-- [ ] G2. Final gate + audit + graphify
+- [x] G2. Final gate + audit + graphify
+      - Web gate green: `npx tsc -b`, `npm test` (283 passing, Deno `_shared` suites included via vitest), `npm run build`, `npm audit --omit=dev` → 0 vulnerabilities. Desktop gate held from F5 (no Dart changed since): format 0 changed, analyze clean, 1011 tests, Windows release build. `graphify update .` run and committed as `chore(graph)`.
+      - `ponytail-audit` re-run — **no Must-fix remaining**. The Phase F connect path is clean on every axis checked: spend-once 256-bit nonce matching the server's hex-64 rule, owner derived from the session only, `return_to` re-validated against the allowlist before use, token columns confined to the service-role disconnect read and never serialized, disconnect delete scoped to `user_id`. Two Should-fix notes, neither blocking: `oauth_states` grows unbounded (rows consumed once, never purged despite the `expires_at` index), and facebook/instagram-upload take `driveDownloadUrl` unvalidated at the edge — safe because the only fetch happens in `get-file` behind `isAllowedDriveUrl`, but the linkedin/tiktok entry check is the stricter pattern.
 
 ## Audit coverage
 
