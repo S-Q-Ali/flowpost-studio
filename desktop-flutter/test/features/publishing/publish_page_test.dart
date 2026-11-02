@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flowpost_desktop/app.dart';
 import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/core/time/time_zone.dart';
+import 'package:flowpost_desktop/features/accounts/accounts_providers.dart';
 import 'package:flowpost_desktop/features/media/domain/media_validation.dart';
 import 'package:flowpost_desktop/features/offline/connectivity.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
@@ -18,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/config_overrides.dart';
+import '../../support/fake_accounts.dart';
 import '../../support/fake_drafts.dart';
 import '../../support/fake_time_zone.dart';
 
@@ -114,7 +118,7 @@ class _Connectivity extends ConnectivityController {
 
 Future<void> _pump(
   WidgetTester tester, {
-  List<PublishTarget> targets = const [_instagram],
+  AsyncValue<List<PublishTarget>> targets = const AsyncData([_instagram]),
   bool signedIn = true,
   bool withMedia = true,
   bool realMedia = false,
@@ -134,6 +138,11 @@ Future<void> _pump(
       overrides: [
         seededConfig(_config),
         publishTargetsProvider.overrideWithValue(targets),
+        // The Accounts screen the empty state opens reads the real list; the
+        // fake keeps that hop out of the plugin channels.
+        accountsRepositoryProvider.overrideWith(
+          (ref) => FakeAccountsRepository(const []),
+        ),
         if (!realMedia)
           publishedMediaProvider.overrideWithValue(
             withMedia
@@ -145,10 +154,7 @@ Future<void> _pump(
                   )
                 : null,
           ),
-        if (signedIn) ...[
-          sessionTokenProvider.overrideWithValue('session-token'),
-          authAccessTokenProvider.overrideWithValue('auth-token'),
-        ],
+        if (signedIn) sessionTokenProvider.overrideWithValue('session-token'),
         postsRepositoryProvider.overrideWithValue(
           repository ?? _FakeRepository(),
         ),
@@ -187,6 +193,62 @@ void main() {
     expect(find.textContaining('Upload a file first'), findsOneWidget);
   });
 
+  testWidgets('nothing to publish to points at the Accounts screen', (
+    tester,
+  ) async {
+    await _pump(tester, targets: const AsyncData(<PublishTarget>[]));
+
+    expect(
+      find.textContaining('Connect or reconnect an account'),
+      findsOneWidget,
+    );
+    // The connect happens in this app now, so no sentence sends the admin to
+    // the browser.
+    expect(find.textContaining('web dashboard'), findsNothing);
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Publish now'),
+    );
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('the empty state opens Accounts', (tester) async {
+    await _pump(tester, targets: const AsyncData(<PublishTarget>[]));
+
+    await tester.tap(find.byKey(const Key('open-accounts')));
+    await tester.pumpAndSettle();
+
+    // The compose form is gone, so the screen named in the sentence is the
+    // one the admin is on.
+    expect(find.text('clip.mp4'), findsNothing);
+  });
+
+  testWidgets('a wait for the accounts is not called empty', (tester) async {
+    await _pump(tester, targets: const AsyncLoading());
+
+    expect(find.textContaining('Loading'), findsOneWidget);
+    expect(
+      find.textContaining('Connect or reconnect an account'),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('open-accounts')), findsNothing);
+  });
+
+  testWidgets('accounts that could not be read say so', (tester) async {
+    await _pump(
+      tester,
+      targets: const AsyncError(
+        PostsException('no connection', kind: PostsErrorKind.connection),
+        StackTrace.empty,
+      ),
+    );
+
+    expect(find.textContaining('could not be read'), findsOneWidget);
+    expect(
+      find.textContaining('Connect or reconnect an account'),
+      findsNothing,
+    );
+  });
+
   testWidgets('the publish action is off without a sign-in', (tester) async {
     await _pump(tester, signedIn: false);
 
@@ -194,7 +256,7 @@ void main() {
       find.widgetWithText(FilledButton, 'Publish now'),
     );
     expect(button.onPressed, isNull);
-    expect(find.textContaining('Sign in required'), findsOneWidget);
+    expect(find.textContaining('Activate a license'), findsOneWidget);
   });
 
   testWidgets('offline, the publish action is off and says why', (
@@ -262,7 +324,7 @@ void main() {
   });
 
   testWidgets('a YouTube post asks for a title', (tester) async {
-    await _pump(tester, targets: const [_youtube]);
+    await _pump(tester, targets: const AsyncData([_youtube]));
 
     await tester.tap(find.byKey(const Key('target-youtube:yt-1:feed')));
     await tester.pumpAndSettle();
@@ -281,6 +343,83 @@ void main() {
 
     expect(find.text('Instagram: Published'), findsOneWidget);
     expect(find.text('Platform id: ig-99'), findsOneWidget);
+  });
+
+  testWidgets('a run that is over keeps the button off for the same post', (
+    tester,
+  ) async {
+    final repository = _FakeRepository();
+    await _pump(tester, repository: repository);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Instagram: Published'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Publish now'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(find.byKey(const Key('publish-repeat-blocked')), findsOneWidget);
+
+    // A second click cannot slip through the widget layer: the run wrote one
+    // row and a repeat would write another.
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    expect(repository.drafts, hasLength(1));
+  });
+
+  testWidgets('an edited caption turns the button back on', (tester) async {
+    final repository = _FakeRepository();
+    await _pump(tester, repository: repository);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('caption-instagram:ig-1:feed')),
+      'Another take',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('publish-repeat-blocked')), findsNothing);
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    expect(repository.drafts, hasLength(2));
+  });
+
+  testWidgets('a failure leaves the button ready for the same post', (
+    tester,
+  ) async {
+    final client = _FakeClient()
+      ..failure = const PublishException(
+        PublishFailure(PublishErrorCode.platformRejected, 'Instagram said no.'),
+      );
+    await _pump(tester, client: client);
+    await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish now'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('publish-repeat-blocked')), findsNothing);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Publish now'),
+          )
+          .onPressed,
+      isNotNull,
+    );
   });
 
   testWidgets('a failure shows the sentence of the service', (tester) async {
@@ -519,6 +658,32 @@ void main() {
         find.byKey(const Key('caption-instagram:ig-1:feed')),
         findsOneWidget,
       );
+    });
+
+    testWidgets('does not replace what was typed while it was read', (
+      tester,
+    ) async {
+      final drafts = FakeDraftsRepository({'video-1': saved()})
+        ..holdLoads = Completer<void>();
+
+      await _pump(tester, drafts: drafts);
+
+      // The store is still reading, so the admin starts on an empty form.
+      await tester.tap(find.byKey(const Key('target-instagram:ig-1:feed')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('caption-instagram:ig-1:feed')),
+        'Typed while waiting',
+      );
+      await tester.pumpAndSettle();
+
+      // The saved form is the older one, so it arrives to nothing to show.
+      drafts.holdLoads!.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Typed while waiting'), findsOneWidget);
+      expect(find.text('Saved caption'), findsNothing);
+      expect(find.byKey(const Key('draft-restored')), findsNothing);
     });
 
     testWidgets('kept by a restart is listed and opens without an upload', (

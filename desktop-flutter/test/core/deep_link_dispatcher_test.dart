@@ -19,12 +19,14 @@ void main() {
   DeepLinkDispatcher build({
     required ValueNotifier<String?> pending,
     required Future<void> Function() showWindow,
+    ValueNotifier<String?>? connectCallback,
   }) {
     return DeepLinkDispatcher(
       pendingRoute: pending,
       showWindow: showWindow,
       log: Logger('deep-link-test'),
       allowedPaths: const ['/', '/auth-callback'],
+      pendingConnect: connectCallback,
     );
   }
 
@@ -94,4 +96,63 @@ void main() {
     );
     expect(dispatcher.routeFor(null), isNull);
   });
+
+  test('a connect callback is handed over, not routed', () async {
+    var shown = 0;
+    final pending = ValueNotifier<String?>(null);
+    final connect = ValueNotifier<String?>(null);
+    final dispatcher = build(
+      pending: pending,
+      showWindow: () async => shown++,
+      connectCallback: connect,
+    );
+    final link =
+        'flowpost://connect-callback?platform=youtube&nonce=${'a' * 64}&result=connected';
+
+    expect(dispatcher.handle(link), isTrue);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(shown, 1);
+    expect(connect.value, link);
+    // It names no screen, so the router is not sent anywhere.
+    expect(pending.value, isNull);
+  });
+
+  test('a cold-start connect callback is handed over without a route', () {
+    final pending = ValueNotifier<String?>(null);
+    final connect = ValueNotifier<String?>(null);
+    final dispatcher = build(
+      pending: pending,
+      showWindow: () async {},
+      connectCallback: connect,
+    );
+    final link =
+        'flowpost://connect-callback?platform=tiktok&nonce=${'b' * 64}';
+
+    expect(dispatcher.routeFor(link), isNull);
+    expect(connect.value, link);
+  });
+
+  test(
+    'a connect callback nobody listens to is rejected like any path',
+    () async {
+      var shown = 0;
+      final pending = ValueNotifier<String?>(null);
+      final dispatcher = build(
+        pending: pending,
+        showWindow: () async => shown++,
+      );
+
+      expect(
+        dispatcher.handle(
+          'flowpost://connect-callback?platform=youtube&nonce=${'c' * 64}',
+        ),
+        isFalse,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(shown, 0);
+      expect(pending.value, isNull);
+    },
+  );
 }

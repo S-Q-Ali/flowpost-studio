@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flowpost_desktop/features/media/data/connection_failure.dart';
 import 'package:flowpost_desktop/features/media/upload/data/upload_client.dart';
 import 'package:flowpost_desktop/features/media/upload/domain/upload_processing.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -189,7 +190,7 @@ void main() {
           isA<UploadException>().having(
             (error) => error.message,
             'message',
-            contains('Sign in'),
+            contains('Activate a license'),
           ),
         ),
       );
@@ -318,6 +319,93 @@ void main() {
       // would rebuild the screen.
       expect(fractions.length, lessThan(10));
       expect(fractions.last, 1.0);
+    });
+  });
+
+  group('a call that never reaches the service', () {
+    test('nothing listens on the port', () async {
+      // Bound once and given back, so the port is certainly empty.
+      final closed = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final port = closed.port;
+      await closed.close(force: true);
+
+      final client = UploadClient(
+        endpoint: Uri.parse('http://127.0.0.1:$port/upload'),
+        token: 'session-token',
+      );
+
+      await expectLater(
+        client.upload(
+          file: file,
+          fileName: 'normalized.mp4',
+          contentType: 'video/mp4',
+          idempotencyKey: 'job-1',
+        ),
+        throwsA(
+          isA<UploadException>().having(
+            (error) => error.message,
+            'message',
+            noConnectionMessage,
+          ),
+        ),
+      );
+    });
+
+    test('the host does not resolve', () async {
+      final client = UploadClient(
+        endpoint: Uri.parse(
+          'http://flowpost-studio-does-not-exist.invalid/upload',
+        ),
+        token: 'session-token',
+      );
+
+      await expectLater(
+        client.upload(
+          file: file,
+          fileName: 'normalized.mp4',
+          contentType: 'video/mp4',
+          idempotencyKey: 'job-1',
+        ),
+        throwsA(
+          isA<UploadException>().having(
+            (error) => error.message,
+            'message',
+            noConnectionMessage,
+          ),
+        ),
+      );
+    });
+
+    test('the TLS handshake does not complete', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      // A plain HTTP server answering a TLS hello: the handshake dies.
+      server.listen((request) async {
+        await request.drain<void>();
+        request.response.write('not tls');
+        await request.response.close();
+      });
+
+      final client = UploadClient(
+        endpoint: Uri.parse('https://127.0.0.1:${server.port}/upload'),
+        token: 'session-token',
+      );
+
+      await expectLater(
+        client.upload(
+          file: file,
+          fileName: 'normalized.mp4',
+          contentType: 'video/mp4',
+          idempotencyKey: 'job-1',
+        ),
+        throwsA(
+          isA<UploadException>().having(
+            (error) => error.message,
+            'message',
+            noConnectionMessage,
+          ),
+        ),
+      );
     });
   });
 

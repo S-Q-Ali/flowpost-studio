@@ -1,45 +1,41 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/core/diagnostics/diagnostics_report.dart';
 import 'package:flowpost_desktop/core/config/config_controller.dart';
 import 'package:flowpost_desktop/core/config/credentials_store.dart';
+import 'package:flowpost_desktop/core/router/app_router.dart';
 import 'package:flowpost_desktop/core/session/session.dart';
+import 'package:flowpost_desktop/core/theme/theme_controller.dart';
 import 'package:flowpost_desktop/core/update/app_version.dart';
 import 'package:flowpost_desktop/core/update/update_checker.dart';
+import 'package:flowpost_desktop/features/license/data/license_models.dart';
+import 'package:flowpost_desktop/features/license/license_providers.dart';
 import 'package:flowpost_desktop/features/offline/offline_providers.dart';
 import 'package:flowpost_desktop/features/settings/presentation/settings_page.dart';
 import 'package:flowpost_desktop/features/settings/settings_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../support/config_overrides.dart';
 import '../../support/fake_credentials_store.dart';
 import '../../support/fake_drafts.dart';
+import '../../support/fake_license.dart';
 import '../../support/fake_posts_cache.dart';
+import '../../support/fake_theme_store.dart';
 
 const AppVersionInfo _version = AppVersionInfo(
   version: '1.2.3',
   buildNumber: '7',
 );
 
-/// A token shaped like a JWT, carrying [claims] as its payload.
-String token(Map<String, Object?> claims) {
-  String part(Object value) =>
-      base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
-  return '${part({'alg': 'none'})}.${part(claims)}.signature';
-}
-
-class _SignedIn extends SessionController {
-  _SignedIn(this.session);
-
-  final Session session;
-
-  @override
-  Session? build() => session;
-}
+LicenseRecord activeGrant({DateTime? expiresAt}) => LicenseRecord(
+  token: 'token-1',
+  expiresAt: expiresAt ?? DateTime.utc(2099, 1, 1),
+  key: 'license-key-1',
+);
 
 DiagnosticsFacts testFacts({
   bool draftsAvailable = true,
@@ -51,7 +47,7 @@ DiagnosticsFacts testFacts({
   locale: 'en-US',
   zoneName: 'Asia/Karachi',
   utcOffset: const Duration(hours: 5),
-  signedIn: false,
+  licensed: false,
   files: [
     LocalFileFact(
       name: 'cache.db',
@@ -74,6 +70,9 @@ DiagnosticsFacts testFacts({
 TextField _field(WidgetTester tester, String key) =>
     tester.widget<TextField>(find.byKey(Key(key)));
 
+SegmentedButton<ThemeMode> _segments(WidgetTester tester) => tester
+    .widget<SegmentedButton<ThemeMode>>(find.byKey(const Key('theme-mode')));
+
 /// The Settings screen scrolls; a control low on the card must be brought
 /// into the viewport before the tap lands on it.
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
@@ -85,7 +84,10 @@ Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
 
 Future<ProviderContainer> _pump(
   WidgetTester tester, {
-  Session? session,
+  LicenseRecord? grant,
+  MemoryLicenseStore? licenseStore,
+  bool failLicenseClear = false,
+  GoRouter? router,
   String manifest = 'https://flowpost.test/update.json',
   FakePostsCache? cache,
   FakeDraftsRepository? drafts,
@@ -97,13 +99,17 @@ Future<ProviderContainer> _pump(
   Future<DiagnosticsExportOutcome> Function()? exporter,
   List<LocalFileFact> broken = const [],
   FakeCredentialsStore? store,
+  FakeThemeStore? themeStore,
   Future<String> Function(AppConfig config)? connectionCheck,
   AppConfig? live,
   ConfigSource source = ConfigSource.compiled,
   AppConfig? compiled,
 }) async {
   final draftsRepository = drafts ?? FakeDraftsRepository();
+  final vault = licenseStore ?? MemoryLicenseStore(grant);
+  vault.failClear = failLicenseClear;
   final overrides = [
+    themeStoreProvider.overrideWithValue(themeStore ?? FakeThemeStore()),
     seededConfig(
       live ??
           AppConfig.fromValues(
@@ -147,12 +153,14 @@ Future<ProviderContainer> _pump(
                 latestVersion: currentVersion,
               ),
     ),
-    if (session != null) sessionProvider.overrideWith(() => _SignedIn(session)),
+    licenseServiceProvider.overrideWithValue(licenseServiceOver(vault)),
   ];
   await tester.pumpWidget(
     ProviderScope(
       overrides: overrides,
-      child: const MaterialApp(home: SettingsPage()),
+      child: router == null
+          ? const MaterialApp(home: SettingsPage())
+          : MaterialApp.router(routerConfig: router),
     ),
   );
   await tester.pumpAndSettle();
@@ -161,14 +169,14 @@ Future<ProviderContainer> _pump(
 
 void main() {
   testWidgets(
-    'the screen shows the account, the version, diagnostics and about',
+    'the screen shows the license, the version, diagnostics and about',
     (tester) async {
       await _pump(tester);
 
       expect(find.text('Settings'), findsOneWidget);
-      expect(find.text('Not signed in'), findsOneWidget);
+      expect(find.text('No active license.'), findsOneWidget);
       expect(
-        find.text('Sign-in arrives with the production build.'),
+        find.byKey(const Key('settings-activate-license')),
         findsOneWidget,
       );
       expect(find.text('Version 1.2.3 (7)'), findsOneWidget);
@@ -178,59 +186,138 @@ void main() {
       expect(find.text('cache.db: 412 KB, ok'), findsOneWidget);
       expect(find.text('drafts.db: 16 KB, ok'), findsOneWidget);
       expect(find.text('FlowPost Studio'), findsOneWidget);
-      expect(find.byKey(const Key('settings-sign-out')), findsNothing);
+      expect(find.textContaining('sign in'), findsNothing);
+      expect(find.textContaining('signed in'), findsNothing);
     },
   );
 
-  testWidgets('a session shows the email and signs out after asking', (
+  testWidgets(
+    'an active license shows its expiry and deactivates after asking',
+    (tester) async {
+      final cache = FakePostsCache();
+      final vault = MemoryLicenseStore(activeGrant());
+      final container = await _pump(tester, licenseStore: vault, cache: cache);
+
+      expect(find.text('Active license'), findsOneWidget);
+      expect(find.textContaining('Expires 2099-01-01'), findsOneWidget);
+
+      await _tapVisible(tester, find.byKey(const Key('settings-deactivate')));
+      expect(
+        find.text(
+          'Deactivating removes the license from this machine. '
+          'Your drafts are kept.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('confirm-deactivate')));
+      await tester.pumpAndSettle();
+
+      expect(vault.record, isNull);
+      expect(container.read(sessionProvider), isNull);
+      expect(cache.wipes, 1);
+      expect(find.text('No active license.'), findsOneWidget);
+      expect(find.text('License deactivated.'), findsOneWidget);
+    },
+  );
+
+  testWidgets('an offline license says so', (tester) async {
+    await _pump(tester, grant: activeGrant());
+
+    expect(find.text('Active license'), findsOneWidget);
+    expect(find.text('Expires 2099-01-01 · offline'), findsOneWidget);
+  });
+
+  testWidgets('an expired license says what to do', (tester) async {
+    await _pump(
+      tester,
+      grant: LicenseRecord(
+        token: 'old-token',
+        expiresAt: DateTime.utc(2020, 1, 1),
+      ),
+    );
+
+    expect(find.text('No active license.'), findsNothing);
+    expect(
+      find.text('Your license has expired. Activate a new key to continue.'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('settings-activate-license')), findsOneWidget);
+  });
+
+  testWidgets('keeping the license changes nothing', (tester) async {
+    final cache = FakePostsCache();
+    final vault = MemoryLicenseStore(activeGrant());
+    final container = await _pump(tester, licenseStore: vault, cache: cache);
+
+    await _tapVisible(tester, find.byKey(const Key('settings-deactivate')));
+    await tester.tap(find.byKey(const Key('confirm-deactivate-keep')));
+    await tester.pumpAndSettle();
+
+    expect(vault.record, isNotNull);
+    expect(container.read(sessionProvider), isNotNull);
+    expect(cache.wipes, 0);
+  });
+
+  testWidgets('a license that cannot be removed still ends the session', (
     tester,
   ) async {
     final cache = FakePostsCache();
+    final vault = MemoryLicenseStore(activeGrant());
     final container = await _pump(
       tester,
-      session: Session(
-        sessionToken: 'session',
-        accessToken: token({'email': 'admin@flowpost.test'}),
-      ),
+      licenseStore: vault,
+      failLicenseClear: true,
       cache: cache,
     );
 
-    expect(find.text('admin@flowpost.test'), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('settings-sign-out')));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text(
-        'Signing out removes the saved posts from this machine. '
-        'Your drafts are kept.',
-      ),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.byKey(const Key('confirm-sign-out')));
+    await _tapVisible(tester, find.byKey(const Key('settings-deactivate')));
+    await tester.tap(find.byKey(const Key('confirm-deactivate')));
     await tester.pumpAndSettle();
 
     expect(container.read(sessionProvider), isNull);
     expect(cache.wipes, 1);
-    expect(find.text('Not signed in'), findsOneWidget);
+    expect(
+      find.text('The license could not be removed from this machine.'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('keeping the session changes nothing', (tester) async {
-    final cache = FakePostsCache();
-    final container = await _pump(
-      tester,
-      session: const Session(sessionToken: 's', accessToken: 'a'),
-      cache: cache,
+  testWidgets('Change license opens the license screen', (tester) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (context, state) => const SettingsPage()),
+        GoRoute(
+          path: licenseRoute,
+          builder: (context, state) =>
+              const Scaffold(body: Text('License screen')),
+        ),
+      ],
     );
+    await _pump(tester, grant: activeGrant(), router: router);
 
-    await tester.tap(find.byKey(const Key('settings-sign-out')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('confirm-sign-out-keep')));
-    await tester.pumpAndSettle();
+    await _tapVisible(tester, find.byKey(const Key('settings-change-license')));
 
-    expect(container.read(sessionProvider), isNotNull);
-    expect(cache.wipes, 0);
+    expect(find.text('License screen'), findsOneWidget);
+  });
+
+  testWidgets('the guided setup is one tap away after the first run', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (context, state) => const SettingsPage()),
+        GoRoute(
+          path: setupRoute,
+          builder: (context, state) => const Scaffold(body: Text('Wizard')),
+        ),
+      ],
+    );
+    await _pump(tester, grant: activeGrant(), router: router);
+
+    await _tapVisible(tester, find.byKey(const Key('settings-open-setup')));
+
+    expect(find.text('Wizard'), findsOneWidget);
   });
 
   testWidgets('a build with no update source says so and the button is off', (
@@ -544,15 +631,12 @@ void main() {
     expect(asked.single.supabaseUrl, 'https://flowpost.test');
   });
 
-  testWidgets('a changed backend signs out and wipes the cache', (
+  testWidgets('a changed backend deactivates the license and wipes the cache', (
     tester,
   ) async {
     final cache = FakePostsCache();
-    final container = await _pump(
-      tester,
-      session: const Session(sessionToken: 's', accessToken: 'a'),
-      cache: cache,
-    );
+    final vault = MemoryLicenseStore(activeGrant());
+    final container = await _pump(tester, licenseStore: vault, cache: cache);
 
     await tester.enterText(
       find.byKey(const Key('credentials-url')),
@@ -560,20 +644,19 @@ void main() {
     );
     await _tapVisible(tester, find.byKey(const Key('credentials-submit')));
 
+    expect(vault.record, isNull);
     expect(container.read(sessionProvider), isNull);
     expect(cache.wipes, 1);
   });
 
-  testWidgets('saving the same backend keeps the session', (tester) async {
+  testWidgets('saving the same backend keeps the license', (tester) async {
     final cache = FakePostsCache();
-    final container = await _pump(
-      tester,
-      session: const Session(sessionToken: 's', accessToken: 'a'),
-      cache: cache,
-    );
+    final vault = MemoryLicenseStore(activeGrant());
+    final container = await _pump(tester, licenseStore: vault, cache: cache);
 
     await _tapVisible(tester, find.byKey(const Key('credentials-submit')));
 
+    expect(vault.record, isNotNull);
     expect(container.read(sessionProvider), isNotNull);
     expect(cache.wipes, 0);
   });
@@ -594,13 +677,14 @@ void main() {
     final store = FakeCredentialsStore()
       ..stored = const CredentialsFound(saved);
     final cache = FakePostsCache();
+    final vault = MemoryLicenseStore(activeGrant());
     final container = await _pump(
       tester,
       live: saved,
       source: ConfigSource.saved,
       compiled: compiled,
       store: store,
-      session: const Session(sessionToken: 's', accessToken: 'a'),
+      licenseStore: vault,
       cache: cache,
     );
 
@@ -629,8 +713,46 @@ void main() {
       _field(tester, 'credentials-url').controller!.text,
       'https://flowpost.test',
     );
+    expect(vault.record, isNull);
     expect(container.read(sessionProvider), isNull);
     expect(cache.wipes, 1);
+  });
+
+  testWidgets('the looks are offered with the current one picked', (
+    tester,
+  ) async {
+    await _pump(tester);
+
+    expect(find.text('Appearance'), findsOneWidget);
+    expect(_segments(tester).selected, {ThemeMode.system});
+  });
+
+  testWidgets('choosing a look keeps it and shows it at once', (tester) async {
+    final store = FakeThemeStore();
+    final container = await _pump(tester, themeStore: store);
+
+    await _tapVisible(tester, find.text('Dark'));
+
+    expect(container.read(themeControllerProvider), ThemeMode.dark);
+    expect(store.saved, ThemeMode.dark);
+    expect(_segments(tester).selected, {ThemeMode.dark});
+  });
+
+  testWidgets('a look that will not save says so and stays put', (
+    tester,
+  ) async {
+    final store = FakeThemeStore()..refusesWrite = true;
+    final container = await _pump(tester, themeStore: store);
+
+    await _tapVisible(tester, find.text('Dark'));
+
+    expect(
+      find.text('The look could not be saved on this machine.'),
+      findsOneWidget,
+    );
+    expect(container.read(themeControllerProvider), ThemeMode.system);
+    expect(_segments(tester).selected, {ThemeMode.system});
+    expect(store.writes, isEmpty);
   });
 
   testWidgets('grows with large text at the minimum window size', (

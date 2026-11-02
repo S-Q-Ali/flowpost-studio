@@ -160,6 +160,8 @@ void main() {
     };
 
     for (final name in names) {
+      // A full pipeline is several real encodes: on a loaded machine, where
+      // every test file runs at once, it goes past the 30-second default.
       test('$name produces the expected outputs', () async {
         final result = await runPipeline(name);
         expect(result.stage, MediaStage.ready);
@@ -250,7 +252,7 @@ void main() {
         } else {
           expect(result.outputs!.audio, isNull);
         }
-      });
+      }, timeout: const Timeout(Duration(minutes: 2)));
     }
   });
 

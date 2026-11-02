@@ -2,50 +2,89 @@
 
 [![CI](https://github.com/S-Q-Ali/flowpost-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/S-Q-Ali/flowpost-studio/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![Download for Windows](https://img.shields.io/badge/download-Windows%2010%2F11-2ea44f?logo=windows&logoColor=white)](https://github.com/S-Q-Ali/flowpost-studio/releases)
 
-> Upload once, publish everywhere. A multi-platform video and image scheduling dashboard for YouTube Shorts, Instagram Reels and Stories, Facebook Pages, TikTok and LinkedIn, with a web dashboard and a native Windows client.
+> Upload once, publish everywhere. A native Windows app for scheduling video and images to YouTube Shorts, Instagram Reels and Stories, Facebook Pages, TikTok and LinkedIn.
 
-## What is in this repository
+[Download for Windows](https://github.com/S-Q-Ali/flowpost-studio/releases) · [Build from source](#build-from-source) · [How it works](#how-it-works)
 
-| Part | Where | Stack |
-|---|---|---|
-| Web dashboard | `src/` | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router |
-| Backend | `supabase/` | Supabase Postgres, Auth, Storage and Deno edge functions |
-| Windows desktop client | `desktop-flutter/` | Flutter (Windows), Riverpod, SQLite, bundled FFmpeg |
+![Publish screen: an Instagram target selected, a caption written and Publish now enabled](docs/screenshots/publish.webp)
 
 ## Features
 
 - **Cross-platform publishing** — one upload fans out to YouTube, Instagram, Facebook, TikTok and LinkedIn
-- **Scheduled posting** — per-platform publish times, picked up by a scheduler edge function
-- **Content calendar** — month, week and list views over scheduled and published posts
-- **Queue management** — edit, reschedule, retry or delete pending posts
-- **AI captions** — Groq Whisper transcription, frame analysis and an LLM produce per-platform captions
-- **Workflows** — pull rows from a Google Sheet or the built-in workflow items, on daily, interval or time-window schedules
-- **File sources** — Google Drive, Mega (authenticated or public links) and Cloudflare R2 as a workflow cache
-- **Accounts** — OAuth connections per platform, with tokens encrypted at rest
-- **Insights** — Instagram and Facebook analytics with selectable date ranges
-- **Desktop client** — offline cache and drafts, single instance, tray, deep links, diagnostics export and a first-run setup screen
+- **Scheduled posting** — pick a time per platform; a scheduler edge function publishes when it is due
+- **Queue and calendar** — month, week and list views; edit, reschedule, retry or delete pending posts
+- **AI captions** — Groq Whisper transcription, frame analysis and an LLM write per-platform captions
+- **Accounts** — connect each platform from inside the app in your browser; the OAuth token is held encrypted on the server and never reaches your PC, and signing out of the platform in the browser does not break the connection
+- **Offline-friendly** — posts cached in SQLite, drafts autosaved and restored after a restart
+- **Desktop-native** — single instance, tray, allowlisted deep links, bundled FFmpeg and a diagnostics export
+- **License-key access** — the app unlocks with a license key, with no account and no sign-up
 
-## Project layout
+## Screenshots
 
+| | |
+|---|---|
+| ![Upload: a 42% normalized video with a processing progress bar](docs/screenshots/upload.webp) | ![Queue: scheduled, published and failed posts with retry](docs/screenshots/queue.webp) |
+| ![Calendar: an October month grid with scheduled posts](docs/screenshots/calendar.webp) | ![Settings: an active license, credentials, updates and diagnostics](docs/screenshots/settings.webp) |
+| ![Unlock: the first-run license key screen](docs/screenshots/license.webp) | ![Publish: a selected Instagram target and a ready caption](docs/screenshots/publish.webp) |
+
+The images are rendered from the real widgets with fake data; `desktop-flutter/test/screenshots/capture.dart` regenerates them.
+
+## Download
+
+The Windows installer and its SHA-256 are attached to [GitHub Releases](https://github.com/S-Q-Ali/flowpost-studio/releases). Requirements: Windows 10 or 11 on x64. The installer is not code-signed, so SmartScreen may warn on the first run. Check the download with `certutil -hashfile FlowPostNativeSetup.exe SHA256` and compare it with the `.sha256` file next to it.
+
+On first start the app asks for a license key — there is no login and no sign-up. The key is hashed and checked by the `verify-license` edge function, which mints a short-lived session; the key and session stay in the Windows credential vault and the app opens offline until the session expires. Settings → License deactivates the device.
+
+## Guided setup
+
+When the app has no backend values yet it opens a guided setup instead of a blank screen, and walks step by step until it can reach a Supabase project. Every step says what the app does with the value, what it costs, and the link to where you get it; the wizard saves its place, so you can leave a step and pick it up later.
+
+Which steps you see depends on the track:
+
+- **End user** — point the app at an existing FlowPost server (project address + anon key, saved in `credentials.json` on this PC), then unlock with a license key. Nothing else.
+- **Operator** — your own deployment. The server step, then the platform keys the next steps read: AI captions (Groq), media storage (Cloudflare R2), and the OAuth app for each of Google/YouTube+Drive, Instagram/Facebook (Meta), TikTok and LinkedIn, then the license step. The deploy step is commands to run (`supabase db push`, `supabase functions deploy`, set `TOKEN_ENCRYPTION_KEY` and the service-role key as server secrets), not values to type.
+
+An operator's keys are not stored on the PC. The wizard sends each one to the `operator-config` edge function, which seals it with AES-GCM and stores it in the server's `operator_config` table; `config-status` tells the wizard which steps are satisfied without ever returning a value. A deployment that already keeps those keys as edge-function secrets is unaffected — the stored value wins and the environment is the fallback. [ADR 0005](docs/adr/0005-server-held-secrets.md) is the full write-up.
+
+**Connecting a platform** happens later, in the app, on the Accounts screen: pick a platform, the browser opens that provider's sign-in, and the return link hands a nonce back to the app — never a token. The grant is stored encrypted on the server, so the desktop can list the account and publish to it, and signing out of the platform in the browser changes nothing until the grant is revoked or expires (then the card says so and offers **Reconnect**).
+
+## Build from source
+
+Prerequisites:
+
+- Flutter (stable channel) with the Windows desktop toolchain, on Windows 10 or 11
+- The pinned FFmpeg build, fetched by the script below
+
+```bash
+cd desktop-flutter
+flutter pub get
+powershell -ExecutionPolicy Bypass -File tool\fetch_ffmpeg.ps1
+flutter run -d windows
 ```
-flowpost-studio/
-├── src/                     # Web dashboard (pages, components, hooks, Supabase client)
-├── supabase/
-│   ├── functions/           # Deno edge functions; shared code in functions/_shared/
-│   └── migrations/          # SQL migrations, applied in order
-├── desktop-flutter/         # Native Windows client
-│   ├── lib/                 # App code (core, features, router)
-│   ├── test/                # Unit, provider and widget tests
-│   ├── integration_test/    # Windows performance harnesses
-│   └── tool/                # fetch_ffmpeg.ps1
-├── docs/
-│   ├── spec/                # Feature specs
-│   ├── adr/                 # Architecture decision records
-│   └── runbook.md           # Support, release and rollback
-├── tasks/                   # Plan, status and evidence
-└── .env.example             # Environment template (copy to .env)
+
+A build with no baked values opens a setup screen asking for the Supabase URL and anon key (and optionally the update manifest URL). The values are stored in `credentials.json` under `%APPDATA%\com.flowpost\FlowPost`; bake them in instead with `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`.
+
+A source build still unlocks with a license key, so the backend it points at needs your key's hash in the `licenses` table.
+
+Release build:
+
+```bash
+flutter build windows --release
 ```
+
+The output is `desktop-flutter/build/windows/x64/runner/Release/`. FFmpeg is fetched, not committed; run the script once per checkout.
+
+## How it works
+
+| Part | Where | Stack |
+|---|---|---|
+| Windows desktop client | `desktop-flutter/` | Flutter (Windows), Riverpod, SQLite, bundled FFmpeg |
+| Backend | `supabase/` | Supabase Postgres, Auth, Storage and Deno edge functions |
+| Web dashboard | `src/` | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router |
+
+The desktop client is the product here. The web dashboard is the browser view of the same backend: it signs in through Supabase (signups are closed; only an existing `public.users` row can sign in), and every privileged call still happens in an edge function.
 
 ## Getting started (web dashboard)
 
@@ -63,30 +102,6 @@ npm run dev                  # http://localhost:8080
 
 The dashboard talks to Supabase through `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Every privileged call happens in an edge function; the browser never holds a service-role key.
 
-## Getting started (Windows client)
-
-Prerequisites:
-
-- Flutter (stable channel) with the Windows desktop toolchain, on Windows 10 or 11
-- The pinned FFmpeg build, fetched by the script below
-
-```bash
-cd desktop-flutter
-flutter pub get
-powershell -ExecutionPolicy Bypass -File tool\fetch_ffmpeg.ps1
-flutter run -d windows
-```
-
-The first start opens a setup screen: enter the Supabase URL, the anon key and (optionally) the update manifest URL. The values are stored in `credentials.json` under `%APPDATA%\com.flowpost\FlowPost`; the same values can be baked in at build time with `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`.
-
-Release build:
-
-```bash
-flutter build windows --release
-```
-
-The output is `desktop-flutter/build/windows/x64/runner/Release/`. FFmpeg is fetched, not committed; run the script once per checkout.
-
 ## Backend
 
 ### Deploy the edge functions
@@ -97,7 +112,7 @@ npx supabase link --project-ref <ref>
 npx supabase functions deploy            # every function in supabase/functions
 ```
 
-`supabase/config.toml` decides which functions accept unauthenticated calls. Most functions verify the caller themselves through `functions/_shared/auth.ts` (service role, cron key, frontend key or an admin session token).
+`supabase/config.toml` decides which functions accept unauthenticated calls. Most functions verify the caller themselves through `functions/_shared/auth.ts` (service role, cron key, frontend key, license session or an admin session token).
 
 ### Apply migrations
 
@@ -107,7 +122,7 @@ npx supabase db push
 
 ### Secrets
 
-Set these in **Supabase Dashboard → Edge Functions → Secrets** (never in the repository):
+Set these in **Supabase Dashboard → Edge Functions → Secrets** (never in the repository). The full list is mirrored, placeholder-only, in [`.env.example`](.env.example). The per-platform and Groq/R2 keys below can also be entered through the [guided setup](#guided-setup), which stores them encrypted in the server's `operator_config` table; the infrastructure keys must always be edge-function secrets. [ADR 0005](docs/adr/0005-server-held-secrets.md) explains the custody model.
 
 | Variable | Purpose |
 |---|---|
@@ -118,7 +133,7 @@ Set these in **Supabase Dashboard → Edge Functions → Secrets** (never in the
 | `FRONTEND_API_KEY` | Key the dashboard sends on function calls |
 | `CRON_API_KEY` | Key the scheduler sends |
 | `APP_PASSWORD` | Legacy admin password gate |
-| `TOKEN_ENCRYPTION_KEY` | 256-bit key for AES-GCM encryption of OAuth tokens |
+| `TOKEN_ENCRYPTION_KEY` | base64 256-bit AES-GCM key; seals every stored operator key and every platform token. Set it before using the guided setup; see the runbook before rotating it |
 | `GOOGLE_SHEET_ID` | Default sheet used by workflows |
 | `FB_APP_ID`, `FB_APP_SECRET` | Facebook app |
 | `IG_APP_ID`, `IG_APP_SECRET` | Instagram app |
@@ -132,15 +147,6 @@ Local tooling reads `.env` (ignored by git). `ACCESS_TOKEN` there is a Supabase 
 
 ## Scripts
 
-| Script | What it does |
-|---|---|
-| `npm run dev` | Vite dev server on port 8080 |
-| `npm run build` | Production build |
-| `npm run preview` | Serve the production build locally |
-| `npm run lint` | ESLint over the dashboard |
-| `npm run test` | Vitest (dashboard and `supabase/functions/_shared`) |
-| `npm run test:watch` | Vitest in watch mode |
-
 Desktop commands live in `desktop-flutter/`:
 
 | Command | What it does |
@@ -150,10 +156,24 @@ Desktop commands live in `desktop-flutter/`:
 | `flutter analyze lib test integration_test` | Static analysis |
 | `dart format --set-exit-if-changed lib test integration_test` | Format gate |
 | `flutter test` | Unit, provider and widget tests |
+| `flutter test test/screenshots/capture.dart` | Regenerate the screenshots into `build/screenshots` |
 | `flutter drive --profile -d windows --driver=test_driver/integration_test.dart --target=integration_test/perf_list_test.dart` | Windows performance harness |
+
+Web scripts:
+
+| Script | What it does |
+|---|---|
+| `npm run dev` | Vite dev server on port 8080 |
+| `npm run build` | Production build |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | ESLint over the dashboard |
+| `npm run test` | Vitest (dashboard and `supabase/functions/_shared`) |
+| `npm run test:watch` | Vitest in watch mode |
 
 ## Security
 
+- License keys are stored as SHA-256 hashes and never in plain text; unlocking mints a short-lived session used by every desktop call
+- The desktop app has no password path; the session and key sit in the Windows credential vault
 - Row Level Security on every table; the browser only ever uses the anon key
 - One shared authorizer (`functions/_shared/auth.ts`) for edge functions; owner checks via `resolveSessionOwner` and `checkPostAccess`
 - OAuth tokens encrypted at rest (AES-GCM), OAuth state rows are random, single-use and expire
@@ -168,19 +188,41 @@ The reasoning behind each decision is in `docs/adr/`.
 ## Testing
 
 ```bash
-npm test                                  # Vitest: dashboard + edge function shared modules
 cd desktop-flutter && flutter test        # Flutter unit, provider and widget tests
+npm test                                  # Vitest: dashboard + edge function shared modules
 ```
 
 ## Documentation
 
 - `docs/spec/` — feature specs and decisions
-- `docs/adr/` — identity, FFmpeg bundling, local cache, credentials
+- `docs/adr/` — identity, FFmpeg bundling, local cache, credentials, server-held secrets
 - `docs/runbook.md` — support, release and rollback
 - `USER_GUIDE.md` — end-user guide for the dashboard
 - `CONTRIBUTING.md` — setup, the gates CI enforces, commit and pull request rules
 - `SECURITY.md` — how to report a vulnerability privately
 - `tasks/plan.md` and `tasks/todo.md` — roadmap and phase evidence
+
+## Project layout
+
+```
+flowpost-studio/
+├── desktop-flutter/         # Native Windows client
+│   ├── lib/                 # App code (core, features, router)
+│   ├── test/                # Unit, provider and widget tests
+│   ├── integration_test/    # Windows performance harnesses
+│   └── tool/                # fetch_ffmpeg.ps1
+├── src/                     # Web dashboard (pages, components, hooks, Supabase client)
+├── supabase/
+│   ├── functions/           # Deno edge functions; shared code in functions/_shared/
+│   └── migrations/          # SQL migrations, applied in order
+├── docs/
+│   ├── spec/                # Feature specs
+│   ├── adr/                 # Architecture decision records
+│   ├── screenshots/         # README images
+│   └── runbook.md           # Support, release and rollback
+├── tasks/                   # Plan, status and evidence
+└── .env.example             # Environment template (copy to .env)
+```
 
 ## License
 

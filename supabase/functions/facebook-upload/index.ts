@@ -2,7 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { checkPostAccess } from "../_shared/post-access.ts";
+import { checkPostAccess, claimPost } from "../_shared/post-access.ts";
+import { isAllowedDriveUrl } from "../_shared/url-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -25,7 +26,6 @@ const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
 const authorize = createRequestAuthorizer({
   serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
   cronApiKey: null,
-  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
   anonKey: SUPABASE_ANON_KEY,
   sessionLookup: createSessionLookup(supabase),
 });
@@ -65,6 +65,11 @@ Deno.serve(async (req) => {
     driveDownloadUrl = typeof body?.driveDownloadUrl === "string"
       ? body.driveDownloadUrl
       : undefined;
+    // The URL goes into a get-file token and the bearer follows it there, so it
+    // may only name a Google host — refused here, not only at the fetch.
+    if (driveDownloadUrl && !isAllowedDriveUrl(driveDownloadUrl)) {
+      return json({ error: "Unsupported download URL" }, 400);
+    }
     googleAccessToken = typeof body?.googleAccessToken === "string"
       ? body.googleAccessToken
       : undefined;
@@ -104,6 +109,9 @@ Deno.serve(async (req) => {
     if (!post.account_id) {
       return json({ error: "Post has no account_id" }, 400);
     }
+
+    const claim = await claimPost(supabase, post.id);
+    if (!claim.ok) return json({ error: claim.error }, claim.status);
 
     const { data: video, error: videoError } = await supabase
       .from("videos")

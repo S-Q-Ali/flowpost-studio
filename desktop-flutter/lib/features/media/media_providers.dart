@@ -91,9 +91,12 @@ class MediaReady extends MediaState {
 }
 
 class MediaFailed extends MediaState {
-  const MediaFailed(this.message);
+  const MediaFailed(this.message, {this.job});
 
   final String message;
+
+  /// The job whose run failed, when the screen still holds a file to retry.
+  final MediaJob? job;
 }
 
 final mediaControllerProvider = NotifierProvider<MediaController, MediaState>(
@@ -103,7 +106,11 @@ final mediaControllerProvider = NotifierProvider<MediaController, MediaState>(
 class MediaController extends Notifier<MediaState> {
   static final Logger _log = Logger('media');
 
-  Directory? _job;
+  /// The file the screen is on.
+  ///
+  /// A run whose job is not this one belongs to a file the user already
+  /// replaced, so it writes no state and deletes nothing.
+  MediaJob? _current;
   MediaProcessor? _processor;
 
   @override
@@ -142,11 +149,6 @@ class MediaController extends Notifier<MediaState> {
       );
       return;
     }
-    final previous = _job;
-    _job = job;
-    // A second pick replaces the first file, so its folder goes away too.
-    if (previous != null) await workspace.deleteJob(previous);
-
     final mediaJob = MediaJob(
       id: p.basename(job.path),
       sourcePath: file.path,
@@ -155,6 +157,15 @@ class MediaController extends Notifier<MediaState> {
       sourceBytes: validation.bytes!,
       workspacePath: job.path,
     );
+    final previous = _current;
+    _current = mediaJob;
+    // A second pick replaces the first file: its encode stops, and its folder
+    // goes away with it.
+    _processor?.cancel();
+    if (previous != null) {
+      await workspace.deleteJob(Directory(previous.workspacePath));
+    }
+
     state = MediaProcessing(job: mediaJob, fraction: 0);
     // The pipeline runs on in the background: the pick returns as soon as the
     // job starts, not when the encode is done.
@@ -166,10 +177,12 @@ class MediaController extends Notifier<MediaState> {
     _log.info('Media job ${job.id} started.');
     try {
       final processor = await ref.read(mediaProcessorFactoryProvider)(job);
+      if (_current?.id != job.id) return;
       _processor = processor;
       final result = await processor.process(
         job,
         onProgress: (progress) {
+          if (_current?.id != job.id) return;
           state = MediaProcessing(
             job: job,
             fraction: progress.fraction,
@@ -177,20 +190,27 @@ class MediaController extends Notifier<MediaState> {
           );
         },
       );
+      if (_current?.id != job.id) return;
       state = MediaReady(result);
       _log.info('Media job ${job.id} ready.');
     } on MediaCancelled {
-      // A cancelled job leaves nothing behind.
-      await _deleteJob();
+      // A cancelled job leaves nothing behind. The pick of another file has
+      // already taken the screen and deleted the folder, so a run that is no
+      // longer the current one writes nothing at all.
+      if (_current?.id != job.id) return;
+      await _deleteJob(job);
       state = const MediaIdle();
       _log.info('Media job ${job.id} cancelled.');
     } on MediaProcessingException catch (error) {
+      if (_current?.id != job.id) return;
       // The folder stays so the action can be retried.
-      state = MediaFailed(error.message);
+      state = MediaFailed(error.message, job: job);
       _log.warning('Media job ${job.id} failed: ${error.message}');
     } catch (error, stackTrace) {
-      state = const MediaFailed(
+      if (_current?.id != job.id) return;
+      state = MediaFailed(
         'Something went wrong while processing the file.',
+        job: job,
       );
       // The type and the stack trace are logged, never the message: a
       // message can carry the path of the user's file.
@@ -200,7 +220,7 @@ class MediaController extends Notifier<MediaState> {
         stackTrace,
       );
     } finally {
-      _processor = null;
+      if (_current?.id == job.id) _processor = null;
     }
   }
 
@@ -209,15 +229,31 @@ class MediaController extends Notifier<MediaState> {
     _processor?.cancel();
   }
 
+  /// Runs the file that failed through the pipeline again.
+  ///
+  /// A failed run keeps its folder, so the same file needs no second trip
+  /// through the picker. With no file kept behind the message there is only
+  /// the picker to open.
+  Future<void> retry() async {
+    final failure = state;
+    final job = failure is MediaFailed ? failure.job : null;
+    if (job == null) {
+      await pickFile();
+      return;
+    }
+    state = MediaProcessing(job: job, fraction: 0);
+    unawaited(_process(job));
+  }
+
   /// Finishes a job: the file is uploaded or the upload was cancelled, so
   /// the temporary files go away and the screen is empty again.
   ///
   /// A job that is no longer the current one is left alone: the user has
   /// already moved on to another file.
   Future<void> completeJob(String jobId) async {
-    final job = _job;
-    if (job == null || p.basename(job.path) != jobId) return;
-    await _deleteJob();
+    final job = _current;
+    if (job == null || job.id != jobId) return;
+    await _deleteJob(job);
     state = const MediaIdle();
   }
 
@@ -226,16 +262,15 @@ class MediaController extends Notifier<MediaState> {
     _processor?.cancel();
     ref.read(captionControllerProvider.notifier).reset();
     ref.read(uploadControllerProvider.notifier).reset();
-    await _deleteJob();
+    final job = _current;
+    if (job != null) await _deleteJob(job);
     state = const MediaIdle();
   }
 
-  Future<void> _deleteJob() async {
-    final job = _job;
-    _job = null;
-    if (job != null) {
-      final workspace = await ref.read(mediaWorkspaceProvider.future);
-      await workspace.deleteJob(job);
-    }
+  Future<void> _deleteJob(MediaJob job) async {
+    if (_current?.id != job.id) return;
+    _current = null;
+    final workspace = await ref.read(mediaWorkspaceProvider.future);
+    await workspace.deleteJob(Directory(job.workspacePath));
   }
 }

@@ -13,6 +13,7 @@ import 'package:win32/win32.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../logging/app_logger.dart';
+import '../../features/media/data/ffmpeg_runner.dart';
 import '../router/deep_links.dart';
 import 'instance_guard.dart';
 import 'tray_menu.dart';
@@ -306,6 +307,9 @@ class FlowPostShell with WindowListener, TrayListener {
     _log.info('Quit requested via tray; tearing down shell.');
     _quitting = true;
     _hideOnClose = false;
+    // First, because everything below ends in exit(): an encoder left behind
+    // keeps writing into a workspace the next start deletes.
+    killRunningFfmpeg();
     await _intentSub?.cancel();
     await _guard?.release();
     await trayManager.destroy();

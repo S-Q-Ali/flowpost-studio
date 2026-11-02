@@ -43,7 +43,6 @@ const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
 const authorize = createRequestAuthorizer({
   serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
   cronApiKey: CRON_API_KEY,
-  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
   anonKey: Deno.env.get("SUPABASE_ANON_KEY"),
   sessionLookup: createSessionLookup(supabase),
 });
@@ -86,6 +85,31 @@ function normalizePlatform(p: string): "youtube" | "facebook" | "instagram" | "t
   return null;
 }
 
+const WORKFLOW_LOCK_MINUTES = 30;
+
+/**
+ * Takes the run lock of one workflow.
+ *
+ * The insert is the lock: two runs of the same workflow cannot both win, while
+ * runs of different workflows do not wait for each other.
+ */
+async function takeWorkflowLock(workflowId: string): Promise<boolean> {
+  const { error } = await supabase.from("workflow_locks").insert({
+    lock_key: `workflow:${workflowId}`,
+    locked_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + WORKFLOW_LOCK_MINUTES * 60 * 1000).toISOString(),
+  });
+  return !error;
+}
+
+async function releaseWorkflowLock(workflowId: string): Promise<void> {
+  const { error } = await supabase
+    .from("workflow_locks")
+    .delete()
+    .eq("lock_key", `workflow:${workflowId}`);
+  if (error) console.error(`Failed to release the run lock of workflow ${workflowId}`, error);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -116,32 +140,10 @@ Deno.serve(async (req) => {
   // Clean up expired locks
   await supabase.from("workflow_locks").delete().lt("expires_at", new Date().toISOString());
 
-  // Global processing lock — only one invocation runs at a time
-  const globalLockKey = "global-workflow-processing";
-  const { error: globalLockError } = await supabase.from("workflow_locks").insert({
-    lock_key: globalLockKey,
-    locked_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-  });
-
-  if (globalLockError) {
-    if (isManualRun) {
-      return json({ error: "Another workflow is currently running. Please wait for it to complete." }, 409);
-    }
-    console.log("Global lock held by another invocation, exiting");
-    return json({ message: "Another workflow is currently running. Please wait." });
-  }
-  console.log("Global processing lock acquired");
-
-  let globalLockReleased = false;
-  function releaseGlobalLock() {
-    if (globalLockReleased) return;
-    globalLockReleased = true;
-    supabase.from("workflow_locks").delete().eq("lock_key", globalLockKey).then().catch(() => { });
-  }
-
   const uploadPromises: Promise<void>[] = [];
   const functionStartMs = Date.now();
+  // The workflow whose run lock this invocation holds, if any.
+  let heldWorkflowId: string | null = null;
 
   try {
 
@@ -177,6 +179,13 @@ Deno.serve(async (req) => {
     let sheetId: string | undefined;
 
     for (const wf of list) {
+      // Released here rather than with a `finally` per workflow, so every
+      // `continue` in the body below lets go of the previous lock.
+      if (heldWorkflowId) {
+        await releaseWorkflowLock(heldWorkflowId);
+        heldWorkflowId = null;
+      }
+
       if (wf.data_source !== 'flowpost') {
         sheetId = wf.sheet_id || GOOGLE_FALLBACK_SHEET_ID;
         if (!sheetId) {
@@ -258,6 +267,17 @@ Deno.serve(async (req) => {
           }
         }
       }
+
+      // A cron tick can overlap a manual run of the same workflow; other
+      // workflows are free to run at the same time.
+      if (!await takeWorkflowLock(wf.id)) {
+        if (isManualRun) {
+          return json({ error: "This workflow is already running. Please wait for it to complete." }, 409);
+        }
+        console.log(`Workflow ${wf.name} is already running, skipping`);
+        continue;
+      }
+      heldWorkflowId = wf.id;
 
       const googleToken = await getDriveToken(wf.user_id, wf.drive_account_id, driveTokenCtx);
       if (!googleToken) {
@@ -1178,7 +1198,7 @@ Deno.serve(async (req) => {
       500,
     );
   } finally {
-    releaseGlobalLock();
+    if (heldWorkflowId) await releaseWorkflowLock(heldWorkflowId);
   }
 });
 

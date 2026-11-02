@@ -54,18 +54,46 @@ Stream<String> decodeOutputLines(Stream<List<int>> bytes) => bytes
     .transform(const Utf8Decoder(allowMalformed: true))
     .transform(const LineSplitter());
 
+/// The child of the run that is in flight, or null when none is.
+///
+/// One run at a time: the media pipeline processes a single job. Quit ends the
+/// app without unwinding anything, and an encoder left behind holds the source
+/// file open and keeps writing into a workspace the next start deletes.
+Process? _running;
+
+/// Stops the encoder that is running, so a quit cannot orphan an FFmpeg.
+void killRunningFfmpeg() {
+  final child = _running;
+  _running = null;
+  child?.kill();
+}
+
 /// Runs the bundled FFmpeg as a separate process.
 ///
 /// Arguments are always passed as a list, never through a shell, so a path
 /// with spaces or quotes cannot turn into another command. One run at a time:
 /// the media pipeline processes a single job.
 class FfmpegRunner implements FfmpegExecutor {
-  FfmpegRunner({required this.ffmpegPath, required this.ffprobePath});
+  FfmpegRunner({
+    required this.ffmpegPath,
+    required this.ffprobePath,
+    Future<Process> Function(String executable, List<String> arguments)? start,
+  }) : _start = start ?? Process.start;
 
   final String ffmpegPath;
   final String ffprobePath;
 
+  /// How the child is started. A test drives the pipes itself.
+  final Future<Process> Function(String, List<String>) _start;
+
   static const Duration defaultTimeout = Duration(minutes: 10);
+
+  /// How long the pipes are waited for once the process is gone.
+  ///
+  /// The bytes are already buffered by then, so this only waits out a handle
+  /// held open by a process that outlived the run.
+  static const Duration drainWindow = Duration(seconds: 2);
+
   static const int _maxStdoutChars = 1024 * 1024;
   static const int _maxStderrChars = 64 * 1024;
 
@@ -85,7 +113,7 @@ class FfmpegRunner implements FfmpegExecutor {
 
     final Process process;
     try {
-      process = await Process.start(executable, arguments);
+      process = await _start(executable, arguments);
     } on ProcessException catch (error) {
       return FfmpegRun(
         exitCode: -1,
@@ -95,6 +123,7 @@ class FfmpegRunner implements FfmpegExecutor {
       );
     }
     _active = process;
+    _running = process;
     if (_cancelRequested) process.kill();
 
     final outDone = decodeOutputLines(process.stdout).listen((line) {
@@ -123,9 +152,21 @@ class FfmpegRunner implements FfmpegExecutor {
       exitCode = await process.exitCode;
     } finally {
       _active = null;
+      if (_running == process) _running = null;
     }
-    await outDone.cancel();
-    await errDone.cancel();
+    // The last lines are the ones that explain a failure, and they are still
+    // on their way off the pipe when the exit code lands: cancelling here
+    // would drop them. Read to the end, but not forever — a handle inherited
+    // by another process would keep the job open.
+    try {
+      await Future.wait<void>([
+        outDone.asFuture<void>(),
+        errDone.asFuture<void>(),
+      ]).timeout(drainWindow);
+    } on TimeoutException {
+      await outDone.cancel();
+      await errDone.cancel();
+    }
 
     return FfmpegRun(
       exitCode: exitCode,

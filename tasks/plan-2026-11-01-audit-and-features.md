@@ -1,0 +1,460 @@
+# Implementation Plan: Audit Fixes + Dark Mode, Guided Setup, Browser Account Connections
+
+**Status:** Approved and building. Phases A–E (web and edge security, the desktop fixes and release workflow, the connected-account read model, dark mode, the guided setup) are complete on `feature/license-access`; Phase F (browser account connections) and Phase G (docs and the final audit) are open.
+**Created:** 2026-11-01
+**Owner override carried forward:** the desktop app is the product; the web app is the landing page + backend.
+**Companion task list:** `tasks/todo-2026-11-01-audit-and-features.md`
+**Why a new file:** `tasks/plan.md`, `tasks/plan-license.md` and `tasks/todo.md` still carry open work from the MVP and license tracks. They are not overwritten or archived here.
+
+---
+
+## What this plan covers
+
+1. **Fix every confirmed audit finding** — 13 web/edge (security, publish correctness, scheduler, CI) and 14 desktop (publish, media races, vault, FFmpeg, dead code).
+2. **Dark mode** in the desktop app (system / light / dark).
+3. **Guided setup** — a step-by-step, free-of-cost wizard for the credentials a deployment needs (Supabase, Cloudflare R2, Google, Meta Graph, TikTok, LinkedIn).
+4. **Browser-based account connections** — connect YouTube, Instagram, Facebook, TikTok and LinkedIn in the user's own browser; tokens stay server-side, so later browser sign-out does not break the desktop.
+
+Assumed load: one operator, a handful of users, desktop clients calling Supabase edge functions. The heavy work (OAuth exchange, token refresh, publishing) stays server-side.
+
+---
+
+## Decisions taken
+
+| # | Decision | Why |
+|---|---|---|
+| D1 | Provider tokens never land on the desktop. The desktop keeps only its license session. | Tokens already live encrypted in `connected_accounts` with refresh tokens (`youtube-auth:209-225`). Server-side custody is what makes "browser sign-out does not break the desktop" true, and it shrinks the desktop attack surface. |
+| D2 | Browser connect uses the system browser + `flowpost://` deep link and a desktop-generated nonce, stored on the edge side. | Matches Google/Meta policy (no embedded webviews) and the existing HKCU `flowpost://` registration. New code, not the dead identity module. |
+| D3 | Callback redirects become an **allowlist**: `flowpost://connect-callback` and the existing Vercel URL. No free-form `return_to`. | Prevents open redirect on a public callback (`youtube-auth` callback is unauthenticated by design). |
+| D4 | Guide secrets are written to **Supabase Vault** by an admin-only function, never stored on the desktop; read path falls back to function env vars. | The operator can finish setup without dashboard copy-paste; existing deployments keep working. No paid plan needed. |
+| D5 | The wizard has two tracks: **end user** (server URL + anon key + license) and **operator** (full credential setup). | An end user must never be asked for an R2 secret; the operator sets it once for the whole server. |
+| D6 | Dark mode is built from the same HSL tokens, with contrast tested; hardcoded colours are replaced by `ColorScheme` lookups. | 22 hardcoded colour reads across 6 files would otherwise stay light on a dark surface. |
+| D7 | The dead `features/identity` module is deleted (1,704 lib + 2,216 test lines), not revived. | Nothing in `lib/` imports it; license sessions replaced it. The connect flow needs ~100 lines, not 3,900. |
+| D8 | Audit fixes ship first, in severity order, each as its own commit with a test. | Security and data-loss fixes unblock the features (publish targets need real accounts; connect needs the auth fixes). |
+
+---
+
+## Feature specs (short form)
+
+### Dark mode
+
+- Palette: light and dark variants of the existing tokens in `lib/core/theme/app_theme.dart`; `ThemeMode` from a `themeControllerProvider`.
+- Persistence: `preferences.json` in the app-support directory (same pattern as `accounts.json`), values `system | light | dark`.
+- Loaded before the first frame so the window never flashes light.
+- Success: switching from Settings re-themes live, survives restart, follows the OS in `system` mode, and body text keeps ≥ 4.5:1 contrast.
+
+### Guided setup wizard
+
+- Step model: `id`, title, why, cost ("free"), dashboard URL, fields, test action, optional flag.
+- End-user track: 3 steps — server URL + anon key (test connection), license key (activate), done.
+- Operator track: Supabase → deploy functions → Groq (captions) → Cloudflare R2 (media) → Google OAuth → Meta (Instagram + Facebook) → TikTok → LinkedIn → optional license.
+- Each step: exact dashboard links, what to copy, masked fields, a real "Test" that hits the server, "Skip for now", resumable progress.
+- Secrets travel desktop → `operator-config` (license-session guarded) → the server's own config store (`public.operator_config`, sealed with `TOKEN_ENCRYPTION_KEY`; Supabase Vault has no in-request API). The desktop keeps only "configured" booleans from `config-status`; values are never returned, logged or put in diagnostics.
+
+### Browser account connections
+
+- Connect: desktop calls `posts-api {action:"connect-url", platform}` → gets a browser URL plus the server-created OAuth state; the desktop also holds its own 32-byte `nonce`, sent along and stored on the state row.
+- Browser: the platform consent screen, then the existing callback exchanges the code, encrypts and stores the tokens, then redirects to `flowpost://connect-callback?platform=…&status=ok&nonce=…`.
+- Desktop: validates scheme/host exactly, nonce match, 10-minute expiry, then refreshes accounts. A replay or a stale link is rejected silently.
+- Disconnect: `posts-api {action:"disconnect"}` deletes the row (and best-effort revoke).
+- Expired refresh token: account shows "Reconnect"; publishing to it is blocked with a clear message.
+- Success: connect and publish work with the browser closed and after the user signs out of the platform site.
+
+---
+
+## Phase A — Edge and web security (fixes web findings 1–13)
+
+- [x] **A1. Hard-deny sessions without a user id** — Must (web 1)
+  - Accept: `isRequestAuthorized` rejects a `sessions` row with `user_id = NULL`; `resolveSessionOwner` denies any session without a user id; no `if (sessionUserId)` guard remains as the only check.
+  - Verify: new `_shared/auth.test.ts` cases for null-user session and mismatched id; `deno test supabase/functions/_shared`.
+  - Files: `supabase/functions/_shared/auth.ts`, `_shared/auth.test.ts`, `_shared/post-access.ts`.
+  - Dep: none · Size: S.
+
+- [x] **A2. Revoke sessions per user, not globally** — Must (web 2)
+  - Accept: `createSession` deletes only rows for that user; a second sign-in no longer kills other sessions.
+  - Verify: test that a session for user B survives `createSession(user A)`; `verify-license` / `verify-security-questions` pass the right user.
+  - Files: `_shared/session.ts`, `_shared/session.test.ts`, `verify-license/index.ts`, `verify-security-questions/index.ts`.
+  - Dep: A1 · Size: S.
+
+- [x] **A3. Accept a Supabase access token from the web client** — Must (web 3)
+  - Accept: `src/lib/invoke.ts` sends the current Supabase access token as bearer; `_shared/auth.ts` resolves it via `auth.getUser` and maps it to the app user; `flowpost_token` still works for the admin gate.
+  - Verify: `_shared/auth.test.ts` JWT branch; one contract test per representative function (uploads, captions, posts-api); manual non-admin publish on the web.
+  - Files: `src/lib/invoke.ts`, `src/contexts/AuthContext.tsx`, `_shared/auth.ts`, tests.
+  - Dep: A1 · Size: M.
+
+- [x] **A4. Claim a post atomically before publishing** — Must (web 4)
+  - Accept: a shared `claimPost` updates `status: processing` only from `scheduled` (and the publish-now entry state) and returns no row for `processing`/`published`; all six upload functions use it.
+  - Verify: `post-access.test.ts` — second claim on `processing` is rejected, first on `scheduled` wins; two parallel claims produce one winner.
+  - Files: `_shared/post-access.ts`, `_shared/post-access.test.ts`, six `*-upload/index.ts`, `post-story/index.ts`.
+  - Dep: A1 · Size: M.
+
+- [x] **A5. Allowlist `driveDownloadUrl` in every fetch** — Must (web 5)
+  - Accept: LinkedIn and TikTok run the existing `url-guard` check on `driveDownloadUrl` before any fetch; an internal or non-allowed host is rejected with 400.
+  - Verify: `url-guard.test.ts` cases for `169.254.169.254`, `localhost`, and a valid Drive host; function-level test where practical.
+  - Files: `supabase/functions/linkedin-upload/index.ts`, `tiktok-upload/index.ts`, `_shared/url-guard.test.ts`.
+  - Dep: none · Size: S.
+
+- [x] **A6. Stop a second publish-now row** — Must (web 6)
+  - Accept: the upload-page guard matches any non-terminal status; a partial unique index covers `(user_id, video_id, platform, account_id)` for `scheduled`/`processing`.
+  - Verify: migration applied on a scratch DB; test that a duplicate insert conflicts; UI shows the existing row instead of inserting.
+  - Files: `src/pages/UploadPage.tsx`, `supabase/migrations/<new>_post_claim_index.sql`, related test.
+  - Dep: A4 · Size: S.
+
+- [x] **A7. Sign-out revokes the admin token** — Should (web 7)
+  - Accept: `logout()` deletes the session row, removes `flowpost_token` from storage, and a later call with the old token gets 401.
+  - Verify: unit test for logout side effects; manual replay of the old token.
+  - Files: `src/contexts/AuthContext.tsx`, `src/lib/invoke.ts`, `verify-session` or a new revoke action.
+  - Dep: A2 · Size: S.
+
+- [x] **A8. Per-workflow lock** — Should (web 8)
+  - Accept: the lock key is `workflow:<id>` inside the loop; one user's long run no longer blocks every other workflow.
+  - Verify: test two concurrent workflow ids both proceed; same id still serialises.
+  - Files: `supabase/functions/process-workflow/index.ts`, test.
+  - Dep: none · Size: S.
+
+- [x] **A9. Batch the scheduler and heartbeat the reaper** — Should (web 9)
+  - Accept: the tick claims up to N rows, dispatches with `Promise.allSettled` inside the edge budget, and the reaper fails only rows with no heartbeat.
+  - Verify: test 10 due rows all leave `processing`; a slow Instagram call no longer strands the rest.
+  - Files: `process-scheduled-posts/index.ts`, reaper function, tests.
+  - Dep: A4 · Size: M.
+
+- [x] **A10. Rate-limit the real caller** — Should (web 10)
+  - Accept: the bucket uses a non-spoofable key (account or platform IP), lookup errors fail closed, and the counter increments atomically.
+  - Verify: rotating `X-Forwarded-For` cannot bypass; 5 parallel wrong answers lock out.
+  - Files: `_shared/rate-limit.ts`, `_shared/rate-limit.test.ts`, `verify-password` (deleted in A13) / `verify-license` call sites.
+  - Dep: none · Size: S.
+
+- [x] **A11. Cap uploads server-side** — Should (web 11)
+  - Accept: `upload-local-file` rejects files over 200 MB and content types outside the allowlist, before touching R2.
+  - Verify: unit test for both rejections; a valid image still uploads.
+  - Files: `supabase/functions/upload-local-file/index.ts`, test.
+  - Dep: none · Size: S.
+
+- [x] **A12. Run the Deno tests in CI** — Should (web 12)
+  - Accept: the web job runs `deno test supabase/functions` (or `_shared` plus the covered functions) and fails on a regression.
+  - Verify: a deliberate break turns CI red; green run after revert.
+  - Files: `.github/workflows/ci.yml`.
+  - Dep: A1–A5 · Size: XS.
+
+- [x] **A13. Delete the dead auth paths** — Nice (web 13)
+  - Accept: `verify-password` and `verify-session` are gone (no `src/` caller); the `frontend-api-key` branch is removed once the desktop sends a license session.
+  - Verify: `grep` shows no references; functions list and `config.toml` updated.
+  - Files: `supabase/functions/verify-password/`, `verify-session/`, `_shared/auth.ts`, `supabase/config.toml`.
+  - Dep: A1, A3 · Size: S.
+
+- [x] **A14. Bind a license to a user** — Nice (web 13, second half)
+  - Accept: `licenses.user_id` exists; `verify-license` mints the session for that user and binds on first activation; two license keys no longer share one identity.
+  - Verify: migration test; two keys resolve to their own user; desktop activation still works.
+  - Files: new migration, `verify-license/index.ts`, `_shared/license.ts`, tests.
+  - Dep: A2 · Size: S.
+
+- [x] **A15. Phase A gate** — `deno test`, `npm run test`, `tsc`, format; deploy is owner-assisted (task I12 remains open).
+
+---
+
+## Phase B — Desktop correctness (fixes desktop findings 2–14)
+
+- [x] **B1. Close the duplicate-publish window** — Must (desktop 2)
+  - Accept: after `PublishDone`, the button stays disabled for the same media + selection + schedule; a new row id is minted only when an input changes.
+  - Verify: test — publish, wait for Done, click again → still one row; change caption → a new run is allowed.
+  - Files: `lib/features/publishing/publishing_providers.dart`, `publishing_controller.dart`, `test/features/publishing/publish_controller_test.dart`.
+  - Dep: none · Size: S.
+  - Done: the signature is remembered only when every target went out, so a failed run stays retryable from the same button. Guarded in `publish_controller_test.dart` and `publish_page_test.dart`.
+
+- [x] **B2. Delete stale media only as the primary instance** — Must (desktop 3)
+  - Accept: `_removeStaleMediaJobs` runs after the single-instance lock is acquired; a second launch deletes nothing.
+  - Verify: test with a fake guard — blocked launch never calls the workspace cleanup; primary launch does.
+  - Files: `lib/main.dart`, `lib/core/shell/single_instance.dart` (or the existing guard seam), test.
+  - Dep: none · Size: S.
+  - Done: `startAsPrimary()` in `lib/main.dart` runs the guard first and the cleanup (stale media plus the protocol write) after; `test/core/startup_order_test.dart` covers both outcomes.
+
+- [x] **B3. Fence a replaced media job** — Must (desktop 4)
+  - Accept: each run carries its job id; progress and completion are ignored when the id no longer matches; picking a second file cancels the first processor.
+  - Verify: test — start job A, pick B, let A complete → state stays on B; no "ready" flash from A.
+  - Files: `lib/features/media/media_providers.dart`, `test/features/media/media_controller_test.dart`.
+  - Dep: none · Size: S.
+  - Done: the controller now holds the current `MediaJob` (not a bare folder) and every state write, deletion and `_processor` hand-off checks its id. The pick of a new file cancels the encode of the old one — which, before this, let a cancelled run delete the folder of the file that replaced it.
+
+- [x] **B4. Ship a real release for the download CTA** — Must (desktop 5)
+  - Accept: a tag `desktop-v*` builds the Windows installer, records a SHA-256, and uploads installer + checksum to a GitHub release.
+  - Verify: dry run on a test tag; asset URLs resolve.
+  - Files: `.github/workflows/release-desktop.yml`, `desktop-flutter/installer/flowpost.iss`.
+  - Dep: none · Size: M (owner-assisted first release).
+  - Done: the workflow builds on the tag, passes its version to Inno Setup (`/DMyAppVersion`, which the `.iss` now accepts through `#ifndef`), writes a `.sha256` sidecar and publishes both with `gh release`. The first real tag is still the owner's to push — the dry run has not happened.
+
+- [x] **B5. Fix the landing CTA** — Must (desktop 5)
+  - Accept: the CTA points at a URL that exists today (`/releases`) and switches to the direct asset once a release exists; no dead `releases/latest`.
+  - Verify: click on the built site; both states covered by a unit test of the URL helper.
+  - Files: `src/pages/PipelineLandingPage.tsx` (+ helper + test).
+  - Dep: B4 · Size: S.
+  - Done: `desktopDownloadUrl()` returns the releases page while `INSTALLER_ASSET` is null; set it to `FlowPostNativeSetup.exe` after the first release. The JSON-LD `downloadUrl` in `index.html` and the README links were switched to `/releases` for the same reason — neither can call the helper.
+
+- [x] **B6. Re-check the session expiry** — Should (desktop 6)
+  - Accept: a timer plus a 401 handler end the session and route to `/license` with a clear message; no silent dead state.
+  - Verify: fake clock test — expiry triggers once; 401 from posts-api triggers once; a valid session is untouched.
+  - Files: `lib/features/license/license_controller.dart`, `lib/features/offline/`, test.
+  - Dep: none · Size: S.
+  - Done: the controller waits on the grant's own expiry (the service's clock, so the two cannot disagree) and drops the token before asking for a new one. A 401/403 from `posts-api` is now `PostsErrorKind.rejected`, which the reporting transport forwards to the same re-check with `refused: true` — that path ignores the local clock, because the server has already said no. Concurrent refusals share one re-check.
+  - Limit: captions, upload and the publish function still only show their own error text; the re-check hangs off `posts-api`, which every queue and row write goes through.
+
+- [x] **B7. Clear the vault even when one key fails** — Should (desktop 7)
+  - Accept: `clear()` attempts all three deletes, then reports one failure; a leftover token cannot keep the app signed in.
+  - Verify: fake storage that fails one delete → other keys are deleted and the result is an error, not a partial success.
+  - Files: `lib/features/license/data/license_store.dart`, test.
+  - Dep: none · Size: XS.
+  - Done: `clear()` now loops over the three records, remembers a failure, and raises one `storageUnavailable` after trying all of them. The controller already ends the session and wipes the cache whatever the vault says, so a stuck record cannot keep this run signed in.
+
+- [x] **B8. Report network failures properly** — Should (desktop 8)
+  - Accept: `SocketException`, TLS and DNS failures map to "No connection — check your network and try again", not "invalid response"; both upload and captions.
+  - Verify: transport tests for each exception type.
+  - Files: `lib/features/media/upload/data/upload_client.dart`, `lib/features/media/captions/data/captions_client.dart`, tests.
+  - Dep: none · Size: S.
+  - Done: one `connection_failure.dart` holds the sentence and the test (`SocketException` for a host that will not resolve, a port nobody listens on, a dropped socket; `HandshakeException` for TLS). Both transports catch it and rethrow their own typed failure; anything else still escapes to the generic handler. Six transport tests, one per exception type per client, against real sockets.
+
+- [x] **B9. Drain FFmpeg streams before closing** — Should (desktop 9)
+  - Accept: the runner waits for the buffered output to end after exit, so the last progress/error lines are not dropped.
+  - Verify: fake process emitting a tail line after exit → the line is observed.
+  - Files: `lib/features/media/data/ffmpeg_runner.dart`, test.
+  - Dep: none · Size: S.
+  - Done: the runner reads both pipes to their end instead of cancelling where the tail still sits, with a two-second window as the backstop for a handle a child process holds open. `FfmpegRunner` takes a start function so a test can drive the pipes; the fake exits first and the line arrives after, which is the order that lost the summary.
+
+- [x] **B10. Stop FFmpeg on quit** — Should (desktop 10)
+  - Accept: tray Quit cancels and kills the active media process before `exit(0)`.
+  - Verify: test with a fake processor — quit calls cancel once; no process id remains.
+  - Files: `lib/core/shell/flowpost_shell.dart`, `lib/features/media/media_providers.dart`, test.
+  - Dep: B3 · Size: S.
+  - Done: `killRunningFfmpeg()` in `ffmpeg_runner.dart` — the runner already holds its child, so the registry sits next to it and works without a container in the shell's hand. `quit()` calls it first, before any await that could end in `exit(0)`. The shell is built before `runApp`, so the controllers are not reachable there; the registry is process-global the way the single encoder is. Two tests with the fake process: the in-flight child is killed, and a run that already finished is not reached back to.
+
+- [x] **B11. Delete the dead identity module** — Should (desktop 11, lean)
+  - Accept: `lib/features/identity/` and its 8 test files are removed; `flutter analyze` and the suite stay green; nothing is re-exported.
+  - Verify: tree-wide grep, `flutter analyze`, `flutter test`.
+  - Files: `desktop-flutter/lib/features/identity/`, `desktop-flutter/test/features/identity/`.
+  - Dep: none · Size: S (-3,920 lines).
+  - Done: the module and its tests are gone, with `loginRoute`, `questionsRoute` and `authCallbackRoute` — the three constants no route served. `supabase_flutter` followed them out of `pubspec.yaml` (the identity files were its only importers; `Supabase.initialize` appeared nowhere, so nothing was ever bootstrapped). The specs that still describe it (`docs/adr/0001-dual-auth-session.md`, marked Proposed, and `SPEC-identity.md`, referenced by `SPEC-settings.md`) are left for a docs pass.
+
+- [x] **B12. Stop the draft restore from overwriting edits** — Should (desktop 12)
+  - Accept: the draft is applied once, before the user's first edit; a late restore never replaces typed text.
+  - Verify: test — type, then let the restore resolve → the typed caption stays; reopen a saved draft → it loads.
+  - Files: `lib/features/publishing/publishing_providers.dart`, test.
+  - Dep: none · Size: S.
+  - Done: `PublishComposer` counts the changes that go through `_update`, and `_restore` drops a draft that arrives after the count moved. `FakeDraftsRepository` grew a `holdLoads` completer so a widget test can type into the empty form and then release the read.
+
+- [x] **B13. "Try again" retries the same file** — Nice (desktop 13)
+  - Accept: the failed state retries the kept file path; the picker opens only from "Choose another file".
+  - Verify: widget test for both buttons.
+  - Files: `lib/features/media/presentation/media_page.dart`, `media_providers.dart`, test.
+  - Dep: none · Size: XS.
+  - Done: `MediaFailed` carries the job whose run failed, and `retry()` runs that job through the pipeline again — the folder of a failed run is still on disk. With no job behind the message (a rejected file, no workspace) it falls back to the picker, which is the only way forward there.
+
+- [x] **B14. Sniff image types from bytes** — Nice (desktop 14)
+  - Accept: JPEG/PNG/WEBP are detected from magic bytes; a mislabelled extension cannot set the wrong content type.
+  - Verify: unit test per signature plus an unknown file fallback.
+  - Files: `lib/features/media/upload/upload_providers.dart`, test.
+  - Dep: none · Size: S.
+  - Done: the controller reads the first 12 bytes of an image and answers JPEG/PNG/WEBP from the signatures; only bytes that match none of them fall back to the extension, which is what the picker already allowed through. The type the service stores is the one the bytes give, so `media_type` and the platform link are right. Videos are untouched — the pipeline already fixed their type, and the read stays off that path so a cancel still has a request to abort.
+
+- [x] **B15. Phase B gate** — analyze, format, `flutter test`, release build.
+  - Done: `dart format --set-exit-if-changed lib test` 0 changed, `flutter analyze lib test` no issues, `flutter test` 818 passed, `flutter build windows --release` produced `build\windows\x64\runner\Release\flowpost.exe`. The build first failed on `atlstr.h` — the VS 2022 Build Tools had no ATL component, which `flutter_secure_storage_windows` needs — and passed once the owner added `Microsoft.VisualStudio.Component.VC.ATL`.
+
+---
+
+## Phase C — Real publish targets (web + desktop, unblocks feature 3)
+
+- [x] **C1. Add `account-list` to posts-api** — Must (desktop 1)
+  - Accept: `{action:"account-list"}` returns the caller's connected accounts (platform, account_id, display name, connection state, token expiry) with no token fields.
+  - Verify: function test — one user cannot see another's rows; response has no `access_token`/`refresh_token`.
+  - Files: `supabase/functions/posts-api/index.ts`, `supabase/functions/_shared/posts-api.test.ts`.
+  - Dep: A1 · Size: S.
+  - Done: `ACCOUNT_COLUMNS` names the display fields plus `token_expiry` and nothing else, `listAccounts(supabase, userId)` builds the read with the owner from the session, and the handler answers the action with `{rows: [...]}`. The tests use a fake table that applies the filter, so a second user's row is proven to stay out of the answer.
+
+- [x] **C2. Build the desktop accounts repository** — Must (desktop 1)
+  - Accept: accounts come from `account-list`, not `accounts.json`; loading/offline/empty states exist; the local preview becomes a cache.
+  - Verify: tests with a fake client for list, offline and empty.
+  - Files: `lib/features/accounts/accounts_providers.dart`, `lib/features/accounts/data/accounts_repository.dart`, tests.
+  - Dep: C1 · Size: M.
+  - Done: `ServerAccountsRepository.read()` asks `account-list` through the existing posts transport and returns `AccountsRead(accounts, offline)`. With no session, or when the network fails (connection/timeout), it serves `FileAccountsCache`; a refused or broken server answer is a rethrow, not a stale list, and a cache write that fails cannot lose a fresh answer. `seedAccounts` and the six placeholder cards are gone — an empty server means an empty list — and with them went the local Connect/Disconnect toggle, because a button that only rewrites a file would be a lie; real connect and disconnect arrive with the browser OAuth phase. Row → account mapping keeps `account_id` and the server platform name on the model so publish targets can be derived (C3). The accounts tests are 27 (18 repository, 9 page), net 14 over the Phase B gate. the desktop suite is at 832.
+
+- [x] **C3. Derive publish targets from real accounts** — Must (desktop 1)
+  - Accept: `publishTargetsProvider` lists one target per connected account (plus feed/story for Instagram), refreshes after connect/disconnect, and is empty only when nothing is connected.
+  - Verify: test — one YouTube account yields one target; a disconnected account disappears; publish is blocked with a "connect an account" hint when empty.
+  - Files: `lib/features/publishing/publishing_providers.dart`, `lib/features/accounts/`, tests.
+  - Dep: C2 · Size: M.
+  - Done: `publishTargetsFor(account)` turns one row into its targets - only a connected account, only a platform the client publishes to (the drive rows store media), the feed post and the story for Instagram, nothing at all without the platform's own account id. `publishTargetsProvider` is now a `FutureProvider` over the accounts read, so it follows every refresh of that read and carries its loading and failure states to the compose screen, which says "Loading the accounts on your server.", "the connected accounts could not be read", or "No account is connected yet. Open Accounts to connect one." instead of claiming an empty list it never read. The desktop suite is at 844.
+
+- [ ] **C4. Checkpoint** — connect an account on a real server and publish to it.
+  - Blocked: it needs the browser connect flow (Phase F) and a deployed `posts-api`, which is owner-assisted (same gate as I12). Until then C2/C3 are proven against fakes only.
+
+---
+
+## Phase D — Dark mode
+
+- [x] **D1. Add the dark palette and theme** — Accept: `flowPostDarkTheme()` covers the same tokens; contrast test for body text, primary text, destructive, and disabled states.
+  - Verify: pure test computing relative luminance/contrast ratios.
+  - Files: `lib/core/theme/app_theme.dart`, new theme test.
+  - Dep: none · Size: S.
+  - Done: `FlowPostDarkColors` is the web `.dark` block (`src/index.css:70-107`) converted to ARGB, and `flowPostDarkTheme()` builds the same scheme shape as the light one. Two tokens sit above the web value because they fail measured on the dark card: `destructive` goes from 60% to 65% lightness, and the border uses the web's muted-foreground as `outline`. `FlowPostTones` (a `ThemeExtension`) carries the two Material 3 has no slot for - accent text and the published green - so a screen asks its theme, never its brightness. **One acceptance item dropped:** the disabled-state ratio. Material paints a disabled label as `onSurface` at 38% alpha, 2.24:1 on the light card and 2.92:1 on the dark one; WCAG 2.1 exempts inactive components, so the assertion would have failed the shipped light theme for a rule that does not apply. The test covers the surfaces (screen and card) rather than a list of colours: 18 assertions.
+
+- [x] **D2. Replace hardcoded colours** — Accept: the 22 `FlowPostColors.*` / `Colors.white|black` reads outside the theme file resolve from the active `ColorScheme`; no light-only literal remains in UI.
+  - Verify: grep gate in review; widget tests render in both modes.
+  - Files: `lib/core/shell/app_shell.dart`, `lib/features/media/presentation/media_page.dart`, `lib/features/publishing/presentation/publish_page.dart`, `lib/features/scheduling/presentation/post_actions.dart`, `post_status_color.dart`.
+  - Dep: D1 · Size: S.
+  - Done: the rail's accent icon, the media error icons, the destructive buttons and their labels, the publish status row, the account badge and the draft banner all read from `Theme.of(context)`. `postStatusColor(status, theme)` takes the theme now, so the queue and the calendar name the same green for a published post, and the contrast test asserts that mapping in both modes. `Colors.green.shade700`/`shade900` and the `FlowPostColors.primaryText` literals are gone from `lib/features`; the only colours spelled out outside `app_theme.dart` are in `calm_error_panel.dart`, the widget that replaces a build that threw, which is deliberately theme-free - a theme read there is the thing that just failed. Same commit as D1 (`606fb4f`): the consumers and the palette could not land apart, the first would not compile.
+
+- [x] **D3. Persist and apply the mode** — Accept: a `themeControllerProvider` reads/writes `preferences.json`; `MaterialApp` gets light/dark themes and the mode; `system` follows the OS; loaded before the first frame.
+  - Verify: store test, controller test, widget test for live switch + restart.
+  - Files: `lib/core/theme/theme_controller.dart`, `lib/core/preferences/preferences_store.dart`, `lib/main.dart`, `lib/app.dart`, tests.
+  - Dep: D2 · Size: S.
+  - Done: `ThemeStore` reads and writes `preferences.json` in the app's data root - absent or unreadable answers `null` (the app starts on System), a write goes to a temp file and renames, and a failure deletes the temp and reports false. The file lives at `lib/core/theme/theme_store.dart` rather than the planned `lib/core/preferences/preferences_store.dart`: one concern, one folder, and nothing else reads it yet - a `preferences/` folder for one key would be a shape waiting for contents. `ThemeController.setMode` writes before it changes state, so a refused write never paints a look that vanishes at the next start; `main()` awaits the read before `runApp` and seeds the controller. `2941270`.
+
+- [x] **D4. Add the Settings section** — Accept: Appearance card with System / Light / Dark, current value shown, no restart needed.
+  - Verify: widget test for the three options.
+  - Files: `lib/features/settings/presentation/settings_page.dart`, test.
+  - Dep: D3 · Size: XS.
+  - Done: the Appearance card sits between Credentials and Updates with one `SegmentedButton<ThemeMode>`, the mode in use selected, and a line saying System follows the Windows setting. Three tests: the three options with the current one picked; a pick written, shown on the same frame and kept in the fake store; a refusing store named by snackbar while the selection stays put. `cb888f4`, with `SPEC-settings.md` and the desktop README in `a152143`.
+
+- [ ] **D5. Checkpoint** — run the app in both modes on Windows, check each screen, 200% scaling.
+  - Automated part done: format 0 changed, analyze clean across `lib test integration_test`, 873 tests passed (29 of them the theme suite), release build produced `flowpost.exe`. `theme_mode_test.dart` boots the dark app at 200% text in a 1024x640 window and asserts the shell renders without an exception.
+  - Owner part open: read each screen in both looks on the installed build - the palette was measured, not looked at, and a gradient or an image behind a card is not something the contrast test can see.
+
+---
+
+## Phase E — Guided setup wizard
+
+- [x] **E1. Wizard domain model and copy** — Accept: steps are plain Dart data (id, title, why, free-tier note, dashboard URL, fields with validation, test action, optional); content covers Supabase, deploy, Groq, R2, Google, Meta, TikTok, LinkedIn, license.
+  - Verify: unit tests for validation and step order; no UI required.
+  - Files: `lib/features/setup/domain/setup_steps.dart`, tests.
+  - Dep: none · Size: S.
+  - Done `34983b0`: nine steps as data, two tracks, per-field store (`this PC` / `the server`), `httpsUrlProblem` shared with the app config.
+
+- [x] **E2. Vault-backed operator config** — Accept: migration adds a Vault-backed store; `operator-config` (license-session guarded) writes and lists names only; `config-status` reports booleans; values never returned.
+  - Verify: Deno tests — unauthorised write rejected, values absent from responses, unknown keys rejected, allowlist enforced.
+  - Files: new migration, `supabase/functions/operator-config/index.ts`, `supabase/functions/config-status/index.ts`, tests.
+  - Dep: A14, A1 · Size: M.
+  - Done `2ffed84`. Implemented on `public.operator_config` (RLS on, no client policy, AES-GCM `value`) rather than Supabase Vault: Edge Functions have no Vault API in the request path, and the existing `TOKEN_ENCRYPTION_KEY` + `encrypt()/decrypt()` seam already does the sealing. The caller-visible contract is unchanged.
+
+- [x] **E3. Read secrets from Vault with env fallback** — Accept: a `_shared/secrets.ts` helper resolves a key from Vault, then `Deno.env`; R2 upload and the caption function use it; existing deployments unchanged.
+  - Verify: helper test (vault hit, env fallback, missing → clear error).
+  - Files: `supabase/functions/_shared/secrets.ts`, `_shared/secrets.test.ts`, `upload-local-file/index.ts`, `generate-ai-captions/index.ts`.
+  - Dep: E2 · Size: S.
+  - Done `daeb3fa`: stored value wins, env is the fallback, a value that will not open is an error rather than a silent fallback.
+
+- [x] **E4. Desktop client + controller** — Accept: a typed client for `config-status` / `operator-config` with the license session; controller exposes per-step state (unknown/testing/ready/failed), re-tests, and masks secrets.
+  - Verify: fake-client tests for success, 401, network failure, and secret redaction in logs.
+  - Files: `lib/features/setup/data/setup_client.dart`, `setup_controller.dart`, tests.
+  - Dep: E2 · Size: S.
+  - Done `805ee27`: the client turns each refusal into the server's own sentence, a step is ready only from what the server reports back after the write, and one test scans every log record and state string for the value typed.
+
+- [x] **E5. Wizard UI** — Accept: two-track chooser, stepper with per-step "why", free-tier note, "Open dashboard" button, masked fields, "Test" with a real result, "Skip for now", Back/Next, progress saved.
+  - Verify: widget tests per track, per step state, skip, and resume; keyboard-only walkthrough.
+  - Files: `lib/features/setup/presentation/`, `lib/core/router/app_router.dart`, tests.
+  - Dep: E4, D1 · Size: L (split step widgets if needed).
+  - Done `fffbe3c`: the whole page is one widget file over the step model; opening a dashboard link and writing the place-mark are seams, so no test needs a browser or a disk. A first-run fix came out of it: saving the server address had nothing to merge with and refused, so the config is now built over the compiled defaults.
+
+- [x] **E6. First run and Settings entry** — Accept: first run with no config opens the wizard; the wizard is reachable from Settings later; the old setup screen is absorbed; no dead route.
+  - Verify: widget tests for redirect and re-entry; manual first run on an empty data folder.
+  - Files: `lib/core/router/app_router.dart`, `lib/main.dart`, `lib/features/settings/settings_providers.dart`, tests.
+  - Dep: E5 · Size: S.
+  - Done `04535f7`: **Open the setup wizard** in Settings plus the two router tests (clean machine starts on the wizard, `/setup` keeps its place once there are values). The manual first run on an empty data folder is E7's, and needs the owner: this agent cannot drive the installed window.
+
+- [x] **E7. Checkpoint** — clean data folder → wizard → server ready → license active → app usable.
+  - Done: the automated half is green (933 tests, release build), and the walk from no values to Home is a test, not a description. "Server ready" and "license active" against the real deployment is the owner's run, listed in the todo note.
+
+---
+
+## Phase F — Browser account connections
+
+- [x] **F1. Deep-link contract and desktop nonce store** — Accept: `flowpost://connect-callback` is parsed strictly (scheme, host, no path), pending connect entries hold a 32-byte nonce and a 10-minute expiry, and a wrong/expired/replayed nonce is rejected.
+  - Verify: unit tests for valid, wrong-scheme, wrong-host, expired, replayed, and platform-mismatch links.
+  - Files: `lib/features/accounts/domain/connect_link.dart`, `lib/features/accounts/data/pending_connect_store.dart`, tests.
+  - Dep: B11 · Size: S.
+  - Done `8a7cc7d`: both files with 23 tests. A link must state a result, an absent `result` answers nothing; the wait lives in memory only, because a nonce on disk is a replayable token and a restart re-reads the account list from the server anyway.
+
+- [x] **F2. `return_to` allowlist in the auth functions** — Accept: each `*-auth` accepts `return_to` only for `flowpost://connect-callback` and the existing Vercel URL, stores it with the state, and redirects there; anything else falls back to Vercel.
+  - Verify: `oauth-state.test.ts` and a redirect test per function family; an attacker-supplied host cannot change the `Location`.
+  - Files: `_shared/oauth-state.ts`, `_shared/oauth-state.test.ts`, six `*-auth/index.ts`.
+  - Dep: none · Size: M.
+  - Done `e228202`: `normalizeReturnTo` + `callbackLocation` in `_shared/oauth-state.ts`, a `return_to` column on `oauth_states`, and all seven state-carrying `*-auth` functions wired (the plan said six; `google-drive-auth` carries state too). `callbackLocation` re-checks the stored row, so even a hand-written `return_to` cannot put a foreign host in `Location`. The per-family redirect tests live in the shared suite rather than seven near-copies; `oauth-state.test.ts` grew 17 tests and the full web gate is green.
+
+- [x] **F3. `connect-url` and `disconnect` in posts-api** — Accept: `connect-url` returns the provider URL + state for a platform with the license session, binding the desktop nonce; `disconnect` deletes only the caller's row and best-effort revokes at the provider.
+  - Verify: function tests — wrong user cannot disconnect; unknown platform rejected; no token in the response.
+  - Files: `posts-api/index.ts`, tests, `_shared/oauth-state.ts`.
+  - Dep: F2, C1 · Size: M.
+  - Done `b3c1ed1`: the actions are wired in `posts-api/index.ts` and every check sits in `_shared/posts-api.ts`, because vitest only runs `_shared/**` in this repo — so the tests are shared-unit tests at the same boundary, not Deno function tests. `connect-url` hops to the platform's `*-auth` under the service key with `return_to` built from the F1 link and re-checked against the allowlist; `disconnect` reads the caller's row through its own `DISCONNECT_COLUMNS`, decrypts, revokes best-effort at Google or TikTok, then deletes. Wrong-owner disconnect finds no row, an unknown platform is refused before any call, and no response ever carries token material. `disconnect` lost the plan's nonce requirement: the server matches it against nothing, so it was only a failure the desktop would have had to work around. 23 new tests, full web gate green.
+
+- [x] **F4. Desktop connect/disconnect/reconnect** — Accept: Connect opens the system browser and shows a waiting sheet; the callback refreshes accounts; Disconnect confirms and refreshes; Reconnect handles expired refresh tokens; failures are readable.
+  - Verify: controller tests with a fake launcher and fake client; widget tests for each state; manual end-to-end on a real server.
+  - Files: `lib/features/accounts/accounts_providers.dart`, `lib/features/accounts/data/`, `lib/features/accounts/presentation/accounts_page.dart`, `lib/core/shell/flowpost_shell.dart`, tests.
+  - Dep: F1, F3 · Size: M.
+  - Done `740f8b1`: `connect_gateway.dart` talks to the two F3 actions through the desktop's existing transport, `connect_controller.dart` starts the wait and reads the answer, and `accounts_page.dart` is the screen that does it — chips for the six connectable platforms, a waiting bar with a cancel, a result bar with a dismiss, Disconnect behind a question, and Reconnect on an expired card. The dispatcher hands `flowpost://connect-callback` to a `ValueNotifier` in `main.dart` instead of routing it, because the link names no screen; the tray case works because a second launch's intent reaches the running process, whose wait is still in memory.
+  - Corrections to the plan: `accounts_providers.dart` and `flowpost_shell.dart` did not change — the connect lives in its own `connect_controller.dart`, and the shell already forwarded the link. `urlLauncherProvider` moved out of the setup wizard into `core/providers/app_providers.dart` so both flows share one seam, and `connectCallbackHost` is one const in `core/router/deep_links.dart` that the dispatcher and `connect_link.dart` both read.
+  - 47 new tests (gateway, controller, targets, page states, dispatcher hand-over, cancel), and `connect-url` now answers inside `rows` — the one shape `PostsTransport` surfaces. Gate: format 0 changed, analyze clean, 1004 desktop tests green, release build produced `flowpost.exe`; web gate `tsc -b` clean, vitest 283 green, `vite build` produced, eslint findings unchanged. The manual end-to-end on a real server is F7's, with C4.
+
+- [x] **F5. Account cards and publish wiring** — Accept: each card shows platform, name, connected/expired, and what publishing will use; publish targets update immediately after connect; expired accounts block publishing with "Reconnect".
+  - Verify: widget tests; manual connect → publish without restarting the app.
+  - Files: `lib/features/accounts/presentation/`, `lib/features/publishing/publishing_providers.dart`, tests.
+  - Dep: F4, C3 · Size: S.
+  - Done: `publishUseLineOf(account)` in `publishing/domain/publish_target.dart` turns a row into the one line the card shows — the target labels it publishes to, the reconnect block for a non-connected row, and the media-store line for drive/MEGA so that row is never read as a sign-in to reconnect. `accounts_page.dart` prints it under the name. The compose screen's empty state no longer sends the admin to the web dashboard: it names Accounts and carries an `Open Accounts` button (`context.go(accountsRoute)`) that appears only once the read settles, and `publishTargetsProvider` — which already watches the accounts list — updates without a restart, proven by a connect controller test.
+  - Corrections to the plan: `publishing_providers.dart` did not change — the target list already invalidates with the accounts, so the wiring was copy and a route in `publish_page.dart` plus the derived line in `publish_target.dart`.
+  - 9 new tests (4 `publishUseLineOf` cases, 1 accounts-page card line, 1 connect→targets, 3 rewritten publish empty-state tests). Gate: format 0 changed, analyze clean, 1011 desktop tests green, release build produced `flowpost.exe`. The manual connect → publish without a restart is F7 with C4.
+
+- [x] **F6. Prove browser sign-out independence** — Accept: after connecting, signing out of the platform in the browser leaves the desktop able to list and publish (until the provider revokes the grant); documented in the runbook.
+  - Verify: manual on YouTube + Instagram; one note in `docs/runbook.md`.
+  - Files: `docs/runbook.md`.
+  - Dep: F5 · Size: XS.
+  - Done: `docs/runbook.md` gained a **Platform accounts and browser sign-out** section (plus a Symptoms row) stating the model the code already enforces — the OAuth grant lives on the server, the desktop keeps only platform/label/status/`accountId` (`connected_account.dart` holds no token), so signing out in the browser cannot reach the stored grant and publishing continues. It lists the only three ways the connection actually ends (Disconnect, provider revoke / refresh-token expiry → **expired** + Reconnect, desktop sign-out leaving server grants untouched).
+  - Not yet done: the live YouTube + Instagram sign-out run is the owner's, folded into F7 alongside C4. The note describes what the architecture guarantees; the manual pass confirms it on a real grant.
+
+- [ ] **F7. Checkpoint** — connect, close browser, quit the app, reopen, publish.
+  - Blocked on the owner's live server; the code and tests are in place.
+
+## Post-G2 follow-ups (the two Should-fix notes, both now closed)
+
+- [x] **G3. Purge expired `oauth_states` rows** — the table only grew; a connect now sweeps rows a day past expiry before inserting.
+  - Files: `supabase/functions/_shared/oauth-state.ts`, `oauth-state.test.ts`.
+  - Dep: G2 · Size: XS.
+  - Done: test-first — a RED test asserting the sweep, then a best-effort `purgeExpiredStates(supabase)` ahead of the insert. A second test pins that a failing sweep never refuses the connect. Gate: `tsc -b` 0, 285 web/Deno tests green (2 new), `npm run build` 0. Commit `186256a`.
+- [x] **G4. Check the drive URL at the facebook/instagram edge** — both sealed a client `driveDownloadUrl` into a `get-file` token without a host check.
+  - Files: `supabase/functions/facebook-upload/index.ts`, `supabase/functions/instagram-upload/index.ts`.
+  - Dep: G2 · Size: XS.
+  - Done: the `isAllowedDriveUrl` entry guard that linkedin and tiktok already run, now in both, so the bearer never heads for a foreign host instead of relying only on `get-file`'s check. The guard itself was already covered by `_shared/url-guard.test.ts`. Commit `38e74fb`.
+
+---
+
+## Phase G — Release, docs, final gate
+
+- [x] **G1. Docs** — README setup section replaced by the wizard walkthrough; `.env.example` lists every secret the wizard can store; ADR for server-side token custody and the Vault config store.
+  - Files: `README.md`, `.env.example`, `docs/adr/0005-*.md`, `docs/runbook.md`.
+  - Dep: E6, F6 · Size: S.
+  - Done: **ADR 0005** (`docs/adr/0005-server-held-secrets.md`) records that the server holds every secret and the desktop holds none — the AES-GCM seal (`_shared/crypto.ts` under `TOKEN_ENCRYPTION_KEY`), the 18-name `operator_config` table (RLS with no anon/auth policy, `operator-config` writes / `config-status` returns names+booleans only), the `connected_accounts` token columns, the `ACCOUNT_COLUMNS`/`DISCONNECT_COLUMNS` split that keeps token material out of every response, and the `secrets.readSecrets` stored-wins/env-fallback rule. It names the deviation plainly: the plan said a separate **Vault**; Supabase hosting has none, so the config is encrypted Postgres instead. **README** gained a **Guided setup** section (end-user vs operator tracks, local `credentials.json` vs server `operator_config`, and the browser connect that hands back a nonce not a token) and the stale "accounts managed in the web dashboard" bullet is corrected. **`.env.example`** now lists every server secret (infrastructure env-only group + the 18 wizard-storable names) as placeholders, noting which the wizard can store. **runbook** carries a `TOKEN_ENCRYPTION_KEY`-rotation warning: rotating or losing it makes every stored key and platform token unreadable, so accounts must reconnect.
+
+- [x] **G2. Final gate** — web: `npm run test`, `tsc`, `npm run build`, `deno test`; desktop: analyze, format, `flutter test`, release build; `ponytail-audit` re-run has no Must-fix; `graphify update .`.
+  - Dep: all · Size: S.
+  - Done: **web** — `npx tsc -b` clean, `npm test` 283 passing across 20 files (the Deno `_shared` suites run under vitest, closing audit finding 12), `npm run build` clean, `npm audit --omit=dev --audit-level=high` → 0 vulnerabilities. **desktop** — no Dart changed after the F5 gate, which held: `dart format` 0 changed, `flutter analyze` clean, 1011 tests, Windows release build produced `flowpost.exe`. **graphify** — `graphify update .` run, artifacts committed as `chore(graph)`. **Audit re-run** (focused on session ownership, publish claim, token custody, the Phase F connect path, SSRF, desktop wiring): **no Must-fix finding**. The connect path is guarded on every axis — 256-bit spend-once nonce matching the server's `/^[0-9a-f]{64}$/`, owner always from the session never the body, `return_to` re-checked against the allowlist before it enters a query or a 302, tokens confined to `DISCONNECT_COLUMNS` and never in a response, disconnect delete scoped to `user_id`. Two Should-fix notes below; neither blocks release.
+  - Should-fix (deferred, not scheduled here): `oauth_states` rows are written per connect and consumed once but never purged — the `expires_at` index exists with no delete behind it, so the table only grows; a purge belongs in the next cron path that touches it. `facebook-upload`/`instagram-upload` take a client `driveDownloadUrl` unvalidated at the edge — safe today because the URL is only ever fetched inside `get-file`, which enforces `isAllowedDriveUrl` before fetching (`get-file/index.ts:155`), but the linkedin/tiktok entry-point check is the stricter pattern.
+
+---
+
+## Risks
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| No deploy access for the new/changed functions | A3/A4/F2/F3/E2 cannot be verified live | Local Deno tests; owner-assisted deploy; mark the gate blocked, not passed. |
+| Meta app review | Instagram/Facebook connect may need an approved app | The operator uses their own app; the wizard lists the scopes and the review step; graceful "not available" state. |
+| Vault write path | A bug could overwrite a working secret | Allowlist of keys, write-then-verify test call, never return values, env fallback stays. |
+| JWT acceptance narrows nothing | Wrong mapping lets a user act as another | Map JWT subject to the app user in one place, tested; service-role operations stay server-side. |
+| Dark mode contrast regressions | Readability loss | Token tests with measured ratios; visual pass on every screen. |
+| Deleting the identity module | Missed reference compiles at runtime | Tree-wide grep, analyze, full test run; delete in its own commit. |
+
+---
+
+## Open questions (defaults chosen if no answer)
+
+1. Operator secrets: Vault (default) vs manual dashboard entry. Vault chosen; manual entry stays possible through env vars.
+2. Big-bang fix vs incremental: incremental, one commit per task, severity order.
+3. Dark mode palette: keep the pink/burgundy identity and darken surfaces (default) vs a new hue.
+
+---
+
+## Definition of Done (every task)
+
+Acceptance met · a test that fails without the change · `flutter analyze` zero issues · format clean · relevant tests pass · no secret in logs or code · docs updated where behaviour is user-visible · one focused commit.

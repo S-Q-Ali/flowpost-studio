@@ -68,6 +68,9 @@ class _FakeProcessor implements MediaProcessor {
 
   final Object? error;
 
+  /// The source of every run, in order.
+  final List<String> sources = [];
+
   /// The normalized file. It has to exist, because the upload counts its
   /// bytes.
   final File? normalized;
@@ -77,6 +80,7 @@ class _FakeProcessor implements MediaProcessor {
     MediaJob job, {
     MediaProgressCallback? onProgress,
   }) async {
+    sources.add(job.sourcePath);
     onProgress?.call(
       const MediaProcessingProgress(
         stage: MediaStage.processing,
@@ -425,7 +429,7 @@ void main() {
     expect(find.text('Audio codec: aac'), findsOneWidget);
     expect(find.text('Generate captions'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Upload'), findsOneWidget);
-    expect(find.textContaining('Sign in required'), findsOneWidget);
+    expect(find.textContaining('Activate a license'), findsOneWidget);
     expect(find.text('Normalized video — normalized.mp4'), findsOneWidget);
     expect(find.text('Transcription audio — audio.mp3'), findsOneWidget);
 
@@ -454,6 +458,46 @@ void main() {
     expect(find.text('Choose another file'), findsOneWidget);
   });
 
+  testWidgets('"Try again" runs the file that failed again', (tester) async {
+    final picker = _FakePicker([File('C:\\clips\\clip.mp4')]);
+    final processor = _FakeProcessor(
+      error: const MediaProcessingException("This file can't be read."),
+    );
+    await pumpUploadPage(tester, picker, processor: processor);
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+
+    // The folder of the failed run is still there, so the same file goes
+    // through the pipeline again without a trip through the picker.
+    expect(processor.sources, [r'C:\clips\clip.mp4', r'C:\clips\clip.mp4']);
+    expect(picker.calls, 1);
+  });
+
+  testWidgets('the picker opens from "Choose another file"', (tester) async {
+    final picker = _FakePicker([
+      File('C:\\clips\\clip.mp4'),
+      File('C:\\clips\\other.mp4'),
+    ]);
+    final processor = _FakeProcessor(
+      error: const MediaProcessingException("This file can't be read."),
+    );
+    await pumpUploadPage(tester, picker, processor: processor);
+
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose another file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose file'));
+    await tester.pumpAndSettle();
+
+    expect(picker.calls, 2);
+    expect(processor.sources.last, r'C:\clips\other.mp4');
+  });
+
   testWidgets('the caption action is off without a session token', (
     tester,
   ) async {
@@ -466,7 +510,7 @@ void main() {
       find.widgetWithText(FilledButton, 'Generate captions'),
     );
     expect(generate.onPressed, isNull);
-    expect(find.textContaining('Sign in required'), findsOneWidget);
+    expect(find.textContaining('Activate a license'), findsOneWidget);
   });
 
   testWidgets('the caption action runs when a session token exists', (
@@ -487,7 +531,7 @@ void main() {
     expect(find.text('Captions'), findsOneWidget);
     expect(find.text('TikTok caption'), findsOneWidget);
     expect(find.text('A caption'), findsOneWidget);
-    expect(find.textContaining('Sign in required'), findsNothing);
+    expect(find.textContaining('Activate a license'), findsNothing);
   });
 
   testWidgets('a failed caption run shows a readable error', (tester) async {
@@ -566,7 +610,7 @@ void main() {
       find.widgetWithText(FilledButton, 'Upload'),
     );
     expect(upload.onPressed, isNull);
-    expect(find.textContaining('Sign in required'), findsOneWidget);
+    expect(find.textContaining('Activate a license'), findsOneWidget);
   });
 
   testWidgets('the upload runs when a session token exists', (tester) async {
@@ -583,7 +627,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Uploaded — normalized.mp4 (2.0 KB)'), findsOneWidget);
-    expect(find.textContaining('Sign in required'), findsNothing);
+    expect(find.textContaining('Activate a license'), findsNothing);
   });
 
   testWidgets('the upload action is off while the captions are being made', (

@@ -811,6 +811,24 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 
 ---
 
+## License-key access for the desktop app (plan: `tasks/plan-license.md`)
+
+- [x] L1 — Shared license logic (`normalize`, `hash`, `isLicenseUsable`) + vitest
+- [x] L2 — Extract the session-minting helper used by both functions + tests
+- [x] L3 — `licenses` migration (hashes only, RLS with no policies)
+- [x] L4 — `verify-license` function (rate-limited, mints the 7-day session)
+- [x] L5 — Desktop license client, vault store and service + tests
+- [x] L6 — License controller driving `sessionProvider`
+- [x] L7 — `/license` screen + widget tests
+- [x] L8 — Unwire identity from `app.dart`, `main.dart`, the router; add the guard
+- [x] L9 — Settings license section and deactivation (`Session.accessToken` moves in L9b)
+- [x] L9b — `posts-api` edge function and the desktop switch to it
+- [ ] L10 — SPEC-license, ADR 0005, inactive note on SPEC-identity, runbook
+- [ ] L11 — **Owner:** deploy migration + functions, seed a key, manual Windows gate
+- [ ] L12 — Gate: format, analyze, full tests, graph, atomic commits
+
+---
+
 ## Gate Commands
 
 ```powershell

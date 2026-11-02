@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { checkRateLimit, recordFailedAttempt, LOCKOUT_DURATION_MINUTES } from "../_shared/rate-limit.ts";
+import { consumeRateLimit } from "../_shared/rate-limit.ts";
+import { requireAdminCaller } from "../_shared/admin-caller.ts";
+import { createSession } from "../_shared/session.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -31,28 +33,32 @@ function json(data: unknown, status = 200) {
 }
 
 async function createAdminSession(): Promise<string> {
-  const token = crypto.randomUUID() + crypto.randomUUID();
-  const expiresAt = new Date(
-    Date.now() + 7 * 24 * 60 * 60 * 1000,
-  ).toISOString();
-
-  await supabase.from("sessions").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-  const { error } = await supabase
-    .from("sessions")
-    .insert({ token, expires_at: expiresAt, user_id: await getAdminUserId() });
-
-  if (error) {
-    console.error("Failed to create admin session:", error);
-    throw new Error("Session creation failed");
-  }
-
-  return token;
+  const session = await createSession(supabase, await getAdminUserId());
+  return session.token;
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  const caller = await requireAdminCaller(req.headers.get("Authorization"), {
+    resolveUserId: async (token) => {
+      const { data, error } = await supabase.auth.getUser(token);
+      return error ? { userId: null, error } : { userId: data.user?.id ?? null };
+    },
+    isAdmin: async (userId) => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("is_admin")
+        .eq("id", userId)
+        .maybeSingle();
+      return error ? { admin: false, error } : { admin: data?.is_admin === true };
+    },
+  });
+
+  if (!caller.allowed) {
+    return json({ success: false, error: "Unauthorized" }, caller.status);
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
@@ -61,16 +67,26 @@ Deno.serve(async (req) => {
 
   if (req.method === "POST") {
     try {
-      const rateCheck = await checkRateLimit(supabase, "verify-security-questions", ip);
+      const rateCheck = await consumeRateLimit(
+        supabase,
+        `verify-security-questions:ip:${ip}`,
+        { max: 10 },
+      );
       if (!rateCheck.allowed) {
-        const lockoutDate = rateCheck.lockoutUntil ? new Date(rateCheck.lockoutUntil) : null;
-        const remainingMinutes = lockoutDate
-          ? Math.max(1, Math.ceil((lockoutDate.getTime() - Date.now()) / 60000))
-          : LOCKOUT_DURATION_MINUTES;
+        if (!rateCheck.resetAt) {
+          return json(
+            { success: false, error: "The sign-in check is unavailable. Try again shortly." },
+            503,
+          );
+        }
+        const remainingMinutes = Math.max(
+          1,
+          Math.ceil((new Date(rateCheck.resetAt).getTime() - Date.now()) / 60000),
+        );
         return json({
           success: false,
-          error: `Too many failed attempts. Try again in ${remainingMinutes} minutes.`,
-          lockoutUntil: rateCheck.lockoutUntil,
+          error: `Too many attempts. Try again in ${remainingMinutes} minutes.`,
+          lockoutUntil: rateCheck.resetAt,
         }, 429);
       }
 
@@ -131,7 +147,6 @@ Deno.serve(async (req) => {
           return json({ success: true, verified: true, token });
         }
 
-        await recordFailedAttempt(supabase, "verify-security-questions", ip);
         return json({ success: false, verified: false, error: "Incorrect answers" }, 401);
       }
 

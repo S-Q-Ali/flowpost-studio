@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { revokeSession } from "../_shared/session.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -29,11 +30,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = (await req.json()) as { token?: string };
+    const body = (await req.json()) as { token?: string; action?: string };
     const token = body?.token;
 
     if (!token) {
       return json({ valid: false }, 401);
+    }
+
+    // The token itself is the credential, so whoever presents it may end it.
+    if (body?.action === "revoke") {
+      await revokeSession(supabase, token);
+      return json({ revoked: true });
     }
 
     const { data: session, error } = await supabase

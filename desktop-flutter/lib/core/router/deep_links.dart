@@ -1,3 +1,8 @@
+/// The host a browser connect comes back on. It is not a screen: the accounts
+/// feature reads the link, so the dispatcher hands it over instead of routing
+/// it. `connect_link.dart` builds the address the auth functions return to.
+const String connectCallbackHost = 'connect-callback';
+
 /// Returns a log-safe form of a deep link: scheme, host and path only.
 /// Query strings and fragments routinely carry OAuth codes/tokens.
 String describeDeepLink(String raw) {

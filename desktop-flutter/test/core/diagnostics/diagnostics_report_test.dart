@@ -12,7 +12,7 @@ DiagnosticsFacts facts({
   List<LocalFileFact> broken = const [],
   List<String> logLines = const [],
   bool logsRead = true,
-  bool signedIn = false,
+  bool licensed = false,
   AppVersionInfo? version = _version,
 }) => DiagnosticsFacts(
   generatedAt: DateTime.utc(2026, 10, 29, 14, 30, 12),
@@ -21,7 +21,7 @@ DiagnosticsFacts facts({
   locale: 'en-US',
   zoneName: 'Asia/Karachi',
   utcOffset: const Duration(hours: 5),
-  signedIn: signedIn,
+  licensed: licensed,
   files: files,
   brokenFiles: broken,
   logLines: logLines,
@@ -29,14 +29,14 @@ DiagnosticsFacts facts({
 );
 
 void main() {
-  test('the header names the app, the clock and the session', () {
+  test('the header names the app, the clock and the license', () {
     final report = buildDiagnosticsReport(facts());
 
     expect(report, contains('FlowPost Studio diagnostics'));
     expect(report, contains('Generated 2026-10-29T14:30:12Z'));
     expect(report, contains('1.0.0 (1), Windows 10.0.26300, en-US'));
     expect(report, contains('UTC+05:00, Asia/Karachi'));
-    expect(report, contains('Session   signed out'));
+    expect(report, contains('License   inactive'));
   });
 
   test('a version the app could not read says so instead of guessing', () {
@@ -54,7 +54,7 @@ void main() {
         locale: 'en-US',
         zoneName: 'America/New_York',
         utcOffset: const Duration(hours: -4, minutes: -30),
-        signedIn: true,
+        licensed: true,
         files: const [],
         brokenFiles: const [],
         logLines: const [],
@@ -63,7 +63,7 @@ void main() {
     );
 
     expect(report, contains('UTC-04:30, America/New_York'));
-    expect(report, contains('Session   signed in'));
+    expect(report, contains('License   active'));
   });
 
   test('each local file carries its size, its time and its state', () {
@@ -142,7 +142,7 @@ void main() {
     final report = buildDiagnosticsReport(facts(logsRead: false));
 
     expect(report, contains('--- app.log: could not be read ---'));
-    expect(report, contains('Session   signed out'));
+    expect(report, contains('License   inactive'));
   });
 
   test('a secret or a path in a log line never reaches the file', () {

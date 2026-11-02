@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
-import { createOAuthState, consumeOAuthState } from "../_shared/oauth-state.ts";
+import { createOAuthState, consumeOAuthState, callbackLocation, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -13,6 +13,7 @@ const YT_CLIENT_SECRET = Deno.env.get("YT_CLIENT_SECRET");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+const APP_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || DEFAULT_APP_ORIGIN;
 
 if (!YT_CLIENT_ID || !YT_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
   console.error("Missing required secrets for youtube-auth function");
@@ -27,7 +28,6 @@ const supabaseAdmin = createClient(
 const authorize = createRequestAuthorizer({
   serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
   cronApiKey: null,
-  frontendApiKey: Deno.env.get("FRONTEND_API_KEY"),
   anonKey: SUPABASE_ANON_KEY,
   sessionLookup: createSessionLookup(supabaseAdmin),
 });
@@ -148,6 +148,8 @@ Deno.serve(async (req) => {
       const state = await createOAuthState(supabaseAdmin, {
         userId: owner.userId,
         mode: "youtube",
+        returnTo: url.searchParams.get("return_to"),
+        appOrigin: APP_ORIGIN,
       });
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", YT_CLIENT_ID!);
@@ -228,7 +230,7 @@ Deno.serve(async (req) => {
 
       return new Response(null, {
         status: 302,
-        headers: { Location: "https://flowpost-studio.vercel.app/accounts?connected=youtube" },
+        headers: { Location: callbackLocation(oauthState.returnTo, APP_ORIGIN, "youtube") },
       });
     }
 

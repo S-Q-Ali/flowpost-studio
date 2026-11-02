@@ -31,7 +31,7 @@ void main() {
     support: support,
     logs: logsFolder ?? logs,
     version: _version,
-    signedIn: false,
+    licensed: false,
     draftsAvailable: draftsAvailable,
     now: DateTime.utc(2026, 10, 29, 14, 30, 12),
     osVersion: 'Windows 10.0.26300',

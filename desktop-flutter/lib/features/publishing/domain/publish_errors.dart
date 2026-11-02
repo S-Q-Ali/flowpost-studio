@@ -3,7 +3,7 @@ import '../../../core/logging/app_logger.dart';
 /// Why a publish attempt failed (SPEC-publishing "Error model").
 enum PublishErrorCode {
   unauthorized,
-  notSignedIn,
+  notLicensed,
   invalidRequest,
   postNotFound,
   accountNotConnected,
@@ -59,7 +59,7 @@ PublishFailure mapPublishFailure({required int statusCode, String? text}) {
   if (statusCode == 401) {
     return const PublishFailure(
       PublishErrorCode.unauthorized,
-      'Sign in again to publish.',
+      'Activate the license again to publish.',
     );
   }
   if (lower.contains('post not found')) {

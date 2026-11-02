@@ -6,16 +6,13 @@ import 'data/scheduled_posts_repository.dart';
 
 /// The queue's reads.
 ///
-/// They need the Auth token: the `posts` policy only lets a user read their
-/// own rows.
+/// They need the license session: the function reads the owner from the
+/// session and only returns that user's rows.
 final scheduledPostsRepositoryProvider = Provider<ScheduledPostsRepository>((
   ref,
 ) {
-  final config = ref.watch(appConfigProvider);
-  return PostgrestScheduledPostsRepository(
-    supabaseUrl: config.supabaseUrl,
-    anonKey: config.supabaseAnonKey,
-    token: ref.watch(authAccessTokenProvider),
+  return PostsApiScheduledPostsRepository(
+    sessionToken: ref.watch(sessionTokenProvider),
     transport: ref.watch(postsTransportProvider),
   );
 });

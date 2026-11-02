@@ -178,6 +178,15 @@ useEffect(() => {
   }, []);
 
   const logout = useCallback(async () => {
+    // The operator token is a seven-day credential. Dropping it from the
+    // browser without revoking would leave it usable by anyone who saw it.
+    const operatorToken = localStorage.getItem("flowpost_token");
+    localStorage.removeItem("flowpost_token");
+    if (operatorToken) {
+      supabase.functions
+        .invoke("verify-session", { body: { token: operatorToken, action: "revoke" } })
+        .catch(() => undefined);
+    }
     clearCache();
     setIsAuthenticated(false);
     setUserId(null);

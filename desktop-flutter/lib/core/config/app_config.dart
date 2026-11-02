@@ -1,4 +1,4 @@
-import '../auth/access_token.dart';
+import 'dart:convert';
 
 /// Shell-level configuration parsed once from `--dart-define-from-file`.
 ///
@@ -25,7 +25,7 @@ String? configFieldProblem(ConfigField field, String value) {
   switch (field) {
     case ConfigField.supabaseUrl:
       if (trimmed.isEmpty) return 'The Supabase address is required.';
-      final https = _httpsProblem(trimmed);
+      final https = httpsUrlProblem(trimmed);
       if (https != null) return https;
       // Every endpoint is built by appending its own path to this one, so a
       // path here would end up inside every request, twice.
@@ -37,7 +37,7 @@ String? configFieldProblem(ConfigField field, String value) {
       return null;
     case ConfigField.updateManifestUrl:
       if (trimmed.isEmpty) return null;
-      return _httpsProblem(trimmed);
+      return httpsUrlProblem(trimmed);
     case ConfigField.supabaseAnonKey:
       if (trimmed.isEmpty) return 'The anon key is required.';
       if (_looksLikeServiceRole(trimmed)) {
@@ -48,7 +48,11 @@ String? configFieldProblem(ConfigField field, String value) {
   }
 }
 
-String? _httpsProblem(String value) {
+/// Why [value] is not usable as an https address, or null when it is.
+///
+/// The guided setup asks for more addresses than the config carries, and both
+/// are measured by this one rule (SPEC-credentials Decision 4).
+String? httpsUrlProblem(String value) {
   final uri = Uri.tryParse(value);
   if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
     return 'Use an https address, for example https://project.supabase.co';
@@ -112,5 +116,19 @@ bool _looksLikeServiceRole(String key) {
   }
   // A non-JWT key is not automatically a service key; presence checks
   // above still reject the names that matter.
-  return jwtPayload(key)?['role'] == 'service_role';
+  return _jwtPayload(key)?['role'] == 'service_role';
+}
+
+/// The claims a JWT carries, or null when the token cannot be read.
+Map<String, dynamic>? _jwtPayload(String token) {
+  final parts = token.split('.');
+  if (parts.length != 3) return null;
+  try {
+    final payload = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+    );
+    return payload is Map<String, dynamic> ? payload : null;
+  } on Object {
+    return null;
+  }
 }

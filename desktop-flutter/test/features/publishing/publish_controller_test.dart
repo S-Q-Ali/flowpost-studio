@@ -869,6 +869,138 @@ void main() {
     expect(client.postIds, hasLength(1));
   });
 
+  test('a run that is over does not repeat the same inputs', () async {
+    final repository = _FakeRepository();
+    final client = _FakeClient();
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+    final controller = container.read(publishControllerProvider.notifier);
+    const selection = PublishSelection(
+      targetIds: {'instagram:ig-1:feed'},
+      captions: {'instagram:ig-1:feed': 'A caption'},
+    );
+
+    await controller.publish(
+      selection: selection,
+      targets: const [_instagram],
+      videoId: 'video-1',
+    );
+    await controller.publish(
+      selection: selection,
+      targets: const [_instagram],
+      videoId: 'video-1',
+    );
+
+    expect(repository.drafts, hasLength(1));
+    expect(client.postIds, hasLength(1));
+  });
+
+  test('the same inputs in another order are still the same run', () async {
+    final repository = _FakeRepository();
+    final client = _FakeClient();
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+    final controller = container.read(publishControllerProvider.notifier);
+    const selection = PublishSelection(
+      targetIds: {'instagram:ig-1:feed', 'tiktok:tt-1:feed'},
+    );
+
+    await controller.publish(
+      selection: selection,
+      targets: const [_instagram, _tiktok],
+      videoId: 'video-1',
+    );
+    await controller.publish(
+      selection: selection,
+      targets: const [_tiktok, _instagram],
+      videoId: 'video-1',
+    );
+
+    expect(repository.drafts, hasLength(2));
+    expect(client.postIds, hasLength(2));
+  });
+
+  test('an edited caption allows a new run', () async {
+    final repository = _FakeRepository();
+    final client = _FakeClient();
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+    final controller = container.read(publishControllerProvider.notifier);
+
+    await controller.publish(
+      selection: const PublishSelection(
+        targetIds: {'instagram:ig-1:feed'},
+        captions: {'instagram:ig-1:feed': 'The first words'},
+      ),
+      targets: const [_instagram],
+      videoId: 'video-1',
+    );
+    await controller.publish(
+      selection: const PublishSelection(
+        targetIds: {'instagram:ig-1:feed'},
+        captions: {'instagram:ig-1:feed': 'The words after the edit'},
+      ),
+      targets: const [_instagram],
+      videoId: 'video-1',
+    );
+
+    expect(repository.drafts, hasLength(2));
+    expect(client.postIds, hasLength(2));
+  });
+
+  test('another file allows a new run', () async {
+    final repository = _FakeRepository();
+    final client = _FakeClient();
+    final container = _container(repository: repository, client: client);
+    addTearDown(container.dispose);
+    final controller = container.read(publishControllerProvider.notifier);
+    const selection = PublishSelection(targetIds: {'instagram:ig-1:feed'});
+
+    await controller.publish(
+      selection: selection,
+      targets: const [_instagram],
+      videoId: 'video-1',
+    );
+    await controller.publish(
+      selection: selection,
+      targets: const [_instagram],
+      videoId: 'video-2',
+    );
+
+    expect(repository.drafts, hasLength(2));
+  });
+
+  test(
+    'a run that failed leaves the same inputs open for another try',
+    () async {
+      final repository = _FakeRepository();
+      final client = _FakeClient()
+        ..failures[_instagram.id] = const PublishException(
+          PublishFailure(
+            PublishErrorCode.platformRejected,
+            'Instagram said no.',
+          ),
+        );
+      final container = _container(repository: repository, client: client);
+      addTearDown(container.dispose);
+      final controller = container.read(publishControllerProvider.notifier);
+      const selection = PublishSelection(targetIds: {'instagram:ig-1:feed'});
+
+      await controller.publish(
+        selection: selection,
+        targets: const [_instagram],
+        videoId: 'video-1',
+      );
+      await controller.publish(
+        selection: selection,
+        targets: const [_instagram],
+        videoId: 'video-1',
+      );
+
+      expect(repository.drafts, hasLength(2));
+    },
+  );
+
   test('a queue that stops answering ends the wait', () async {
     final repository = _FakeRepository()
       ..readFailure = const PostsException(

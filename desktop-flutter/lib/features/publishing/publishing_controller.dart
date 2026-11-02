@@ -91,9 +91,40 @@ class PublishRunning extends PublishState {
 
 /// The attempt is over. Every target carries its own outcome.
 class PublishDone extends PublishState {
-  const PublishDone(this.statuses);
+  const PublishDone(this.statuses, {this.signature});
 
   final List<PublishTargetStatus> statuses;
+
+  /// What was sent, so the screen can tell a repeat click from an edit.
+  ///
+  /// Null when a target did not go out: that run left work behind, so the
+  /// same inputs still deserve another try.
+  final String? signature;
+}
+
+/// What one publish run would write.
+///
+/// Two runs with the same signature are the same post: the media, the
+/// targets, the captions and the sending time all match, so the second one
+/// would only put the same thing out again. The order of the targets is not
+/// part of it, so a list that arrives differently is still the same run.
+String publishSignature({
+  required PublishSelection selection,
+  required List<PublishTarget> targets,
+  required String videoId,
+}) {
+  final rows = [
+    for (final target in targets)
+      '${target.id}=${(selection.captions[target.id] ?? '').trim()}',
+  ]..sort();
+  return [
+    videoId,
+    selection.mode.name,
+    selection.scheduleDate,
+    selection.scheduleTime,
+    selection.youtubeTitle.trim(),
+    ...rows,
+  ].join('|');
 }
 
 final publishControllerProvider =
@@ -116,15 +147,31 @@ class PublishController extends Notifier<PublishState> {
   ///
   /// One row per target, then one call per row. A target that fails does not
   /// stop the others: each carries its own outcome.
+  ///
+  /// A run that already finished with these exact inputs does nothing: the
+  /// rows are written, so a second click would only post the same thing twice.
   Future<void> publish({
     required PublishSelection selection,
     required List<PublishTarget> targets,
     required String videoId,
   }) async {
     if (_inFlight) return;
+    final signature = publishSignature(
+      selection: selection,
+      targets: targets,
+      videoId: videoId,
+    );
+    if (state case PublishDone(signature: final sent) when sent == signature) {
+      return;
+    }
     _inFlight = true;
     try {
-      await _publish(selection: selection, targets: targets, videoId: videoId);
+      await _publish(
+        selection: selection,
+        targets: targets,
+        videoId: videoId,
+        signature: signature,
+      );
     } finally {
       _inFlight = false;
     }
@@ -134,6 +181,7 @@ class PublishController extends Notifier<PublishState> {
     required PublishSelection selection,
     required List<PublishTarget> targets,
     required String videoId,
+    required String signature,
   }) async {
     final statuses = [
       for (final target in targets)
@@ -153,17 +201,20 @@ class PublishController extends Notifier<PublishState> {
           : await _attempt(target, selection, videoId);
       state = PublishRunning([...statuses]);
     }
-    state = PublishDone(statuses);
     // Every target wrote its row, so the draft has done its job. A run with a
     // failed target keeps the draft: the admin may want to try it again.
-    final written =
+    final sent =
         statuses.isNotEmpty &&
         statuses.every(
           (status) =>
               status.phase == PublishPhase.published ||
               status.phase == PublishPhase.scheduled,
         );
-    if (written) {
+    // Only a run that put everything out closes the door on a repeat. A run
+    // with a failed target leaves it open: the admin may want the same post
+    // again once the platform comes back.
+    state = PublishDone(statuses, signature: sent ? signature : null);
+    if (sent) {
       await ref.read(publishSelectionProvider.notifier).draftPublished(videoId);
     }
   }
@@ -518,7 +569,10 @@ class PublishController extends Notifier<PublishState> {
     if (current is PublishRunning) {
       state = PublishRunning(_replaced(current.statuses, updated));
     } else if (current is PublishDone) {
-      state = PublishDone(_replaced(current.statuses, updated));
+      state = PublishDone(
+        _replaced(current.statuses, updated),
+        signature: current.signature,
+      );
     }
   }
 

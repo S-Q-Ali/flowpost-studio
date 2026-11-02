@@ -97,8 +97,8 @@ class PublishClient implements PublishApi {
     if (token == null || token.isEmpty) {
       throw const PublishException(
         PublishFailure(
-          PublishErrorCode.notSignedIn,
-          'Sign in required to publish.',
+          PublishErrorCode.notLicensed,
+          'Activate a license to publish.',
         ),
       );
     }

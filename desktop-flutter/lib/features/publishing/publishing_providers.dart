@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/app_providers.dart';
 import '../../core/time/time_zone.dart';
+import '../accounts/accounts_providers.dart';
 import '../media/captions/captions_providers.dart';
 import '../media/domain/media_validation.dart';
 import '../media/upload/upload_providers.dart';
@@ -18,9 +19,13 @@ import 'domain/publish_validation.dart';
 
 /// The accounts the admin can publish to.
 ///
-/// They come from the server's `connected_accounts` table, which needs the
-/// identity module, so the list stays empty until that exists.
-final publishTargetsProvider = Provider<List<PublishTarget>>((ref) => const []);
+/// These are the server's connected accounts, so the list follows the accounts
+/// read: what the server named, or what this PC kept for it. Nothing is
+/// seeded - an account that was never connected is not a target.
+final publishTargetsProvider = FutureProvider<List<PublishTarget>>((ref) async {
+  final read = await ref.watch(accountsControllerProvider.future);
+  return [for (final account in read.accounts) ...publishTargetsFor(account)];
+});
 
 final publishClientProvider = Provider<PublishApi>((ref) {
   final config = ref.watch(appConfigProvider);
@@ -31,24 +36,19 @@ final publishClientProvider = Provider<PublishApi>((ref) {
 });
 
 final postsRepositoryProvider = Provider<PostsRepository>((ref) {
-  final config = ref.watch(appConfigProvider);
-  return PostgrestPostsRepository(
-    supabaseUrl: config.supabaseUrl,
-    anonKey: config.supabaseAnonKey,
-    token: ref.watch(authAccessTokenProvider),
+  return PostsApiRepository(
+    sessionToken: ref.watch(sessionTokenProvider),
     transport: ref.watch(postsTransportProvider),
   );
 });
 
 /// Whether the client can publish at all.
 ///
-/// The functions need the session token and the posts table needs the Auth
-/// token, so both have to be there. A machine with no connection cannot
-/// publish either: the row lives on the server (SPEC-offline).
+/// Every call needs the license session, and a machine with no connection
+/// cannot publish either: the row lives on the server (SPEC-offline).
 final canPublishProvider = Provider<bool>(
   (ref) =>
       ref.watch(sessionTokenProvider) != null &&
-      ref.watch(authAccessTokenProvider) != null &&
       ref.watch(connectivityProvider) != ConnectionStatus.offline,
 );
 
@@ -195,6 +195,7 @@ class PublishComposer extends Notifier<PublishSelection> {
   Timer? _saveTimer;
   String? _videoId;
   int _loads = 0;
+  int _edits = 0;
 
   @override
   PublishSelection build() {
@@ -210,6 +211,7 @@ class PublishComposer extends Notifier<PublishSelection> {
   /// Reads the draft of this media, when there is one.
   Future<void> _restore(String videoId) async {
     final load = ++_loads;
+    final edits = _edits;
     final ComposeDraft? draft;
     try {
       draft = await ref.read(draftsRepositoryProvider).load(videoId);
@@ -219,6 +221,9 @@ class PublishComposer extends Notifier<PublishSelection> {
     // The media moved on while the draft was being read, or the screen was
     // opened again: the draft belongs to a form that is no longer here.
     if (load != _loads || _videoId != videoId) return;
+    // The admin has changed the form since this read started, so the draft is
+    // the older version and the screen already holds what comes next.
+    if (_edits != edits) return;
     if (draft == null || draft.isEmpty) return;
     state = draft.toSelection();
     ref.read(draftRestoreProvider.notifier).set(_restoreOf(draft));
@@ -361,6 +366,9 @@ class PublishComposer extends Notifier<PublishSelection> {
   }
 
   void _update(PublishSelection next) {
+    // Every change on the screen goes through here, so the count says whether
+    // the admin has touched the form since it opened.
+    _edits++;
     state = next;
     _scheduleSave();
   }
@@ -428,7 +436,7 @@ class PublishComposer extends Notifier<PublishSelection> {
 
 /// The targets the admin picked.
 final selectedTargetsProvider = Provider<List<PublishTarget>>((ref) {
-  final targets = ref.watch(publishTargetsProvider);
+  final targets = ref.watch(publishTargetsProvider).value ?? const [];
   final ids = ref.watch(publishSelectionProvider.select((s) => s.targetIds));
   return [
     for (final target in targets)

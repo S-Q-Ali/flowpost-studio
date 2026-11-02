@@ -11,11 +11,11 @@ import '../../core/diagnostics/diagnostics_report.dart';
 import '../../core/config/app_config.dart';
 import '../../core/config/config_controller.dart';
 import '../../core/logging/app_logger.dart';
-import '../../core/session/session.dart';
 import '../../core/update/app_version.dart';
 import '../../core/update/update_checker.dart';
+import '../license/data/license_models.dart';
+import '../license/license_controller.dart';
 import '../offline/offline_providers.dart';
-import '../scheduling/scheduling_controller.dart';
 import 'data/connection_check.dart';
 
 /// How the update manifest is read, as a seam the tests can answer.
@@ -120,11 +120,9 @@ class UpdateCheckController extends Notifier<UpdateCheckState> {
   }
 }
 
-final signOutProvider = Provider<SignOut>(SignOut.new);
-
 /// The machine's facts for the evidence file, as Settings sees them.
 final diagnosticsFactsProvider = FutureProvider<DiagnosticsFacts>((ref) async {
-  final signedIn = ref.watch(sessionProvider) != null;
+  final licensed = ref.watch(licenseControllerProvider).value is Active;
   final support = await getApplicationSupportDirectory();
   final logs = await ref.watch(logsFolderProvider.future);
   final version = await ref.watch(appVersionProvider.future);
@@ -134,7 +132,7 @@ final diagnosticsFactsProvider = FutureProvider<DiagnosticsFacts>((ref) async {
     support: support,
     logs: logs,
     version: version,
-    signedIn: signedIn,
+    licensed: licensed,
     draftsAvailable: draftsAvailable,
     now: now,
     osVersion: Platform.operatingSystemVersion,
@@ -267,23 +265,3 @@ final draftsSalvageProvider = Provider<Future<bool> Function()>((ref) {
     return done;
   };
 });
-
-/// What a sign-out does, in the order that leaves nothing behind.
-class SignOut {
-  SignOut(this._ref);
-
-  final Ref _ref;
-
-  Future<void> run() async {
-    _ref.read(sessionProvider.notifier).clear();
-    // The rows on screen belong to the session that just ended.
-    _ref.invalidate(queueControllerProvider);
-    _ref.invalidate(calendarControllerProvider);
-    try {
-      await _ref.read(postsCacheProvider).wipe();
-    } on Object {
-      // The store logs its own failure; a cache that will not go does not
-      // keep the admin signed in (SPEC-settings Decision 3).
-    }
-  }
-}

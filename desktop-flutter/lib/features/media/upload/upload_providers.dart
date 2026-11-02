@@ -90,12 +90,18 @@ class UploadController extends Notifier<UploadState> {
       ),
     );
     try {
+      // A video's type is settled by the pipeline; an image is read from its
+      // own bytes before the request leaves.
+      final contentType = job.kind == MediaKind.video
+          ? 'video/mp4'
+          : _imageContentType(await _headerOf(file), job.displayName);
+      if (run != _run) return;
       final result = await ref
           .read(uploadClientProvider)
           .upload(
             file: file,
             fileName: _fileName(job),
-            contentType: _contentType(job),
+            contentType: contentType,
             idempotencyKey: job.id,
             onProgress: (fraction) {
               if (run != _run) return;
@@ -183,12 +189,40 @@ String _fileName(MediaJob job) {
   return '${p.basenameWithoutExtension(job.displayName)}.mp4';
 }
 
-/// The type of the file the service stores.
-String _contentType(MediaJob job) {
-  if (job.kind == MediaKind.video) return 'video/mp4';
-  return switch (p.extension(job.displayName).toLowerCase()) {
+/// The first bytes of the file: enough for every signature below.
+Future<List<int>> _headerOf(File file) async {
+  final bytes = <int>[];
+  await for (final chunk in file.openRead(0, 12)) {
+    bytes.addAll(chunk);
+    if (bytes.length >= 12) break;
+  }
+  return bytes;
+}
+
+/// The image type the bytes say the file is.
+///
+/// The service stores this type and hands it to the platform when the post is
+/// made, and the extension is only what the file manager shows: a png named
+/// .jpg would be stored as a jpeg. Bytes that match none of the three keep
+/// the extension's answer, which is what the picker allowed through.
+String _imageContentType(List<int> header, String name) {
+  if (_matches(header, [0xff, 0xd8, 0xff], 0)) return 'image/jpeg';
+  if (_matches(header, [0x89, 0x50, 0x4e, 0x47], 0)) return 'image/png';
+  if (_matches(header, [0x52, 0x49, 0x46, 0x46], 0) &&
+      _matches(header, [0x57, 0x45, 0x42, 0x50], 8)) {
+    return 'image/webp';
+  }
+  return switch (p.extension(name).toLowerCase()) {
     '.png' => 'image/png',
     '.webp' => 'image/webp',
     _ => 'image/jpeg',
   };
+}
+
+bool _matches(List<int> bytes, List<int> signature, int at) {
+  if (bytes.length < at + signature.length) return false;
+  for (var i = 0; i < signature.length; i++) {
+    if (bytes[at + i] != signature[i]) return false;
+  }
+  return true;
 }

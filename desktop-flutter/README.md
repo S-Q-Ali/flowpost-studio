@@ -2,7 +2,8 @@
 
 Flutter Windows client for FlowPost Studio. The shell provides the window,
 tray, single instance, `flowpost://` links, logging, config and theme; the
-Accounts screen manages the six publish targets locally, the Upload screen
+Accounts screen lists the platforms connected to your account, the Upload
+screen
 picks a local video or image and processes it with a bundled FFmpeg, and the
 Queue, Calendar, Compose, Drafts and Settings screens cover publishing and
 scheduling, including an offline cache and local drafts. An Inno Setup
@@ -119,8 +120,11 @@ v1 is **unsigned**. Windows SmartScreen shows "Windows protected your PC"; use
 ## Logs and data
 
 - Data root: `%APPDATA%\com.flowpost\FlowPost`
-- Local account state: `accounts.json` (platform, placeholder name, status only)
+- Account list cache: `accounts.json` (the last list the server returned:
+  platform, account id, display name, status). The server is the truth; this
+  file is only what the app can show offline.
 - Log: `%APPDATA%\com.flowpost\FlowPost\logs\app.log` (rotates to `app.log.1` at 1 MB)
+- Look: `preferences.json` (`themeMode`: `system`, `light` or `dark`)
 - Media workspace: `%LOCALAPPDATA%\com.flowpost\FlowPost\media\jobs\<job-id>`
   (one folder per picked file; removed at startup and when the file is replaced)
 - Media jobs are logged by id only; a path would leak the user's folders.
@@ -130,7 +134,8 @@ The old Pake app uses a different data root and is not migrated.
 
 ## Deep link
 
-The installed app registers `flowpost://`. Auth callbacks use:
+The app registers `flowpost://` for the current user on launch (the installer
+writes the same keys). Auth callbacks use:
 
 ```text
 flowpost://auth-callback?code=...&state=...
@@ -158,11 +163,14 @@ Download button that opens the URL in the system browser.
 ## Scope
 
 In: shell, tray, single instance, deep links, installer, logging, update check,
-local Accounts screen with six platform cards and persisted connect/disconnect,
-Upload screen with a native file picker, extension/size/duration validation,
-and local media processing (probe, normalize to MP4, thumbnail, caption frames,
-transcription audio) through the bundled FFmpeg.
+license-key unlock and a Supabase setup screen, an Accounts screen listing the
+platforms connected to your account, an Upload screen with a native file
+picker and extension/size/duration validation, and local media processing
+(probe, normalize to MP4, thumbnail, caption frames, transcription audio)
+through the bundled FFmpeg. AI captions, uploads, compose and publish with
+schedules, a queue and calendar over a local SQLite cache, local drafts, and
+Settings with diagnostics export and a light, dark or system look.
 
-Out: identity, real platform OAuth/token exchange, caption generation, upload,
-publishing, scheduling, offline data, workflows, insights, admin, silent
+Out: connecting a platform from the desktop — accounts are connected in the web
+dashboard until the in-app browser OAuth flow lands — plus insights, silent
 updates, MSIX, code signing, macOS/Linux/mobile.

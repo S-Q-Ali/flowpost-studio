@@ -49,6 +49,7 @@ dependencies:
   # The local cache and the local drafts. The build hook compiles SQLite from
   # source, so the app carries its own library (ADR 0003).
   sqlite3: ^3.8.0
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:

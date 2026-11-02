@@ -429,7 +429,7 @@ export default function UploadPage() {
               .eq("video_id", videoId)
               .eq("platform", platform)
               .eq("account_id", accountId)
-              .eq("status", "scheduled")
+              .in("status", ["scheduled", "processing", "publishing"])
               .maybeSingle();
             if (existing) {
               console.log("Post already exists, skipping", { videoId, platform, accountId });
@@ -457,7 +457,8 @@ export default function UploadPage() {
               .eq("video_id", videoId)
               .eq("platform", platform)
               .eq("account_id", accountId)
-              .eq("status", "scheduled")
+              .in("status", ["scheduled", "processing", "publishing"])
+              .eq("post_type", storyPlatforms.has("instagram") ? "story" : "feed")
               .maybeSingle();
             if (existing) {
               console.log("Post already exists, skipping", { videoId, platform, accountId });
@@ -487,7 +488,8 @@ export default function UploadPage() {
               .eq("video_id", videoId)
               .eq("platform", platform)
               .eq("account_id", accountId)
-              .eq("status", "scheduled")
+              .in("status", ["scheduled", "processing", "publishing"])
+              .eq("post_type", storyPlatforms.has("facebook") ? "story" : "feed")
               .maybeSingle();
             if (existing) {
               console.log("Post already exists, skipping", { videoId, platform, accountId });
@@ -515,7 +517,7 @@ export default function UploadPage() {
               .eq("video_id", videoId)
               .eq("platform", platform)
               .eq("account_id", accountId)
-              .eq("status", "scheduled")
+              .in("status", ["scheduled", "processing", "publishing"])
               .maybeSingle();
             if (existing) {
               console.log("Post already exists, skipping", { videoId, platform, accountId });
@@ -542,7 +544,7 @@ export default function UploadPage() {
               .eq("video_id", videoId)
               .eq("platform", platform)
               .eq("account_id", accountId)
-              .eq("status", "scheduled")
+              .in("status", ["scheduled", "processing", "publishing"])
               .maybeSingle();
             if (existing) {
               console.log("Post already exists, skipping", { videoId, platform, accountId });

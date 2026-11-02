@@ -1,68 +1,80 @@
 import { describe, it, expect } from "vitest";
-import { consumeQuota } from "./rate-limit";
+import { consumeQuota, consumeRateLimit } from "./rate-limit";
 
-type Row = { attempts: number; reset_at: string } | null;
+type RpcResult = { data: unknown; error: unknown };
 
-function fakeSupabase(row: Row) {
-  const writes: { op: string; payload: unknown }[] = [];
+function fakeSupabase(result: RpcResult) {
+  const calls: { name: string; args: Record<string, unknown> }[] = [];
   const client = {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({ data: row, error: null }),
-        }),
-      }),
-      update: (payload: unknown) => {
-        writes.push({ op: "update", payload });
-        return { eq: async () => ({ error: null }) };
-      },
-      insert: async (payload: unknown) => {
-        writes.push({ op: "insert", payload });
-        return { error: null };
-      },
-    }),
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      calls.push({ name, args });
+      return result;
+    },
   };
-  return { client, writes };
+  return { client, calls };
 }
 
 const inAnHour = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-const anHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-describe("consumeQuota", () => {
-  it("starts a new window when the subject has no counter", async () => {
-    const { client, writes } = fakeSupabase(null);
-    const result = await consumeQuota(client, "captions-chat", "user-1", 3, 60);
-    expect(result.allowed).toBe(true);
-    expect(writes).toEqual([
+describe("consumeRateLimit", () => {
+  it("counts an attempt inside the window in one call", async () => {
+    const { client, calls } = fakeSupabase({
+      data: [{ allowed: true, attempts: 2, reset_at: inAnHour }],
+      error: null,
+    });
+
+    const result = await consumeRateLimit(client, "verify-license:ip:1.2.3.4", {
+      max: 5,
+      windowMinutes: 15,
+    });
+
+    expect(result).toEqual({ allowed: true, remaining: 3, resetAt: inAnHour });
+    expect(calls).toEqual([
       {
-        op: "insert",
-        payload: { key: "captions-chat:user-1", attempts: 1, reset_at: result.resetAt },
+        name: "consume_rate_limit",
+        args: { p_key: "verify-license:ip:1.2.3.4", p_max: 5, p_window_minutes: 15 },
       },
     ]);
   });
 
-  it("counts a call inside the window", async () => {
-    const { client, writes } = fakeSupabase({ attempts: 1, reset_at: inAnHour });
-    const result = await consumeQuota(client, "captions-chat", "user-1", 3, 60);
-    expect(result.allowed).toBe(true);
-    expect(writes).toEqual([{ op: "update", payload: { attempts: 2 } }]);
+  it("refuses once the window is used up", async () => {
+    const { client } = fakeSupabase({
+      data: [{ allowed: false, attempts: 6, reset_at: inAnHour }],
+      error: null,
+    });
+
+    const result = await consumeRateLimit(client, "verify-license:ip:1.2.3.4");
+    expect(result).toEqual({ allowed: false, resetAt: inAnHour });
   });
 
-  it("refuses once the window is used up and does not write", async () => {
-    const { client, writes } = fakeSupabase({ attempts: 3, reset_at: inAnHour });
-    const result = await consumeQuota(client, "captions-chat", "user-1", 3, 60);
-    expect(result.allowed).toBe(false);
-    expect(writes).toEqual([]);
+  it("refuses when the counter cannot be read", async () => {
+    const { client } = fakeSupabase({ data: null, error: { message: "down" } });
+
+    const result = await consumeRateLimit(client, "verify-license:ip:1.2.3.4");
+    expect(result).toEqual({ allowed: false, resetAt: null });
   });
 
-  it("starts over when the stored window has passed", async () => {
-    const { client, writes } = fakeSupabase({ attempts: 3, reset_at: anHourAgo });
+  it("refuses when the counter returns nothing", async () => {
+    const { client } = fakeSupabase({ data: [], error: null });
+
+    const result = await consumeRateLimit(client, "verify-license:ip:1.2.3.4");
+    expect(result).toEqual({ allowed: false, resetAt: null });
+  });
+});
+
+describe("consumeQuota", () => {
+  it("namespaces the subject and passes the quota to one atomic call", async () => {
+    const { client, calls } = fakeSupabase({
+      data: [{ allowed: true, attempts: 1, reset_at: inAnHour }],
+      error: null,
+    });
+
     const result = await consumeQuota(client, "captions-chat", "user-1", 3, 60);
     expect(result.allowed).toBe(true);
-    expect(writes).toEqual([
+    expect(calls).toEqual([
       {
-        op: "update",
-        payload: { attempts: 1, reset_at: result.resetAt },
+        name: "consume_rate_limit",
+        args: { p_key: "captions-chat:user-1", p_max: 3, p_window_minutes: 60 },
       },
     ]);
   });

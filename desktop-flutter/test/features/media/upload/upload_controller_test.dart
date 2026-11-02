@@ -194,10 +194,17 @@ void main() {
     normalized = File('${temp.path}${Platform.pathSeparator}normalized.mp4')
       ..writeAsBytesSync(List<int>.generate(2048, (index) => index % 256));
     source = File('${temp.path}${Platform.pathSeparator}photo.png')
-      ..writeAsBytesSync(List<int>.generate(1024, (index) => index % 256));
+      ..writeAsBytesSync([
+        0x89, 0x50, 0x4E, 0x47, // The png signature.
+        ...List<int>.generate(1020, (index) => index % 256),
+      ]);
   });
 
   tearDown(() => temp.deleteSync(recursive: true));
+
+  File imageNamed(String name, List<int> bytes) =>
+      File('${temp.path}${Platform.pathSeparator}$name')
+        ..writeAsBytesSync(bytes);
 
   MediaJob videoJob() => MediaJob(
     id: 'job-1',
@@ -214,10 +221,10 @@ void main() {
     stage: MediaStage.ready,
   );
 
-  MediaJob imageJob() => MediaJob(
+  MediaJob imageJob({File? file, String? displayName}) => MediaJob(
     id: 'job-2',
-    sourcePath: source.path,
-    displayName: 'photo.png',
+    sourcePath: (file ?? source).path,
+    displayName: displayName ?? 'photo.png',
     kind: MediaKind.image,
     sourceBytes: 1024,
     workspacePath: 'job',
@@ -288,6 +295,83 @@ void main() {
     expect(transport.body!.fileName, 'photo.png');
     expect(transport.body!.contentType, 'image/png');
     expect(transport.body!.file.path, source.path);
+  });
+
+  test('a png renamed to .jpg still goes up as a png', () async {
+    final transport = _FakeTransport();
+    final container = _container(transport);
+    addTearDown(container.dispose);
+
+    await container
+        .read(uploadControllerProvider.notifier)
+        .upload(
+          imageJob(
+            file: imageNamed('holiday.jpg', [
+              0x89,
+              0x50,
+              0x4E,
+              0x47,
+              0x0D,
+              0x0A,
+              0x1A,
+              0x0A,
+              0,
+              0,
+            ]),
+            displayName: 'holiday.jpg',
+          ),
+        );
+
+    // The service stores the type it is handed and reads it back when the
+    // post is made, so a name that lies cannot be the source of truth.
+    expect(transport.body!.contentType, 'image/png');
+  });
+
+  test('a jpeg and a webp are read from their own signatures', () async {
+    final transport = _FakeTransport();
+    final container = _container(transport);
+    addTearDown(container.dispose);
+
+    await container
+        .read(uploadControllerProvider.notifier)
+        .upload(
+          imageJob(
+            file: imageNamed('shot.png', [0xFF, 0xD8, 0xFF, 0xE0, 0, 0]),
+            displayName: 'shot.png',
+          ),
+        );
+    expect(transport.body!.contentType, 'image/jpeg');
+
+    await container
+        .read(uploadControllerProvider.notifier)
+        .upload(
+          imageJob(
+            file: imageNamed('shot.png', [
+              0x52, 0x49, 0x46, 0x46, // RIFF
+              0x20, 0x00, 0x00, 0x00,
+              0x57, 0x45, 0x42, 0x50, // WEBP
+            ]),
+            displayName: 'shot.png',
+          ),
+        );
+    expect(transport.body!.contentType, 'image/webp');
+  });
+
+  test('bytes that match no signature fall back to the extension', () async {
+    final transport = _FakeTransport();
+    final container = _container(transport);
+    addTearDown(container.dispose);
+
+    await container
+        .read(uploadControllerProvider.notifier)
+        .upload(
+          imageJob(
+            file: imageNamed('sticker.png', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+            displayName: 'sticker.png',
+          ),
+        );
+
+    expect(transport.body!.contentType, 'image/png');
   });
 
   test('the job id is the idempotency key', () async {

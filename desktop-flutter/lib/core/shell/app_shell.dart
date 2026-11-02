@@ -64,13 +64,13 @@ class AppShell extends StatelessWidget {
             onDestinationSelected: (index) =>
                 context.go(_destinations[index].route),
             labelType: NavigationRailLabelType.all,
-            leading: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+            leading: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Tooltip(
                 message: 'FlowPost Studio',
                 child: Icon(
                   Icons.campaign_rounded,
-                  color: FlowPostColors.primary,
+                  color: Theme.of(context).primaryText,
                 ),
               ),
             ),

@@ -281,7 +281,7 @@ class _PostChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = postStatusColor(post.status, theme.colorScheme);
+    final color = postStatusColor(post.status, theme);
     final title = post.videoTitle ?? 'Untitled media';
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
@@ -391,7 +391,7 @@ class _ListedPost extends StatelessWidget {
               Text(
                 post.status.label,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: postStatusColor(post.status, theme.colorScheme),
+                  color: postStatusColor(post.status, theme),
                 ),
               ),
             ],

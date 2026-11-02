@@ -8,7 +8,6 @@ import 'package:path/path.dart' as p;
 import '../../../core/format/media_format.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/router/app_router.dart';
-import '../../../core/theme/app_theme.dart';
 import '../captions/captions_providers.dart';
 import '../captions/domain/caption_prompt.dart';
 import '../domain/media_job.dart';
@@ -103,7 +102,10 @@ List<Widget> _uploadSection(
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.error_outline, color: FlowPostColors.destructive),
+            Icon(
+              Icons.error_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],
@@ -179,7 +181,10 @@ class _FailedState extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.error_outline, color: FlowPostColors.destructive),
+            Icon(
+              Icons.error_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],
@@ -191,7 +196,7 @@ class _FailedState extends ConsumerWidget {
           children: [
             FilledButton.icon(
               onPressed: () =>
-                  ref.read(mediaControllerProvider.notifier).pickFile(),
+                  ref.read(mediaControllerProvider.notifier).retry(),
               icon: const Icon(Icons.refresh),
               label: const Text('Try again'),
             ),
@@ -343,7 +348,7 @@ class _ReadyState extends ConsumerWidget {
         ),
         if (!canGenerate) ...[
           const SizedBox(height: 8),
-          const Text('Sign in required to generate captions or upload.'),
+          const Text('Activate a license to generate captions or upload.'),
         ],
         const SizedBox(height: 16),
         ..._captionSection(context, ref, captionState),
@@ -393,7 +398,10 @@ List<Widget> _captionSection(
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.error_outline, color: FlowPostColors.destructive),
+            Icon(
+              Icons.error_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],

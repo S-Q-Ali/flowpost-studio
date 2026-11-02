@@ -41,7 +41,7 @@ class DiagnosticsFacts {
     required this.locale,
     required this.zoneName,
     required this.utcOffset,
-    required this.signedIn,
+    required this.licensed,
     required this.files,
     required this.brokenFiles,
     required this.logLines,
@@ -55,8 +55,8 @@ class DiagnosticsFacts {
   final String zoneName;
   final Duration utcOffset;
 
-  /// Whether a session exists — never which one.
-  final bool signedIn;
+  /// Whether an active license opened the app — never which key.
+  final bool licensed;
 
   final List<LocalFileFact> files;
   final List<LocalFileFact> brokenFiles;
@@ -83,9 +83,7 @@ String buildDiagnosticsReport(DiagnosticsFacts facts) {
     ..writeln(
       '${_label('Clock')}${_offset(facts.utcOffset)}, ${facts.zoneName}',
     )
-    ..writeln(
-      '${_label('Session')}${facts.signedIn ? 'signed in' : 'signed out'}',
-    );
+    ..writeln('${_label('License')}${facts.licensed ? 'active' : 'inactive'}');
 
   if (facts.files.isEmpty) {
     buffer.writeln('${_label('Files')}(none)');

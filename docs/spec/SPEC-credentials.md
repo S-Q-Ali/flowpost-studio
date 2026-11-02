@@ -13,14 +13,14 @@ Let any user point the app at their own backend from the UI — no rebuild, no `
 
 **User:** anyone who installs the app and has a Supabase project and, optionally, an update manifest.
 
-**Success looks like:** a build with no compiled values opens a setup screen, the user types a URL and a key, saves, and the app works; the same fields in Settings change the backend later; a pasted service-role key is refused with a sentence that says why.
+**Success looks like:** a build with no compiled values opens the guided setup (SPEC-setup), the user types a URL and a key, saves, and the app works; the same fields in Settings change the backend later; a pasted service-role key is refused with a sentence that says why.
 
 ## Scope
 
 In:
 
 - A **Credentials** section in Settings: Supabase URL, anon/publishable key, update manifest URL.
-- A first-run **setup screen** for a build whose compiled values are absent or invalid.
+- A first-run **guided setup** (SPEC-setup) whose server step asks for these values when a build's compiled values are absent or invalid.
 - A local store that survives restart, plus clear.
 - One optional **Test connection** action.
 
@@ -52,8 +52,8 @@ Written `.tmp` then renamed, the same rule as the diagnostics export, so a half-
 |---|---|---|
 | valid | any | the saved file |
 | absent | valid | the compiled values (today's behaviour, no visible change) |
-| invalid | any | nothing — the setup screen names the problem |
-| absent | absent or invalid | the setup screen |
+| invalid | any | nothing — the guided setup names the problem |
+| absent | absent or invalid | the guided setup |
 
 An invalid saved file is **never** silently bypassed: falling back to the compiled values would send requests to a different backend than the user asked for.
 
@@ -69,12 +69,12 @@ Between **Session** and **Updates** (the manifest URL feeds that section):
 
 The form starts from the values in use. Fields are obscured with a **Show** toggle, because the key is long and easy to mistype. Two lines of state say which source is live: "Using the values saved on this machine" or "Using the build's defaults".
 
-Actions: **Test connection**, **Save**, and **Clear saved values** (only when a file exists). Clear asks first, naming what happens: the build's defaults come back, or the setup screen if there are none. Clearing counts as a backend change: with a session it signs out and wipes `cache.db`, the same rule as saving.
+Actions: **Test connection**, **Save**, and **Clear saved values** (only when a file exists). Clear asks first, naming what happens: the build's defaults come back, or the guided setup if there are none. Clearing counts as a backend change: with a session it signs out and wipes `cache.db`, the same rule as saving.
 
 ## States
 
-- **First run.** No usable values: the app starts on `/setup`, outside the app shell — a title, the three fields, the validation messages, and **Save and continue**. There is no skip: every network feature needs the address, and the release build ships compiled defaults, so this screen is a recovery path, not the normal first run.
-- **Invalid saved file.** The setup screen opens with one line above the fields: "The saved credentials could not be used: <reason>", and the fields are empty. The file is left on disk until the user saves or clears.
+- **First run.** No usable values: the app starts on `/setup`, outside the app shell — the guided setup (SPEC-setup). Its server step is these fields, the same validation messages, and **Save and continue**; that step offers no skip, because every network feature needs the address. The release build ships compiled defaults, so this is a recovery path, not the normal first run.
+- **Invalid saved file.** The guided setup opens with one line above the fields: "The saved credentials could not be used: <reason>", and the fields are empty. The file is left on disk until the user saves or clears.
 - **Validation.** Messages name the fix, not the rule: "Use an https address, for example https://project.supabase.co", "This looks like a service-role key. The app only accepts the public anon/publishable key."
 - **Save.** Checks the fields when pressed: an invalid field is named under it and nothing is written. On success a quiet "Saved" line and the source line changes. A write failure keeps the previous values live and says the file could not be written; nothing in memory changes.
 - **Test connection.** Calls `GET <supabaseUrl>/rest/v1/` with the `apikey` header and the manifest URL (when set) through the existing checker. Answers: "The server answered.", "The server answered but refused this key.", "The server answered with <status>.", "Could not reach the server." Testing is optional; Save works offline.
@@ -89,8 +89,8 @@ Actions: **Test connection**, **Save**, and **Clear saved values** (only when a 
 | 3 | Storage is a plain JSON file beside `accounts.json`, written `.tmp` then renamed. DPAPI is rejected: the anon key is public by design, it already ships inside the release binary, and Windows DPAPI would add a native call to protect a non-secret — a real secret is refused at the field instead. |
 | 4 | Validation reuses `AppConfig.fromValues` (https only, non-empty, refuses `sb_secret_`, `service_role`, and a JWT whose role is `service_role`) so the file and the compiled path cannot drift. A trailing `/` is trimmed before saving. |
 | 5 | `appConfigProvider` stays the single `Provider<AppConfig>` seam at its current type, so the existing tests and consumers do not change; its value now comes from a `configControllerProvider` that main loads from the file, and saving rebuilds every watcher (captions, upload, publishing, scheduling, the posts transport, Home's update check). |
-| 6 | The setup screen replaces `ConfigErrorApp`; the old widget and its test are deleted, and the compiled-invalid case shows the same screen with the reason. |
-| 7 | The router gains `/setup` outside the `ShellRoute` and a redirect that keeps every screen on it while no config exists, and away from it once one does. |
+| 6 | The setup screen replaces `ConfigErrorApp`; the old widget and its test are deleted, and the compiled-invalid case shows the same screen with the reason. The guided setup (SPEC-setup) is now that screen: its server step holds these fields, and the standalone setup page was deleted with it. |
+| 7 | The router gains `/setup` outside the `ShellRoute` and a redirect that keeps every screen on it while no config exists. Once there are values the route keeps its own place — the wizard still has steps left and Settings links back into it — and the license gate takes precedence over it. |
 | 8 | Fields are obscured with a Show toggle; no value is logged, and the report never contains one — the diagnostics collector reads `cache.db` and `drafts.db` by name only, so `credentials.json` is not in an export. |
 | 9 | Test connection is optional and never gates Save; it reports reachability, and a 401/403 is reported as a refused key rather than a network failure. |
 | 10 | `--dart-define-from-file` stays: development, tests, and the compiled defaults in the release build. The README gains a "point the app at your project" step. |
@@ -99,7 +99,7 @@ Actions: **Test connection**, **Save**, and **Clear saved values** (only when a 
 
 - Unit: the store round-trips, replaces, clears, and treats a corrupt file as invalid; precedence table above, one test per row; trimming; each validation message (http URL, empty field, `sb_secret_`, service-role JWT, non-key text); the log carries no value.
 - Controller: saving changes what `appConfigProvider` answers; saving a different URL while signed in clears the session and wipes the cache (fake cache, fake drafts untouched); clearing to a different backend does the same; a failed write leaves the old values live.
-- Widget: `/setup` renders when nothing is configured and saving lands on Home; the Settings section shows the compiled defaults, the saved values, and the Show toggle; an invalid field is named and nothing is written; Clear asks first and puts the defaults back; the same backend keeps the session; each Test connection answer through an injected transport.
+- Widget: `/setup` renders when nothing is configured and its server step saves these three values to this machine (the wizard's own tests hold the walk); the Settings section shows the compiled defaults, the saved values, and the Show toggle; an invalid field is named and nothing is written; Clear asks first and puts the defaults back; the same backend keeps the session; each Test connection answer through an injected transport.
 - Diagnostics: the report is built from facts that carry no config, and the existing redaction test keeps a key or token that reached a log line out of the file.
 - Manual: clean the support folder, start the installed build, save values, restart, and confirm the source line and a working update check.
 

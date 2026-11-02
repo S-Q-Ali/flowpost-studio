@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flowpost_desktop/features/offline/data/drafts_repository.dart';
 import 'package:flowpost_desktop/features/offline/drafts/compose_draft.dart';
 
@@ -22,6 +24,10 @@ class FakeDraftsRepository implements DraftsRepository {
 
   int salvageRuns = 0;
 
+  /// Set to keep every read pending until the test completes it, which is how
+  /// a slow store races with the admin starting to type.
+  Completer<void>? holdLoads;
+
   @override
   Future<bool> available() async => availableNow;
 
@@ -43,6 +49,7 @@ class FakeDraftsRepository implements DraftsRepository {
   @override
   Future<ComposeDraft?> load(String videoId) async {
     loads++;
+    await holdLoads?.future;
     return drafts[videoId];
   }
 

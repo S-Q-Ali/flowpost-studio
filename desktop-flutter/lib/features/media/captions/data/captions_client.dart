@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../data/connection_failure.dart';
 import '../domain/caption_processing.dart';
 import '../domain/caption_prompt.dart';
 
@@ -145,7 +146,7 @@ class CaptionsClient implements CaptionsApi {
   Future<CaptionReply> _post(Map<String, dynamic> body) async {
     final token = this.token;
     if (token == null || token.isEmpty) {
-      throw const CaptionException('Sign in required to generate captions.');
+      throw const CaptionException('Activate a license to generate captions.');
     }
     final reply = await _transport.post(
       url: endpoint,
@@ -291,6 +292,11 @@ class HttpCaptionTransport implements CaptionTransport {
       throw const CaptionException(
         'The caption service did not answer. Try again.',
       );
+    } on Object catch (error) {
+      // A socket that would not open is the user's network, not the video:
+      // left to escape, it reaches the screen as "something went wrong".
+      if (!isNoConnection(error)) rethrow;
+      throw const CaptionException(noConnectionMessage);
     }
   }
 

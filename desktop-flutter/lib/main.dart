@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,10 @@ import 'core/logging/startup_failure.dart';
 import 'core/router/app_router.dart' show deepLinkAllowlist;
 import 'core/router/deep_link_dispatcher.dart';
 import 'core/shell/flowpost_shell.dart';
+import 'core/shell/protocol_registration.dart';
+import 'core/theme/theme_controller.dart';
+import 'core/theme/theme_store.dart';
+import 'features/accounts/connect_controller.dart' show connectCallbackProvider;
 import 'features/media/data/media_file_picker.dart';
 import 'features/media/data/media_workspace.dart';
 import 'features/media/media_providers.dart';
@@ -48,12 +53,11 @@ Future<void> main({MediaFilePicker? picker}) async {
       }
       log.info(
         configState.needsSetup
-            ? 'No backend values; the setup screen starts the app.'
+            ? 'No backend values; the setup wizard starts the app.'
             : 'Using the ${configState.source == ConfigSource.saved ? 'saved' : 'build'} values.',
       );
 
       final initialLink = await _getInitialLink();
-      await _removeStaleMediaJobs(log);
       final shell = FlowPostShell(
         trayIconPath:
             '${File(Platform.resolvedExecutable).parent.path}${Platform.pathSeparator}resources${Platform.pathSeparator}tray.ico',
@@ -61,8 +65,17 @@ Future<void> main({MediaFilePicker? picker}) async {
       // Before the window exists there is nowhere to show an error, so a
       // failed start names the log folder in a message box and exits.
       try {
-        await shell.prepareGuard();
-        if (!await shell.acquireSingleInstance(initialLink)) {
+        final isPrimary = await startAsPrimary(
+          acquireGuard: () async {
+            await shell.prepareGuard();
+            return shell.acquireSingleInstance(initialLink);
+          },
+          onlyForPrimary: () async {
+            await _removeStaleMediaJobs(log);
+            await _ensureProtocol(log);
+          },
+        );
+        if (!isPrimary) {
           await flushLogging();
           exit(0);
         }
@@ -80,13 +93,22 @@ Future<void> main({MediaFilePicker? picker}) async {
       }
 
       final pendingLink = ValueNotifier<String?>(null);
+      // The browser connect's answer link names no screen, so the dispatcher
+      // hands it here and the accounts feature reads it.
+      final connectLink = ValueNotifier<String?>(null);
       final dispatcher = DeepLinkDispatcher(
         pendingRoute: pendingLink,
         showWindow: shell.showFromTray,
         log: log,
         allowedPaths: deepLinkAllowlist,
+        pendingConnect: connectLink,
       );
       unawaited(_listenDeepLinks(dispatcher));
+
+      // Read before the first frame: the window never shows the system look
+      // to a user who left the app in the dark one.
+      final themeStore = ThemeStore();
+      final themeMode = await themeStore.read() ?? ThemeMode.system;
 
       final compiledValues = compiled;
       runApp(
@@ -98,9 +120,15 @@ Future<void> main({MediaFilePicker? picker}) async {
             configControllerProvider.overrideWith(
               () => ConfigController(initial: configState),
             ),
+            themeStoreProvider.overrideWithValue(themeStore),
+            themeControllerProvider.overrideWith(
+              () => ThemeController(initial: themeMode),
+            ),
             if (picker != null) mediaPickerProvider.overrideWithValue(picker),
+            connectCallbackProvider.overrideWithValue(connectLink),
           ],
           child: FlowPostApp(
+            licenseGuard: true,
             initialDeepLink: dispatcher.routeFor(initialLink),
             refreshListenable: pendingLink,
             pendingDeepLink: () {
@@ -121,6 +149,35 @@ Future<void> main({MediaFilePicker? picker}) async {
       stderr.writeln('FlowPost failed to start: $error\n$stackTrace');
     },
   );
+}
+
+/// Says whether this launch may show the window, and runs what only the
+/// instance holding the lock may run.
+///
+/// [onlyForPrimary] comes after [acquireGuard] because a second launch would
+/// otherwise clean up the files the first is working on.
+Future<bool> startAsPrimary({
+  required Future<bool> Function() acquireGuard,
+  required Future<void> Function() onlyForPrimary,
+}) async {
+  if (!await acquireGuard()) return false;
+  await onlyForPrimary();
+  return true;
+}
+
+/// The portable build has no installer, so the app points `flowpost://` at
+/// itself on first run; the installer writes the same keys.
+Future<void> _ensureProtocol(Logger log) async {
+  try {
+    final registered = await ProtocolRegistrar(
+      exePath: Platform.resolvedExecutable,
+    ).ensureRegistered();
+    if (!registered) {
+      log.warning('flowpost:// could not be registered for this user.');
+    }
+  } on Object catch (error) {
+    log.warning('flowpost:// registration failed: $error');
+  }
 }
 
 Future<String?> _getInitialLink() async {

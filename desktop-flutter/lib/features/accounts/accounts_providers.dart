@@ -3,43 +3,38 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/providers/app_providers.dart';
+import '../offline/offline_providers.dart';
 import 'data/accounts_repository.dart';
-import 'domain/connected_account.dart';
 
-final accountsRepositoryProvider = FutureProvider<AccountsRepository>((
-  ref,
-) async {
+/// The account list this PC keeps, so the screen says something when the
+/// server cannot be reached.
+final accountsCacheProvider = FutureProvider<AccountsCache>((ref) async {
   final dir = await getApplicationSupportDirectory();
-  return LocalAccountsRepository(
+  return FileAccountsCache(
     file: File('${dir.path}${Platform.pathSeparator}accounts.json'),
   );
 });
 
+final accountsRepositoryProvider = FutureProvider<AccountsRepository>((
+  ref,
+) async {
+  return ServerAccountsRepository(
+    sessionToken: ref.watch(sessionTokenProvider),
+    transport: ref.watch(postsTransportProvider),
+    cache: await ref.watch(accountsCacheProvider.future),
+  );
+});
+
 final accountsControllerProvider =
-    AsyncNotifierProvider<AccountsController, List<ConnectedAccount>>(
+    AsyncNotifierProvider<AccountsController, AccountsRead>(
       AccountsController.new,
     );
 
-class AccountsController extends AsyncNotifier<List<ConnectedAccount>> {
+class AccountsController extends AsyncNotifier<AccountsRead> {
   @override
-  Future<List<ConnectedAccount>> build() async {
+  Future<AccountsRead> build() async {
     final repository = await ref.watch(accountsRepositoryProvider.future);
-    return repository.load();
-  }
-
-  Future<void> setStatus(SocialPlatform platform, AccountStatus status) async {
-    final current = state.value;
-    if (current == null) return;
-    final updated = [
-      for (final account in current)
-        account.platform == platform
-            ? account.copyWith(status: status)
-            : account,
-    ];
-    final repository = await ref.read(accountsRepositoryProvider.future);
-    // Persist before showing the new state: a failed write must not leave the
-    // card disagreeing with the file.
-    await repository.save(updated);
-    state = AsyncData(updated);
+    return repository.read();
   }
 }

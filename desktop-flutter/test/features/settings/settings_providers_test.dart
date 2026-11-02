@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/core/config/config_controller.dart';
 import 'package:flowpost_desktop/core/diagnostics/diagnostics_report.dart';
-import 'package:flowpost_desktop/core/providers/app_providers.dart';
-import 'package:flowpost_desktop/core/session/session.dart';
 import 'package:flowpost_desktop/core/update/app_version.dart';
 import 'package:flowpost_desktop/core/update/update_checker.dart';
 import 'package:flowpost_desktop/features/offline/offline_providers.dart';
@@ -14,7 +12,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/config_overrides.dart';
 import '../../support/fake_drafts.dart';
-import '../../support/fake_posts_cache.dart';
 
 AppConfig config({String manifest = 'https://flowpost.test/update.json'}) {
   return AppConfig.fromValues(
@@ -188,39 +185,6 @@ void main() {
     });
   });
 
-  group('signing out', () {
-    test('clears the session and wipes the cache', () async {
-      final cache = FakePostsCache();
-      final container = ProviderContainer(
-        overrides: [postsCacheProvider.overrideWithValue(cache)],
-      );
-      addTearDown(container.dispose);
-      container
-          .read(sessionProvider.notifier)
-          .signIn(const Session(sessionToken: 's', accessToken: 'a'));
-
-      await container.read(signOutProvider).run();
-
-      expect(container.read(sessionProvider), isNull);
-      expect(container.read(sessionTokenProvider), isNull);
-      expect(cache.wipes, 1);
-    });
-
-    test('a cache that cannot be wiped still signs the admin out', () async {
-      final container = ProviderContainer(
-        overrides: [postsCacheProvider.overrideWithValue(_FailingWipe())],
-      );
-      addTearDown(container.dispose);
-      container
-          .read(sessionProvider.notifier)
-          .signIn(const Session(sessionToken: 's', accessToken: 'a'));
-
-      await container.read(signOutProvider).run();
-
-      expect(container.read(sessionProvider), isNull);
-    });
-  });
-
   group('saving diagnostics', () {
     late Directory folder;
 
@@ -339,16 +303,9 @@ DiagnosticsFacts facts() => DiagnosticsFacts(
   locale: 'en-US',
   zoneName: 'Asia/Karachi',
   utcOffset: const Duration(hours: 5),
-  signedIn: false,
+  licensed: false,
   files: const [],
   brokenFiles: const [],
   logLines: const [],
   logsRead: true,
 );
-
-class _FailingWipe extends FakePostsCache {
-  @override
-  Future<void> wipe() async {
-    throw const FileSystemException('locked');
-  }
-}

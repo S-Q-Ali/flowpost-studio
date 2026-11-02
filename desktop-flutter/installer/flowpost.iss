@@ -4,7 +4,11 @@
 ;           tool\fetch_ffmpeg.ps1  (the installer packages third_party\ffmpeg\bin)
 
 #define MyAppName "FlowPost Studio"
-#define MyAppVersion "1.0.0"
+; The release workflow passes the version of the tag; a local build keeps
+; this one.
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.0"
+#endif
 #define MyAppPublisher "FlowPost"
 #define MyAppExeName "flowpost.exe"
 

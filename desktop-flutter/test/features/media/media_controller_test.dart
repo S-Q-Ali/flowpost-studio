@@ -80,6 +80,33 @@ class _FakeProcessor implements MediaProcessor {
   }
 }
 
+/// A processor that answers whenever the test says so, cancel or no cancel —
+/// an encode that is mid-pipe does not see the stop signal at once.
+class _StubbornProcessor implements MediaProcessor {
+  final Completer<MediaJob> done = Completer();
+  int cancelCalls = 0;
+  MediaProgressCallback? _onProgress;
+
+  @override
+  Future<MediaJob> process(MediaJob job, {MediaProgressCallback? onProgress}) {
+    _onProgress = onProgress;
+    return done.future;
+  }
+
+  void report() => _onProgress?.call(
+    const MediaProcessingProgress(
+      stage: MediaStage.processing,
+      fraction: 0.9,
+      message: 'Nearly there...',
+    ),
+  );
+
+  @override
+  void cancel() {
+    cancelCalls++;
+  }
+}
+
 Future<MediaValidation> _fakeValidator(FileSystemEntity file) async {
   final kind = mediaKindForPath(file.path);
   if (kind == null) {
@@ -178,14 +205,13 @@ void main() {
   });
 
   test('picking a second file deletes the first job folder', () async {
-    final processor = _FakeProcessor();
     final container = _container(
       workspace,
       _FakePicker([
         File('C:\\clips\\first.mp4'),
         File('C:\\clips\\second.mp4'),
       ]),
-      (job) async => processor,
+      (job) async => _FakeProcessor(),
     );
     addTearDown(container.dispose);
 
@@ -193,10 +219,88 @@ void main() {
     await controller.pickFile();
     await controller.pickFile();
 
-    expect(workspace.deleted, isNotEmpty);
+    expect(workspace.deleted, ['job-1']);
     final state = container.read(mediaControllerProvider) as MediaProcessing;
     expect(state.job.displayName, 'second.mp4');
   });
+
+  test('the encode of a replaced file cannot write over the new one', () async {
+    final first = _StubbornProcessor();
+    final second = _StubbornProcessor();
+    final container = _container(
+      workspace,
+      _FakePicker([
+        File('C:\\clips\\first.mp4'),
+        File('C:\\clips\\second.mp4'),
+      ]),
+      (job) async => job.id == 'job-1' ? first : second,
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(mediaControllerProvider.notifier);
+    await controller.pickFile();
+    await controller.pickFile();
+
+    // The first file is gone from the screen, but its process kept working
+    // and now answers.
+    first.report();
+    first.done.complete(_readyJob(id: 'job-1', displayName: 'first.mp4'));
+    await _settle();
+
+    final state = container.read(mediaControllerProvider) as MediaProcessing;
+    expect(state.job.displayName, 'second.mp4');
+    expect(state.fraction, isNot(0.9));
+  });
+
+  test('picking a second file stops the encode of the first', () async {
+    final first = _StubbornProcessor();
+    final second = _StubbornProcessor();
+    final container = _container(
+      workspace,
+      _FakePicker([
+        File('C:\\clips\\first.mp4'),
+        File('C:\\clips\\second.mp4'),
+      ]),
+      (job) async => job.id == 'job-1' ? first : second,
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(mediaControllerProvider.notifier);
+    await controller.pickFile();
+    await controller.pickFile();
+
+    expect(first.cancelCalls, 1);
+    expect(second.cancelCalls, 0);
+  });
+
+  test(
+    'a cancelled run of a replaced file deletes nothing of the new one',
+    () async {
+      final first = _FakeProcessor();
+      final second = _FakeProcessor();
+      final container = _container(
+        workspace,
+        _FakePicker([
+          File('C:\\clips\\first.mp4'),
+          File('C:\\clips\\second.mp4'),
+        ]),
+        (job) async => job.id == 'job-1' ? first : second,
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(mediaControllerProvider.notifier);
+      await controller.pickFile();
+      await first.started.future;
+      // The second pick stops the first encode, so its cancellation lands
+      // while the new file is already on the screen.
+      await controller.pickFile();
+      await second.started.future;
+      await _settle();
+
+      expect(workspace.deleted, ['job-1']);
+      expect(container.read(mediaControllerProvider), isA<MediaProcessing>());
+    },
+  );
 
   test('a rejected file creates no job folder', () async {
     final processor = _FakeProcessor();
@@ -281,3 +385,14 @@ void main() {
 /// Lets the controller's own async chain settle.
 Future<void> _settle() =>
     Future<void>.delayed(const Duration(milliseconds: 20));
+
+MediaJob _readyJob({required String id, required String displayName}) =>
+    MediaJob(
+      id: id,
+      sourcePath: 'C:\\clips\\$displayName',
+      displayName: displayName,
+      kind: MediaKind.video,
+      sourceBytes: 2048,
+      workspacePath: id,
+      stage: MediaStage.ready,
+    );

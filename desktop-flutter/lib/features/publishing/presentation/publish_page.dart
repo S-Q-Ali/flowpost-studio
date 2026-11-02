@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/format/media_format.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/time_zone.dart';
 import '../../offline/connectivity.dart';
@@ -20,7 +22,8 @@ class PublishPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final media = ref.watch(publishedMediaProvider);
-    final targets = ref.watch(publishTargetsProvider);
+    final targetsState = ref.watch(publishTargetsProvider);
+    final targets = targetsState.value ?? const [];
     final selection = ref.watch(publishSelectionProvider);
     final selected = ref.watch(selectedTargetsProvider);
     final validation = ref.watch(publishValidationProvider);
@@ -66,9 +69,20 @@ class PublishPage extends ConsumerWidget {
                   _DraftBanner(restore: restore),
                 ],
                 const SizedBox(height: 24),
-                if (targets.isEmpty)
-                  const Text('No accounts are connected yet.')
-                else ...[
+                if (targets.isEmpty) ...[
+                  Text(_noTargetsMessage(targetsState)),
+                  // The connect and the reconnect both live on the Accounts
+                  // screen, so the sentence that names it is a button.
+                  if (!targetsState.isLoading)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: TextButton(
+                        key: const Key('open-accounts'),
+                        onPressed: () => context.go(accountsRoute),
+                        child: const Text('Open Accounts'),
+                      ),
+                    ),
+                ] else ...[
                   Text('Platforms', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   for (final target in targets)
@@ -106,7 +120,16 @@ class PublishPage extends ConsumerWidget {
                   runSpacing: 8,
                   children: [
                     FilledButton.icon(
-                      onPressed: canPublish && validation.isValid && !running
+                      onPressed:
+                          canPublish &&
+                              validation.isValid &&
+                              !running &&
+                              !_alreadySent(
+                                state,
+                                selection: selection,
+                                targets: selected,
+                                videoId: media.videoId,
+                              )
                           ? () => ref
                                 .read(publishControllerProvider.notifier)
                                 .publish(
@@ -122,13 +145,27 @@ class PublishPage extends ConsumerWidget {
                     ),
                   ],
                 ),
+                if (_alreadySent(
+                  state,
+                  selection: selection,
+                  targets: selected,
+                  videoId: media.videoId,
+                ))
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'This exact post is already sent. Change the file, the '
+                      'caption or the time to send another.',
+                      key: Key('publish-repeat-blocked'),
+                    ),
+                  ),
                 if (!canPublish)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       offline
                           ? 'A connection is needed to publish.'
-                          : 'Sign in required to publish.',
+                          : 'Activate a license to publish.',
                       key: const Key('publish-blocked'),
                     ),
                   ),
@@ -142,6 +179,36 @@ class PublishPage extends ConsumerWidget {
     );
   }
 }
+
+/// What the compose screen says when there is nothing to pick.
+///
+/// A list that is still being read, or could not be read, is not an empty
+/// list: the admin would look for a connection that may already be there.
+String _noTargetsMessage(AsyncValue<List<PublishTarget>> targets) {
+  if (targets.isLoading) return 'Loading the accounts on your server.';
+  if (targets.hasError) return 'The connected accounts could not be read.';
+  return 'Nothing here can publish yet. Connect or reconnect an account in '
+      'Accounts.';
+}
+
+/// Whether these exact inputs already went out in the finished run.
+///
+/// The button is off while this holds: the rows are written, and a second
+/// click with the same file, picks, captions and time would only post the
+/// same thing again.
+bool _alreadySent(
+  PublishState state, {
+  required PublishSelection selection,
+  required List<PublishTarget> targets,
+  required String videoId,
+}) =>
+    state is PublishDone &&
+    state.signature ==
+        publishSignature(
+          selection: selection,
+          targets: targets,
+          videoId: videoId,
+        );
 
 /// The reasons the form is not ready.
 List<Widget> _issueLines(BuildContext context, PublishValidation validation) {
@@ -290,11 +357,7 @@ class _DraftBanner extends ConsumerWidget {
       children: [
         Row(
           children: [
-            const Icon(
-              Icons.restore,
-              size: 18,
-              color: FlowPostColors.primaryText,
-            ),
+            Icon(Icons.restore, size: 18, color: theme.primaryText),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -602,11 +665,11 @@ class _StatusRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final (label, color) = switch (status.phase) {
       PublishPhase.waiting => ('Waiting', theme.colorScheme.onSurfaceVariant),
-      PublishPhase.publishing => ('Publishing...', FlowPostColors.primaryText),
-      PublishPhase.published => ('Published', Colors.green.shade900),
+      PublishPhase.publishing => ('Publishing...', theme.primaryText),
+      PublishPhase.published => ('Published', theme.success),
       PublishPhase.failed => ('Failed', theme.colorScheme.error),
       PublishPhase.unconfirmed => ('Not confirmed', theme.colorScheme.tertiary),
-      PublishPhase.scheduled => ('Scheduled', FlowPostColors.primaryText),
+      PublishPhase.scheduled => ('Scheduled', theme.primaryText),
     };
     final messageColor = switch (status.phase) {
       PublishPhase.failed => theme.colorScheme.error,
