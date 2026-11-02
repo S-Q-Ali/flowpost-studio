@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
     : null;
 
   let resultStatus = 200;
-  let resultBody: Record<string, unknown> = {};
+  let resultBody: Record<string, unknown>;
 
   try {
     if (platform === "facebook") {

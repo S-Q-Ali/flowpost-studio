@@ -80,6 +80,7 @@ export function parseConfigWrite(body: unknown): ConfigWriteResult {
     }
     // One credential per name: a line break means the payload is not what it
     // claims, and a control character would travel into every later request.
+    // eslint-disable-next-line no-control-regex -- naming control characters is the check
     if (/[\u0000-\u001f\u007f]/.test(trimmed)) return refused(`${name} has an unusable character.`);
     values[name] = trimmed;
   }

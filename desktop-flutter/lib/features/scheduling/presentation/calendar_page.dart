@@ -85,15 +85,19 @@ class _Toolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Row(
+    // One line while everything fits, and a second when it does not: at 200%
+    // text the body is 763 wide and these five pieces want more, which would
+    // push the New post button off the screen.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Expanded(
-          child: Text(
-            calendarTitle(view, anchor),
-            style: Theme.of(context).textTheme.titleLarge,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+        Text(
+          calendarTitle(view, anchor),
+          style: Theme.of(context).textTheme.titleLarge,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         SegmentedButton<CalendarView>(
           segments: [
@@ -105,7 +109,6 @@ class _Toolbar extends ConsumerWidget {
           onSelectionChanged: (selection) =>
               ref.read(calendarViewProvider.notifier).select(selection.first),
         ),
-        const SizedBox(width: 8),
         IconButton(
           key: const Key('calendar-prev'),
           tooltip: 'Previous',
@@ -118,7 +121,6 @@ class _Toolbar extends ConsumerWidget {
           onPressed: () => ref.read(calendarAnchorProvider.notifier).step(1),
           icon: const Icon(Icons.chevron_right),
         ),
-        const SizedBox(width: 8),
         FilledButton.icon(
           key: const Key('calendar-new'),
           onPressed: () => context.go(uploadRoute),
@@ -147,34 +149,51 @@ class _CalendarGrid extends StatelessWidget {
     final weeks = view == CalendarView.week
         ? [weekDays(anchor)]
         : _chunks(monthCells(anchor));
+    // A month needs up to six rows, and six rows of readable days do not fit
+    // the height a small window has left at large text. So a row keeps a
+    // floor, scaled with the text, and the month scrolls when the rows want
+    // more than the space.
+    final floor = _minWeekHeight * MediaQuery.textScalerOf(context).scale(1);
     return Column(
       children: [
         if (view == CalendarView.month) const _WeekdayHeader(),
         Expanded(
-          child: Column(
-            children: [
-              for (final week in weeks)
-                Expanded(
-                  child: Row(
-                    children: [
-                      for (final day in week)
-                        Expanded(
-                          child: _DayCell(
-                            day: day,
-                            posts: day == null ? const [] : postsOn(posts, day),
-                            named: view == CalendarView.week,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-            ],
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final share = box.maxHeight / weeks.length;
+              final grid = Column(
+                children: [
+                  for (final week in weeks)
+                    SizedBox(
+                      height: share < floor ? floor : share,
+                      child: Row(
+                        children: [
+                          for (final day in week)
+                            Expanded(
+                              child: _DayCell(
+                                day: day,
+                                posts: day == null
+                                    ? const []
+                                    : postsOn(posts, day),
+                                named: view == CalendarView.week,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+              return share < floor ? SingleChildScrollView(child: grid) : grid;
+            },
           ),
         ),
       ],
     );
   }
 }
+
+/// The shortest a week row may be: the day number and one post.
+const _minWeekHeight = 64.0;
 
 List<List<DateTime?>> _chunks(List<DateTime?> cells) => [
   for (var start = 0; start < cells.length; start += 7)
@@ -301,9 +320,15 @@ class _PostChip extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Text(
-                  clockLabel(post.scheduledAt),
-                  style: theme.textTheme.labelSmall?.copyWith(color: color),
+                // A day column is a seventh of the body, so at 200% text the
+                // clock and the title share it and each gives up its end.
+                Flexible(
+                  child: Text(
+                    clockLabel(post.scheduledAt),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(color: color),
+                  ),
                 ),
                 const SizedBox(width: 4),
                 Expanded(

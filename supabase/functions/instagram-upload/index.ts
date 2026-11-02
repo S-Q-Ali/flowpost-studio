@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
   let megaUrl: string | undefined;
   let megaFileName: string | undefined;
   let megaAccountId: string | undefined;
-  let isCarousel = false;
+  let isCarousel: boolean;
 
   try {
     const body = await req.json();

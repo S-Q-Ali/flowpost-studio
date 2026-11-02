@@ -47,20 +47,6 @@ export function SecurityQuestionsGate() {
   const [isSetup, setIsSetup] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    checkAdminQuestions();
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate("/", { replace: true });
-    } else if (!pendingSecurityVerification) {
-      const saved = localStorage.getItem("redirectPath");
-      localStorage.removeItem("redirectPath");
-      navigate(saved || "/dashboard", { replace: true });
-    }
-  }, [isAuthenticated, pendingSecurityVerification, navigate]);
-
   const checkAdminQuestions = async () => {
     try {
       const { data, error } = await supabase.functions.invoke<{
@@ -79,6 +65,20 @@ export function SecurityQuestionsGate() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    checkAdminQuestions();
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/", { replace: true });
+    } else if (!pendingSecurityVerification) {
+      const saved = localStorage.getItem("redirectPath");
+      localStorage.removeItem("redirectPath");
+      navigate(saved || "/dashboard", { replace: true });
+    }
+  }, [isAuthenticated, pendingSecurityVerification, navigate]);
 
   const handleVerify = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();

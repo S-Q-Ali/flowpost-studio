@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
 
 
 
-  let insights: { name: string; values: { value: number; end_time: string }[] }[] = [];
+  const insights: { name: string; values: { value: number; end_time: string }[] }[] = [];
   const totalsMap: Record<string, number> = {};
   let insightsError: unknown = null;
 

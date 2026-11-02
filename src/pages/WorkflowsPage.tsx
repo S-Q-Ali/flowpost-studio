@@ -229,13 +229,6 @@ export default function WorkflowsPage() {
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    if (dataSource === "flowpost" && selectedDriveId) {
-      setDriveParentId("root");
-      setDriveBreadcrumbs([]);
-      fetchDriveFolder("root");
-    }
-  }, [dataSource, selectedDriveId]);
 
   const resetForm = () => {
     setWorkflowName("");
@@ -382,6 +375,14 @@ export default function WorkflowsPage() {
     setDriveFolderLoading(false);
   };
 
+  // Below fetchDriveFolder: the effect must not name a function declared later.
+  useEffect(() => {
+    if (dataSource === "flowpost" && selectedDriveId) {
+      setDriveParentId("root");
+      setDriveBreadcrumbs([]);
+      fetchDriveFolder("root");
+    }
+  }, [dataSource, selectedDriveId]);
   const navigateDriveFolder = (folderId: string, folderName: string) => {
     setDriveBreadcrumbs((prev) => [...prev, { id: driveParentId, name: folderName }]);
     setDriveParentId(folderId);

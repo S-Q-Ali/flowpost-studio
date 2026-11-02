@@ -20,10 +20,6 @@ export function GoogleDrivePicker() {
   const [loading, setLoading] = useState(false);
   const [connected, setConnected] = useState(false);
 
-  useEffect(() => {
-    checkConnection();
-  }, [userId]);
-
   const checkConnection = async () => {
     try {
       const { data } = await invokeFunction("google-drive-auth", {
@@ -35,6 +31,10 @@ export function GoogleDrivePicker() {
       setConnected(false);
     }
   };
+
+  useEffect(() => {
+    checkConnection();
+  }, [userId]);
 
   const handleConnect = async () => {
     try {

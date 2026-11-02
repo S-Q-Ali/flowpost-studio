@@ -2,6 +2,7 @@
 
 **Status:** Approved — Phase 0 gate passed (2026-10-26)
 **Created:** 2026-10-26
+**Amended:** 2026-10-31 — the desktop's `identity` module was built, then replaced by `license`: a key checked by `verify-license` mints the session and no client signs in ([ADR 0006](../adr/0006-license-key-desktop-access.md), [SPEC-license](SPEC-license.md)). Everything else below stands.
 **Supersedes:** `docs/spec/flowpost-desktop-spec.md` for client architecture. The Pake/remote-URL shell is replaced by a native Flutter client; the backend and feature list remain valid reference.
 
 ---
@@ -36,7 +37,8 @@
 | Module id | Responsibility | Depends on | MVP |
 |---|---|---|---|
 | `shell` | Flutter Windows bootstrap, window/tray, single instance, installer, auto-update, deep-link registration, logging | — | Yes |
-| `identity` | Supabase email/password + Google login, session storage, admin security questions, `flowpost_token` session, lockout | shell | Yes |
+| `identity` | Supabase email/password + Google login, session storage, admin security questions, `flowpost_token` session, lockout — **replaced by `license` (2026-10-31); module deleted, spec kept as history** | shell | No longer the access path |
+| `license` | Key unlock checked by `verify-license`, the minted 7-day session, the vault grant, offline start, silent renewal, deactivation | shell, credentials | Yes |
 | `accounts` | Connect/disconnect YouTube, Instagram/Facebook, TikTok, LinkedIn, Google Drive, Mega; token refresh; connection status | identity, shell | Yes |
 | `media` | File/folder picker, FFmpeg probe/transcode, thumbnails, audio + frame extraction, caption calls, R2 upload with progress | identity, shell | Yes |
 | `publishing` | Publish now/schedule through existing upload functions, per-platform status, retry, duplicate guard | accounts, media | Yes |
@@ -46,7 +48,7 @@
 | `insights` | Quota usage and analytics | accounts, publishing | No (v1.1) |
 | `admin` | User management, security settings | identity | No (v1.1) |
 
-**Build order:** `shell` → `identity` → `accounts` → `media` → `publishing` → `scheduling` → `offline` slice → `workflows` / `insights` / `admin`.
+**Build order:** `shell` → `license` (originally `identity`) → `accounts` → `media` → `publishing` → `scheduling` → `offline` slice → `workflows` / `insights` / `admin`.
 
 The `offline` slice ships alongside `scheduling`: cached reads and local drafts are cheap to add while the data layer is being built, and retrofitting them later would touch every screen.
 

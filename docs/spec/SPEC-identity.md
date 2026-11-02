@@ -1,10 +1,19 @@
 # Spec: `identity` — FlowPost Native Sign-in and Session
 
 **Module:** `identity` (see `docs/spec/flowpost-native-capability-map.md`)
-**Status:** Draft for approval
+**Status:** Inactive — superseded for the desktop by [SPEC-license](SPEC-license.md) and [ADR 0006](../adr/0006-license-key-desktop-access.md)
 **Created:** 2026-10-28
+**Superseded:** 2026-10-31 (owner decision) — the identity module was built, then removed from the app
 **Depends on:** `shell` (approved 2026-10-28)
-**Blocks:** `accounts`, and every later module
+**Blocks:** nothing in the current app; the plan it blocked was rebuilt on the license gate
+
+> **Not the app's access path.** The Windows client signs nobody in. A license key
+> checked by `verify-license` mints the session, and `lib/features/identity/**` is
+> deleted — `/login`, `/security-questions` and `/auth-callback` are gone, and the
+> vault holds the license records instead. This file stays as the record of what
+> was built and why, and its security-questions and OAuth rules still describe the
+> **web dashboard** and the deployed `verify-security-questions` / `verify-password`
+> functions. Read [SPEC-license](SPEC-license.md) for the desktop.
 
 ---
 

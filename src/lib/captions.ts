@@ -361,7 +361,7 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") throw err;
       console.error("[captions] FAIL download", err);
-      throw new Error(`download: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`download: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
     emit(onProgress, "downloading", 100);
 
@@ -376,7 +376,7 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") throw err;
         console.error("[captions] FAIL extractAudio", err);
-        throw new Error(`audio: ${err instanceof Error ? err.message : String(err)}`);
+        throw new Error(`audio: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
       }
 
       try {
@@ -384,7 +384,7 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") throw err;
         console.error("[captions] FAIL groqWhisper", err);
-        throw new Error(`whisper: ${err instanceof Error ? err.message : String(err)}`);
+        throw new Error(`whisper: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
       } finally {
         audioBlob = null!;
       }
@@ -414,7 +414,7 @@ export async function generateAICaptions(options: GenerateCaptionsOptions): Prom
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") throw err;
       console.error("[captions] FAIL groqGenerateCaptions", err);
-      throw new Error(`generate: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`generate: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
 
     // Strip keys not relevant to selected platforms

@@ -5,12 +5,14 @@ import {
   hashLicenseKey,
   isLicenseUsable,
   MIN_LICENSE_KEY_LENGTH,
+  MIN_LICENSE_PEPPER_LENGTH,
   MAX_LICENSE_KEY_LENGTH,
 } from "./license.ts";
 
-const subtle = (algorithm: string, data: BufferSource) =>
-  webcrypto.subtle.digest(algorithm, data);
+const subtle = webcrypto.subtle;
 const now = new Date("2026-10-31T12:00:00.000Z");
+const pepper = "test-pepper-0123456789abcdef";
+const otherPepper = "second-pepper-0123456789abcdef";
 
 describe("normalizeLicenseKey", () => {
   it("trims surrounding whitespace", () => {
@@ -50,30 +52,54 @@ describe("normalizeLicenseKey", () => {
 });
 
 describe("hashLicenseKey", () => {
-  it("returns the pinned lowercase SHA-256 hex of the key", async () => {
-    await expect(hashLicenseKey("flowpost-license-key-0001", subtle)).resolves.toBe(
-      "c41e0e8ec48ad6c8a3f0aa70fd35273b269f0947d81d22181a2a84516fcf774f",
-    );
+  it("returns the pinned lowercase HMAC-SHA-256 hex of the key under the pepper", async () => {
+    await expect(
+      hashLicenseKey("flowpost-license-key-0001", pepper, subtle),
+    ).resolves.toBe("78a95184e4a96481cae7ff5149a80d4aaf38c2b0e14a1e85a8cae342981c2dbb");
+  });
+
+  it("is deterministic, so one key still finds exactly one row", async () => {
+    const first = await hashLicenseKey("flowpost-license-key-0001", pepper, subtle);
+    const again = await hashLicenseKey("flowpost-license-key-0001", pepper, subtle);
+    expect(again).toBe(first);
+  });
+
+  it("changes the value when the pepper changes", async () => {
+    const one = await hashLicenseKey("flowpost-license-key-0001", pepper, subtle);
+    const two = await hashLicenseKey("flowpost-license-key-0001", otherPepper, subtle);
+    expect(one).toBe("78a95184e4a96481cae7ff5149a80d4aaf38c2b0e14a1e85a8cae342981c2dbb");
+    expect(two).toBe("9816eb709118cc81a0383f3e13b8d38a64e3b9d4bee2bf3c78a75bdd2cba1824");
   });
 
   it("hashes different keys to different values", async () => {
-    const first = await hashLicenseKey("flowpost-license-key-0001", subtle);
-    const second = await hashLicenseKey("another-valid-license-key", subtle);
+    const first = await hashLicenseKey("flowpost-license-key-0001", pepper, subtle);
+    const second = await hashLicenseKey("another-valid-license-key", pepper, subtle);
     expect(first).not.toBe(second);
-    expect(second).toBe(
-      "31089ff841b8902891b18c264c6235e407f8e0ef7ba5cff0e37760ee5a5cc295",
-    );
+    expect(second).toBe("c5f5ea31639441749982edfc50d8b8c67d269fd882e418245d0ce4493d2a226e");
   });
 
-  it("is case-sensitive on the input", async () => {
-    const upper = await hashLicenseKey("FLOWPOST-LICENSE-KEY-0001", subtle);
-    const lower = await hashLicenseKey("flowpost-license-key-0001", subtle);
+  it("is case-sensitive on the key", async () => {
+    const upper = await hashLicenseKey("FLOWPOST-LICENSE-KEY-0001", pepper, subtle);
+    const lower = await hashLicenseKey("flowpost-license-key-0001", pepper, subtle);
     expect(upper).not.toBe(lower);
   });
 
+  it("refuses a blank pepper rather than hashing an unsalted key", async () => {
+    await expect(hashLicenseKey("flowpost-license-key-0001", "", subtle)).rejects.toThrow(
+      /pepper/,
+    );
+  });
+
+  it("refuses a pepper shorter than the minimum", async () => {
+    const short = "a".repeat(MIN_LICENSE_PEPPER_LENGTH - 1);
+    await expect(hashLicenseKey("flowpost-license-key-0001", short, subtle)).rejects.toThrow(
+      /pepper/,
+    );
+  });
+
   it("uses the platform WebCrypto by default", async () => {
-    await expect(hashLicenseKey("flowpost-license-key-0001")).resolves.toBe(
-      "c41e0e8ec48ad6c8a3f0aa70fd35273b269f0947d81d22181a2a84516fcf774f",
+    await expect(hashLicenseKey("flowpost-license-key-0001", pepper)).resolves.toBe(
+      "78a95184e4a96481cae7ff5149a80d4aaf38c2b0e14a1e85a8cae342981c2dbb",
     );
   });
 });

@@ -732,7 +732,6 @@ Deno.serve(async (req) => {
                   method: "PUT",
                   headers: { "Content-Type": contentType },
                   body: driveRes.body,
-                  // @ts-ignore - duplex needed for streaming body
                   duplex: "half",
                 });
                 if (!putRes.ok) {

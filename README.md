@@ -44,7 +44,7 @@ When the app has no backend values yet it opens a guided setup instead of a blan
 Which steps you see depends on the track:
 
 - **End user** — point the app at an existing FlowPost server (project address + anon key, saved in `credentials.json` on this PC), then unlock with a license key. Nothing else.
-- **Operator** — your own deployment. The server step, then the platform keys the next steps read: AI captions (Groq), media storage (Cloudflare R2), and the OAuth app for each of Google/YouTube+Drive, Instagram/Facebook (Meta), TikTok and LinkedIn, then the license step. The deploy step is commands to run (`supabase db push`, `supabase functions deploy`, set `TOKEN_ENCRYPTION_KEY` and the service-role key as server secrets), not values to type.
+- **Operator** — your own deployment. The server step, then the platform keys the next steps read: AI captions (Groq), media storage (Cloudflare R2), and the OAuth app for each of Google/YouTube+Drive, Instagram/Facebook (Meta), TikTok and LinkedIn, then the license step. The deploy step is commands to run (`supabase db push`, `supabase functions deploy`, set `TOKEN_ENCRYPTION_KEY`, `LICENSE_PEPPER` and the service-role key as server secrets), not values to type.
 
 An operator's keys are not stored on the PC. The wizard sends each one to the `operator-config` edge function, which seals it with AES-GCM and stores it in the server's `operator_config` table; `config-status` tells the wizard which steps are satisfied without ever returning a value. A deployment that already keeps those keys as edge-function secrets is unaffected — the stored value wins and the environment is the fallback. [ADR 0005](docs/adr/0005-server-held-secrets.md) is the full write-up.
 
@@ -134,6 +134,7 @@ Set these in **Supabase Dashboard → Edge Functions → Secrets** (never in the
 | `CRON_API_KEY` | Key the scheduler sends |
 | `APP_PASSWORD` | Legacy admin password gate |
 | `TOKEN_ENCRYPTION_KEY` | base64 256-bit AES-GCM key; seals every stored operator key and every platform token. Set it before using the guided setup; see the runbook before rotating it |
+| `LICENSE_PEPPER` | HMAC-SHA-256 key for the license digests. Set it before issuing the first key, then leave it alone — changing it invalidates every key already issued |
 | `GOOGLE_SHEET_ID` | Default sheet used by workflows |
 | `FB_APP_ID`, `FB_APP_SECRET` | Facebook app |
 | `IG_APP_ID`, `IG_APP_SECRET` | Instagram app |
@@ -172,7 +173,7 @@ Web scripts:
 
 ## Security
 
-- License keys are stored as SHA-256 hashes and never in plain text; unlocking mints a short-lived session used by every desktop call
+- License keys are stored as HMAC-SHA-256 digests, keyed with a server-only `LICENSE_PEPPER` secret, and never in plain text; unlocking mints a short-lived session used by every desktop call
 - The desktop app has no password path; the session and key sit in the Windows credential vault
 - Row Level Security on every table; the browser only ever uses the anon key
 - One shared authorizer (`functions/_shared/auth.ts`) for edge functions; owner checks via `resolveSessionOwner` and `checkPostAccess`
@@ -195,8 +196,8 @@ npm test                                  # Vitest: dashboard + edge function sh
 ## Documentation
 
 - `docs/spec/` — feature specs and decisions
-- `docs/adr/` — identity, FFmpeg bundling, local cache, credentials, server-held secrets
-- `docs/runbook.md` — support, release and rollback
+- `docs/adr/` — identity, FFmpeg bundling, local cache, credentials, server-held secrets, license-key desktop access
+- `docs/runbook.md` — support, release and rollback, and how to issue or revoke a license key
 - `USER_GUIDE.md` — end-user guide for the dashboard
 - `CONTRIBUTING.md` — setup, the gates CI enforces, commit and pull request rules
 - `SECURITY.md` — how to report a vulnerability privately

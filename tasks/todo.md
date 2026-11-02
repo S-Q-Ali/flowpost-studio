@@ -823,9 +823,9 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 - [x] L8 — Unwire identity from `app.dart`, `main.dart`, the router; add the guard
 - [x] L9 — Settings license section and deactivation (`Session.accessToken` moves in L9b)
 - [x] L9b — `posts-api` edge function and the desktop switch to it
-- [ ] L10 — SPEC-license, ADR 0005, inactive note on SPEC-identity, runbook
-- [ ] L11 — **Owner:** deploy migration + functions, seed a key, manual Windows gate
-- [ ] L12 — Gate: format, analyze, full tests, graph, atomic commits
+- [x] L10 — SPEC-license, ADR 0006, the runbook's License keys section, SPEC-identity marked inactive
+- [ ] L11 — **Owner:** deploy migration + functions, set `LICENSE_PEPPER`, seed the first key, manual Windows gate (`tasks/deploy-server-68.md` Steps 1–9)
+- [x] L12 — Gate run 2026-11-03 on `feature/license-access`: format 213 files / 0 changed, analyze clean, 1051 Flutter + 295 Vitest tests, `tsc -b` 0, build 0, lint 0 errors, graph refreshed
 
 ---
 

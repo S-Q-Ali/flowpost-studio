@@ -76,7 +76,7 @@ export async function invokeFunction<T = any>(
     return { data: null, error: new InvokeFunctionError(message) };
   }
 
-  let bodyText = "";
+  let bodyText: string;
   try {
     bodyText = await res.text();
   } catch {

@@ -14,17 +14,17 @@ Scope answers:
 |---|---|
 | What is gated | The desktop app only. The web dashboard keeps its Supabase login. |
 | Existing identity code | Unwired from the app; files and history stay. |
-| License model | SHA-256 hashes in a `licenses` table; a new `verify-license` function mints the existing 7-day session token. |
+| License model | `HMAC-SHA-256(LICENSE_PEPPER, key)` digests in a `licenses` table; a new `verify-license` function mints the existing 7-day session token. |
 
 ## Architecture
 
 ```
 Desktop first run                Backend                        Desktop after
 setup (URL + anon key)  ──►  POST functions/v1/verify-license
-license key (user)            hash = sha256(key)              secure vault:
-        │                     licenses: active, not expired   token + expiresAt
-        └──────────────────►  mint session (7 days)   ──────►  + key in the vault
-                              bound to the admin user id      Router guard opens the app
+license key (user)            hash = hmac(pepper, key)         secure vault:
+        │                     licenses: active, not expired    token + expiresAt
+        └──────────────────►  mint session (7 days)     ──►  + key in the vault
+                              for licenses.user_id             Router guard opens the app
                                                                      │
                                                               edge calls use
                                                               x-admin-token / Bearer <session token>
@@ -36,17 +36,16 @@ license key (user)            hash = sha256(key)              secure vault:
 - **No Supabase Auth on the desktop.** The desktop never calls GoTrue; the session
   token comes from the license function, exactly the token the existing edge
   functions already accept, so no other function changes.
-- **Only hashes at rest.** The `licenses` table stores `sha256(key)`; the plaintext
-  key exists only in the owner's hand-off and on the user's machine (no UI echo,
-  no log).
+- **Only digests at rest.** The `licenses` table stores `HMAC-SHA-256(LICENSE_PEPPER, key)`; the plaintext key exists only in the owner's hand-off and on the user's machine (no UI echo, no log). The pepper is a server-only secret — plain SHA-256 was the audit finding that put it here.
 - **Same single-session model as today.** Minting a session deletes older ones, so
   activating a license signs out the web admin gate and vice versa; this is the
   documented behaviour and stays.
 - **Offline.** A stored, unexpired token opens the app without a network call
   (marked "offline"); an expired token renews silently with the key kept in the
   vault, and only a revoked or missing key sends the user back to the license
-  screen. When online, the stored token is confirmed with the existing
-  `verify-session`.
+  screen. The plan's `verify-session` round-trip was dropped as unnecessary: the
+  stored expiry plus a refusal from any function is the re-check (SPEC-license
+  Decision 7).
 - **Unwired, not deleted.** `features/identity/**` stays in the tree and its unit
   tests keep passing; no app file imports it. `SPEC-identity.md` gets an inactive
   header; ADR 0001 stays as history and ADR 0005 records the supersession.
@@ -55,38 +54,50 @@ license key (user)            hash = sha256(key)              secure vault:
 
 ### Phase 1 — Backend
 
-- [ ] **L1 — Shared license logic** (S)
+- [x] **L1 — Shared license logic** (S)
   `_shared/license.ts`: `normalizeLicenseKey` (trim, reject shorter than 16 or
-  longer than 256), `hashLicenseKey(key, subtle)` → lowercase hex, and
-  `isLicenseUsable(row, now)` (active, not expired). Vitest with the Node WebCrypto
-  (injected) so the hash is pinned.
-  - Acceptance: short/blank keys rejected; hash is stable and lowercase; an
-    inactive or expired row is not usable; no key is ever logged.
-  - Files: `supabase/functions/_shared/license.ts`, `.test.ts`.
+  longer than 256), `hashLicenseKey(key, pepper, subtle)` → lowercase
+  HMAC-SHA-256 hex under the server's `LICENSE_PEPPER` secret (the pepper was
+  added after the 2026-11-01 audit: an unsalted SHA-256 let anyone holding a
+  database dump test guessed keys offline), and `isLicenseUsable(row, now)`
+  (active, not expired, unparseable expiry refused). Vitest with Node WebCrypto
+  injected, so the digest is pinned by vector.
+  - Acceptance, met: 22 tests — short/blank keys rejected, digest stable and
+    lowercase, two peppers give two digests, a blank or too-short pepper throws
+    rather than hashing unsalted, inactive/expired/unparseable rows unusable.
 
-- [ ] **L2 — One session-minting helper** (S)
-  Extract the session insert from `verify-security-questions` into
-  `_shared/session.ts` (`createAdminSession(supabase, { now })` → token, expiresAt),
-  tested with a fake Supabase builder. Both functions use it; the question
-  function's behaviour is unchanged.
-  - Acceptance: 7-day expiry, token is 64 hex chars, insert failure throws.
+- [x] **L2 — One session-minting helper** (S)
+  The session insert lives in `_shared/session.ts`: `createSession(supabase,
+  userId, now)` → `{token, expiresAt}`, used by `verify-license` and
+  `verify-security-questions`; `revokeSession` removes one token. Tested with a
+  fake Supabase builder.
+  - Acceptance, met with one correction: 7-day expiry and insert failure throws,
+    but the token is **two UUIDs** (72 characters, dashes included), not the 64
+    hex the plan first said — the test pins the real shape.
   - Files: `_shared/session.ts`, `.test.ts`, `verify-security-questions/index.ts`.
 
-- [ ] **L3 — `licenses` migration** (XS)
+- [x] **L3 — `licenses` migration** (XS)
   Table `public.licenses`: `id uuid pk default gen_random_uuid()`,
   `key_hash text unique not null`, `label text`, `active boolean not null default
   true`, `expires_at timestamptz`, `created_at`, `last_used_at`; RLS enabled with
-  no policies (service role only).
-  - Acceptance: `supabase db lint`-clean SQL; no policy grants anon access.
+  no policies (service role only). `user_id` came in `20261101000100_license_owner`
+  so a key can own its session instead of sharing the admin's.
+  - Acceptance: no policy grants anon access. Not yet applied — `supabase db push`
+    is the owner's Step 3 in `tasks/deploy-server-68.md`.
 
-- [ ] **L4 — `verify-license` edge function** (M)
-  `verify_jwt = false` in `config.toml`; CORS; IP rate limit through the existing
-  `_shared/rate-limit.ts` (5 attempts / 15 min, reused lockout); POST `{licenseKey}`
-  → normalize, hash, `maybeSingle` active row, set `last_used_at`, mint session,
-  answer `{valid:true, token, expiresAt}`; invalid → 401 `{valid:false}`; locked →
-  429; malformed → 400. No key in any log line.
-  - Acceptance: valid key returns a working session; wrong/expired/inactive keys
-    return 401 without revealing which; sixth attempt is locked; OPTIONS works.
+- [x] **L4 — `verify-license` edge function** (M)
+  `verify_jwt = false` in `config.toml`; CORS; **two** rate buckets through
+  `_shared/rate-limit.ts` (`consume_rate_limit`, 10 attempts / 15 min each): the
+  caller's IP and the key's own hash; POST `{licenseKey}` → normalize, hash under
+  `LICENSE_PEPPER`, `maybeSingle` active row, set `last_used_at`, mint session for
+  `licenses.user_id` (admin fallback), answer `{valid:true, token, expiresAt}`;
+  invalid → 401 `{valid:false}`; locked → 429 with the countdown; malformed → 400;
+  pepper unset or shorter than 16 characters → 503 (fails closed rather than
+  comparing against hashes it cannot reproduce); a rate store that errors → 503.
+  No key in any log line.
+  - Acceptance, met in the client's mapping (400/401 → `invalidKey`, 429 →
+    `rateLimited` with the server's text, anything else → `unexpected`); OPTIONS
+    and the 405 path are in the function.
   - Files: `supabase/functions/verify-license/index.ts`, `supabase/config.toml`.
 
 ### Phase 2 — Desktop
@@ -178,32 +189,50 @@ license key (user)            hash = sha256(key)              secure vault:
 
 ### Phase 3 — Docs, deploy and gate
 
-- [ ] **L10 — Docs** (S)
+- [x] **L10 — Docs** (S)
   `docs/spec/SPEC-license.md` (flow, threats, key issuance/rotation/revocation),
-  `docs/adr/0005-license-key-access.md`, inactive note atop `SPEC-identity.md`,
-  runbook (issue a key, revoke a key, activation signs out the web gate), README
-  first-run copy.
+  `docs/adr/0006-license-key-desktop-access.md`, inactive note atop
+  `SPEC-identity.md`, runbook (issue a key, revoke a key, activation signs out
+  the web gate), README first-run copy.
   - Acceptance: issuing/revoking a key is a copy-pasteable SQL snippet using a
     one-line hash command; no secret in any doc.
+  - Done 2026-11-03: the ADR is **0006**, not 0005 — 0005 was taken by
+    server-held secrets while this plan was written. `docs/runbook.md` gained a
+    **License keys** section (issue / check / stop / pepper rule) and the
+    pre-license support copy was corrected: the vault holds three license
+    records, there is no desktop sign-in or sign-out, the 401 and deep-link
+    symptoms say what the app does now, and the release check tests
+    `flowpost://connect-callback`. `tasks/deploy-server-68.md` Step 6 points at
+    the runbook instead of repeating the hash commands. The capability map and
+    `SPEC-identity.md` carry the supersession.
 
 - [ ] **L11 — Deploy and seed a key** (owner-assisted)
-  `npx supabase db push`, `functions deploy verify-license
-  verify-security-questions`, insert the first license row, then the manual
-  Windows gate: activate, restart, expire, revoke, offline start, log has no key.
+  The ordered run is `tasks/deploy-server-68.md`: migrations, the secrets
+  (`TOKEN_ENCRYPTION_KEY` **and** `LICENSE_PEPPER`, before the first key is
+  hashed), the function deploys, then the first license row and the manual
+  Windows gate — activate, restart offline, expire, revoke, and check the log
+  carries no key. Nothing here is runnable without the owner's Supabase login.
   - Acceptance: manual gate passes; `sessions` gets a row on activation.
 
-- [ ] **L12 — Gate** (S)
+- [x] **L12 — Gate** (S)
   `dart format --set-exit-if-changed`, `flutter analyze`, full `flutter test`,
   `npm test`, `npx tsc -b`; graph update; atomic commits.
-  - Acceptance: all green; identity tests still green but nothing in `lib/` outside
-    `features/identity/**` imports that folder.
+  - Acceptance: all green; nothing in `lib/`, `test/` or `integration_test/`
+    references the deleted identity module.
+  - Done 2026-11-03 on `feature/license-access`: format 213 files 0 changed,
+    analyze no issues, **1051 Flutter tests** and **295 Vitest tests** pass,
+    `tsc -b` exit 0, `npm run build` exit 0, lint 0 errors (168 `no-explicit-any`
+    warnings deferred to `tasks/issue-typed-supabase-client.md`), `graphify update`
+    produced no graph change (docs-only). No identity references remain.
+    **L11 (deploy + first key) and the owner's manual Windows gate are still
+    open**, so this gate proves the tree, not the deployment.
 
 ## Risks
 
 | Risk | Impact | Mitigation |
 |---|---|---|
 | OSS client check bypassed | High | The check is server-side; functions still need the session token |
-| Key leak / sharing | Med | Hashes only, per-key revoke (`active=false`), rate limit, optional expiry |
+| Key leak / sharing | Med | Peppered digests only, per-key revoke (`active=false`), 10-per-15-min on IP and on key, optional expiry, `last_used_at` as the sharing clue |
 | Single-session model logs out the web gate | Med | Documented; expired token → license screen with a clear message |
 | Owner deploy credentials unavailable | High (blocks L11) | Everything through L10 is testable with fakes; only L11 is owner-blocked |
 | Identity files rot once unwired | Low | Kept as reference; `SPEC-identity.md` marks them inactive, tests still run |

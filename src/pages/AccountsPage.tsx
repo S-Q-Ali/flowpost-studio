@@ -285,7 +285,6 @@ export default function AccountsPage() {
       if (error) throw new Error(error.message || "Failed to start YouTube OAuth");
       if (!data?.url) throw new Error("Missing OAuth URL");
 
-      let timeoutId: ReturnType<typeof setTimeout>;
       const channel = supabase
         .channel("youtube-connected")
         .on(
@@ -322,7 +321,7 @@ export default function AccountsPage() {
         )
         .subscribe();
 
-      timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         channel.unsubscribe();
         setIsYouTubeConnecting(false);
       }, 5 * 60 * 1000);
@@ -344,7 +343,6 @@ export default function AccountsPage() {
       if (error) throw new Error(error.message || "Failed to start Facebook OAuth");
       if (!data?.url) throw new Error("Missing OAuth URL");
 
-      let timeoutId: ReturnType<typeof setTimeout>;
       const channel = supabase
         .channel("facebook-connected")
         .on(
@@ -381,7 +379,7 @@ export default function AccountsPage() {
         )
         .subscribe();
 
-      timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         channel.unsubscribe();
         setIsFacebookConnecting(false);
       }, 10 * 60 * 1000);
@@ -403,7 +401,6 @@ export default function AccountsPage() {
       if (error) throw new Error(error.message || "Failed to start Instagram OAuth");
       if (!data?.url) throw new Error("Missing OAuth URL");
 
-      let timeoutId: ReturnType<typeof setTimeout>;
       const channel = supabase
         .channel("instagram-connected")
         .on(
@@ -424,7 +421,7 @@ export default function AccountsPage() {
         )
         .subscribe();
 
-      timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         channel.unsubscribe();
         setIsInstagramConnecting(false);
       }, 5 * 60 * 1000);
@@ -446,7 +443,6 @@ export default function AccountsPage() {
       if (error) throw new Error(error.message || "Failed to start Facebook OAuth");
       if (!data?.url) throw new Error("Missing OAuth URL");
 
-      let timeoutId: ReturnType<typeof setTimeout>;
       const channel = supabase
         .channel("facebook-reconnect")
         .on(
@@ -462,7 +458,7 @@ export default function AccountsPage() {
         )
         .subscribe();
 
-      timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         channel.unsubscribe();
         setReconnectingFacebookId(null);
         toast.error("Reconnection timed out. Try again.");
@@ -485,7 +481,6 @@ export default function AccountsPage() {
       if (error) throw new Error(error.message || "Failed to start TikTok OAuth");
       if (!data?.url) throw new Error("Missing OAuth URL");
 
-      let timeoutId: ReturnType<typeof setTimeout>;
       const channel = supabase
         .channel("tiktok-connected")
         .on(
@@ -522,7 +517,7 @@ export default function AccountsPage() {
         )
         .subscribe();
 
-      timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         channel.unsubscribe();
         setIsTikTokConnecting(false);
       }, 5 * 60 * 1000);
@@ -544,7 +539,6 @@ export default function AccountsPage() {
       if (error) throw new Error(error.message || "Failed to start LinkedIn OAuth");
       if (!data?.url) throw new Error("Missing OAuth URL");
 
-      let timeoutId: ReturnType<typeof setTimeout>;
       const channel = supabase
         .channel("linkedin-connected")
         .on(
@@ -581,7 +575,7 @@ export default function AccountsPage() {
         )
         .subscribe();
 
-      timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         channel.unsubscribe();
         setIsLinkedInConnecting(false);
       }, 5 * 60 * 1000);
@@ -603,7 +597,6 @@ export default function AccountsPage() {
       if (error) throw new Error(error.message || "Failed to start Google Drive OAuth");
       if (!data?.url) throw new Error("Missing OAuth URL");
 
-      let timeoutId: ReturnType<typeof setTimeout>;
       const channel = supabase
         .channel("drive-connected")
         .on(
@@ -624,7 +617,7 @@ export default function AccountsPage() {
         )
         .subscribe();
 
-      timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         channel.unsubscribe();
         setIsDriveConnecting(false);
       }, 5 * 60 * 1000);
@@ -648,7 +641,6 @@ export default function AccountsPage() {
       if (error) throw new Error(error.message || "Failed to start Google Drive OAuth");
       if (!data?.url) throw new Error("Missing OAuth URL");
 
-      let timeoutId: ReturnType<typeof setTimeout>;
       const channel = supabase
         .channel(`drive-reconnect-${rowId}`)
         .on(
@@ -669,7 +661,7 @@ export default function AccountsPage() {
         )
         .subscribe();
 
-      timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         channel.unsubscribe();
         setReconnectingDriveId(null);
         toast.error("Reconnection timed out. Try again.");

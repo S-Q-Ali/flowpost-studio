@@ -28,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
 import { CaptionPreviewModal } from "@/components/CaptionPreviewModal";
 import { generateAICaptions, regenerateCaptions, type StepProgress } from "@/lib/captions";
+import { filenameToCaption } from "@/lib/caption-name";
 import { getItemPublishTime } from "@/lib/scheduling";
 import { invokeFunction, type InvokeFunctionResult } from "@/lib/invoke";
 import type { Database } from "@/integrations/supabase/types";
@@ -36,19 +37,6 @@ function formatBytes(b: number): string {
   if (!b) return "0 B";
   if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
   return (b / 1048576).toFixed(1) + " MB";
-}
-
-function filenameToCaption(fileName: string): string | null {
-  if (!fileName || !fileName.trim()) return null;
-  let name = fileName.trim();
-  const lastDot = name.lastIndexOf(".");
-  if (lastDot > 0) name = name.slice(0, lastDot);
-  // Protect hashtag tokens so separators inside them are never altered
-  name = name.replace(/(#[A-Za-z0-9_]+)/g, "\u0001$1\u0002");
-  name = name.replace(/[_\-]+/g, " ");
-  name = name.replace(/[\u0001\u0002]/g, "");
-  name = name.replace(/\s+/g, " ").trim();
-  return name || null;
 }
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -121,6 +109,13 @@ export default function WorkflowItemsPage() {
   }
   const [batchState, setBatchState] = useState<BatchState | null>(null);
   const [skipAudioMap, setSkipAudioMap] = useState<Record<string, boolean>>({});
+  // queueRef drives the generation loop; queuedIds is the copy the render reads,
+  // because React must not see a ref during render.
+  const [queuedIds, setQueuedIds] = useState<string[]>([]);
+  const setQueue = (next: WorkflowItem[]) => {
+    queueRef.current = next;
+    setQueuedIds(next.map((q) => q.id));
+  };
   interface CaptionResult {
     captions: Record<string, string>;
     transcript: string;
@@ -509,7 +504,7 @@ export default function WorkflowItemsPage() {
     toast.success(`${eligible.length} items marked as ready${skipped > 0 ? ` (${skipped} skipped — missing captions)` : ""}`);
   };
 
-  const useFileNameAsCaption = (item: WorkflowItem) => {
+  const fillCaptionFromFileName = (item: WorkflowItem) => {
     const caption = filenameToCaption(item.file_name);
     if (!caption) {
       toast.error("No file name to use as caption");
@@ -724,17 +719,17 @@ export default function WorkflowItemsPage() {
       }
 
       if (stopRef.current) {
-        queueRef.current = [];
+        setQueue([]);
         finishBatch(true);
-        return;
-      }
-
-      const next = queueRef.current.shift();
-      if (next) {
-        if (batchRef.current) updateBatch({ currentLabel: next.file_name });
-        generateCaptions(next);
-      } else if (batchRef.current) {
-        finishBatch(false);
+      } else {
+        const [next, ...rest] = queueRef.current;
+        if (next) {
+          setQueue(rest);
+          if (batchRef.current) updateBatch({ currentLabel: next.file_name });
+          generateCaptions(next);
+        } else if (batchRef.current) {
+          finishBatch(false);
+        }
       }
     }
   };
@@ -811,7 +806,7 @@ export default function WorkflowItemsPage() {
     }
 
     stopRef.current = false;
-    queueRef.current = toGenerate.slice(1);
+    setQueue(toGenerate.slice(1));
     const meta: BatchState = {
       total: toGenerate.length,
       done: 0,
@@ -840,7 +835,7 @@ export default function WorkflowItemsPage() {
       if (!item) continue;
       if (item.status === "posted") continue;
       if (generatingId === item.id) continue;
-      if (queueRef.current.some((q) => q.id === item.id)) continue;
+      if (queuedIds.includes(item.id)) continue;
 
       const allFilled =
         requiredFields.size > 0 &&
@@ -853,6 +848,7 @@ export default function WorkflowItemsPage() {
     }
     return count;
   };
+  const captionsNeeded = countNeedsCaptions();
 
   const queueGeneration = (item: WorkflowItem) => {
     if (batchRef.current) {
@@ -861,7 +857,7 @@ export default function WorkflowItemsPage() {
     }
     if (generatingId) {
       if (queueRef.current.some((q) => q.id === item.id)) return;
-      queueRef.current = [...queueRef.current, item];
+      setQueue([...queueRef.current, item]);
       toast.info(`Queued "${item.file_name}" — will generate after current item finishes`);
     } else {
       generateCaptions(item);
@@ -1214,7 +1210,7 @@ export default function WorkflowItemsPage() {
                         variant="ghost"
                         size="sm"
                         className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                        onClick={() => useFileNameAsCaption(item)}
+                        onClick={() => fillCaptionFromFileName(item)}
                       >
                         <FileText className="h-3.5 w-3.5" />
                         Use File Name
@@ -1347,10 +1343,10 @@ export default function WorkflowItemsPage() {
                 size="sm"
                 className="h-8 text-xs gap-1"
                 onClick={bulkGenerateCaptions}
-                disabled={!!generatingId || countNeedsCaptions() === 0}
+                disabled={!!generatingId || captionsNeeded === 0}
               >
                 <Sparkles className="h-3 w-3" />
-                Generate Captions ({countNeedsCaptions()})
+                Generate Captions ({captionsNeeded})
               </Button>
               {batchState && !batchState.stopped && (
                 <Button

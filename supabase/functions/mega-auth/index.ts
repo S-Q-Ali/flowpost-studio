@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
 
-  let body: Record<string, unknown> = {};
+  let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
@@ -103,8 +103,6 @@ Deno.serve(async (req) => {
           handle: c.hash || c.nodeId,
         }));
 
-      try { storage.api?.logout?.(); } catch {}
-
       return json({ success: true, accountId, email, files });
     }
 
@@ -141,8 +139,6 @@ let accountQuery = supabaseAdmin
           size: c.size,
           handle: c.hash || c.nodeId,
         }));
-
-      try { storage.api?.logout?.(); } catch {}
 
       return json({ success: true, files });
     }
@@ -191,7 +187,6 @@ let accountQuery = supabaseAdmin
       }
 
       const info = await storage.getAccountInfo();
-      try { storage.api?.logout?.(); } catch {}
 
       return json({ spaceUsed: info.spaceUsed, spaceTotal: info.spaceTotal });
     }
@@ -228,7 +223,6 @@ let accountQuery = supabaseAdmin
       if (path) {
         const resolved = target.navigate(path);
         if (!resolved) {
-          try { storage.api?.logout?.(); } catch {}
           return json({ error: `Path not found: ${path}` }, 404);
         }
         target = resolved;
@@ -242,7 +236,6 @@ let accountQuery = supabaseAdmin
         nodeId: c.nodeId,
       }));
 
-      try { storage.api?.logout?.(); } catch {}
       return json({ folders, files });
     }
 
@@ -279,14 +272,12 @@ let accountQuery = supabaseAdmin
       if (path) {
         const resolved = target.navigate(path);
         if (!resolved) {
-          try { storage.api?.logout?.(); } catch {}
           return json({ error: `Parent path not found: ${path}` }, 404);
         }
         target = resolved;
       }
 
       const newFolder = await target.mkdir(folderName);
-      try { storage.api?.logout?.(); } catch {}
 
       return json({ success: true, folderName, path: path ? `${path}/${folderName}` : folderName });
     }
@@ -320,12 +311,10 @@ let accountQuery = supabaseAdmin
 
       const file = storage.files[nodeId];
       if (!file) {
-        try { storage.api?.logout?.(); } catch {}
         return json({ error: "File or folder not found" }, 404);
       }
 
       await file.delete(true);
-      try { storage.api?.logout?.(); } catch {}
       return json({ success: true });
     }
 

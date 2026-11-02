@@ -497,7 +497,6 @@ Deno.serve(async (req) => {
         method: "PUT",
         headers: { "Content-Type": contentType },
         body: driveRes.body,
-        // @ts-ignore
         duplex: "half",
       });
       if (!putRes.ok) throw new Error(`R2 PUT failed: ${putRes.status}`);
