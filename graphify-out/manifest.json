@@ -12,9 +12,9 @@
     "semantic_hash": "237367fea9ecc053a2edc802502d67ae"
   },
   "eslint.config.js": {
-    "mtime": 1793640236.4543786,
-    "seen": 1793648310.97288,
-    "ast_hash": "b3c3f1cd5d169b8eee03785bd4492904",
+    "mtime": 1793660857.3105912,
+    "seen": 1793661071.2835722,
+    "ast_hash": "2bbfa43c0b9611bcd753e14a9de3d660",
     "semantic_hash": ""
   },
   "package.json": {
@@ -444,8 +444,8 @@
     "semantic_hash": ""
   },
   "src/test/setup.ts": {
-    "mtime": 1793393699.5459628,
-    "seen": 1793464300.6437368,
+    "mtime": 1793649799.4600656,
+    "seen": 1793661071.3369958,
     "ast_hash": "9884b9904ddf8c74ef45f1ed97dffcaf",
     "semantic_hash": ""
   },
@@ -1062,9 +1062,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793587489.9752755,
-    "seen": 1793587808.7571025,
-    "ast_hash": "9647f4561cf7caef4bfb5d4d9d0885ee",
+    "mtime": 1793653916.5875127,
+    "seen": 1793661071.493386,
+    "ast_hash": "7c0deb174a3c3143ea93816bd339888b",
     "semantic_hash": ""
   },
   "USER_GUIDE.md": {
@@ -2802,9 +2802,9 @@
     "semantic_hash": ""
   },
   "tasks/todo.md": {
-    "mtime": 1793470638.797688,
-    "seen": 1793470707.0261192,
-    "ast_hash": "4a0e5ebee8be35b53a27018d30d1ce11",
+    "mtime": 1793660879.80301,
+    "seen": 1793661071.5048485,
+    "ast_hash": "45da946ac7face791410b98099240869",
     "semantic_hash": ""
   },
   ".opencode/skills/theme-factory/theme-showcase.pdf": {
@@ -3030,9 +3030,9 @@
     "semantic_hash": ""
   },
   "docs/spec/flowpost-native-capability-map.md": {
-    "mtime": 1793389043.4342144,
-    "seen": 1793392570.0528662,
-    "ast_hash": "0740156578b52bd8b89d13f5c3a3a68f",
+    "mtime": 1793653356.2340786,
+    "seen": 1793661071.501885,
+    "ast_hash": "65da03cf69de86f4ca9e0dba96e5db79",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/core/logging/error_handlers.dart": {
@@ -3162,9 +3162,9 @@
     "semantic_hash": ""
   },
   "docs/spec/SPEC-identity.md": {
-    "mtime": 1793466116.7867875,
-    "seen": 1793467652.4852781,
-    "ast_hash": "bcc6e1f836f8c5e7358fc8b95fef1ec5",
+    "mtime": 1793652628.216149,
+    "seen": 1793661071.499729,
+    "ast_hash": "1c641d0a4c6f1713639325b5a8822b2a",
     "semantic_hash": ""
   },
   "desktop-flutter/test/fixtures/media/expected.json": {
@@ -4176,9 +4176,9 @@
     "semantic_hash": ""
   },
   "docs/runbook.md": {
-    "mtime": 1793587444.6083028,
-    "seen": 1793587808.7603824,
-    "ast_hash": "f04282c0d30cffeadee9f1ff645e71ae",
+    "mtime": 1793657507.9456816,
+    "seen": 1793661071.4986084,
+    "ast_hash": "b357175d169dd71ec8c3349e8c97f805",
     "semantic_hash": ""
   },
   "src/components/BrandIcons.tsx": {
@@ -4218,15 +4218,15 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/license.test.ts": {
-    "mtime": 1793467361.332716,
-    "seen": 1793467652.411417,
-    "ast_hash": "1cfe3cd09fc58ac286187539a5d5181d",
+    "mtime": 1793649799.8269224,
+    "seen": 1793661071.34239,
+    "ast_hash": "bd271efa3616c04475c5643b81359cc4",
     "semantic_hash": ""
   },
   "supabase/functions/_shared/license.ts": {
-    "mtime": 1793467340.672551,
-    "seen": 1793467652.4114208,
-    "ast_hash": "306586738899c9eee8c853c9cc1de0ad",
+    "mtime": 1793649794.1901526,
+    "seen": 1793661071.342396,
+    "ast_hash": "fc963c92cfbabd8c856e836a09ac45df",
     "semantic_hash": ""
   },
   "supabase/functions/_shared/session.test.ts": {
@@ -4242,15 +4242,15 @@
     "semantic_hash": ""
   },
   "supabase/functions/verify-license/index.ts": {
-    "mtime": 1793479973.9069593,
-    "seen": 1793480414.9425664,
-    "ast_hash": "8cfc15c5d23db8ae3229c2fdee0e13cd",
+    "mtime": 1793649839.302424,
+    "seen": 1793661071.3667152,
+    "ast_hash": "3baa1e7d1ea54a4bb6e2fbba2bf6f918",
     "semantic_hash": ""
   },
   "tasks/plan-license.md": {
-    "mtime": 1793470634.184613,
-    "seen": 1793470707.0254605,
-    "ast_hash": "1b97fa43a10fa6109bba081109c8df45",
+    "mtime": 1793658534.686965,
+    "seen": 1793661071.5046184,
+    "ast_hash": "d8d8929bfd0b1aa24fbbac5286cebf61",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/core/security/secret_vault.dart": {
@@ -4380,9 +4380,9 @@
     "semantic_hash": ""
   },
   "tasks/todo-2026-11-01-audit-and-features.md": {
-    "mtime": 1793640407.7744086,
-    "seen": 1793648311.0795274,
-    "ast_hash": "76d05fdba0db9d17976272c906ecff63",
+    "mtime": 1793660825.7377498,
+    "seen": 1793661071.504845,
+    "ast_hash": "7bffc9233efdcb3b0c082bc961b042c8",
     "semantic_hash": ""
   },
   "desktop-flutter/test/core/startup_order_test.dart": {
@@ -4656,15 +4656,27 @@
     "semantic_hash": ""
   },
   "tasks/deploy-server-68.md": {
-    "mtime": 1793648245.4137719,
-    "seen": 1793648311.078706,
-    "ast_hash": "7827ed433ec582bb1e89962c08fb83c1",
+    "mtime": 1793654128.0712273,
+    "seen": 1793661071.5043721,
+    "ast_hash": "ceaca1fc7ba322e4df55f02862618e67",
     "semantic_hash": ""
   },
   "tasks/issue-typed-supabase-client.md": {
-    "mtime": 1793640375.6954238,
-    "seen": 1793648311.07871,
-    "ast_hash": "cb3b4ef2a7124715461a50e9f1b3c6ae",
+    "mtime": 1793660844.5083392,
+    "seen": 1793661071.504375,
+    "ast_hash": "de8f7382c3583e447c9d3b98626c3440",
+    "semantic_hash": ""
+  },
+  "docs/adr/0006-license-key-desktop-access.md": {
+    "mtime": 1793651231.481542,
+    "seen": 1793661071.4983377,
+    "ast_hash": "87026dfebb4d775944b686b62fdb591e",
+    "semantic_hash": ""
+  },
+  "docs/spec/SPEC-license.md": {
+    "mtime": 1793656170.3750439,
+    "seen": 1793661071.499732,
+    "ast_hash": "9b2361e43230727d857990d1c8092cd0",
     "semantic_hash": ""
   }
 }

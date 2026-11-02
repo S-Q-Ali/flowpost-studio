@@ -197,8 +197,9 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · App
 
 ## Issue close-out — #68, #69, #70, #71 (2026-11-02)
 
-Branch `feature/license-access`. Nothing here is pushed: this session cannot reach the GitHub
-account, so every step below is local and the remote actions are listed for the owner.
+Branch `feature/license-access`. The remote actions listed here were carried out on 2026-11-03:
+PR #72 merged to `main` as `3004f23`, #71 closed, `Lint` added to the required checks, and the
+follow-up filed as #73.
 
 ### #71 — ESLint baseline cleared, lint job now blocks
 
@@ -228,15 +229,23 @@ ratcheted to `warn`.
       `.github/workflows/ci.yml` Lint job loses `continue-on-error` and the "(advisory)" name
 - [x] **Verified:** `npx tsc -b` 0 errors · `npm test` 291 passed (21 files) · `npm run build` ok ·
       `npm run lint` **0 errors, 168 warnings, exit 0**
-- [ ] **Owner:** file the follow-up issue from `tasks/issue-typed-supabase-client.md` (134 `any`
-      warnings = 76 in `src/`, 58 in `supabase/functions/`), then flip the rule back to `error`
-- [ ] **Owner:** make Lint a required check on `main` alongside Web, Desktop and CodeQL
+- [x] **Follow-up filed:** issue **#73** — 134 `any` warnings (76 in `src/`, 58 in
+      `supabase/functions/`), counted again against `main` at `3004f23` before filing, so the
+      numbers in the body are current. `tasks/issue-typed-supabase-client.md` is now a pointer.
+- [x] **Lint is a required check on `main`** alongside Web, Desktop and CodeQL — ruleset
+      `Protect Main Branch` (26222325), read back after the change to confirm the other rules were
+      untouched. Post-merge CI on `main` passed with Lint green (9m28s total).
 
 ### #70 / #68 / #69 — status
 
-- [ ] **70a (in progress):** a widget test that walks every desktop screen in light, dark and 200%
-      text and fails on an exception or an overflow. The visual sign-off on the installed build
-      stays with the owner (D5 / #115).
-- [ ] **68a:** the ordered deploy runbook — `TOKEN_ENCRYPTION_KEY` first, then the six migrations,
-      then the changed edge functions. Production deploy needs the owner's Supabase credentials.
+- [x] **70a:** `desktop-flutter/test/core/theme/screen_walk_test.dart` (`5805d21`) walks every
+      desktop screen in light, dark and 200% text and it caught a real overflow — the calendar
+      escaping the shell body at large text, fixed in `9665ec7`. The visual sign-off on the
+      installed build stays with the owner (D5 / #115); #70 is open for that half only.
+- [ ] **68a:** the ordered deploy runbook — `TOKEN_ENCRYPTION_KEY` and `LICENSE_PEPPER` first, then
+      the migrations, then the changed edge functions. Written and merged; the deploy itself is the
+      owner's. **Verified 2026-11-03 that this machine cannot do it:** the `ACCESS_TOKEN` in `.env`
+      is rejected by the Supabase API (`Invalid access token`, 44 characters) and `supabase login`
+      needs an interactive browser, so no `db push` or `functions deploy` can be run from here even
+      with approval.
 - [ ] **69:** live browser-connect verification, blocked behind 68.

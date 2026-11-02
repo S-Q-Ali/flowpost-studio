@@ -26,7 +26,7 @@ export default tseslint.config(
       // - no-explicit-any: the client is typed with the generated Database
       //   shape, but 134 sites still say `any`; the fix is a typed read
       //   helper, not 134 annotations
-      //   (tasks/issue-typed-supabase-client.md).
+      //   (issue #73; the drafting notes are in tasks/issue-typed-supabase-client.md).
       // - set-state-in-effect: every page fetches on mount and sets state in
       //   that effect; the idiom needs a data layer, not a per-file workaround.
       "@typescript-eslint/no-explicit-any": "warn",
