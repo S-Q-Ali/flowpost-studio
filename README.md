@@ -196,8 +196,8 @@ npm test                                  # Vitest: dashboard + edge function sh
 ## Documentation
 
 - `docs/spec/` — feature specs and decisions
-- `docs/adr/` — identity, FFmpeg bundling, local cache, credentials, server-held secrets
-- `docs/runbook.md` — support, release and rollback
+- `docs/adr/` — identity, FFmpeg bundling, local cache, credentials, server-held secrets, license-key desktop access
+- `docs/runbook.md` — support, release and rollback, and how to issue or revoke a license key
 - `USER_GUIDE.md` — end-user guide for the dashboard
 - `CONTRIBUTING.md` — setup, the gates CI enforces, commit and pull request rules
 - `SECURITY.md` — how to report a vulnerability privately
