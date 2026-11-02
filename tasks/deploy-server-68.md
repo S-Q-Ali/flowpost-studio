@@ -1,19 +1,20 @@
 # Deploy the merged server side (#68), then verify the browser connect (#69)
 
-Written 2026-11-03 against `feature/license-access` at `2e1e643`; the commits
-after it touch desktop tests and this file only, not the server. Every claim here
-was checked against the files in this branch; the deploy itself is owner-side,
-because it needs the project's Supabase credentials.
+Written 2026-11-03 against `feature/license-access`, updated the same day for the
+two audit fixes on this branch (a peppered license hash and the own-profile RLS
+policy). Every claim here was checked against the files in this branch; the
+deploy itself is owner-side, because it needs the project's Supabase credentials.
 
 Nothing in this branch is safe to deploy out of order: some edge functions read
-columns that only exist after a migration, and every stored platform token is
-sealed with a key that only exists once it is set as a secret.
+columns that only exist after a migration, every stored platform token is sealed
+with a key that only exists once it is set as a secret, and `verify-license`
+answers 503 until its pepper secret is set.
 
 ## What is actually waiting
 
 | Kind | Count | Names |
 |---|---|---|
-| Migrations | 6 | `20261031000000_licenses`, `20261101000000_post_claim_and_unique`, `20261101000100_license_owner`, `20261101000200_consume_rate_limit`, `20261101000300_operator_config`, `20261102000000_oauth_state_return_to` |
+| Migrations | 7 | `20261031000000_licenses`, `20261101000000_post_claim_and_unique`, `20261101000100_license_owner`, `20261101000200_consume_rate_limit`, `20261101000300_operator_config`, `20261102000000_oauth_state_return_to`, `20261103000000_users_own_profile_only` |
 | New edge functions | 4 | `posts-api`, `operator-config`, `config-status`, `verify-license` |
 | Changed edge functions | 25 | every `*-auth` and `*-upload`, `post-story`, `process-scheduled-posts`, `process-workflow`, `upload-local-file`, `generate-ai-captions`, `get-quota-usage`, `transfer-ticket`, `drive-to-mega`, `fetch-facebook-insights`, `fetch-instagram-insights`, `verify-password`, `verify-security-questions`, `verify-session` |
 | Changed shared modules | 12 | `supabase/functions/_shared/*` — pulled in by the functions that import them, not deployed on their own |
@@ -66,6 +67,29 @@ should be the web origin (`https://flowpost-studio.vercel.app`) — the four new
 functions fall back to that exact value when it is unset, so a different origin
 means setting it.
 
+### `LICENSE_PEPPER`, same step
+
+`verify-license` hashes a submitted key as `HMAC-SHA-256(LICENSE_PEPPER, key)`.
+The pepper is what makes a database dump useless: without it an attacker can
+test guessed keys offline, with it they cannot. The value is any secret of **at
+least 16 characters** — 32 random hex characters is the obvious choice — and it
+is only ever read from the environment, never stored in a table.
+
+```powershell
+(-join ((1..32) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) }))  # 32 hex chars
+```
+
+```bash
+npx supabase secrets set LICENSE_PEPPER="<that value>"
+```
+
+- **Set it before Step 6.** Keys hashed under one pepper never match another, so
+  a pepper that changes mid-way invalidates every license already issued.
+- With the pepper unset or too short, `verify-license` answers **503** and every
+  desktop stops at the license screen — it fails closed rather than guessing.
+- Same rule as the encryption key: set once, do not rotate, and never paste the
+  value into an issue, a commit or this file.
+
 ## Step 2 — Read the database before it changes
 
 `20261101000000` turns duplicate live rows into `failed` so a unique index can
@@ -94,9 +118,10 @@ npx supabase db push
 
 The CLI applies them in filename order, which is the dependency order here:
 `licenses` → `posts.claimed_at` + the unique index → `licenses.user_id` →
-`consume_rate_limit()` → `operator_config` → `oauth_states.return_to`.
+`consume_rate_limit()` → `operator_config` → `oauth_states.return_to` →
+`users_select` narrowed to the owner's own row.
 
-Verify all six landed:
+Verify all seven landed:
 
 ```sql
 select table_name from information_schema.tables
@@ -113,9 +138,14 @@ where schemaname = 'public' and indexname = 'posts_one_live_per_target';
 
 select pg_proc.proname from pg_proc join pg_namespace n on n.oid = pg_proc.pronamespace
 where n.nspname = 'public' and proname = 'consume_rate_limit';
+
+select policyname, qual from pg_policies
+where schemaname = 'public' and tablename = 'users' and policyname = 'users_select';
 ```
 
-Expected row counts: 2 tables, then 3 columns, then 1 index, then 1 function.
+Expected row counts: 2 tables, then 3 columns, then 1 index, then 1 function,
+then 1 policy whose `qual` is `(auth.uid() = id)` — not `true`, which is what
+every signed-in role could read before this branch.
 `licenses` and `operator_config` have RLS on and **no policies** — that is
 intended: only the service role inside the edge functions may read them. The SQL
 Editor cannot prove that (it runs as a superuser role), so read them the way a
@@ -129,11 +159,16 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 curl -s -o /dev/null -w '%{http_code}\n' \
   "https://<ref>.supabase.co/rest/v1/operator_config?select=name" \
   -H "apikey: <anon key>" -H "Authorization: Bearer <anon key>"
+
+curl -s "https://<ref>.supabase.co/rest/v1/users?select=id&limit=5" \
+  -H "apikey: <anon key>" -H "Authorization: Bearer <anon key>"
 ```
 
-Both must answer **401/403**, not a list of names. A `200 []` would mean RLS is
-on with a permissive policy — the one thing that would leak the server's key
-names.
+The first two must answer **401/403**, not a list of names. A `200 []` there
+would mean RLS is on with a permissive policy — the one thing that would leak the
+server's key names. The third answers **200 with `[]`**: the `users` policy
+matches rows rather than blocking the table, and an anonymous caller owns no row.
+Anything else — a list of ids — means `20261103000000` did not apply.
 
 ## Step 4 — Edge functions
 
@@ -176,7 +211,10 @@ done
 Four numbers, none of them `401`. A `401` on a new function means the CLI did not
 pick up `config.toml` for it — redeploy that one alone with
 `npx supabase functions deploy <name> --no-verify-jwt`. A `400` or a `500` with a
-short message is the function answering, which is what is being proved here.
+short message is the function answering, which is what is being proved here. A
+`503` from `verify-license` is also it answering: `LICENSE_PEPPER` (Step 1) is
+unset or shorter than 16 characters, and the function refuses to compare against
+hashes it cannot reproduce — fix that before Step 6.
 
 ## Step 5 — The scheduler
 
@@ -200,13 +238,15 @@ credential.
 
 ## Step 6 — The first license key
 
-`verify-license` compares `sha256(key)` against `licenses.key_hash` (lowercase
-hex, key length 16–256 after trimming). The plaintext key never reaches the
-server, so hash it locally and insert the hash:
+`verify-license` compares `HMAC-SHA-256(LICENSE_PEPPER, key)` against
+`licenses.key_hash` (lowercase hex, key length 16–256 after trimming). Issue the
+key locally and insert only the digest, computed with the pepper from Step 1:
 
 ```powershell
 $key = "FLOWPOST-" + [guid]::NewGuid().ToString("N").ToUpper()
-$hash = -join ((Get-FileHash -InputStream ([IO.MemoryStream]::new([Text.Encoding]::UTF8.GetBytes($key))) -Algorithm SHA256).Hash.ToCharArray() | ForEach-Object { $_.ToString().ToLower() })
+$pepper = "<the LICENSE_PEPPER value from Step 1>"   # never commit this
+$hmac = [Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($pepper))
+$hash = -join ($hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes($key)) | ForEach-Object { $_.ToString("x2") })
 "$key`n$hash"      # give $key to the holder, put $hash in the SQL below
 ```
 
@@ -233,12 +273,17 @@ keys through `operator-config`. Success looks like:
 ## Step 8 — Smoke, in this order
 
 1. Web dashboard: sign in with an existing `public.users` row (signups are
-   closed), list posts. A 401 here means `verify-session` did not deploy.
-2. Desktop: sign in, security questions, the queue loads through `posts-api`.
+   closed), open **Profile**, then list posts. The profile read is the proof that
+   the narrowed `users_select` still returns the signed-in user's own row. A 401
+   on the post list means `verify-session` did not deploy.
+2. Desktop: unlock with the license key from Step 6, then let the queue load
+   through `posts-api`. A refusal here after Step 4 passed means the key was
+   hashed with a different pepper.
 3. Publish one image to one platform. This is the run that exercises
    `claimed_at`, the duplicate index, and the operator key path.
-4. Unlicense check: sign out, sign in, and confirm the license screen still
-   accepts the key from Step 6 and mints a session for its owner.
+4. Deactivate this PC (Settings → License), then unlock again with the same key:
+   the second activation must succeed, which proves the stored digest is
+   reproducible.
 5. Offline check: cut the network, open the queue and calendar, restore —
    the cached rows read and the banner clears.
 
@@ -293,11 +338,17 @@ of the expired → reconnect pair, and the Publish rejection message.
   it is a rollback of the *web* only in practice.
 - **Database.** Forward-only. `licenses`/`operator_config` are additive and
   harmless if left in place. `posts.claimed_at` is nullable and ignored by the
-  old code. The one thing to undo is `posts_one_live_per_target`
-  (`drop index if exists public.posts_one_live_per_target;`) if the old publish
-  path must run again and the owner has re-opened those `failed` rows.
+  old code. Two things can be undone, each only on a proven need:
+  `drop index if exists public.posts_one_live_per_target;` if the old publish path
+  must run again and the owner has re-opened those `failed` rows, and
+  `drop policy if exists "users_select" on public.users;` if some real client
+  turns out to need another user's row — the replacement for it reads every user
+  row to any signed-in role, so put it back only with a `TO` clause that names
+  who.
 - **Secrets.** Leaving `TOKEN_ENCRYPTION_KEY` set harms nothing; deleting it
-  breaks every stored token read.
+  breaks every stored token read. Deleting `LICENSE_PEPPER` (or changing it)
+  makes every issued key stop matching, so unlocking then fails closed until a
+  key is re-hashed under the new value.
 
 ## What this runbook does not cover
 

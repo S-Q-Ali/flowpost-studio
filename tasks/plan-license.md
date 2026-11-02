@@ -57,10 +57,14 @@ license key (user)            hash = sha256(key)              secure vault:
 
 - [ ] **L1 — Shared license logic** (S)
   `_shared/license.ts`: `normalizeLicenseKey` (trim, reject shorter than 16 or
-  longer than 256), `hashLicenseKey(key, subtle)` → lowercase hex, and
+  longer than 256), `hashLicenseKey(key, pepper, subtle)` → lowercase
+  HMAC-SHA-256 hex under the server's `LICENSE_PEPPER` secret (added after the
+  2026-11-01 audit: an unsalted SHA-256 let anyone holding a database dump test
+  guessed keys offline), and
   `isLicenseUsable(row, now)` (active, not expired). Vitest with the Node WebCrypto
   (injected) so the hash is pinned.
-  - Acceptance: short/blank keys rejected; hash is stable and lowercase; an
+  - Acceptance: short/blank keys rejected; hash is stable and lowercase; a blank
+    or too-short pepper throws rather than hashing unsalted; an
     inactive or expired row is not usable; no key is ever logged.
   - Files: `supabase/functions/_shared/license.ts`, `.test.ts`.
 
@@ -82,9 +86,12 @@ license key (user)            hash = sha256(key)              secure vault:
 - [ ] **L4 — `verify-license` edge function** (M)
   `verify_jwt = false` in `config.toml`; CORS; IP rate limit through the existing
   `_shared/rate-limit.ts` (5 attempts / 15 min, reused lockout); POST `{licenseKey}`
-  → normalize, hash, `maybeSingle` active row, set `last_used_at`, mint session,
+  → normalize, hash under `LICENSE_PEPPER`, `maybeSingle` active row, set
+  `last_used_at`, mint session,
   answer `{valid:true, token, expiresAt}`; invalid → 401 `{valid:false}`; locked →
-  429; malformed → 400. No key in any log line.
+  429; malformed → 400; pepper unset or shorter than 16 characters → 503 (fails
+  closed rather than comparing against hashes it cannot reproduce). No key in any
+  log line.
   - Acceptance: valid key returns a working session; wrong/expired/inactive keys
     return 401 without revealing which; sixth attempt is locked; OPTIONS works.
   - Files: `supabase/functions/verify-license/index.ts`, `supabase/config.toml`.
