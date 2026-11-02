@@ -191,3 +191,52 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · App
 | 12 draft restore overwrite | B12 |
 | 13 "Try again" reopens picker | B13 |
 | 14 image MIME from extension | B14 |
+
+
+---
+
+## Issue close-out — #68, #69, #70, #71 (2026-11-02)
+
+Branch `feature/license-access`. Nothing here is pushed: this session cannot reach the GitHub
+account, so every step below is local and the remote actions are listed for the owner.
+
+### #71 — ESLint baseline cleared, lint job now blocks
+
+The CI job ran with `continue-on-error: true` because 195 errors sat in the baseline. Each slice
+below fixed a real defect first; only the two findings whose fix is a project in itself were
+ratcheted to `warn`.
+
+- [x] **71a — mechanical:** dead initialisers (`prefer-const` 12, no autofixer in typescript-eslint),
+      ternary-used-as-statement, empty interface, stale `@ts-ignore` above `duplex: "half"` (5 files —
+      proved stale by compiling the same literal under tsc 6.0.3), the `require()` in
+      `tailwind.config.ts`, an impossible constant `&&` in a test
+- [x] **71b — error handling:** `throw new Error(msg, { cause })` on the four caption paths (needs
+      `"ES2022.Error"` in `tsconfig.app.json` lib), a `finally` that returned and swallowed the
+      workflow queue, nine no-op `storage.api?.logout?.()` guards deleted from `mega-auth` (megajs
+      has no `logout` — proved against `types/es.d.ts` and the shipped source)
+- [x] **71c — React hooks correctness (8 findings, all latent bugs):**
+      three effects calling a `const` declared below them; a render-time `Date.now()` in the queue's
+      24h retry expiry (now a state clock); a `Math.random()` in the vendored sidebar skeleton — the
+      component was unused, so it is deleted; the caption queue read from a ref during render (now
+      mirrored to state); an event handler named `useFileNameAsCaption`, which made the
+      rules-of-hooks check right to complain
+- [x] **Real bug found while fixing the lint:** `filenameToCaption` turned `#GoldenHour_edit.mp4`
+      into `#GoldenHour edit` — a hashtag split in two. Extracted to `src/lib/caption-name.ts`
+      with 6 tests covering single tag, multiple tags, no tag, dot-files and empty names
+- [x] **71d — ratchet:** `@typescript-eslint/no-explicit-any` and `react-hooks/set-state-in-effect`
+      are `warn` with the reason written next to them in `eslint.config.js`;
+      `.github/workflows/ci.yml` Lint job loses `continue-on-error` and the "(advisory)" name
+- [x] **Verified:** `npx tsc -b` 0 errors · `npm test` 291 passed (21 files) · `npm run build` ok ·
+      `npm run lint` **0 errors, 168 warnings, exit 0**
+- [ ] **Owner:** file the follow-up issue from `tasks/issue-typed-supabase-client.md` (134 `any`
+      warnings = 76 in `src/`, 58 in `supabase/functions/`), then flip the rule back to `error`
+- [ ] **Owner:** make Lint a required check on `main` alongside Web, Desktop and CodeQL
+
+### #70 / #68 / #69 — status
+
+- [ ] **70a (in progress):** a widget test that walks every desktop screen in light, dark and 200%
+      text and fails on an exception or an overflow. The visual sign-off on the installed build
+      stays with the owner (D5 / #115).
+- [ ] **68a:** the ordered deploy runbook — `TOKEN_ENCRYPTION_KEY` first, then the six migrations,
+      then the changed edge functions. Production deploy needs the owner's Supabase credentials.
+- [ ] **69:** live browser-connect verification, blocked behind 68.
