@@ -18,6 +18,17 @@ Support, release and rollback notes for the web dashboard and the Windows client
 
 Tokens are kept in Windows Credential Manager through `flutter_secure_storage` (the Supabase session, the PKCE verifier and the `flowpost_token`); nothing token-like is written to the data root, SQLite or the log. OAuth codes, states, keys and paths are redacted before anything reaches the log. Signing out removes every stored record.
 
+## Platform accounts and browser sign-out
+
+A platform connection (YouTube, Instagram, Facebook, TikTok, LinkedIn) is an OAuth grant the **server** holds; the desktop keeps only the platform, the account label and its status — never the platform token. Connecting is a one-time browser sign-in that hands that grant to the server.
+
+Because of that, signing out of the platform **in the browser** does nothing to the connection: the desktop still lists the account and still publishes, because publishing runs on the server's stored grant, not on a browser session. The connection only ends when one of these happens:
+
+- **Disconnect** in the app — the server drops the grant and the account leaves the publish targets.
+- The user **revokes this app's access** at the platform, or the platform's refresh token expires — the next server call fails, the account shows **expired**, its card reads "Nothing publishes until it is connected again", and **Reconnect** appears. Signing in again mints a fresh grant.
+
+Signing out of the **desktop app** is separate: it removes every local record as above and returns to sign-in; it does not touch the server's platform grants, so a later sign-in sees the same connected accounts.
+
 ## First-line support
 
 1. Ask for the version shown in **Settings → About**.
@@ -37,6 +48,7 @@ Tokens are kept in Windows Credential Manager through `flutter_secure_storage` (
 | "Update check failed" | `UPDATE_MANIFEST_URL` empty or unreachable | Empty is valid before release hosting exists; the check is manual and non-blocking |
 | Deep link ignored | Path outside `/` and `/auth-callback`, or the app never ran for this user | The link is rejected and logged without its query string; launch the app once to re-register `flowpost://` |
 | Publish fails with a short sentence | The platform refused the upload | The service text is cleaned (no URLs or paths) before it reaches the screen and the log; retry from the row menu |
+| An account shows expired and will not publish | The platform grant was revoked or the refresh token expired — not a browser sign-out | See **Platform accounts and browser sign-out**; a browser sign-out changes nothing, so use **Reconnect** on the card to mint a fresh grant |
 
 ## Release checklist (desktop)
 
