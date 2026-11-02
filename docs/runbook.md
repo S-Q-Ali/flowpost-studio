@@ -96,3 +96,15 @@ git checkout HEAD -- supabase/functions
 3. Edge function secrets: update in **Supabase Dashboard → Edge Functions → Secrets**; the next isolate picks the new value up, no redeploy needed.
 4. Client-side credentials: the owner enters them in **Settings → Credentials** on the desktop or in `.env.local` for the dashboard.
 5. Never paste a secret into an issue, a commit, or `.env.example`; that file ships with the repository.
+
+### TOKEN_ENCRYPTION_KEY is different
+
+`TOKEN_ENCRYPTION_KEY` (see ADR 0005) is the AES-GCM key that seals every operator key in `operator_config` and every platform token in `connected_accounts`. It is not a credential you rotate for hygiene — rotating or replacing it makes all previously stored values unreadable, because they were sealed with the old key and there is no rewrap.
+
+If the key is changed or lost:
+
+1. Every connected account becomes, in effect, expired: the server can no longer open its token. Each one must be **Reconnect**ed from the Accounts screen.
+2. Every operator key the guided setup stored is unreadable. The `secrets` reader treats an unopenable stored value as missing and falls back to the environment, so a value that is *also* still an edge-function secret keeps working; a value stored *only* in `operator_config` must be re-entered in the wizard.
+3. Set the new key under **Edge Functions → Secrets** before the next publish, and expect failures until the accounts and stored keys are re-supplied.
+
+Do not rotate it routinely. Keep it stable, and back it up as part of the project's secrets.

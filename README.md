@@ -16,7 +16,7 @@
 - **Scheduled posting** — pick a time per platform; a scheduler edge function publishes when it is due
 - **Queue and calendar** — month, week and list views; edit, reschedule, retry or delete pending posts
 - **AI captions** — Groq Whisper transcription, frame analysis and an LLM write per-platform captions
-- **Accounts** — OAuth connections per platform, managed in the web dashboard; tokens stay encrypted at rest and the desktop app publishes to the accounts you connected
+- **Accounts** — connect each platform from inside the app in your browser; the OAuth token is held encrypted on the server and never reaches your PC, and signing out of the platform in the browser does not break the connection
 - **Offline-friendly** — posts cached in SQLite, drafts autosaved and restored after a restart
 - **Desktop-native** — single instance, tray, allowlisted deep links, bundled FFmpeg and a diagnostics export
 - **License-key access** — the app unlocks with a license key, with no account and no sign-up
@@ -36,6 +36,19 @@ The images are rendered from the real widgets with fake data; `desktop-flutter/t
 The Windows installer and its SHA-256 are attached to [GitHub Releases](https://github.com/S-Q-Ali/flowpost-studio/releases). Requirements: Windows 10 or 11 on x64. The installer is not code-signed, so SmartScreen may warn on the first run. Check the download with `certutil -hashfile FlowPostNativeSetup.exe SHA256` and compare it with the `.sha256` file next to it.
 
 On first start the app asks for a license key — there is no login and no sign-up. The key is hashed and checked by the `verify-license` edge function, which mints a short-lived session; the key and session stay in the Windows credential vault and the app opens offline until the session expires. Settings → License deactivates the device.
+
+## Guided setup
+
+When the app has no backend values yet it opens a guided setup instead of a blank screen, and walks step by step until it can reach a Supabase project. Every step says what the app does with the value, what it costs, and the link to where you get it; the wizard saves its place, so you can leave a step and pick it up later.
+
+Which steps you see depends on the track:
+
+- **End user** — point the app at an existing FlowPost server (project address + anon key, saved in `credentials.json` on this PC), then unlock with a license key. Nothing else.
+- **Operator** — your own deployment. The server step, then the platform keys the next steps read: AI captions (Groq), media storage (Cloudflare R2), and the OAuth app for each of Google/YouTube+Drive, Instagram/Facebook (Meta), TikTok and LinkedIn, then the license step. The deploy step is commands to run (`supabase db push`, `supabase functions deploy`, set `TOKEN_ENCRYPTION_KEY` and the service-role key as server secrets), not values to type.
+
+An operator's keys are not stored on the PC. The wizard sends each one to the `operator-config` edge function, which seals it with AES-GCM and stores it in the server's `operator_config` table; `config-status` tells the wizard which steps are satisfied without ever returning a value. A deployment that already keeps those keys as edge-function secrets is unaffected — the stored value wins and the environment is the fallback. [ADR 0005](docs/adr/0005-server-held-secrets.md) is the full write-up.
+
+**Connecting a platform** happens later, in the app, on the Accounts screen: pick a platform, the browser opens that provider's sign-in, and the return link hands a nonce back to the app — never a token. The grant is stored encrypted on the server, so the desktop can list the account and publish to it, and signing out of the platform in the browser changes nothing until the grant is revoked or expires (then the card says so and offers **Reconnect**).
 
 ## Build from source
 
@@ -109,7 +122,7 @@ npx supabase db push
 
 ### Secrets
 
-Set these in **Supabase Dashboard → Edge Functions → Secrets** (never in the repository):
+Set these in **Supabase Dashboard → Edge Functions → Secrets** (never in the repository). The full list is mirrored, placeholder-only, in [`.env.example`](.env.example). The per-platform and Groq/R2 keys below can also be entered through the [guided setup](#guided-setup), which stores them encrypted in the server's `operator_config` table; the infrastructure keys must always be edge-function secrets. [ADR 0005](docs/adr/0005-server-held-secrets.md) explains the custody model.
 
 | Variable | Purpose |
 |---|---|
@@ -120,7 +133,7 @@ Set these in **Supabase Dashboard → Edge Functions → Secrets** (never in the
 | `FRONTEND_API_KEY` | Key the dashboard sends on function calls |
 | `CRON_API_KEY` | Key the scheduler sends |
 | `APP_PASSWORD` | Legacy admin password gate |
-| `TOKEN_ENCRYPTION_KEY` | 256-bit key for AES-GCM encryption of OAuth tokens |
+| `TOKEN_ENCRYPTION_KEY` | base64 256-bit AES-GCM key; seals every stored operator key and every platform token. Set it before using the guided setup; see the runbook before rotating it |
 | `GOOGLE_SHEET_ID` | Default sheet used by workflows |
 | `FB_APP_ID`, `FB_APP_SECRET` | Facebook app |
 | `IG_APP_ID`, `IG_APP_SECRET` | Instagram app |
@@ -182,7 +195,7 @@ npm test                                  # Vitest: dashboard + edge function sh
 ## Documentation
 
 - `docs/spec/` — feature specs and decisions
-- `docs/adr/` — identity, FFmpeg bundling, local cache, credentials
+- `docs/adr/` — identity, FFmpeg bundling, local cache, credentials, server-held secrets
 - `docs/runbook.md` — support, release and rollback
 - `USER_GUIDE.md` — end-user guide for the dashboard
 - `CONTRIBUTING.md` — setup, the gates CI enforces, commit and pull request rules
