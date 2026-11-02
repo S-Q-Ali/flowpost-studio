@@ -142,7 +142,11 @@ Plan: `tasks/plan-2026-11-01-audit-and-features.md` · Created 2026-11-01 · App
 - [ ] F7. Checkpoint: connect, close browser, publish
 
 ## Phase G — Release and docs
-- [ ] G1. README, `.env.example`, ADR, runbook
+- [x] G1. README, `.env.example`, ADR, runbook
+      - **ADR 0005** (`docs/adr/0005-server-held-secrets.md`) documents the custody model from the code: AES-GCM seal under `TOKEN_ENCRYPTION_KEY`, the 18-name `operator_config` table (RLS, no anon/auth policy), `operator-config` write + `config-status` names-only, the encrypted `connected_accounts` token columns and the `ACCOUNT_COLUMNS`/`DISCONNECT_COLUMNS` split that keeps tokens out of responses, and `secrets.readSecrets` stored-wins/env-fallback. It states the deviation: the plan's separate **Vault** became encrypted Postgres because Supabase hosting has no Vault.
+      - **README**: new **Guided setup** section (end-user vs operator tracks, `credentials.json` vs `operator_config`, browser connect returns a nonce not a token); corrected the stale "accounts managed in the web dashboard" bullet; Secrets section now points at `.env.example`, the wizard, and ADR 0005; `TOKEN_ENCRYPTION_KEY` row reworded.
+      - **`.env.example`**: full server-secret manifest — infrastructure (env-only) + the 18 wizard-storable names, placeholders only, with the operator-config/env-fallback relationship noted.
+      - **runbook**: `TOKEN_ENCRYPTION_KEY` rotation warning — rotating or losing it makes every stored key and platform token unreadable; accounts must reconnect, env-held secrets survive. Docs-only change; no gate beyond markdown review.
 - [ ] G2. Final gate + audit + graphify
 
 ## Audit coverage

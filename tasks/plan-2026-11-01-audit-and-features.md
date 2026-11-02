@@ -410,9 +410,10 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
 
 ## Phase G — Release, docs, final gate
 
-- [ ] **G1. Docs** — README setup section replaced by the wizard walkthrough; `.env.example` lists every secret the wizard can store; ADR for server-side token custody and the Vault config store.
+- [x] **G1. Docs** — README setup section replaced by the wizard walkthrough; `.env.example` lists every secret the wizard can store; ADR for server-side token custody and the Vault config store.
   - Files: `README.md`, `.env.example`, `docs/adr/0005-*.md`, `docs/runbook.md`.
   - Dep: E6, F6 · Size: S.
+  - Done: **ADR 0005** (`docs/adr/0005-server-held-secrets.md`) records that the server holds every secret and the desktop holds none — the AES-GCM seal (`_shared/crypto.ts` under `TOKEN_ENCRYPTION_KEY`), the 18-name `operator_config` table (RLS with no anon/auth policy, `operator-config` writes / `config-status` returns names+booleans only), the `connected_accounts` token columns, the `ACCOUNT_COLUMNS`/`DISCONNECT_COLUMNS` split that keeps token material out of every response, and the `secrets.readSecrets` stored-wins/env-fallback rule. It names the deviation plainly: the plan said a separate **Vault**; Supabase hosting has none, so the config is encrypted Postgres instead. **README** gained a **Guided setup** section (end-user vs operator tracks, local `credentials.json` vs server `operator_config`, and the browser connect that hands back a nonce not a token) and the stale "accounts managed in the web dashboard" bullet is corrected. **`.env.example`** now lists every server secret (infrastructure env-only group + the 18 wizard-storable names) as placeholders, noting which the wizard can store. **runbook** carries a `TOKEN_ENCRYPTION_KEY`-rotation warning: rotating or losing it makes every stored key and platform token unreadable, so accounts must reconnect.
 
 - [ ] **G2. Final gate** — web: `npm run test`, `tsc`, `npm run build`, `deno test`; desktop: analyze, format, `flutter test`, release build; `ponytail-audit` re-run has no Must-fix; `graphify update .`.
   - Dep: all · Size: S.
