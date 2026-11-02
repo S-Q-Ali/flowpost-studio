@@ -486,9 +486,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/facebook-upload/index.ts": {
-    "mtime": 1793479394.346115,
-    "seen": 1793480414.9407535,
-    "ast_hash": "1b4c67ca371c4366cade4954df1272be",
+    "mtime": 1793634270.840833,
+    "seen": 1793634717.7408955,
+    "ast_hash": "7c0a16aa65190931d336891751eb51b4",
     "semantic_hash": ""
   },
   "supabase/functions/fetch-facebook-insights/deno.json": {
@@ -558,9 +558,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/instagram-upload/index.ts": {
-    "mtime": 1793479395.2758849,
-    "seen": 1793480414.942511,
-    "ast_hash": "494038ce148673031f17e2819a39bbab",
+    "mtime": 1793634254.5225995,
+    "seen": 1793634717.7461832,
+    "ast_hash": "902043a5986d7afb89cfe0f6edf12462",
     "semantic_hash": ""
   },
   "supabase/functions/linkedin-auth/index.ts": {
@@ -1626,15 +1626,15 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/oauth-state.test.ts": {
-    "mtime": 1793574965.0816617,
-    "seen": 1793587808.6830106,
-    "ast_hash": "af89c28f9b0a07a78a3807376aef2c7e",
+    "mtime": 1793634081.7266884,
+    "seen": 1793634717.7267804,
+    "ast_hash": "908f04a334cb2e30506da62b520cb443",
     "semantic_hash": ""
   },
   "supabase/functions/_shared/oauth-state.ts": {
-    "mtime": 1793574851.4570873,
-    "seen": 1793587808.683013,
-    "ast_hash": "1a11a40fad25592548ba2aed11495d39",
+    "mtime": 1793631322.334287,
+    "seen": 1793634717.7267914,
+    "ast_hash": "497156c63b9cd3b9efccf82558a001d0",
     "semantic_hash": ""
   },
   "supabase/functions/upload-local-file/index.ts": {
@@ -4374,15 +4374,15 @@
     "semantic_hash": ""
   },
   "tasks/plan-2026-11-01-audit-and-features.md": {
-    "mtime": 1793587544.5261269,
-    "seen": 1793587808.7652497,
-    "ast_hash": "a1d192037ecf9214694b8887908bd17a",
+    "mtime": 1793634595.7779796,
+    "seen": 1793634717.9105651,
+    "ast_hash": "0d7edd7472c52471559317235ce64e97",
     "semantic_hash": ""
   },
   "tasks/todo-2026-11-01-audit-and-features.md": {
-    "mtime": 1793587563.7841072,
-    "seen": 1793587808.7657013,
-    "ast_hash": "8c1e22d1ff0de875739fa38ca40532cb",
+    "mtime": 1793634602.85058,
+    "seen": 1793634717.91144,
+    "ast_hash": "612695cce3109cdfcee6e31c5523acf1",
     "semantic_hash": ""
   },
   "desktop-flutter/test/core/startup_order_test.dart": {
