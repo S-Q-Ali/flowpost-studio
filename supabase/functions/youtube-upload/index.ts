@@ -301,7 +301,6 @@ Deno.serve(async (req) => {
         "Content-Type": contentType,
       },
       body: videoStream.body,
-      // @ts-ignore - duplex is required for streaming bodies
       duplex: "half",
     });
 

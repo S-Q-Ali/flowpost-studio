@@ -165,7 +165,6 @@ Deno.serve(async (req) => {
       method: "PUT",
       headers: { "Content-Type": file.type },
       body: file.stream(),
-      // @ts-ignore - duplex is required for streaming bodies
       duplex: "half",
     });
 

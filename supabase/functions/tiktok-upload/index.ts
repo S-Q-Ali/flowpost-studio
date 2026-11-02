@@ -386,7 +386,6 @@ Deno.serve(async (req) => {
       },
       body: videoRes.body,
       signal: uploadController.signal,
-      // @ts-ignore
       duplex: "half",
     });
     clearTimeout(uploadTimeout);
