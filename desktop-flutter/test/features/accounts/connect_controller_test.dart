@@ -6,6 +6,8 @@ import 'package:flowpost_desktop/features/accounts/connect_controller.dart';
 import 'package:flowpost_desktop/features/accounts/data/pending_connect_store.dart';
 import 'package:flowpost_desktop/features/accounts/domain/connected_account.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
+import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
+import 'package:flowpost_desktop/features/publishing/publishing_providers.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -292,6 +294,23 @@ void main() {
     controller().clearMessage();
 
     expect(state().message, isNull);
+  });
+
+  test('a connect puts the new account on the publish targets', () async {
+    final nonce = await started('youtube');
+    expect(await container.read(publishTargetsProvider.future), isEmpty);
+
+    repository.accounts = const [_youtube];
+    answered('youtube', nonce);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await container.read(publishTargetsProvider.future), [
+      const PublishTarget(
+        platform: PublishPlatform.youtube,
+        accountId: 'UC-1',
+        accountName: 'FlowPost Studio',
+      ),
+    ]);
   });
 
   test(

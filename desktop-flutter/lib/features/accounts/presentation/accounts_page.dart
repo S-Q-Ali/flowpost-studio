@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../publishing/domain/publish_target.dart';
 import '../accounts_providers.dart';
 import '../connect_controller.dart';
 import '../domain/connect_target.dart';
@@ -282,6 +283,16 @@ class _AccountCard extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 8),
+            // The compose screen only takes a connected row with the platform's
+            // own id, so the card says whether this one is something to publish
+            // to rather than leaving the admin to guess.
+            Text(
+              publishUseLineOf(account),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
             if (onReconnect != null || onDisconnect != null) ...[
               const SizedBox(height: 16),
               // Wrap again: at 200% text two buttons do not fit one line.

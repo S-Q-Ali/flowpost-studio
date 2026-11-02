@@ -144,6 +144,23 @@ List<PublishTarget> publishTargetsFor(ConnectedAccount account) {
   ];
 }
 
+/// What the compose screen would take from this account, in the words the
+/// picks use, so the card says what publishing actually does with it.
+String publishUseLineOf(ConnectedAccount account) {
+  // A drive row never publishes, whatever its status says: naming it as a
+  // sign-in to reconnect would send the admin to the wrong button.
+  if (account.platform == SocialPlatform.googleDrive ||
+      account.platform == SocialPlatform.mega) {
+    return 'It holds the media; nothing publishes from it.';
+  }
+  if (account.status != AccountStatus.connected) {
+    return 'Nothing publishes until it is connected again.';
+  }
+  final targets = publishTargetsFor(account);
+  if (targets.isEmpty) return 'Nothing publishes from it yet.';
+  return 'Publishes: ${targets.map((target) => target.label).join(' and ')}.';
+}
+
 /// The caption key the AI wrote for this platform.
 ///
 /// The key must be one the captions module produces for the platform, which

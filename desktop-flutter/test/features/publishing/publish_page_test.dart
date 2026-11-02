@@ -4,6 +4,7 @@ import 'package:flowpost_desktop/app.dart';
 import 'package:flowpost_desktop/core/config/app_config.dart';
 import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/core/time/time_zone.dart';
+import 'package:flowpost_desktop/features/accounts/accounts_providers.dart';
 import 'package:flowpost_desktop/features/media/domain/media_validation.dart';
 import 'package:flowpost_desktop/features/offline/connectivity.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
@@ -20,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/config_overrides.dart';
+import '../../support/fake_accounts.dart';
 import '../../support/fake_drafts.dart';
 import '../../support/fake_time_zone.dart';
 
@@ -136,6 +138,11 @@ Future<void> _pump(
       overrides: [
         seededConfig(_config),
         publishTargetsProvider.overrideWithValue(targets),
+        // The Accounts screen the empty state opens reads the real list; the
+        // fake keeps that hop out of the plugin channels.
+        accountsRepositoryProvider.overrideWith(
+          (ref) => FakeAccountsRepository(const []),
+        ),
         if (!realMedia)
           publishedMediaProvider.overrideWithValue(
             withMedia
@@ -186,22 +193,44 @@ void main() {
     expect(find.textContaining('Upload a file first'), findsOneWidget);
   });
 
-  testWidgets('nothing connected says to connect an account', (tester) async {
+  testWidgets('nothing to publish to points at the Accounts screen', (
+    tester,
+  ) async {
     await _pump(tester, targets: const AsyncData(<PublishTarget>[]));
 
-    expect(find.textContaining('No account is connected'), findsOneWidget);
-    expect(find.textContaining('Accounts'), findsWidgets);
+    expect(
+      find.textContaining('Connect or reconnect an account'),
+      findsOneWidget,
+    );
+    // The connect happens in this app now, so no sentence sends the admin to
+    // the browser.
+    expect(find.textContaining('web dashboard'), findsNothing);
     final button = tester.widget<FilledButton>(
       find.widgetWithText(FilledButton, 'Publish now'),
     );
     expect(button.onPressed, isNull);
   });
 
-  testWidgets('accounts still being read are not called empty', (tester) async {
+  testWidgets('the empty state opens Accounts', (tester) async {
+    await _pump(tester, targets: const AsyncData(<PublishTarget>[]));
+
+    await tester.tap(find.byKey(const Key('open-accounts')));
+    await tester.pumpAndSettle();
+
+    // The compose form is gone, so the screen named in the sentence is the
+    // one the admin is on.
+    expect(find.text('clip.mp4'), findsNothing);
+  });
+
+  testWidgets('a wait for the accounts is not called empty', (tester) async {
     await _pump(tester, targets: const AsyncLoading());
 
     expect(find.textContaining('Loading'), findsOneWidget);
-    expect(find.textContaining('No account is connected'), findsNothing);
+    expect(
+      find.textContaining('Connect or reconnect an account'),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('open-accounts')), findsNothing);
   });
 
   testWidgets('accounts that could not be read say so', (tester) async {
@@ -214,7 +243,10 @@ void main() {
     );
 
     expect(find.textContaining('could not be read'), findsOneWidget);
-    expect(find.textContaining('No account is connected'), findsNothing);
+    expect(
+      find.textContaining('Connect or reconnect an account'),
+      findsNothing,
+    );
   });
 
   testWidgets('the publish action is off without a sign-in', (tester) async {

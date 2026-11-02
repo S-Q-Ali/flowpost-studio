@@ -104,4 +104,43 @@ void main() {
       reason: 'the post needs the id the platform knows the account by',
     );
   });
+
+  test('the card says what publishing takes from a connected account', () {
+    expect(publishUseLineOf(_account('youtube')), 'Publishes: YouTube.');
+    expect(
+      publishUseLineOf(_account('instagram')),
+      'Publishes: Instagram and Instagram story.',
+    );
+  });
+
+  test('a sign-in that is not live blocks publishing until it is back', () {
+    for (final status in [AccountStatus.disconnected, AccountStatus.expired]) {
+      expect(
+        publishUseLineOf(_account('tiktok', status: status)),
+        'Nothing publishes until it is connected again.',
+        reason: status.name,
+      );
+    }
+  });
+
+  test('a drive account is never called a publish target', () {
+    // The line holds whatever the status is: this row never publishes, so it
+    // must not be read as a sign-in that only needs reconnecting.
+    for (final serverPlatform in ['google_drive', 'mega']) {
+      expect(
+        publishUseLineOf(
+          _account(serverPlatform, status: AccountStatus.expired),
+        ),
+        'It holds the media; nothing publishes from it.',
+        reason: serverPlatform,
+      );
+    }
+  });
+
+  test('a connected row the server never named publishes nothing yet', () {
+    expect(
+      publishUseLineOf(_account('youtube', accountId: '')),
+      'Nothing publishes from it yet.',
+    );
+  });
 }

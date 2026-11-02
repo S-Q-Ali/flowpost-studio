@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/format/media_format.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/time_zone.dart';
 import '../../offline/connectivity.dart';
@@ -67,9 +69,20 @@ class PublishPage extends ConsumerWidget {
                   _DraftBanner(restore: restore),
                 ],
                 const SizedBox(height: 24),
-                if (targets.isEmpty)
-                  Text(_noTargetsMessage(targetsState))
-                else ...[
+                if (targets.isEmpty) ...[
+                  Text(_noTargetsMessage(targetsState)),
+                  // The connect and the reconnect both live on the Accounts
+                  // screen, so the sentence that names it is a button.
+                  if (!targetsState.isLoading)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: TextButton(
+                        key: const Key('open-accounts'),
+                        onPressed: () => context.go(accountsRoute),
+                        child: const Text('Open Accounts'),
+                      ),
+                    ),
+                ] else ...[
                   Text('Platforms', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   for (final target in targets)
@@ -173,11 +186,9 @@ class PublishPage extends ConsumerWidget {
 /// list: the admin would look for a connection that may already be there.
 String _noTargetsMessage(AsyncValue<List<PublishTarget>> targets) {
   if (targets.isLoading) return 'Loading the accounts on your server.';
-  if (targets.hasError) {
-    return 'The connected accounts could not be read. Open Accounts to see why.';
-  }
-  return 'No account is connected yet. '
-      'Connect a platform in the web dashboard.';
+  if (targets.hasError) return 'The connected accounts could not be read.';
+  return 'Nothing here can publish yet. Connect or reconnect an account in '
+      'Accounts.';
 }
 
 /// Whether these exact inputs already went out in the finished run.

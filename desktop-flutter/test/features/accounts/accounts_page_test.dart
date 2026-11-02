@@ -396,6 +396,38 @@ void main() {
     expect(find.byKey(const Key('disconnect-youtube-')), findsNothing);
   });
 
+  testWidgets('a card says what publishing takes from that account', (
+    tester,
+  ) async {
+    await _pumpApp(
+      tester,
+      FakeAccountsRepository([
+        _youtube,
+        _instagram,
+        _expiredTiktok,
+        _expiredMega,
+      ]),
+    );
+
+    expect(find.text('Publishes: YouTube.'), findsOneWidget);
+    expect(
+      find.text('Publishes: Instagram and Instagram story.'),
+      findsOneWidget,
+    );
+    // The block is named, not only the badge: an expired sign-in is the one
+    // thing the compose screen cannot work around.
+    expect(
+      find.text('Nothing publishes until it is connected again.'),
+      findsOneWidget,
+    );
+    // MEGA stores the media whatever its status, so it is never read as a
+    // sign-in that only needs reconnecting.
+    expect(
+      find.text('It holds the media; nothing publishes from it.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('the screen no longer sends the admin to the web dashboard', (
     tester,
   ) async {
