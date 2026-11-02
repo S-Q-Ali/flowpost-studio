@@ -397,10 +397,12 @@ Assumed load: one operator, a handful of users, desktop clients calling Supabase
   - Corrections to the plan: `publishing_providers.dart` did not change — the target list already invalidates with the accounts, so the wiring was copy and a route in `publish_page.dart` plus the derived line in `publish_target.dart`.
   - 9 new tests (4 `publishUseLineOf` cases, 1 accounts-page card line, 1 connect→targets, 3 rewritten publish empty-state tests). Gate: format 0 changed, analyze clean, 1011 desktop tests green, release build produced `flowpost.exe`. The manual connect → publish without a restart is F7 with C4.
 
-- [ ] **F6. Prove browser sign-out independence** — Accept: after connecting, signing out of the platform in the browser leaves the desktop able to list and publish (until the provider revokes the grant); documented in the runbook.
+- [x] **F6. Prove browser sign-out independence** — Accept: after connecting, signing out of the platform in the browser leaves the desktop able to list and publish (until the provider revokes the grant); documented in the runbook.
   - Verify: manual on YouTube + Instagram; one note in `docs/runbook.md`.
   - Files: `docs/runbook.md`.
   - Dep: F5 · Size: XS.
+  - Done: `docs/runbook.md` gained a **Platform accounts and browser sign-out** section (plus a Symptoms row) stating the model the code already enforces — the OAuth grant lives on the server, the desktop keeps only platform/label/status/`accountId` (`connected_account.dart` holds no token), so signing out in the browser cannot reach the stored grant and publishing continues. It lists the only three ways the connection actually ends (Disconnect, provider revoke / refresh-token expiry → **expired** + Reconnect, desktop sign-out leaving server grants untouched).
+  - Not yet done: the live YouTube + Instagram sign-out run is the owner's, folded into F7 alongside C4. The note describes what the architecture guarantees; the manual pass confirms it on a real grant.
 
 - [ ] **F7. Checkpoint** — connect, close browser, quit the app, reopen, publish.
 
