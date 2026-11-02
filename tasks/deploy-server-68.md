@@ -239,24 +239,26 @@ credential.
 ## Step 6 — The first license key
 
 `verify-license` compares `HMAC-SHA-256(LICENSE_PEPPER, key)` against
-`licenses.key_hash` (lowercase hex, key length 16–256 after trimming). Issue the
-key locally and insert only the digest, computed with the pepper from Step 1:
+`licenses.key_hash` (lowercase hex, key length 16–256 after trimming). Make the
+key and its digest locally with the pepper from Step 1, then insert only the
+digest — the commands live in the runbook, **License keys → Issue a key**
+([docs/runbook.md](../docs/runbook.md)), so there is one copy of them.
 
-```powershell
-$key = "FLOWPOST-" + [guid]::NewGuid().ToString("N").ToUpper()
-$pepper = "<the LICENSE_PEPPER value from Step 1>"   # never commit this
-$hmac = [Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($pepper))
-$hash = -join ($hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes($key)) | ForEach-Object { $_.ToString("x2") })
-"$key`n$hash"      # give $key to the holder, put $hash in the SQL below
-```
+For this first key set `user_id` to the admin `public.users` uuid instead of
+leaving it null: a key without an owner shares the admin session, so activating
+it on a desktop signs out the web admin gate.
+
+Then unlock once from the app before Step 8, and read the two facts it should
+have left behind:
 
 ```sql
-insert into public.licenses (key_hash, label, active, user_id)
-values ('<hash>', 'owner', true, '<auth.users uuid>');
+select label, active, expires_at, last_used_at, user_id from public.licenses;
+select user_id, expires_at from public.sessions order by expires_at desc;
 ```
 
-`user_id` is optional. With it, the session `verify-license` mints carries that
-user; without it the function falls back to the admin session, as before.
+`last_used_at` a few seconds old, and exactly one live `sessions` row for that
+user. No row in `sessions` means the activation never reached the function — go
+back to Step 4.
 
 ## Step 7 — Point the desktop at the server it just deployed
 

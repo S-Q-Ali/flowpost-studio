@@ -14,17 +14,17 @@ Scope answers:
 |---|---|
 | What is gated | The desktop app only. The web dashboard keeps its Supabase login. |
 | Existing identity code | Unwired from the app; files and history stay. |
-| License model | SHA-256 hashes in a `licenses` table; a new `verify-license` function mints the existing 7-day session token. |
+| License model | `HMAC-SHA-256(LICENSE_PEPPER, key)` digests in a `licenses` table; a new `verify-license` function mints the existing 7-day session token. |
 
 ## Architecture
 
 ```
 Desktop first run                Backend                        Desktop after
 setup (URL + anon key)  ──►  POST functions/v1/verify-license
-license key (user)            hash = sha256(key)              secure vault:
-        │                     licenses: active, not expired   token + expiresAt
-        └──────────────────►  mint session (7 days)   ──────►  + key in the vault
-                              bound to the admin user id      Router guard opens the app
+license key (user)            hash = hmac(pepper, key)         secure vault:
+        │                     licenses: active, not expired    token + expiresAt
+        └──────────────────►  mint session (7 days)     ──►  + key in the vault
+                              for licenses.user_id             Router guard opens the app
                                                                      │
                                                               edge calls use
                                                               x-admin-token / Bearer <session token>
@@ -36,17 +36,16 @@ license key (user)            hash = sha256(key)              secure vault:
 - **No Supabase Auth on the desktop.** The desktop never calls GoTrue; the session
   token comes from the license function, exactly the token the existing edge
   functions already accept, so no other function changes.
-- **Only hashes at rest.** The `licenses` table stores `sha256(key)`; the plaintext
-  key exists only in the owner's hand-off and on the user's machine (no UI echo,
-  no log).
+- **Only digests at rest.** The `licenses` table stores `HMAC-SHA-256(LICENSE_PEPPER, key)`; the plaintext key exists only in the owner's hand-off and on the user's machine (no UI echo, no log). The pepper is a server-only secret — plain SHA-256 was the audit finding that put it here.
 - **Same single-session model as today.** Minting a session deletes older ones, so
   activating a license signs out the web admin gate and vice versa; this is the
   documented behaviour and stays.
 - **Offline.** A stored, unexpired token opens the app without a network call
   (marked "offline"); an expired token renews silently with the key kept in the
   vault, and only a revoked or missing key sends the user back to the license
-  screen. When online, the stored token is confirmed with the existing
-  `verify-session`.
+  screen. The plan's `verify-session` round-trip was dropped as unnecessary: the
+  stored expiry plus a refusal from any function is the re-check (SPEC-license
+  Decision 7).
 - **Unwired, not deleted.** `features/identity/**` stays in the tree and its unit
   tests keep passing; no app file imports it. `SPEC-identity.md` gets an inactive
   header; ADR 0001 stays as history and ADR 0005 records the supersession.
@@ -185,13 +184,22 @@ license key (user)            hash = sha256(key)              secure vault:
 
 ### Phase 3 — Docs, deploy and gate
 
-- [ ] **L10 — Docs** (S)
+- [x] **L10 — Docs** (S)
   `docs/spec/SPEC-license.md` (flow, threats, key issuance/rotation/revocation),
-  `docs/adr/0005-license-key-access.md`, inactive note atop `SPEC-identity.md`,
-  runbook (issue a key, revoke a key, activation signs out the web gate), README
-  first-run copy.
+  `docs/adr/0006-license-key-desktop-access.md`, inactive note atop
+  `SPEC-identity.md`, runbook (issue a key, revoke a key, activation signs out
+  the web gate), README first-run copy.
   - Acceptance: issuing/revoking a key is a copy-pasteable SQL snippet using a
     one-line hash command; no secret in any doc.
+  - Done 2026-11-03: the ADR is **0006**, not 0005 — 0005 was taken by
+    server-held secrets while this plan was written. `docs/runbook.md` gained a
+    **License keys** section (issue / check / stop / pepper rule) and the
+    pre-license support copy was corrected: the vault holds three license
+    records, there is no desktop sign-in or sign-out, the 401 and deep-link
+    symptoms say what the app does now, and the release check tests
+    `flowpost://connect-callback`. `tasks/deploy-server-68.md` Step 6 points at
+    the runbook instead of repeating the hash commands. The capability map and
+    `SPEC-identity.md` carry the supersession.
 
 - [ ] **L11 — Deploy and seed a key** (owner-assisted)
   `npx supabase db push`, `functions deploy verify-license
@@ -210,7 +218,7 @@ license key (user)            hash = sha256(key)              secure vault:
 | Risk | Impact | Mitigation |
 |---|---|---|
 | OSS client check bypassed | High | The check is server-side; functions still need the session token |
-| Key leak / sharing | Med | Hashes only, per-key revoke (`active=false`), rate limit, optional expiry |
+| Key leak / sharing | Med | Peppered digests only, per-key revoke (`active=false`), 10-per-15-min on IP and on key, optional expiry, `last_used_at` as the sharing clue |
 | Single-session model logs out the web gate | Med | Documented; expired token → license screen with a clear message |
 | Owner deploy credentials unavailable | High (blocks L11) | Everything through L10 is testable with fakes; only L11 is owner-blocked |
 | Identity files rot once unwired | Low | Kept as reference; `SPEC-identity.md` marks them inactive, tests still run |
