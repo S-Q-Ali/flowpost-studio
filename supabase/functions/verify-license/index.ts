@@ -1,6 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { consumeRateLimit, type RateLimitResult } from "../_shared/rate-limit.ts";
-import { hashLicenseKey, isLicenseUsable, normalizeLicenseKey } from "../_shared/license.ts";
+import {
+  hashLicenseKey,
+  isLicenseUsable,
+  MIN_LICENSE_PEPPER_LENGTH,
+  normalizeLicenseKey,
+} from "../_shared/license.ts";
 import { createSession } from "../_shared/session.ts";
 
 const corsHeaders = {
@@ -10,6 +15,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const LICENSE_PEPPER = Deno.env.get("LICENSE_PEPPER") || "";
 const ADMIN_USER_ID_FALLBACK = "00000000-0000-0000-0000-000000000000";
 
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
@@ -32,14 +38,13 @@ function json(data: unknown, status = 200) {
   });
 }
 
+const UNAVAILABLE = "The license check is unavailable. Try again shortly.";
+
 /** The refusal for a spent bucket, or null when the attempt may go on. */
 function refused(rate: RateLimitResult): Response | null {
   if (rate.allowed) return null;
   if (!rate.resetAt) {
-    return json(
-      { valid: false, error: "The license check is unavailable. Try again shortly." },
-      503,
-    );
+    return json({ valid: false, error: UNAVAILABLE }, 503);
   }
   const minutes = Math.max(
     1,
@@ -66,6 +71,13 @@ Deno.serve(async (req) => {
     || "unknown";
 
   try {
+    // Without the pepper every stored hash was made another way, so answering
+    // here could only produce false negatives.
+    if (LICENSE_PEPPER.length < MIN_LICENSE_PEPPER_LENGTH) {
+      console.error("verify-license: LICENSE_PEPPER is unset or too short");
+      return json({ valid: false, error: UNAVAILABLE }, 503);
+    }
+
     // Every attempt counts against both buckets: the caller's IP, so one
     // machine cannot guess in a loop, and the key itself, so many machines
     // cannot guess one key.
@@ -80,7 +92,7 @@ Deno.serve(async (req) => {
       return json({ valid: false, error: "Invalid license key" }, 400);
     }
 
-    const keyHash = await hashLicenseKey(key);
+    const keyHash = await hashLicenseKey(key, LICENSE_PEPPER);
     const keyRefusal = refused(
       await consumeRateLimit(supabase, `verify-license:key:${keyHash}`, { max: 10 }),
     );
