@@ -176,7 +176,6 @@ Deno.serve(async (req) => {
     }
 
     let postRes: Response;
-    let postData: any;
 
     if (isImage) {
       postRes = await fetch(
@@ -208,7 +207,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    postData = await postRes.json();
+    const postData = (await postRes.json()) as { id?: string };
     console.log(`Facebook ${isImage ? "image" : "video"} upload response:`, postRes.status, postData);
     if (!postRes.ok || !postData?.id) {
       console.error(`Facebook ${isImage ? "image" : "video"} file_url upload failed`, postRes.status, postData);

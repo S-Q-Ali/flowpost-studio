@@ -17,8 +17,7 @@ function makeSupabase(handlers: {
   deleteThrows?: boolean;
 }) {
   const calls: string[] = [];
-  let builder: any;
-  builder = {
+  const builder: any = {
     insert: (payload: unknown) => {
       calls.push("insert");
       return handlers.insert ? handlers.insert(payload) : Promise.resolve({ error: null });
