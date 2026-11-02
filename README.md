@@ -134,6 +134,7 @@ Set these in **Supabase Dashboard → Edge Functions → Secrets** (never in the
 | `CRON_API_KEY` | Key the scheduler sends |
 | `APP_PASSWORD` | Legacy admin password gate |
 | `TOKEN_ENCRYPTION_KEY` | base64 256-bit AES-GCM key; seals every stored operator key and every platform token. Set it before using the guided setup; see the runbook before rotating it |
+| `LICENSE_PEPPER` | HMAC-SHA-256 key for the license digests. Set it before issuing the first key, then leave it alone — changing it invalidates every key already issued |
 | `GOOGLE_SHEET_ID` | Default sheet used by workflows |
 | `FB_APP_ID`, `FB_APP_SECRET` | Facebook app |
 | `IG_APP_ID`, `IG_APP_SECRET` | Instagram app |
