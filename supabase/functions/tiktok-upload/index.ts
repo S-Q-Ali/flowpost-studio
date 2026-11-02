@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    let fileUrl = video.file_url as string;
+    const fileUrl = video.file_url as string;
     if (!fileUrl || !validateUrl(fileUrl)) {
       await supabase
         .from("posts")

@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
 
-  let body: Record<string, unknown> = {};
+  let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
