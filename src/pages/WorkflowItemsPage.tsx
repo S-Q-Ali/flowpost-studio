@@ -28,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Workflow, WorkflowItem } from "@/lib/types";
 import { CaptionPreviewModal } from "@/components/CaptionPreviewModal";
 import { generateAICaptions, regenerateCaptions, type StepProgress } from "@/lib/captions";
+import { filenameToCaption } from "@/lib/caption-name";
 import { getItemPublishTime } from "@/lib/scheduling";
 import { invokeFunction, type InvokeFunctionResult } from "@/lib/invoke";
 import type { Database } from "@/integrations/supabase/types";
@@ -36,19 +37,6 @@ function formatBytes(b: number): string {
   if (!b) return "0 B";
   if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
   return (b / 1048576).toFixed(1) + " MB";
-}
-
-function filenameToCaption(fileName: string): string | null {
-  if (!fileName || !fileName.trim()) return null;
-  let name = fileName.trim();
-  const lastDot = name.lastIndexOf(".");
-  if (lastDot > 0) name = name.slice(0, lastDot);
-  // Protect hashtag tokens so separators inside them are never altered
-  name = name.replace(/(#[A-Za-z0-9_]+)/g, "\u0001$1\u0002");
-  name = name.replace(/[_\-]+/g, " ");
-  name = name.replace(/[\u0001\u0002]/g, "");
-  name = name.replace(/\s+/g, " ").trim();
-  return name || null;
 }
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -726,15 +714,14 @@ export default function WorkflowItemsPage() {
       if (stopRef.current) {
         queueRef.current = [];
         finishBatch(true);
-        return;
-      }
-
-      const next = queueRef.current.shift();
-      if (next) {
-        if (batchRef.current) updateBatch({ currentLabel: next.file_name });
-        generateCaptions(next);
-      } else if (batchRef.current) {
-        finishBatch(false);
+      } else {
+        const next = queueRef.current.shift();
+        if (next) {
+          if (batchRef.current) updateBatch({ currentLabel: next.file_name });
+          generateCaptions(next);
+        } else if (batchRef.current) {
+          finishBatch(false);
+        }
       }
     }
   };
