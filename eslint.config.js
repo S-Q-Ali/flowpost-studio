@@ -23,8 +23,10 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
       // Two rules report true defects but their fix is bigger than a patch, so
       // they stay loud without blocking the tree:
-      // - no-explicit-any: the Supabase client has no generated Database type
-      //   yet; 134 casts would be noise, one typed client would fix them all.
+      // - no-explicit-any: the client is typed with the generated Database
+      //   shape, but 134 sites still say `any`; the fix is a typed read
+      //   helper, not 134 annotations
+      //   (tasks/issue-typed-supabase-client.md).
       // - set-state-in-effect: every page fetches on mount and sets state in
       //   that effect; the idiom needs a data layer, not a per-file workaround.
       "@typescript-eslint/no-explicit-any": "warn",
