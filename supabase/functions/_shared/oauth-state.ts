@@ -102,6 +102,22 @@ export function callbackLocation(
   return `${trusted}${sep}connected=${encodeURIComponent(platform)}`;
 }
 
+/// Forget waits a day past their minute.
+///
+/// The row is dead the moment it expires — consume only claims live ones — so
+/// a day of grace is pure safety margin. This deletes the abandoned waits the
+/// browser never came back for and the used ones the callback left behind;
+/// without it the table only ever grows. Best-effort by design: a purge that
+/// fails must not refuse a connect that is about to start.
+async function purgeExpiredStates(supabase: any): Promise<void> {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  try {
+    await supabase.from("oauth_states").delete().lt("expires_at", cutoff);
+  } catch {
+    // The next connect sweeps again.
+  }
+}
+
 export async function createOAuthState(
   supabase: any,
   args: { userId: string; mode?: string; returnTo?: string | null; appOrigin?: string },
@@ -110,6 +126,7 @@ export async function createOAuthState(
   const trusted = args.returnTo
     ? normalizeReturnTo(args.returnTo, args.appOrigin ?? DEFAULT_APP_ORIGIN, args.mode)
     : null;
+  await purgeExpiredStates(supabase);
   const { error } = await supabase.from("oauth_states").insert({
     user_id: args.userId,
     state,

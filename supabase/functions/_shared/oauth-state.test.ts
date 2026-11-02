@@ -14,6 +14,7 @@ const NONCE = "a".repeat(64);
 function makeSupabase(handlers: {
   insert?: (payload: unknown) => Promise<{ error: { message: string } | null }>;
   maybeSingleResult?: unknown;
+  deleteThrows?: boolean;
 }) {
   const calls: string[] = [];
   let builder: any;
@@ -26,6 +27,17 @@ function makeSupabase(handlers: {
       calls.push("update");
       return builder;
     },
+    delete: () => {
+      calls.push("delete");
+      return {
+        lt: (col: string) => {
+          calls.push(`lt:${col}`);
+          return handlers.deleteThrows
+            ? Promise.reject(new Error("the purge blew up"))
+            : Promise.resolve({ error: null });
+        },
+      };
+    },
     eq: (col: string) => {
       calls.push(`eq:${col}`);
       return builder;
@@ -36,6 +48,10 @@ function makeSupabase(handlers: {
     },
     gt: (col: string) => {
       calls.push(`gt:${col}`);
+      return builder;
+    },
+    lt: (col: string) => {
+      calls.push(`lt:${col}`);
       return builder;
     },
     select: (cols: string) => {
@@ -98,6 +114,21 @@ describe("createOAuthState", () => {
       insert: async () => ({ error: { message: "unique violation" } }),
     });
     await expect(createOAuthState(supabase as never, { userId: "user-1" })).rejects.toThrow();
+  });
+
+  it("purges long-expired rows so the table does only grow", async () => {
+    const { supabase, calls } = makeSupabase({});
+    await createOAuthState(supabase as never, { userId: "user-1", mode: "youtube" });
+    expect(calls).toContain("from:oauth_states");
+    expect(calls).toContain("delete");
+    expect(calls).toContain("lt:expires_at");
+    expect(calls).toContain("insert");
+  });
+
+  it("still starts the connect when the purge blows up", async () => {
+    const { supabase } = makeSupabase({ deleteThrows: true });
+    const state = await createOAuthState(supabase as never, { userId: "user-1", mode: "youtube" });
+    expect(state).toMatch(/^[0-9a-f]{48}$/);
   });
 });
 
