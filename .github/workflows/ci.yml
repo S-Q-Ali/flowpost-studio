@@ -41,11 +41,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
   lint:
-    name: Lint (advisory)
-    # The ESLint baseline still reports `any` and `ts-ignore` findings in the
-    # web app. Keep the run visible without blocking merge until that baseline
-    # is cleared; the type check and tests are the blocking gates.
-    continue-on-error: true
+    name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
