@@ -52,6 +52,7 @@ export default function QueuePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editPost, setEditPost] = useState<PostWithDetails | null>(null);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   // Edit form state
   const [editCaption, setEditCaption] = useState("");
@@ -96,6 +97,12 @@ export default function QueuePage() {
   useEffect(() => {
     fetchPosts().finally(done);
   }, [filter]);
+
+  // Render must not read the wall clock: this tick advances the 24h expiry check.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const openEdit = (post: PostWithDetails) => {
     setEditPost(post);
@@ -201,7 +208,7 @@ export default function QueuePage() {
   const isVideoExpired = (post: PostWithDetails) => {
     const uploadedAt = (post as { videos?: { uploaded_at?: string } }).videos?.uploaded_at;
     if (!uploadedAt) return true;
-    return Date.now() - new Date(uploadedAt).getTime() > 24 * 60 * 60 * 1000;
+    return now - new Date(uploadedAt).getTime() > 24 * 60 * 60 * 1000;
   };
 
   if (loading) {
