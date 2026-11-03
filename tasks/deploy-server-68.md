@@ -182,16 +182,34 @@ curl -s "https://<ref>.supabase.co/rest/v1/users?select=id&limit=5" \
   -H "apikey: <anon key>" -H "Authorization: Bearer <anon key>"
 ```
 
-The first two must answer **401/403**, not a list of names. A `200 []` there
-would mean RLS is on with a permissive policy — the one thing that would leak the
-server's key names. The third answers **200 with `[]`**: the `users` policy
-matches rows rather than blocking the table, and an anonymous caller owns no row.
-Anything else — a list of ids — means `20261103000000` did not apply.
+All three answer **200 with `[]`**, and that is the pass. RLS on with no policy
+filters every row for a non-`BYPASSRLS` role rather than denying the request, so
+PostgREST returns an empty collection; a `401`/`403` here would mean the role has
+no `GRANT` at all, and a populated body would mean a permissive policy leaked the
+key names. Proof, not just the empty body — the policy catalogue read straight
+from `pg_policy`:
 
-These three need the publishable key, and the only place to read it is the
-dashboard (**Project Settings → API keys**): every secret endpoint masks its
-values. `desktop-flutter/config/prod.json` is a committed placeholder template,
-not a source of a real origin — copying a URL from there sends the request to
+- `licenses` and `operator_config`: `relrowsecurity = true`, **zero rows in
+  `pg_policy`**. Nothing but the service role can read them.
+- `users_select` → `auth.uid() = id`; `sessions_service_only` →
+  `auth.role() = 'service_role'`; `posts_select_own` / `connected_accounts_select_own`
+  → `user_id = auth.uid()`. All are `FOR PUBLIC`, so a signed-in role is scoped by
+  the `qual`, and an anonymous one (`auth.uid()` is null) matches nothing.
+
+One latent hole the same query surfaced: the older `posts_select` and
+`connected_accounts_select` add `OR user_id = '00000000-0000-0000-0000-000000000000'`
+— the admin fallback id — so **any** signed-in user can read rows owned by it. It
+exposes nothing today (0 such rows in either table), but a write that uses the
+fallback would land in the open for every account. Either stop writing that owner
+id or drop the clause; a migration, so owner's call.
+
+These three need the publishable key. `GET /v1/projects/<ref>/api-keys?reveal=true`
+returns it in plaintext (`?reveal=true` is what unhides it), so a project access
+token is enough — no dashboard click. Without that flag every key comes back
+empty, which is what made this look dashboard-only on the first pass; the
+*secrets* endpoint really is masked, the *api-keys* endpoint is not.
+`desktop-flutter/config/prod.json` is a committed placeholder template, not a
+source of a real origin — copying a URL from there sends the request to
 `placeholder.invalid`.
 
 ## Step 4 — Edge functions
@@ -430,10 +448,11 @@ them, which is also why names are the only thing read back.
 | 1 | done | `TOKEN_ENCRYPTION_KEY` was already set and was **not** touched. `LICENSE_PEPPER` set once: 32 random hex, generated locally, kept in the gitignored `.env`. |
 | 2 | done | The duplicate query returned 0 rows, so nothing was mid-queue when the index landed. |
 | 3 | done | 32 migrations applied before → 39 after, matching the 39 files in `supabase/migrations`. `users_select` `qual` now reads `(auth.uid() = id)`. |
-| 3 (anon REST) | **not run** | Needs the publishable key, readable only from the dashboard. The two `licenses`/`operator_config` probes and the `users` probe are outstanding. |
+| 3 (anon REST) | done | All three probes answer `200 []`, and `pg_policy` says why that is the pass: `licenses` and `operator_config` are RLS-on with **zero policies**, `users_select` is `(auth.uid() = id)`, `sessions_service_only` is `auth.role() = 'service_role'`. The publishable key came from `GET /v1/projects/<ref>/api-keys?reveal=true`, not the dashboard. |
 | 4 | done | 32 local function directories deployed. `posts-api` first answered `BOOT_ERROR`; the cause and the fix are below. Three probes now return their own bodies, not a platform rejection. |
 | 5 | done | `process-workflows` (28) and `process-scheduled-posts` (29) both `succeeded` at 09:15, 09:20 and 09:25 UTC — after the `posts-api` redeploy, so the scheduler runs the new code. |
-| 6 | seeded, **not yet used** | The first key exists: `HMAC-SHA-256(LICENSE_PEPPER, key)` stored as 64-character lowercase hex, `active = true`, no expiry, `user_id` = the admin `public.users` uuid. The plaintext is only in the gitignored `.env` as `LICENSE_KEY_ADMIN`. `last_used_at` is still null because the activation belongs to the desktop, not a script. |
+| 6 | seeded, **not used** | The first key exists: `HMAC-SHA-256(LICENSE_PEPPER, key)` stored as 64-character lowercase hex, `active = true`, no expiry, `user_id` = the admin `public.users` uuid. The plaintext is only in the gitignored `.env` as `LICENSE_KEY_ADMIN`. `last_used_at` is still null — the desktop unlock is the activation this key is waiting for. |
+| 6b (server chain) | done | A second key — same pepper, `user_id` = the admin uuid — went through the whole path a desktop would: `verify-license` → `200 valid=true` with a 72-character token and `expiresAt` 7 days out; `sessions` gained exactly one live row for that user; `last_used_at` stamped. That token then authorized `posts-api`: `account-list` 200 (50 rows), `list` 200, and `connect-url` 200 for all five platforms with real provider hosts (`accounts.google.com`, `api.instagram.com`, `www.facebook.com/v23.0/dialog/oauth`, `www.linkedin.com`, `www.tiktok.com/v2/auth/authorize`) and a `state` param. Setting `active = false` on it made `verify-license` answer `401 Invalid license key`, a wrong key answered `401`, a garbage bearer and an apikey-only call both answered `401 {"error":"Unauthorized"}`, and the **already-minted session kept working** — exactly the two-statement revocation ADR 0006 documents. The probe key is left `active = false`; `LICENSE_KEY_ADMIN` stays unused for the desktop. |
 | 7–9 | owner-only | The setup wizard, the smoke order and the live browser connect need the installed app, a browser and a platform OAuth app that allowlists the callback. |
 
 **The one real fault found.** `posts-api` answered `503 BOOT_ERROR` to every
@@ -444,20 +463,27 @@ cause — the deployed bundle was byte-identical to the repo (a
 `operator-config` builds its client from the same module-scope lines and booted
 fine. Fixed in `78778c3`, guarded by `f017e9d`, redeployed as version 3.
 
-Both commits are **local**: production runs code that `origin/main` does not
-have yet, so they need pushing before anything else deploys from this branch.
+Both commits are pushed and green on `origin/main` (`78778c3` and the guard
+`f017e9d`, with the docs close-out after them): CI on the tip answered
+Desktop / Web / Lint / Analyze all `success`, so production and the branch now
+run the same code.
 
-Two facts worth keeping for the next run:
+Three facts worth keeping for the next run:
 
+- `api-keys?reveal=true` returns the publishable and secret keys in **plaintext**;
+  without the flag every `api_key` field is empty. The *secrets* endpoint is
+  masked, the *api-keys* endpoint is not — that is the difference that turned
+  "dashboard-only" into a scripted Step 3 probe.
 - The masked secret list is `sha256(value)`, so a candidate can be **tested**
   against what the server holds even though no value can be read back. That is
   how the pepper was proved byte-identical here and in the project before any
   key was hashed against it — `verify-license` hashes the env value
   untrimmed, so a stray `\r` from a CRLF `.env` would have silently made every
   issued key unverifiable.
-- The admin's only `sessions` row expired on 2026-11-01. Sign in again on the
-  web before Step 8, and expect the desktop unlock in Step 6 to mint the one
-  live session for that user.
+- The admin's only `sessions` row expired on 2026-11-01. The Step 6b probe
+  minted the replacement, which lives until **2026-11-10**. Because the model is
+  one session per user, the desktop unlock in Step 6 replaces it — sign in again
+  on the web after that, and expect the same in the other direction.
 
 One remote function, `get-upload-url`, has no local counterpart. It was left
 deployed — deleting it is a separate decision, but it is dead weight that no

@@ -824,8 +824,9 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 - [x] L9 — Settings license section and deactivation (`Session.accessToken` moves in L9b)
 - [x] L9b — `posts-api` edge function and the desktop switch to it
 - [x] L10 — SPEC-license, ADR 0006, the runbook's License keys section, SPEC-identity marked inactive
-- [x] L11a — Deploy: `LICENSE_PEPPER` set, `TOKEN_ENCRYPTION_KEY` left alone, 7 migrations applied (39 = 39 files), 32 functions deployed, `users_select` narrowed, both cron jobs green, first license key seeded (`licenses` 1 row, digest only) — 2026-11-03, `tasks/deploy-server-68.md` Steps 1–6. `posts-api` deployed broken (`await` in a non-async arrow → `503 BOOT_ERROR`) and is fixed + guarded on `main`, **not yet pushed**.
-- [ ] L11b — **Owner:** unlock the desktop with the seeded key, run the anon REST probes, manual Windows gate (`tasks/deploy-server-68.md` Steps 6–9)
+- [x] L11a — Deploy: `LICENSE_PEPPER` set, `TOKEN_ENCRYPTION_KEY` left alone, 7 migrations applied (39 = 39 files), 32 functions deployed, `users_select` narrowed, both cron jobs green, first license key seeded (`licenses` 1 row, digest only) — 2026-11-03, `tasks/deploy-server-68.md` Steps 1–6. `posts-api` deployed broken (`await` in a non-async arrow → `503 BOOT_ERROR`) and is fixed + guarded; `78778c3`, `f017e9d` and the docs close-out are pushed, CI green on the tip.
+- [x] L11a2 — Server chain proved with a throwaway key: `verify-license` → session row → that session authorized `posts-api` (`account-list`, `list`, `connect-url` for all five platforms) → `active = false` blocked the next activation while the live session ran on. Anon REST probes green. 2026-11-03, run log Steps 3 and 6b.
+- [ ] L11b — **Owner:** unlock the desktop with `LICENSE_KEY_ADMIN`, run the manual Windows gate (offline restart, expire, log carries no key) — `tasks/deploy-server-68.md` Steps 6–9. Only the installed app can do this; the server half is done.
 - [x] L12 — Gate run 2026-11-03 on `feature/license-access`: format 213 files / 0 changed, analyze clean, 1051 Flutter + 295 Vitest tests, `tsc -b` 0, build 0, lint 0 errors, graph refreshed
 
 ---

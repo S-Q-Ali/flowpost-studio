@@ -206,7 +206,8 @@ license key (user)            hash = hmac(pepper, key)         secure vault:
     the runbook instead of repeating the hash commands. The capability map and
     `SPEC-identity.md` carry the supersession.
 
-- [ ] **L11 — Deploy and seed a key** (owner-assisted) — deploy and seed done 2026-11-03
+- [ ] **L11 — Deploy and seed a key** (owner-assisted) — deploy, seed and the
+  whole server-side chain done 2026-11-03; only the desktop unlock is left
   The ordered run is `tasks/deploy-server-68.md`: migrations, the secrets
   (`TOKEN_ENCRYPTION_KEY` **and** `LICENSE_PEPPER`, before the first key is
   hashed), the function deploys, then the first license row and the manual
@@ -220,10 +221,16 @@ license key (user)            hash = hmac(pepper, key)         secure vault:
     call answered `503 BOOT_ERROR`; fixed and guarded, see the run log. The
     first key was minted locally and only its digest inserted, with `user_id`
     set to the admin `public.users` uuid as Step 6 requires.
-  - Still open: unlocking once from the desktop (the seeded key sits unused in
-    `licenses`), the anon REST probes, and the manual gate. The plaintext key is
-    in the gitignored `.env` as `LICENSE_KEY_ADMIN`.
-  - Acceptance: manual gate passes; `sessions` gets a row on activation.
+  - Still open: **one desktop unlock** with `LICENSE_KEY_ADMIN` and the manual
+    gate around it (restart offline, expiry, the log carrying no key). The
+    server half is no longer assumption — a throwaway second key ran the whole
+    path: activation → `sessions` row → that session authorized `posts-api`
+    (`account-list`, `list`, `connect-url` on all five platforms) → revoking the
+    key blocked the next activation while the live session ran on, which is the
+    two-statement revocation ADR 0006 already claims. The plaintext key is in the
+    gitignored `.env` as `LICENSE_KEY_ADMIN`; the probe key is `active = false`.
+  - Acceptance: manual gate passes; `sessions` gets a row on activation — the
+    second half proved on 2026-11-03 with the probe key.
 
 - [x] **L12 — Gate** (S)
   `dart format --set-exit-if-changed`, `flutter analyze`, full `flutter test`,
@@ -245,7 +252,7 @@ license key (user)            hash = hmac(pepper, key)         secure vault:
 | OSS client check bypassed | High | The check is server-side; functions still need the session token |
 | Key leak / sharing | Med | Peppered digests only, per-key revoke (`active=false`), 10-per-15-min on IP and on key, optional expiry, `last_used_at` as the sharing clue |
 | Single-session model logs out the web gate | Med | Documented; expired token → license screen with a clear message |
-| Owner deploy credentials unavailable | Was High, closed 2026-11-03 | The owner supplied a Supabase access token; Steps 1–5 ran. Two reads still need the dashboard: the publishable key for the anon probes and any secret value |
+| Owner deploy credentials unavailable | Was High, closed 2026-11-03 | The owner supplied a Supabase access token; Steps 1–6 ran, anon probes included — `api-keys?reveal=true` yields the publishable key, so only the *secret values* still need the dashboard |
 | Identity files rot once unwired | Low | Kept as reference; `SPEC-identity.md` marks them inactive, tests still run |
 
 ## Owner Actions

@@ -118,4 +118,4 @@ When a grant is already stored, the same screen shows it — "Active license · 
 
 ## Open questions
 
-None blocking. Two worth the owner's attention: whether a deactivation should revoke its session row server-side (today it expires), and whether `verify-password` / `verify-security-questions` stay deployed now that the desktop no longer uses them.
+None blocking. Two worth the owner's attention: whether a deactivation should revoke its session row server-side (measured on production 2026-11-03: after `active = false` the session minted by that key stayed authorized to `posts-api` for the full 7-day TTL — revoking for cause is two statements, and the second one is `delete from sessions where user_id = …`), and whether `verify-password` / `verify-security-questions` stay deployed now that the desktop no longer uses them.
