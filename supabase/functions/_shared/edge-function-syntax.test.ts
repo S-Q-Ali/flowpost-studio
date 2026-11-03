@@ -51,5 +51,8 @@ describe("edge function sources parse", () => {
       }
     }
     expect(found).toEqual([]);
-  });
+    // Parsing every function with the TypeScript program takes a few seconds,
+    // and more once the suite runs its files in parallel — the default 5s
+    // timeout made this fail on load, not on a grammar error.
+  }, 30_000);
 });
