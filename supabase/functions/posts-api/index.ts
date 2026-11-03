@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { decrypt } from "../_shared/crypto.ts";
+import { openSealed } from "../_shared/crypto.ts";
 import { DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 import {
   POST_COLUMNS,
@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
       // Best effort at the provider first: a token we cannot open, or a
       // provider that is down, must not leave the row behind. A token that
       // will not open decrypts to null and the revoke is skipped for it.
-      const open = async (value: string | null) => (value ? await decrypt(value) : null);
+      const open = async (value: string | null) => (value ? await openSealed(value) : null);
       const secrets = {
         access_token: await open(account.access_token),
         refresh_token: await open(account.refresh_token),
@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
           ? {
               ...account.metadata,
               ...(typeof account.metadata.refresh_token === "string"
-                ? { refresh_token: await decrypt(account.metadata.refresh_token) }
+                ? { refresh_token: await openSealed(account.metadata.refresh_token) }
                 : {}),
             }
           : null,

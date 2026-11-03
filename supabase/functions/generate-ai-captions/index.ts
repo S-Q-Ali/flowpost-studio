@@ -5,7 +5,7 @@ import type { AuthResult } from "../_shared/auth.ts";
 import { sanitizeChatOptions } from "../_shared/groq.ts";
 import { consumeQuota } from "../_shared/rate-limit.ts";
 import { readSecret, secretNotSetMessage, SecretProblem } from "../_shared/secrets.ts";
-import { getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
+import { driveMediaUrl, getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
 import { PROMPT_TEMPLATES, getDefaultMasterPrompt } from "./prompt-templates.ts";
 
 const corsHeaders = {
@@ -201,7 +201,6 @@ Deno.serve(async (req) => {
   const authResult = await isRequestAuthorized({
     authorizationHeader: req.headers.get("Authorization"),
     adminTokenHeader: req.headers.get("x-admin-token"),
-    apiKeyHeader: req.headers.get("apikey"),
     serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
     cronApiKey: null,
     anonKey: SUPABASE_ANON_KEY,
@@ -339,9 +338,7 @@ Deno.serve(async (req) => {
         return json({ error: "No Google Drive token available" }, 400);
       }
 
-      const driveUrl = `https://www.googleapis.com/drive/v3/files/${item.drive_file_id}?alt=media`;
-
-      return json({ driveToken, driveUrl });
+      return json({ driveToken, driveUrl: driveMediaUrl(item.drive_file_id) });
     } catch (err) {
       console.error("get-file-token error", err);
       return json(
@@ -419,7 +416,7 @@ Deno.serve(async (req) => {
       return json({ error: "No Google Drive token available" }, 400);
     }
 
-    const downloadUrl = `https://www.googleapis.com/drive/v3/files/${item.drive_file_id}?alt=media`;
+    const downloadUrl = driveMediaUrl(item.drive_file_id);
     const mimeType = item.mime_type || "video/mp4";
 
     const transcript = await transcribeAudio(downloadUrl, mimeType, driveToken, groqKey);

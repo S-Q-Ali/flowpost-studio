@@ -1,7 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { encrypt, decrypt } from "../_shared/crypto.ts";
-import { getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
+import { decrypt } from "../_shared/crypto.ts";
+import { fileProxyUrl } from "../_shared/get-file-token.ts";
+import { driveMediaUrl, getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { skipReason, type ScheduledWorkflow } from "../_shared/workflow-schedule.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
@@ -85,7 +87,13 @@ function normalizePlatform(p: string): "youtube" | "facebook" | "instagram" | "t
   return null;
 }
 
-const WORKFLOW_LOCK_MINUTES = 30;
+// Long enough that one row cannot outlive the lock, short enough that a run
+// killed mid-flight frees its workflow again within a few minutes.
+const WORKFLOW_LOCK_MINUTES = 15;
+
+function lockExpiry(): string {
+  return new Date(Date.now() + WORKFLOW_LOCK_MINUTES * 60 * 1000).toISOString();
+}
 
 /**
  * Takes the run lock of one workflow.
@@ -97,9 +105,18 @@ async function takeWorkflowLock(workflowId: string): Promise<boolean> {
   const { error } = await supabase.from("workflow_locks").insert({
     lock_key: `workflow:${workflowId}`,
     locked_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + WORKFLOW_LOCK_MINUTES * 60 * 1000).toISOString(),
+    expires_at: lockExpiry(),
   });
   return !error;
+}
+
+/** Keeps the lock alive while the run is still working through its rows. */
+async function renewWorkflowLock(workflowId: string): Promise<void> {
+  const { error } = await supabase
+    .from("workflow_locks")
+    .update({ expires_at: lockExpiry() })
+    .eq("lock_key", `workflow:${workflowId}`);
+  if (error) console.error(`Failed to renew the run lock of workflow ${workflowId}`, error);
 }
 
 async function releaseWorkflowLock(workflowId: string): Promise<void> {
@@ -174,8 +191,6 @@ Deno.serve(async (req) => {
 
     // Use UTC time directly for scheduling
     const now = new Date();
-    const utcHour = now.getUTCHours();
-    const utcMinute = now.getUTCMinutes();
     let sheetId: string | undefined;
 
     for (const wf of list) {
@@ -195,76 +210,10 @@ Deno.serve(async (req) => {
       }
 
       if (!isManualRun) {
-        const schedulingMode = (wf.scheduling_mode as string) || "once_daily";
-
-        if (schedulingMode === "custom_ranges") {
-          // === CUSTOM RANGES: per-day hour ranges with random minute per range ===
-          const todayDay = now.getUTCDay();
-          const customSchedule = wf.custom_schedule as Record<string, { start: number; end: number }[]> | null;
-          const todayRanges = customSchedule?.[todayDay.toString()] ?? [];
-          if (todayRanges.length === 0) continue;
-
-          const todayUtc = now.toISOString().slice(0, 10);
-          let matched = false;
-          const currentMinutes = utcHour * 60 + utcMinute;
-
-          for (let ri = 0; ri < todayRanges.length; ri++) {
-            const range = todayRanges[ri];
-            const rangeWindowSize = Math.max(range.end - range.start, 1);
-
-            // Deterministic random minute within this range (per range index)
-            const seed = String(wf.id ?? "") + todayUtc + ri;
-            let hash = 0;
-            for (let i = 0; i < seed.length; i++) {
-              hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-              hash |= 0;
-            }
-            const randomMinute = Math.abs(hash) % (rangeWindowSize * 60);
-            const rangeStartMinutes = range.start * 60;
-            const targetMinutes = rangeStartMinutes + randomMinute;
-
-            console.log(
-              `Workflow ${wf.name}: custom range #${ri} target ${Math.floor(targetMinutes / 60)}:${(targetMinutes % 60).toString().padStart(2, "0")} UTC, current ${utcHour}:${utcMinute}`,
-            );
-
-            if (currentMinutes >= targetMinutes && currentMinutes < targetMinutes + 5) {
-              matched = true;
-              break;
-            }
-          }
-
-          if (!matched) continue;
-        } else {
-          // Common for once_daily and interval: run_days check
-          const runDays = (wf.run_days as number[] | null) ?? [0, 1, 2, 3, 4, 5, 6];
-          const todayDay = now.getUTCDay();
-          if (!runDays.includes(todayDay)) {
-            console.log(`Workflow ${wf.name} not scheduled for today (UTC day ${todayDay}), run_days:`, runDays);
-            continue;
-          }
-
-          if (schedulingMode === "interval") {
-            // === INTERVAL: fire every N hours ===
-            const runIntervalHours = (wf.run_interval_hours as number) ?? 2;
-
-            if (wf.last_triggered_at) {
-              const hoursSince = (now.getTime() - new Date(wf.last_triggered_at).getTime()) / 3600000;
-              if (hoursSince + (1 / 60) < runIntervalHours) {
-                console.log(`Workflow ${wf.name}: last triggered ${hoursSince.toFixed(1)}h ago, skipping`);
-                continue;
-              }
-            }
-          } else {
-            // === ONCE-DAILY: fire once per day on first cron tick ===
-            const lastTriggered = wf.last_triggered_at ? new Date(wf.last_triggered_at) : null;
-            const todayUTC = now.toISOString().slice(0, 10);
-            const lastTriggeredDate = lastTriggered ? lastTriggered.toISOString().slice(0, 10) : null;
-
-            if (lastTriggeredDate === todayUTC) {
-              console.log(`Workflow ${wf.name} already triggered today, skipping`);
-              continue;
-            }
-          }
+        const reason = skipReason(wf as ScheduledWorkflow, now);
+        if (reason) {
+          console.log(`Workflow ${wf.name}: ${reason}`);
+          continue;
         }
       }
 
@@ -425,12 +374,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const runIntervalHours = (wf.run_interval_hours as number) ?? 1;
       const videosPerRun = (wf.videos_per_run as number) ?? 1;
       const toProcess = readyRows.slice(0, videosPerRun);
       let workflowVideoCount = 0;
 
       for (const { row, rowIndex } of toProcess) {
+        await renewWorkflowLock(wf.id);
         try {
           // === CAROUSEL PATH: process multiple image_url_N columns ===
           if (isCarouselWorkflow) {
@@ -480,7 +429,7 @@ Deno.serve(async (req) => {
                 const match = url.match(/\/d\/([^/]+)/);
                 const fileId = match?.[1];
                 if (!fileId) { carouselError = `Row ${rowIndex} carousel image ${ci + 1}: could not extract Drive file ID`; break; }
-                driveDownloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+                driveDownloadUrl = driveMediaUrl(fileId);
                 storedFileUrl = driveDownloadUrl;
                 videoDisplayName = `carousel-${rowIndex}-${ci + 1}`;
               }
@@ -678,7 +627,7 @@ Deno.serve(async (req) => {
               errors.push(`Row ${rowIndex}: could not extract fileId from Drive URL: ${rawUrl}`);
               continue;
             }
-            driveDownloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+            driveDownloadUrl = driveMediaUrl(fileId);
             storedFileUrl = driveDownloadUrl;
             const title = titleIdx !== undefined ? row[titleIdx] || "" : "";
             ytVideoTitle = ytTitleIdx !== undefined && row[ytTitleIdx] ? row[ytTitleIdx] : "";
@@ -974,28 +923,17 @@ Deno.serve(async (req) => {
             // Generate a short-lived get-file proxy URL for the story
             let storyVideoUrl: string | undefined;
             if (isMegaAccount) {
-              const storyToken = await encrypt(JSON.stringify({
-                megaFileName,
-                megaAccountId,
-                exp: Date.now() + 15 * 60 * 1000,
-              }));
-              storyVideoUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(storyToken)}`;
+              storyVideoUrl = await fileProxyUrl({ megaFileName, megaAccountId }, currentUserId);
             } else if (isMegaPublic) {
-              const storyToken = await encrypt(JSON.stringify({
-                megaUrl,
-                exp: Date.now() + 15 * 60 * 1000,
-              }));
-              storyVideoUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(storyToken)}`;
+              storyVideoUrl = await fileProxyUrl({ megaUrl }, currentUserId);
             } else if (r2Url) {
               // Drive source cached on R2 — use public URL directly
               storyVideoUrl = r2Url;
             } else {
-              const storyToken = await encrypt(JSON.stringify({
-                driveUrl: driveDownloadUrl,
-                driveToken: googleToken,
-                exp: Date.now() + 15 * 60 * 1000,
-              }));
-              storyVideoUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(storyToken)}`;
+              storyVideoUrl = await fileProxyUrl(
+                { driveUrl: driveDownloadUrl, driveToken: googleToken },
+                currentUserId,
+              );
             }
             const usedStoryTokens = new Set<string>();
 
@@ -1142,16 +1080,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Release global manual run lock if was manual run
-    if (isManualRun) {
-      try {
-        await supabase.from("workflow_locks").delete().eq("lock_key", "manual-workflow-global-running");
-        console.log("Global manual run lock released");
-      } catch (e) {
-        console.error("Failed to release manual lock:", e);
-      }
-    }
-
     // Await all upload promises for cron runs (manual runs return immediately)
     if (!isManualRun && uploadPromises.length > 0) {
       const elapsed = Date.now() - functionStartMs;
@@ -1177,15 +1105,6 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("process-workflow error", err);
-
-    // Release global manual run lock on error
-    if (isManualRun) {
-      try {
-        await supabase.from("workflow_locks").delete().eq("lock_key", "manual-workflow-global-running");
-      } catch (e) {
-        console.error("process-workflow: failed to release manual run lock", e);
-      }
-    }
 
     return json(
       {

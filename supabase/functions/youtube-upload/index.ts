@@ -1,10 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { File } from "npm:megajs";
-import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { decrypt } from "../_shared/crypto.ts";
+import { fileProxyUrl } from "../_shared/get-file-token.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { checkPostAccess, claimPost } from "../_shared/post-access.ts";
-import { isGoogleApiUrl } from "../_shared/url-guard.ts";
+import { checkPostAccess, claimPost, settlePost, type HeldClaim } from "../_shared/post-access.ts";
+import { isAllowedMediaUrl, isGoogleApiUrl } from "../_shared/url-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -14,7 +15,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL")!;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for youtube-upload");
@@ -34,28 +34,6 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-const ALLOWED_DOMAINS = [
-  "www.googleapis.com",
-  "drive.google.com",
-  R2_PUBLIC_URL,
-  "storage.googleapis.com",
-  "youtube.googleapis.com",
-  "mega.nz",
-  SUPABASE_URL ? new URL(SUPABASE_URL).hostname : "",
-].filter(Boolean);
-
-function validateUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:") return false;
-    return ALLOWED_DOMAINS.some(
-      (domain) => parsed.hostname === domain || parsed.hostname.endsWith("." + domain),
-    );
-  } catch {
-    return false;
-  }
 }
 
 function isTokenExpired(tokenExpiry: string | null): boolean {
@@ -101,6 +79,7 @@ Deno.serve(async (req) => {
   let megaUrl: string | undefined;
   let megaFileName: string | undefined;
   let megaAccountId: string | undefined;
+  let held: HeldClaim | null = null;
   try {
     const body = await req.json();
     postId = body?.postId;
@@ -147,6 +126,11 @@ Deno.serve(async (req) => {
 
     const claim = await claimPost(supabase, post.id);
     if (!claim.ok) return json({ error: claim.error }, claim.status);
+    held = claim;
+    // Every status write below carries this claim: an attempt cut off by the
+    // scheduler's half-hour cut-off must not overwrite the retry's answer, and a
+    // failure releases the claim so a retry can start immediately.
+    const fail = () => settlePost(supabase, claim, { status: "failed", claimed_at: null });
 
     const { data: video, error: videoError } = await supabase
       .from("videos")
@@ -155,10 +139,12 @@ Deno.serve(async (req) => {
       .single();
 
     if (videoError || !video?.file_url) {
+      await fail();
       return json({ error: "Video not found or missing file_url" }, 404);
     }
 
     if ((video as any).media_type === "image") {
+      await fail();
       return json({ error: "YouTube does not support image posts" }, 400);
     }
 
@@ -171,6 +157,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (accountError || !account?.access_token) {
+      await fail();
       return json({ error: "Connected account not found" }, 404);
     }
 
@@ -197,12 +184,7 @@ Deno.serve(async (req) => {
     if (megaFileName && megaAccountId) {
       contentLength = "0";
       contentType = "video/mp4";
-      const proxyToken = await encrypt(JSON.stringify({
-        megaFileName,
-        megaAccountId,
-        exp: Date.now() + 15 * 60 * 1000,
-      }));
-      sourceUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(proxyToken)}`;
+      sourceUrl = await fileProxyUrl({ megaFileName, megaAccountId }, post.user_id);
       const headRes = await fetch(sourceUrl, { method: "HEAD" });
       const cl = headRes.headers.get("content-length");
       if (cl) contentLength = cl;
@@ -211,15 +193,11 @@ Deno.serve(async (req) => {
       await megaFile.loadAttributes();
       contentLength = megaFile.size.toString();
       contentType = "video/mp4";
-      const proxyToken = await encrypt(JSON.stringify({
-        megaUrl,
-        exp: Date.now() + 15 * 60 * 1000,
-      }));
-      sourceUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(proxyToken)}`;
+      sourceUrl = await fileProxyUrl({ megaUrl }, post.user_id);
     } else {
       sourceUrl = driveDownloadUrl || video.file_url;
 
-      if (!validateUrl(sourceUrl)) {
+      if (!isAllowedMediaUrl(sourceUrl)) {
         console.error("Blocked fetch to disallowed URL:", sourceUrl);
         return json({ error: "Invalid video source URL" }, 400);
       }
@@ -275,13 +253,13 @@ Deno.serve(async (req) => {
     if (!initRes.ok) {
       const errText = await initRes.text();
       console.error("YouTube init upload failed", initRes.status, errText);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      await fail();
       return json({ error: `YouTube upload failed: ${errText}` }, 502);
     }
 
     const uploadUrl = initRes.headers.get("Location");
     if (!uploadUrl) {
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      await fail();
       return json({ error: "No upload URL from YouTube" }, 502);
     }
 
@@ -307,18 +285,19 @@ Deno.serve(async (req) => {
     if (!uploadRes.ok) {
       const errText = await uploadRes.text();
       console.error("YouTube PUT upload failed", uploadRes.status, errText);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      await fail();
       return json({ error: `YouTube upload failed: ${errText}` }, 502);
     }
 
-    const { error: updateError } = await supabase
-      .from("posts")
-      .update({ status: "published", published_at: new Date().toISOString() })
-      .eq("id", postId);
+    const settled = await settlePost(supabase, claim, {
+      status: "published",
+      published_at: new Date().toISOString(),
+      claimed_at: null,
+    });
 
-    if (updateError) {
-      console.error("Failed to update post status", updateError);
-      return json({ error: "Upload succeeded but status update failed" }, 500);
+    if (!settled) {
+      console.error(`youtube-upload: post ${postId} was re-claimed elsewhere`);
+      return json({ error: "Upload succeeded but the post was taken over" }, 409);
     }
 
     await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted", googleAccessToken);
@@ -327,8 +306,9 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("youtube-upload error", err);
     try {
-      if (typeof postId === "string") {
-        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      // An error before the claim leaves the row live for the next attempt.
+      if (held) {
+        await settlePost(supabase, held, { status: "failed", claimed_at: null });
         await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       }
     } catch (cleanupErr) {

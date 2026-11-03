@@ -1,10 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { File } from "npm:megajs";
-import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { decrypt } from "../_shared/crypto.ts";
+import { fileProxyUrl } from "../_shared/get-file-token.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { checkPostAccess, claimPost } from "../_shared/post-access.ts";
-import { isAllowedDriveUrl, isGoogleApiUrl } from "../_shared/url-guard.ts";
+import { checkPostAccess, claimPost, settlePost, type HeldClaim } from "../_shared/post-access.ts";
+import { isAllowedDriveUrl, isAllowedMediaUrl, isGoogleApiUrl } from "../_shared/url-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -14,7 +15,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL")!;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for tiktok-upload");
@@ -36,27 +36,6 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-const ALLOWED_DOMAINS = [
-  "open.tiktokapis.com",
-  R2_PUBLIC_URL,
-  "drive.google.com",
-  "www.googleapis.com",
-  "mega.nz",
-  SUPABASE_URL ? new URL(SUPABASE_URL).hostname : "",
-].filter(Boolean);
-
-function validateUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:") return false;
-    return ALLOWED_DOMAINS.some(
-      (domain) => parsed.hostname === domain || parsed.hostname.endsWith("." + domain),
-    );
-  } catch {
-    return false;
-  }
 }
 
 async function refreshTikTokToken(openId: string, userId: string): Promise<string> {
@@ -95,6 +74,7 @@ Deno.serve(async (req) => {
   let megaUrl: string | undefined;
   let megaFileName: string | undefined;
   let megaAccountId: string | undefined;
+  let held: HeldClaim | null = null;
 
   try {
     const body = await req.json();
@@ -147,6 +127,11 @@ Deno.serve(async (req) => {
 
     const claim = await claimPost(supabase, post.id);
     if (!claim.ok) return json({ error: claim.error }, claim.status);
+    held = claim;
+    // Every status write below carries this claim: an attempt cut off by the
+    // scheduler's half-hour cut-off must not overwrite the retry's answer, and a
+    // failure releases the claim so a retry can start immediately.
+    const fail = () => settlePost(supabase, claim, { status: "failed", claimed_at: null });
 
     const { data: video, error: videoError } = await supabase
       .from("videos")
@@ -155,15 +140,13 @@ Deno.serve(async (req) => {
       .single();
 
     if (videoError || !video || !video.file_url) {
+      await fail();
       return json({ error: "Video not found or missing file_url" }, 404);
     }
 
     const mediaType = video.media_type ?? "video";
     if (mediaType === "image") {
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", postId);
+      await fail();
       return json({ error: "TikTok does not support image uploads" }, 400);
     }
 
@@ -178,14 +161,12 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (accountError || !account) {
+      await fail();
       return json({ error: "TikTok account not connected" }, 404);
     }
 
     if (!account.is_connected || !account.access_token) {
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", postId);
+      await fail();
       return json({ error: "TikTok account is disconnected" }, 400);
     }
 
@@ -205,32 +186,21 @@ Deno.serve(async (req) => {
       if (refreshed?.access_token) {
         accessToken = await decrypt(refreshed.access_token);
       } else {
-        await supabase
-          .from("posts")
-          .update({ status: "failed" })
-          .eq("id", postId);
+        await fail();
         return json({ error: "Token refresh did not return new access token" }, 500);
       }
     }
 
     const fileUrl = video.file_url as string;
-    if (!fileUrl || !validateUrl(fileUrl)) {
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", postId);
+    if (!fileUrl || !isAllowedMediaUrl(fileUrl)) {
+      await fail();
       return json({ error: "Invalid video URL" }, 400);
     }
 
     const isDriveSource = (driveDownloadUrl || isGoogleApiUrl(fileUrl)) && googleAccessToken;
     if (megaFileName && megaAccountId) {
       console.log("Getting video size from Mega account...");
-      const proxyToken = await encrypt(JSON.stringify({
-        megaFileName,
-        megaAccountId,
-        exp: Date.now() + 15 * 60 * 1000,
-      }));
-      const proxyUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(proxyToken)}`;
+      const proxyUrl = await fileProxyUrl({ megaFileName, megaAccountId }, post.user_id);
       const headRes = await fetch(proxyUrl, { method: "HEAD" });
       const videoSize = parseInt(headRes.headers.get("content-length") || "0", 10);
       if (!videoSize) throw new Error("Could not determine video size from Mega account");
@@ -309,20 +279,14 @@ Deno.serve(async (req) => {
 
     if (!initRes.ok) {
       const errMsg = JSON.stringify(initData);
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", postId);
+      await fail();
       await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       return json({ error: `TikTok publish init failed: ${errMsg}` }, initRes.status);
     }
 
     if (initData?.error?.code && initData.error.code !== "ok") {
       const errMsg = JSON.stringify(initData.error);
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", postId);
+      await fail();
       try {
         await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       } catch (sheetErr) {
@@ -334,10 +298,7 @@ Deno.serve(async (req) => {
     const publishId = initData?.data?.publish_id;
     const uploadUrl = initData?.data?.upload_url;
     if (!publishId || !uploadUrl) {
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", postId);
+      await fail();
       try {
         await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       } catch (sheetErr) {
@@ -349,20 +310,9 @@ Deno.serve(async (req) => {
     console.log(`Streaming video to TikTok (${video.video_size} bytes)...`);
     let videoRes: Response;
     if (megaFileName && megaAccountId) {
-      const proxyToken = await encrypt(JSON.stringify({
-        megaFileName,
-        megaAccountId,
-        exp: Date.now() + 15 * 60 * 1000,
-      }));
-      const proxyUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(proxyToken)}`;
-      videoRes = await fetch(proxyUrl);
+      videoRes = await fetch(await fileProxyUrl({ megaFileName, megaAccountId }, post.user_id));
     } else if (megaUrl) {
-      const proxyToken = await encrypt(JSON.stringify({
-        megaUrl,
-        exp: Date.now() + 15 * 60 * 1000,
-      }));
-      const proxyUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(proxyToken)}`;
-      videoRes = await fetch(proxyUrl);
+      videoRes = await fetch(await fileProxyUrl({ megaUrl }, post.user_id));
     } else if (isDriveSource) {
       const driveSource = driveDownloadUrl || fileUrl;
       videoRes = await fetch(driveSource, {
@@ -393,10 +343,7 @@ Deno.serve(async (req) => {
     console.log("TikTok upload status:", uploadRes.status);
     if (!uploadRes.ok) {
       const uploadErr = await uploadRes.text().catch(() => "unknown");
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", postId);
+      await fail();
       try {
         await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       } catch (sheetErr) {
@@ -405,21 +352,19 @@ Deno.serve(async (req) => {
       return json({ error: `TikTok upload failed: ${uploadRes.status} ${uploadErr}` }, 502);
     }
 
-    const { error: updateError } = await supabase
-      .from("posts")
-      .update({
-        status: "published",
-        published_at: new Date().toISOString(),
-        metadata: {
-          ...(post.metadata as any ?? {}),
-          tiktok_publish_id: publishId,
-        },
-      })
-      .eq("id", postId);
+    const settled = await settlePost(supabase, claim, {
+      status: "published",
+      published_at: new Date().toISOString(),
+      claimed_at: null,
+      metadata: {
+        ...(post.metadata as any ?? {}),
+        tiktok_publish_id: publishId,
+      },
+    });
 
-    if (updateError) {
-      console.error("Failed to update post status", updateError);
-      return json({ error: "Upload succeeded but status update failed" }, 500);
+    if (!settled) {
+      console.error(`tiktok-upload: post ${postId} was re-claimed elsewhere`);
+      return json({ error: "Upload succeeded but the post was taken over" }, 409);
     }
 
     await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted", googleAccessToken);
@@ -428,8 +373,9 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("tiktok-upload error", err);
     try {
-      if (typeof postId === "string") {
-        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      // An error before the claim leaves the row live for the next attempt.
+      if (held) {
+        await settlePost(supabase, held, { status: "failed", claimed_at: null });
         await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       }
     } catch (cleanupErr) {

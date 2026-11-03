@@ -1,9 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { decrypt } from "../_shared/crypto.ts";
+import { fileProxyUrl } from "../_shared/get-file-token.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { checkPostAccess, claimPost } from "../_shared/post-access.ts";
+import { checkPostAccess, claimPost, settlePost, type HeldClaim } from "../_shared/post-access.ts";
 import { isAllowedDriveUrl } from "../_shared/url-guard.ts";
+import { redactTokens } from "../_shared/log-safe.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -57,6 +59,7 @@ Deno.serve(async (req) => {
   let megaUrl: string | undefined;
   let megaFileName: string | undefined;
   let megaAccountId: string | undefined;
+  let held: HeldClaim | null = null;
 
   try {
     const body = await req.json();
@@ -112,6 +115,11 @@ Deno.serve(async (req) => {
 
     const claim = await claimPost(supabase, post.id);
     if (!claim.ok) return json({ error: claim.error }, claim.status);
+    held = claim;
+    // Every status write below carries this claim: an attempt cut off by the
+    // scheduler's half-hour cut-off must not overwrite the retry's answer, and a
+    // failure releases the claim so a retry can start immediately.
+    const fail = () => settlePost(supabase, claim, { status: "failed", claimed_at: null });
 
     const { data: video, error: videoError } = await supabase
       .from("videos")
@@ -120,6 +128,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (videoError || !video?.file_url) {
+      await fail();
       return json({ error: "Video not found or missing file_url" }, 404);
     }
 
@@ -135,6 +144,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (accountError || !account?.access_token) {
+      await fail();
       return json({ error: "Connected Facebook Page not found" }, 404);
     }
 
@@ -145,33 +155,22 @@ Deno.serve(async (req) => {
     let mediaUrl = video.file_url as string;
 
     if (megaFileName && megaAccountId) {
-      const fileToken = await encrypt(JSON.stringify({
-        megaFileName,
-        megaAccountId,
-        exp: Date.now() + 15 * 60 * 1000,
-      }));
-      mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
-      console.log("Using Mega account get-file proxy URL for Facebook:", mediaUrl);
+      mediaUrl = await fileProxyUrl({ megaFileName, megaAccountId }, post.user_id);
+      console.log("Facebook: streaming the video from a Mega account");
     } else if (megaUrl) {
-      const fileToken = await encrypt(JSON.stringify({
-        megaUrl,
-        exp: Date.now() + 15 * 60 * 1000,
-      }));
-      mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
-      console.log("Using Mega get-file proxy URL for Facebook:", mediaUrl);
+      mediaUrl = await fileProxyUrl({ megaUrl }, post.user_id);
+      console.log("Facebook: streaming the video from a Mega link");
     } else if (driveDownloadUrl && googleAccessToken) {
       // If video is already cached on R2, use it directly — skip get-file proxy
       if (R2_PUBLIC_URL && video.file_url?.includes(R2_PUBLIC_URL)) {
         mediaUrl = video.file_url;
-        console.log("Using R2 URL for Facebook:", mediaUrl);
+        console.log("Facebook: using the video already cached on R2");
       } else {
-        const fileToken = await encrypt(JSON.stringify({
-          driveUrl: driveDownloadUrl,
-          driveToken: googleAccessToken,
-          exp: Date.now() + 15 * 60 * 1000,
-        }));
-        mediaUrl = `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
-        console.log("Using get-file proxy URL for Facebook:", mediaUrl);
+        mediaUrl = await fileProxyUrl(
+          { driveUrl: driveDownloadUrl, driveToken: googleAccessToken },
+          post.user_id,
+        );
+        console.log("Facebook: streaming the video through the get-file proxy");
       }
     }
 
@@ -208,25 +207,24 @@ Deno.serve(async (req) => {
     }
 
     const postData = (await postRes.json()) as { id?: string };
-    console.log(`Facebook ${isImage ? "image" : "video"} upload response:`, postRes.status, postData);
+    const postBody = redactTokens(JSON.stringify(postData));
+    console.log(`Facebook ${isImage ? "image" : "video"} upload response:`, postRes.status, postBody);
     if (!postRes.ok || !postData?.id) {
-      console.error(`Facebook ${isImage ? "image" : "video"} file_url upload failed`, postRes.status, postData);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      console.error(`Facebook ${isImage ? "image" : "video"} file_url upload failed`, postRes.status, postBody);
+      await fail();
       await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
-      return json({ error: `Facebook upload failed: ${JSON.stringify(postData)}` }, 502);
+      return json({ error: `Facebook upload failed: ${postBody}` }, 502);
     }
 
-    const { error: updateError } = await supabase
-      .from("posts")
-      .update({ status: "published", published_at: new Date().toISOString() })
-      .eq("id", postId);
+    const settled = await settlePost(supabase, claim, {
+      status: "published",
+      published_at: new Date().toISOString(),
+      claimed_at: null,
+    });
 
-    if (updateError) {
-      console.error("Failed to update post status", updateError);
-      return json(
-        { error: "Upload succeeded but status update failed" },
-        500,
-      );
+    if (!settled) {
+      console.error(`facebook-upload: post ${postId} was re-claimed elsewhere`);
+      return json({ error: "Upload succeeded but the post was taken over" }, 409);
     }
 
     await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted", googleAccessToken);
@@ -235,8 +233,9 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("facebook-upload error", err);
     try {
-      if (typeof postId === "string") {
-        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      // An error before the claim leaves the row live for the next attempt.
+      if (held) {
+        await settlePost(supabase, held, { status: "failed", claimed_at: null });
         await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       }
     } catch (cleanupErr) {

@@ -1,8 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { checkPostAccess, claimPost } from "../_shared/post-access.ts";
-import { isAllowedDriveUrl } from "../_shared/url-guard.ts";
+import { checkPostAccess, claimPost, settlePost, type HeldClaim } from "../_shared/post-access.ts";
+import { isAllowedMediaUrl } from "../_shared/url-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -51,18 +51,20 @@ Deno.serve(async (req) => {
 
   let postId: string;
   let mediaUrl: string | undefined;
+  let held: HeldClaim | null = null;
 
   try {
     const body = await req.json();
     postId = body?.postId;
     if (!postId) return json({ error: "postId required" }, 400);
-    // This URL is fetched server-side, so it may only leave for Google Drive.
+    // This URL is fetched server-side, so it may only name this app's own media
+    // hosts (Google Drive, Mega, the R2 bucket, the get-file proxy).
     const requestedUrl = typeof body?.driveDownloadUrl === "string"
       ? body.driveDownloadUrl
       : typeof body?.mediaUrl === "string"
       ? body.mediaUrl
       : undefined;
-    if (requestedUrl && !isAllowedDriveUrl(requestedUrl)) {
+    if (requestedUrl && !isAllowedMediaUrl(requestedUrl)) {
       return json({ error: "Unsupported media URL" }, 400);
     }
     mediaUrl = requestedUrl;
@@ -94,6 +96,11 @@ Deno.serve(async (req) => {
 
     const claim = await claimPost(supabase, post.id);
     if (!claim.ok) return json({ error: claim.error }, claim.status);
+    held = claim;
+    // Every status write below carries this claim: an attempt cut off by the
+    // scheduler's half-hour cut-off must not overwrite the retry's answer, and a
+    // failure releases the claim so a retry can start immediately.
+    const fail = () => settlePost(supabase, claim, { status: "failed", claimed_at: null });
 
     const { data: video, error: videoError } = await supabase
       .from("videos")
@@ -102,6 +109,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (videoError || !video?.file_url) {
+      await fail();
       return json({ error: "Video not found or missing file_url" }, 404);
     }
 
@@ -116,12 +124,19 @@ Deno.serve(async (req) => {
       .single();
 
     if (accountError || !account?.access_token) {
+      await fail();
       return json({ error: "Connected LinkedIn account not found" }, 404);
     }
 
     const accessToken = await decrypt(account.access_token);
     const personId = account.account_id;
     const uploadUrl = mediaUrl || video.file_url;
+    // The stored URL is the fallback and is still fetched server-side, so it
+    // gets the same host check as the one that came in the request.
+    if (!isAllowedMediaUrl(uploadUrl as string)) {
+      await fail();
+      return json({ error: "Unsupported media URL" }, 400);
+    }
 
     // Step 1: Register the upload with LinkedIn (different endpoint for images vs video)
     const registerEndpoint = isImage
@@ -148,7 +163,7 @@ Deno.serve(async (req) => {
     const registerData = await registerRes.json();
     if (!registerRes.ok) {
       console.error("LinkedIn upload registration failed", registerRes.status, registerData);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      await fail();
       return json({ error: `LinkedIn upload registration failed: ${JSON.stringify(registerData)}` }, 502);
     }
 
@@ -156,7 +171,7 @@ Deno.serve(async (req) => {
     const mediaUrn = isImage ? registerData.value?.image : registerData.value?.video;
     if (!uploadUrlLinkedIn || !mediaUrn) {
       console.error("LinkedIn upload registration missing upload URL or media URN", registerData);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      await fail();
       return json({ error: "LinkedIn upload registration missing upload URL" }, 502);
     }
 
@@ -164,7 +179,7 @@ Deno.serve(async (req) => {
     const videoRes = await fetch(uploadUrl);
     if (!videoRes.ok) {
       console.error("Failed to fetch source video for LinkedIn upload", uploadUrl, videoRes.status);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      await fail();
       return json({ error: "Failed to fetch source video" }, 502);
     }
 
@@ -179,7 +194,7 @@ Deno.serve(async (req) => {
     if (!uploadRes.ok) {
       const uploadText = await uploadRes.text();
       console.error("LinkedIn video binary upload failed", uploadRes.status, uploadText);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      await fail();
       return json({ error: `LinkedIn video binary upload failed: ${uploadRes.status}` }, 502);
     }
 
@@ -216,26 +231,29 @@ Deno.serve(async (req) => {
     const createPostData = await createPostRes.json();
     if (!createPostRes.ok) {
       console.error("LinkedIn post creation failed", createPostRes.status, createPostData);
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      await fail();
       return json({ error: `LinkedIn post creation failed: ${JSON.stringify(createPostData)}` }, 502);
     }
 
-    const { error: updateError } = await supabase
-      .from("posts")
-      .update({ status: "published", published_at: new Date().toISOString() })
-      .eq("id", postId);
+    const settled = await settlePost(supabase, claim, {
+      status: "published",
+      published_at: new Date().toISOString(),
+      claimed_at: null,
+    });
 
-    if (updateError) {
-      console.error("Failed to update post status", updateError);
-      return json({ error: "Upload succeeded but status update failed" }, 500);
+    if (!settled) {
+      console.error(`linkedin-upload: post ${postId} was re-claimed elsewhere`);
+      return json({ error: "Upload succeeded but the post was taken over" }, 409);
     }
 
     return json({ success: true, postId, linkedin_post_id: createPostData.id });
   } catch (err) {
     console.error("linkedin-upload error", err);
     try {
-      if (typeof postId === "string") {
-        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      // Only a claim this call still holds may be failed; an error before the
+      // claim leaves the row live for the next attempt.
+      if (held) {
+        await settlePost(supabase, held, { status: "failed", claimed_at: null });
       }
     } catch (cleanupErr) {
       console.error("linkedin-upload: failed to mark post failed", cleanupErr);

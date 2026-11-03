@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
 import { createOAuthState, consumeOAuthState, callbackLocation, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
+import { driveMediaUrl } from "../_shared/google-drive.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
@@ -479,7 +480,7 @@ Deno.serve(async (req) => {
 
       if (!s3Client) return json({ error: "R2 not configured" }, 500);
 
-      const driveDownloadUrl = `https://www.googleapis.com/drive/v3/files/${file_id}?alt=media`;
+      const driveDownloadUrl = driveMediaUrl(file_id);
       const driveRes = await fetch(driveDownloadUrl, {
         headers: { Authorization: `Bearer ${refreshed.access_token}` },
       });

@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { File as MegaFile, Storage as MegaStorage } from "npm:megajs";
-import { decrypt } from "../_shared/crypto.ts";
+import { decrypt, openSealed } from "../_shared/crypto.ts";
 import { isAllowedDriveUrl } from "../_shared/url-guard.ts";
 
 const corsHeaders = {
@@ -35,14 +35,25 @@ Deno.serve(async (req) => {
   }
 
   let tokenPayload: { driveUrl?: string; driveToken?: string; driveAccountId?: string; userId?: string; megaUrl?: string; megaFileName?: string; megaAccountId?: string; exp?: number };
+  // The token is the only credential this public endpoint sees, so a value the
+  // key will not open is refused here rather than read as if it were plaintext.
+  const opened = await openSealed(encrypted);
+  if (opened === null) {
+    return new Response("Invalid token", { status: 403, headers: corsHeaders });
+  }
   try {
-    const decrypted = await decrypt(encrypted);
-    tokenPayload = JSON.parse(decrypted);
+    tokenPayload = JSON.parse(opened);
   } catch {
     return new Response("Invalid token", { status: 403, headers: corsHeaders });
   }
 
   if (!tokenPayload.driveUrl && !tokenPayload.megaUrl && !tokenPayload.megaFileName) {
+    return new Response("Invalid token payload", { status: 403, headers: corsHeaders });
+  }
+
+  // A token names files, not a tenant: without an owner it could be spent
+  // against any account row.
+  if (!tokenPayload.userId) {
     return new Response("Invalid token payload", { status: 403, headers: corsHeaders });
   }
 
@@ -61,6 +72,7 @@ Deno.serve(async (req) => {
         .from("connected_accounts")
         .select("*")
         .eq("id", tokenPayload.megaAccountId)
+        .eq("user_id", tokenPayload.userId)
         .eq("platform", "mega")
         .eq("is_connected", true)
         .single();

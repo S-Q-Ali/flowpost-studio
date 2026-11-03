@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { Storage as MegaStorage } from "npm:megajs";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { driveMediaUrl } from "../_shared/google-drive.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -136,7 +137,7 @@ Deno.serve(async (req) => {
   if (!googleAccessToken) return json({ error: "Could not resolve Drive access token" }, 400);
 
   try {
-    const driveUrl = `https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`;
+    const driveUrl = driveMediaUrl(driveFileId);
     const headRes = await fetch(driveUrl, {
       method: "HEAD",
       headers: { Authorization: `Bearer ${googleAccessToken}` },

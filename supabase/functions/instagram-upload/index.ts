@@ -1,9 +1,12 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
-import { encrypt, decrypt } from "../_shared/crypto.ts";
+import { decrypt } from "../_shared/crypto.ts";
+import { fileProxyUrl } from "../_shared/get-file-token.ts";
 import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { checkPostAccess, claimPost } from "../_shared/post-access.ts";
+import { checkPostAccess, claimPost, settlePost, type HeldClaim } from "../_shared/post-access.ts";
 import { isAllowedDriveUrl } from "../_shared/url-guard.ts";
+import { redactTokens } from "../_shared/log-safe.ts";
+import { driveMediaUrl } from "../_shared/google-drive.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -58,6 +61,7 @@ Deno.serve(async (req) => {
   let megaFileName: string | undefined;
   let megaAccountId: string | undefined;
   let isCarousel: boolean;
+  let held: HeldClaim | null = null;
 
   try {
     const body = await req.json();
@@ -112,6 +116,16 @@ Deno.serve(async (req) => {
 
     const claim = await claimPost(supabase, post.id);
     if (!claim.ok) return json({ error: claim.error }, claim.status);
+    held = claim;
+    // Every status write below carries this claim: an attempt cut off by the
+    // scheduler's half-hour cut-off must not overwrite the retry's answer, and a
+    // failure releases the claim so a retry can start immediately.
+    const fail = () => settlePost(supabase, claim, { status: "failed", claimed_at: null });
+    const publish = () => settlePost(supabase, claim, {
+      status: "published",
+      published_at: new Date().toISOString(),
+      claimed_at: null,
+    });
 
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
@@ -122,6 +136,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (accountError || !account?.access_token) {
+      await fail();
       return json({ error: "Connected Instagram account not found" }, 404);
     }
 
@@ -135,19 +150,10 @@ Deno.serve(async (req) => {
     // Helper: resolve a video's file_url to a usable media URL
     async function resolveMediaUrl(videoFileUrl: string): Promise<string> {
       if (megaFileName && megaAccountId) {
-        const fileToken = await encrypt(JSON.stringify({
-          megaFileName,
-          megaAccountId,
-          exp: Date.now() + 15 * 60 * 1000,
-        }));
-        return `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+        return await fileProxyUrl({ megaFileName, megaAccountId }, post.user_id);
       }
       if (megaUrl) {
-        const fileToken = await encrypt(JSON.stringify({
-          megaUrl,
-          exp: Date.now() + 15 * 60 * 1000,
-        }));
-        return `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+        return await fileProxyUrl({ megaUrl }, post.user_id);
       }
       if (driveDownloadUrl && googleAccessToken) {
         if (R2_PUBLIC_URL && videoFileUrl?.includes(R2_PUBLIC_URL)) {
@@ -157,21 +163,17 @@ Deno.serve(async (req) => {
         const fileIdMatch = videoFileUrl.match(/\/d\/([^/]+)/) || driveDownloadUrl.match(/\/d\/([^/]+)/);
         const fileId = fileIdMatch?.[1];
         if (fileId) {
-          const resolvedDriveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-          const fileToken = await encrypt(JSON.stringify({
-            driveUrl: resolvedDriveUrl,
-            driveToken: googleAccessToken,
-            exp: Date.now() + 15 * 60 * 1000,
-          }));
-          return `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+          const resolvedDriveUrl = driveMediaUrl(fileId);
+          return await fileProxyUrl(
+            { driveUrl: resolvedDriveUrl, driveToken: googleAccessToken },
+            post.user_id,
+          );
         }
         // Fallback: use file_url as-is
-        const fileToken = await encrypt(JSON.stringify({
-          driveUrl: videoFileUrl,
-          driveToken: googleAccessToken,
-          exp: Date.now() + 15 * 60 * 1000,
-        }));
-        return `${SUPABASE_URL}/functions/v1/get-file?token=${encodeURIComponent(fileToken)}`;
+        return await fileProxyUrl(
+          { driveUrl: videoFileUrl, driveToken: googleAccessToken },
+          post.user_id,
+        );
       }
       return videoFileUrl;
     }
@@ -180,6 +182,7 @@ Deno.serve(async (req) => {
     if (isCarousel) {
       const carouselItems = (post as any).carousel_items as { id: string; video_id: string; sort_order: number; videos: { file_url: string; media_type: string } | null }[] | undefined;
       if (!carouselItems || carouselItems.length < 2) {
+        await fail();
         return json({ error: `Carousel needs at least 2 items, got ${carouselItems?.length || 0}` }, 400);
       }
 
@@ -187,7 +190,7 @@ Deno.serve(async (req) => {
       for (const item of carouselItems.sort((a, b) => a.sort_order - b.sort_order)) {
         const childVideo = item.videos;
         if (!childVideo?.file_url) {
-          await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+          await fail();
           return json({ error: `Carousel child ${item.sort_order} has no file_url` }, 404);
         }
 
@@ -211,7 +214,7 @@ Deno.serve(async (req) => {
         );
         const childData = await childRes.json();
         if (!childData.id) {
-          await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+          await fail();
           return json({ error: `Carousel child ${item.sort_order} container failed: ${JSON.stringify(childData)}` }, 502);
         }
         childContainerIds.push(childData.id);
@@ -233,7 +236,7 @@ Deno.serve(async (req) => {
       const carouselData = JSON.parse(carouselText);
 
       if (!carouselData.id) {
-        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+        await fail();
         return json({ error: `Carousel container creation failed: ${carouselText}` }, 502);
       }
 
@@ -277,11 +280,14 @@ Deno.serve(async (req) => {
       }
 
       if (!publishResult?.id) {
-        await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+        await fail();
         return json({ error: `Carousel publish failed: ${JSON.stringify(publishResult)}` }, 502);
       }
 
-      await supabase.from("posts").update({ status: "published", published_at: new Date().toISOString() }).eq("id", postId);
+      if (!await publish()) {
+        console.error(`instagram-upload: carousel post ${postId} was re-claimed elsewhere`);
+        return json({ error: "Publish succeeded but the post was taken over" }, 409);
+      }
       await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted", googleAccessToken);
       return json({ success: true, instagram_post_id: publishResult.id as string, container_id: containerId });
     }
@@ -289,6 +295,7 @@ Deno.serve(async (req) => {
     // === SINGLE MEDIA PATH ===
     const video = post.videos;
     if (!video || !video.file_url) {
+      await fail();
       return json({ error: "Video not found or missing file_url" }, 404);
     }
 
@@ -298,7 +305,7 @@ Deno.serve(async (req) => {
     const mediaUrl = await resolveMediaUrl(video.file_url as string);
 
     console.log(`Creating Instagram ${isImage ? "image" : "reel"} container for user:`, igUserId);
-    console.log("Using media URL:", mediaUrl);
+    console.log("Using media URL:", redactTokens(mediaUrl));
 
     const containerForm = new URLSearchParams();
     containerForm.append("media_type", isImage ? "IMAGE" : "REELS");
@@ -320,16 +327,13 @@ Deno.serve(async (req) => {
     );
     const containerResText = await containerRes.text();
     console.log("Container response status:", containerRes.status);
-    console.log("Container response body:", containerResText);
+    console.log("Container response body:", redactTokens(containerResText));
 
     const container = JSON.parse(containerResText);
 
     if (!container.id) {
-      console.error("Container creation failed:", container);
-      await supabase
-        .from("posts")
-        .update({ status: "failed" })
-        .eq("id", postId);
+      console.error("Container creation failed:", redactTokens(containerResText));
+      await fail();
       return json({ error: `Container failed: ${containerResText}` }, 502);
     }
 
@@ -384,26 +388,24 @@ Deno.serve(async (req) => {
 
     if (!publishResult?.id) {
       console.error("Publish failed after 10 attempts");
-      await supabase.from("posts").update({ status: "failed" }).eq("id", postId);
+      await fail();
       return json({ error: `Publish failed after 10 attempts: ${JSON.stringify(publishResult)}` }, 502);
     }
 
-    await supabase
-      .from("posts")
-      .update({ status: "published", published_at: new Date().toISOString() })
-      .eq("id", postId);
+    if (!await publish()) {
+      console.error(`instagram-upload: post ${postId} was re-claimed elsewhere`);
+      return json({ error: "Publish succeeded but the post was taken over" }, 409);
+    }
 
-      await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted", googleAccessToken);
+    await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "posted", googleAccessToken);
 
     return json({ success: true, instagram_post_id: publishResult.id as string, container_id: container.id });
   } catch (err) {
     console.error("instagram-upload error", err);
     try {
-      if (typeof postId === "string") {
-        await supabase
-          .from("posts")
-          .update({ status: "failed" })
-          .eq("id", postId);
+      // An error before the claim leaves the row live for the next attempt.
+      if (held) {
+        await settlePost(supabase, held, { status: "failed", claimed_at: null });
         await updateSheetStatus(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, postId, "failed", googleAccessToken);
       }
     } catch (cleanupErr) {

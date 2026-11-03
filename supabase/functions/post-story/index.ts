@@ -1,7 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
-import { checkPostAccess, claimPost } from "../_shared/post-access.ts";
+import { checkPostAccess, claimPost, settlePost, type HeldClaim } from "../_shared/post-access.ts";
+import { isAllowedMediaUrl } from "../_shared/url-guard.ts";
+import { redactTokens } from "../_shared/log-safe.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -12,28 +14,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL")!;
-
-const ALLOWED_DOMAINS = [
-  "www.googleapis.com",
-  "drive.google.com",
-  "storage.googleapis.com",
-  "mega.nz",
-  R2_PUBLIC_URL,
-  SUPABASE_URL ? new URL(SUPABASE_URL).hostname : "",
-].filter(Boolean);
-
-function isAllowedUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:") return false;
-    return ALLOWED_DOMAINS.some(
-      (domain) => parsed.hostname === domain || parsed.hostname.endsWith("." + domain),
-    );
-  } catch {
-    return false;
-  }
-}
 
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_SERVICE_ROLE_KEY for post-story function");
@@ -88,6 +68,7 @@ Deno.serve(async (req) => {
   let accessToken: string;
   let mediaTypeInput: "video" | "image" | undefined;
   let postId: string | undefined;
+  let held: HeldClaim | null = null;
 
   try {
     const body = (await req.json()) as Partial<PostStoryPayload>;
@@ -107,8 +88,6 @@ Deno.serve(async (req) => {
     const isServiceCaller = auth.kind === "service-role" || auth.kind === "cron";
 
     if (postId) {
-      const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
-
       const { data: storyPost } = await supabase
         .from("posts")
         .select("video_id, account_id, user_id, status")
@@ -126,10 +105,15 @@ Deno.serve(async (req) => {
       // second caller from sending the same story twice.
       const claim = await claimPost(supabase, postId);
       if (!claim.ok) return json({ error: claim.error }, claim.status);
+      held = claim;
+      // A failure before the publish below has to release the claim, or the row
+      // stays locked until the scheduler's half-hour cut-off.
+      const fail = () => settlePost(supabase, claim, { status: "failed", claimed_at: null });
 
       const rawFields = !!(body.videoUrl && body.accessToken && body.accountId);
       if (rawFields) {
         if (!isServiceCaller) {
+          await fail();
           return json({ error: "Raw credentials are not allowed for this caller" }, 403);
         }
         accountId = body.accountId!;
@@ -143,6 +127,7 @@ Deno.serve(async (req) => {
           .single();
 
         if (!video?.file_url) {
+          await fail();
           return json({ error: "Video URL not found" }, 404);
         }
 
@@ -154,6 +139,7 @@ Deno.serve(async (req) => {
           .single();
 
         if (!acc?.access_token) {
+          await fail();
           return json({ error: "Access token not found" }, 404);
         }
 
@@ -181,14 +167,10 @@ Deno.serve(async (req) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  if (!isAllowedUrl(videoUrl)) {
+  if (!isAllowedMediaUrl(videoUrl)) {
+    if (held) await settlePost(supabase, held, { status: "failed", claimed_at: null });
     return json({ error: "Invalid video URL" }, 400);
   }
-
-  // Initialize supabase for status writes if postId is provided
-  const supabase = postId
-    ? createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } })
-    : null;
 
   let resultStatus = 200;
   let resultBody: Record<string, unknown>;
@@ -275,12 +257,11 @@ Deno.serve(async (req) => {
     } else {
       // Instagram story flow
       console.log("Instagram account ID:", accountId);
-      console.log("Instagram story using URL:", videoUrl);
+      console.log("Instagram story using URL:", redactTokens(videoUrl));
 
       // Determine API base URL based on token type
       let igBaseUrl = "https://graph.facebook.com/v25.0";
       try {
-        const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
         const { data: igAccount } = await supabase
           .from("connected_accounts")
           .select("metadata")
@@ -312,14 +293,14 @@ Deno.serve(async (req) => {
       );
 
       const containerResText = await containerRes.text();
-      console.log("Container response:", containerResText);
+      console.log("Container response:", redactTokens(containerResText));
       const container = JSON.parse(containerResText);
       if (!container?.id) {
         console.error(
           "Instagram story container creation failed",
-          JSON.stringify(container),
+          redactTokens(containerResText),
         );
-        throw new Error(JSON.stringify(container));
+        throw new Error(redactTokens(containerResText));
       }
 
       // Poll container status until ready — 20 attempts for Instagram
@@ -378,21 +359,23 @@ Deno.serve(async (req) => {
     };
   }
 
-  // Write status to DB if postId is provided
-  if (supabase && postId) {
-    if (resultStatus === 200 && resultBody.success) {
-      await supabase
-        .from("posts")
-        .update({ status: "published", published_at: new Date().toISOString() })
-        .eq("id", postId);
-    } else {
-      await supabase
-        .from("posts")
-        .update({
-          status: "failed",
-          metadata: { error: (resultBody.error as string) || "Unknown error" },
-        })
-        .eq("id", postId);
+  // Settle the row this request claimed. Without a claim there is nothing to
+  // write: the row belongs to whichever caller holds it.
+  if (postId && held) {
+    const published = resultStatus === 200 && resultBody.success;
+    const settled = await settlePost(
+      supabase,
+      held,
+      published
+        ? { status: "published", published_at: new Date().toISOString(), claimed_at: null }
+        : {
+            status: "failed",
+            claimed_at: null,
+            metadata: { error: (resultBody.error as string) || "Unknown error" },
+          },
+    );
+    if (!settled) {
+      console.error(`post-story: post ${postId} was re-claimed elsewhere`);
     }
   }
 
