@@ -201,7 +201,7 @@ One latent hole the same query surfaced: the older `posts_select` and
 — the admin fallback id — so **any** signed-in user can read rows owned by it. It
 exposes nothing today (0 such rows in either table), but a write that uses the
 fallback would land in the open for every account. Either stop writing that owner
-id or drop the clause; a migration, so owner's call.
+id or drop the clause; a migration, so owner's call. Filed as **#75**.
 
 These three need the publishable key. `GET /v1/projects/<ref>/api-keys?reveal=true`
 returns it in plaintext (`?reveal=true` is what unhides it), so a project access

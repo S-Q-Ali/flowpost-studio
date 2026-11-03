@@ -259,4 +259,8 @@ license key (user)            hash = hmac(pepper, key)         secure vault:
 
 1. Provide a Supabase personal access token when L11 is reached (deploy + migration).
 2. Confirm licenses are issued per person with an optional expiry (default: no expiry).
-3. Run the manual Windows gate on the real backend after deploy.
+3. Run the manual Windows gate on the real backend after deploy — the only part of
+   L11 left, since the server chain was proved with a throwaway key on 2026-11-03.
+4. Decide #75: the `OR user_id = '00000000-…'` half of `posts_select` and
+   `connected_accounts_select` lets any signed-in user read rows owned by the admin
+   fallback id. Harmless today (0 such rows), a leak the first time one is written.
