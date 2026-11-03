@@ -456,8 +456,8 @@
     "semantic_hash": "8f68c27c3fc38817b2726b20e2d4f1ee"
   },
   "supabase/functions/_shared/crypto.ts": {
-    "mtime": 1789033764.689526,
-    "seen": 1789034083.8067226,
+    "mtime": 1793696868.4242609,
+    "seen": 1793698383.5901296,
     "ast_hash": "61203f3adb9582947129c48b40564ab2",
     "semantic_hash": "61203f3adb9582947129c48b40564ab2"
   },
@@ -888,8 +888,8 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/auth.ts": {
-    "mtime": 1793479399.5473194,
-    "seen": 1793480414.9342837,
+    "mtime": 1793696868.4170434,
+    "seen": 1793698383.5901215,
     "ast_hash": "ce94a8fde7686dde2fac452576ce3e2c",
     "semantic_hash": ""
   },
@@ -1632,8 +1632,8 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/oauth-state.ts": {
-    "mtime": 1793631322.334287,
-    "seen": 1793634717.7267914,
+    "mtime": 1793696868.4293025,
+    "seen": 1793698383.5952816,
     "ast_hash": "497156c63b9cd3b9efccf82558a001d0",
     "semantic_hash": ""
   },
@@ -2802,9 +2802,9 @@
     "semantic_hash": ""
   },
   "tasks/todo.md": {
-    "mtime": 1793660879.80301,
-    "seen": 1793661071.5048485,
-    "ast_hash": "45da946ac7face791410b98099240869",
+    "mtime": 1793698316.6782534,
+    "seen": 1793698383.7326913,
+    "ast_hash": "23161e04b7ebc355ea4853fee49be3a7",
     "semantic_hash": ""
   },
   ".opencode/skills/theme-factory/theme-showcase.pdf": {
@@ -4248,9 +4248,9 @@
     "semantic_hash": ""
   },
   "tasks/plan-license.md": {
-    "mtime": 1793658534.686965,
-    "seen": 1793661071.5046184,
-    "ast_hash": "d8d8929bfd0b1aa24fbbac5286cebf61",
+    "mtime": 1793698307.9750063,
+    "seen": 1793698383.7317355,
+    "ast_hash": "10c27e83a33132b06c26ee21b0bc04c8",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/core/security/secret_vault.dart": {
@@ -4350,15 +4350,15 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/posts-api.ts": {
-    "mtime": 1793574895.9738507,
-    "seen": 1793587808.683904,
+    "mtime": 1793696868.4356852,
+    "seen": 1793698383.5976343,
     "ast_hash": "e6723f327eb8afe179737f6072d3ca0e",
     "semantic_hash": ""
   },
   "supabase/functions/posts-api/index.ts": {
-    "mtime": 1793584297.671057,
-    "seen": 1793587808.689953,
-    "ast_hash": "54f206a7ee6836c1d85d3853c4fb88bb",
+    "mtime": 1793697773.229992,
+    "seen": 1793698383.6127987,
+    "ast_hash": "1bd7dc742cd2c89d088ba5c1499e678f",
     "semantic_hash": ""
   },
   "src/integrations/supabase/config.test.ts": {
@@ -4656,9 +4656,9 @@
     "semantic_hash": ""
   },
   "tasks/deploy-server-68.md": {
-    "mtime": 1793654128.0712273,
-    "seen": 1793661071.5043721,
-    "ast_hash": "ceaca1fc7ba322e4df55f02862618e67",
+    "mtime": 1793698281.7423887,
+    "seen": 1793698383.730714,
+    "ast_hash": "66ed0f794fd6c667abe2ad6c031d242b",
     "semantic_hash": ""
   },
   "tasks/issue-typed-supabase-client.md": {
@@ -4677,6 +4677,12 @@
     "mtime": 1793656170.3750439,
     "seen": 1793661071.499732,
     "ast_hash": "9b2361e43230727d857990d1c8092cd0",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/edge-function-syntax.test.ts": {
+    "mtime": 1793697751.6056755,
+    "seen": 1793698383.590136,
+    "ast_hash": "4240e2f902be46047c72d7f2e3466e2f",
     "semantic_hash": ""
   }
 }
