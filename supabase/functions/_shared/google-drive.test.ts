@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   shouldRefreshToken,
   buildRefreshUrl,
+  driveMediaUrl,
   getDriveToken,
   type DriveTokenContext,
 } from "./google-drive";
@@ -154,5 +155,19 @@ describe("getDriveToken", () => {
       { data: null, error: null },
     ]);
     expect(await getDriveToken("u1", null, ctx)).toBe("existing");
+  });
+});
+
+describe("driveMediaUrl", () => {
+  it("keeps a plain file id as it is", () => {
+    expect(driveMediaUrl("1Ab-c_D.ef")).toBe(
+      "https://www.googleapis.com/drive/v3/files/1Ab-c_D.ef?alt=media",
+    );
+  });
+
+  it("keeps a caller-supplied id inside its own path segment", () => {
+    expect(driveMediaUrl("../../v3/files/x?alt=media")).toBe(
+      "https://www.googleapis.com/drive/v3/files/..%2F..%2Fv3%2Ffiles%2Fx%3Falt%3Dmedia?alt=media",
+    );
   });
 });

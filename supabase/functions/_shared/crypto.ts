@@ -42,3 +42,16 @@ export async function decrypt(ciphertext: string): Promise<string> {
     return ciphertext;
   }
 }
+
+/**
+ * The text inside a sealed value, or null when nothing will open it.
+ *
+ * `decrypt` answers with its input on failure so rows stored before sealing
+ * still read; that also makes an unsealed input look like a plaintext value.
+ * Anywhere a value arrives from outside this server, equality is the test that
+ * tells the two apart, and a forged one must be refused rather than trusted.
+ */
+export async function openSealed(value: string): Promise<string | null> {
+  const opened = await decrypt(value);
+  return opened === value ? null : opened;
+}

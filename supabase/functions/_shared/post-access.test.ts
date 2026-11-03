@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { checkPostAccess, claimPost } from "./post-access";
+import { checkPostAccess, claimPost, settlePost } from "./post-access";
 import type { AuthResult } from "./auth";
 
 const session = (userId: string): AuthResult => ({
@@ -100,7 +100,7 @@ describe("claimPost", () => {
   it("stamps claimed_at on a live post", async () => {
     const { supabase, patches } = fakeSupabase([{ id: "post-1" }]);
     const result = await claimPost(supabase, "post-1", now);
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, postId: "post-1", claimedAt: now.toISOString() });
     expect(patches).toEqual([{ claimed_at: now.toISOString() }]);
   });
 
@@ -135,5 +135,28 @@ describe("claimPost", () => {
       status: 500,
       error: "Could not claim the post",
     });
+  });
+});
+
+describe("settlePost", () => {
+  const claim = { postId: "post-1", claimedAt: now.toISOString() };
+
+  it("writes only while the row still carries this claim", async () => {
+    const { supabase, calls, patches } = fakeSupabase([{ id: "post-1" }]);
+    const wrote = await settlePost(supabase, claim, { status: "failed", claimed_at: null });
+    expect(wrote).toBe(true);
+    expect(patches).toEqual([{ status: "failed", claimed_at: null }]);
+    expect(calls).toEqual(["from:posts", "update", "eq:id", "eq:claimed_at", "select"]);
+  });
+
+  it("writes nothing once another caller holds the claim", async () => {
+    const { supabase, patches } = fakeSupabase([]);
+    expect(await settlePost(supabase, claim, { status: "published" })).toBe(false);
+    expect(patches).toEqual([{ status: "published" }]);
+  });
+
+  it("reports a database failure as nothing written", async () => {
+    const { supabase } = fakeSupabase(null, { message: "db down" });
+    expect(await settlePost(supabase, claim, { status: "failed" })).toBe(false);
   });
 });

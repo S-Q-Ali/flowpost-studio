@@ -28,6 +28,17 @@ export function buildRefreshUrl(
   return `${supabaseUrl}/functions/v1/google-drive-auth?action=refresh&user_id=${userId}${driveAccountId ? `&account_id=${driveAccountId}` : ""}`;
 }
 
+/**
+ * Where one Drive file's bytes live.
+ *
+ * The id arrives from a workflow row or a request body, so it stays inside its
+ * own path segment: an id carrying a slash or a query mark would otherwise move
+ * the request to somewhere else on Google's API.
+ */
+export function driveMediaUrl(fileId: string): string {
+  return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`;
+}
+
 export async function getDriveToken(
   userId: string,
   driveAccountId: string | null | undefined,

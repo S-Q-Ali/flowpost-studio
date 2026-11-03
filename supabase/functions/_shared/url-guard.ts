@@ -61,3 +61,41 @@ export function isGoogleApiUrl(raw: string): boolean {
     return false;
   }
 }
+
+/// Hosts the media of this app's own users can be stored on.
+const MEDIA_HOSTS = ["www.googleapis.com", "drive.google.com", "storage.googleapis.com", "mega.nz"];
+
+function hostnameOf(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    // `R2_PUBLIC_URL` is configured as a bare host, `SUPABASE_URL` with its scheme.
+    return new URL(value.includes("://") ? value : `https://${value}`).hostname;
+  } catch {
+    return null;
+  }
+}
+
+/// Whether a publisher may download this URL as the user's media.
+///
+/// Every publisher takes a media URL from the database or a request body, and a
+/// Drive fetch carries the owner's Google bearer, so the host list is the guard
+/// against the server being pointed at anything else — including the cloud
+/// metadata address. The app's own hosts come from the environment: the R2
+/// bucket and the `get-file` proxy this server mints tokens for.
+export function isAllowedMediaUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  const hosts = [...MEDIA_HOSTS];
+  for (const host of [
+    hostnameOf(Deno.env.get("R2_PUBLIC_URL")),
+    hostnameOf(Deno.env.get("SUPABASE_URL")),
+  ]) {
+    if (host) hosts.push(host);
+  }
+  return hosts.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
+}
