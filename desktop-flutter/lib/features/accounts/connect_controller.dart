@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
@@ -71,11 +73,16 @@ connectControllerProvider = NotifierProvider<ConnectController, ConnectState>(
 /// that comes back. So a connect is only finished when the nonce it names is
 /// one this app made — anything else is a stray tab, an old link, or a guess.
 class ConnectController extends Notifier<ConnectState> {
+  Timer? _giveUpTimer;
+
   @override
   ConnectState build() {
     final links = ref.watch(connectCallbackProvider);
     links.addListener(_onLink);
-    ref.onDispose(() => links.removeListener(_onLink));
+    ref.onDispose(() {
+      _giveUpTimer?.cancel();
+      links.removeListener(_onLink);
+    });
     return const ConnectState();
   }
 
@@ -105,13 +112,28 @@ class ConnectController extends Notifier<ConnectState> {
       state = ConnectState(message: _wordsFor(error));
       return;
     }
-    // The wait stays open. A cancel that landed while the browser was opening
-    // has already cleared it, and this call does not put it back.
+    // The wait stays open, but not forever: an admin who closes the browser
+    // after the address opens leaves the screen waiting on a connect nobody
+    // will answer, and one wait at a time means no other platform can start.
+    _giveUpTimer?.cancel();
+    _giveUpTimer = Timer(store.lifetime, () => _gaveUp(wait.platform));
+  }
+
+  /// Closes a wait the browser never answered.
+  void _gaveUp(String serverPlatform) {
+    if (state.waitingOn != serverPlatform) return;
+    ref.read(pendingConnectStoreProvider).cancel(serverPlatform);
+    state = ConnectState(
+      message:
+          '${connectLabelOf(serverPlatform)} did not answer. '
+          'Start the connect again.',
+    );
   }
 
   /// Gives up the wait. A callback that still arrives is then a link for a
   /// connect this app is not waiting on, so it changes nothing.
   void stop() {
+    _giveUpTimer?.cancel();
     final waiting = state.waitingOn;
     if (waiting != null) ref.read(pendingConnectStoreProvider).cancel(waiting);
     state = const ConnectState();
@@ -165,6 +187,8 @@ class ConnectController extends Notifier<ConnectState> {
       // as it was; the list the server gives is the truth either way.
       return;
     }
+    // This link is the answer to the wait, so the timer watching it is spent.
+    _giveUpTimer?.cancel();
     if (answer == ConnectAnswer.expired) {
       state = const ConnectState(
         message: 'That connect took too long. Start it again.',

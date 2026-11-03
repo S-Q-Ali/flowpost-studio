@@ -35,16 +35,15 @@ void main() {
   late List<LogRecord> records;
   late StreamSubscription<LogRecord> subscription;
 
-  setUp(() {
-    now = DateTime.utc(2026, 11, 2, 9, 30);
+  /// Wires the controller to test doubles. [connectLifetime] is how long the
+  /// app waits for the browser, so a test that watches a wait run out can make
+  /// it short instead of sitting on the real ten minutes.
+  void buildHarness(Duration connectLifetime) {
     gateway = FakeConnectGateway();
     browser = FakeBrowser();
     repository = FakeAccountsRepository(const []);
     links = ValueNotifier<String?>(null);
-    store = PendingConnectStore(now: () => now);
-    records = [];
-    Logger.root.level = Level.ALL;
-    subscription = Logger.root.onRecord.listen(records.add);
+    store = PendingConnectStore(now: () => now, lifetime: connectLifetime);
     container = ProviderContainer(
       overrides: [
         connectGatewayProvider.overrideWithValue(gateway),
@@ -57,6 +56,14 @@ void main() {
     // The screen listens to the list, so an invalidation re-reads it here
     // exactly as it does in the app.
     container.listen(accountsControllerProvider, (_, _) {});
+  }
+
+  setUp(() {
+    now = DateTime.utc(2026, 11, 2, 9, 30);
+    records = [];
+    Logger.root.level = Level.ALL;
+    subscription = Logger.root.onRecord.listen(records.add);
+    buildHarness(const Duration(minutes: 10));
   });
 
   tearDown(() {
@@ -128,6 +135,53 @@ void main() {
 
     expect(gateway.connects, hasLength(1));
     expect(state().waitingOn, 'youtube');
+  });
+
+  test('a connect the browser never answers gives up on its own', () async {
+    container.dispose();
+    buildHarness(const Duration(milliseconds: 20));
+    final nonce = await started('youtube');
+    expect(state().waitingOn, 'youtube');
+
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    expect(state().waitingOn, isNull);
+    expect(state().message, 'YouTube did not answer. Start the connect again.');
+    expect(store.waiting(), isEmpty);
+
+    // The wait is over, so a link that lands afterwards is not taken for an
+    // answer to a connect this app already gave up on.
+    answered('youtube', nonce);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(state().message, 'YouTube did not answer. Start the connect again.');
+    expect(repository.reads, 1);
+  });
+
+  test(
+    'an answered connect closes the timer, so no timeout speaks over it',
+    () async {
+      container.dispose();
+      buildHarness(const Duration(milliseconds: 20));
+      final nonce = await started('youtube');
+
+      answered('youtube', nonce);
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(state().message, 'Connected to YouTube.');
+      expect(state().waitingOn, isNull);
+    },
+  );
+
+  test('a cancel closes the timer too', () async {
+    container.dispose();
+    buildHarness(const Duration(milliseconds: 20));
+    await started('youtube');
+
+    controller().stop();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    expect(state().message, isNull);
   });
 
   test(
