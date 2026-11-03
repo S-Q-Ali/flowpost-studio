@@ -89,7 +89,7 @@ After Supabase sign-in, read `public.users` by the auth user id. If there is no 
 
 ### 6. Offline startup
 
-Restore the Supabase session and profile cache from secure storage without blocking on the network. If `verify-session` cannot be reached, keep the token and mark the session `offline`; the shell can open, but privileged actions wait for connectivity. On reconnect, revalidate the token; an invalid token returns the admin to the questions. Phase 5 adds cached data and drafts.
+Restore the Supabase session and profile cache from secure storage without blocking on the network. The stored token is trusted until a call is refused: an unauthorised answer signs the admin out and returns them to the questions, so an offline start can open the shell while privileged actions wait for connectivity. There is no separate validation round-trip — every edge function reads the session it is handed. Phase 5 adds cached data and drafts.
 
 ## Tech Stack
 
@@ -147,7 +147,7 @@ Router changes live in `lib/core/router/app_router.dart`; startup wiring lives i
 | `GET /rest/v1/users?id=eq.<uid>&select=id,is_admin` | Supabase JWT | — | admin check |
 | `GET /functions/v1/verify-security-questions` | public function | — | `questionsConfigured` |
 | `POST /functions/v1/verify-security-questions` | public function | verify or setup body | `{verified, token}` |
-| `POST /functions/v1/verify-session` | public function | `{token}` | `{valid, userId}` |
+| `POST /functions/v1/verify-session` | public function | `{token, action: "revoke"}` | ends that session; answers nothing about who it belongs to |
 | Edge functions | `flowpost_token` in `Authorization` | existing bodies | unchanged |
 
 `verify-password` is legacy and is **not** used by this client. The web app's login page uses Supabase Auth, not that function.
@@ -173,7 +173,7 @@ Router changes live in `lib/core/router/app_router.dart`; startup wiring lives i
 1. Initialize Supabase with the secure local storage and `detectSessionInUri: false`.
 2. Restore the session and profile cache.
 3. If online, re-read `public.users`; a missing/non-admin row signs out.
-4. If a stored admin token exists, call `verify-session`. Valid → signed in. Invalid → questions. Offline → signed in with an offline marker.
+4. If a stored admin token exists, keep it and mark the session `offline`; the first refused call decides whether it is still valid.
 5. No session → login page.
 
 **Logout**

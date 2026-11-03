@@ -354,7 +354,7 @@ keys through `operator-config`. Success looks like:
 1. Web dashboard: sign in with an existing `public.users` row (signups are
    closed), open **Profile**, then list posts. The profile read is the proof that
    the narrowed `users_select` still returns the signed-in user's own row. A 401
-   on the post list means `verify-session` did not deploy.
+   on the post list means `posts-api` did not deploy.
 2. Desktop: unlock with the license key from Step 6, then let the queue load
    through `posts-api`. A refusal here after Step 4 passed means the key was
    hashed with a different pepper.

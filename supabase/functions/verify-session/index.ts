@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { consumeRateLimit } from "../_shared/rate-limit.ts";
 import { revokeSession } from "../_shared/session.ts";
 
 const corsHeaders = {
@@ -29,40 +30,36 @@ Deno.serve(async (req) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || req.headers.get("x-real-ip")
+    || "unknown";
+
   try {
-    const body = (await req.json()) as { token?: string; action?: string };
+    // Carrying a token is enough to end the session it belongs to — but that
+    // also makes this a public endpoint that writes, so one machine cannot use
+    // it to issue deletes in a loop.
+    const rate = await consumeRateLimit(supabase, `verify-session:ip:${ip}`, { max: 30 });
+    if (!rate.allowed) {
+      return json({ error: "Too many attempts. Try again shortly." }, 429);
+    }
+
+    const body = (await req.json().catch(() => null)) as { token?: string; action?: string };
     const token = body?.token;
+    if (!token) return json({ error: "Token required" }, 400);
 
-    if (!token) {
-      return json({ valid: false }, 401);
+    // Sessions are checked where they are used: every function that needs an
+    // owner reads the session itself, so an endpoint that answers "is this
+    // token live, and whose" would only be a way to look up other people's
+    // user ids. Revoke is the one thing only this endpoint can do.
+    if (body?.action !== "revoke") {
+      return json({ error: "Unsupported action" }, 400);
     }
 
-    // The token itself is the credential, so whoever presents it may end it.
-    if (body?.action === "revoke") {
-      await revokeSession(supabase, token);
-      return json({ revoked: true });
-    }
-
-    const { data: session, error } = await supabase
-      .from("sessions")
-      .select("id, user_id")
-      .eq("token", token)
-      .gt("expires_at", new Date().toISOString())
-      .maybeSingle();
-
-    if (error) {
-      console.error("verify-session query error:", error);
-      return json({ valid: false }, 500);
-    }
-
-    if (session) {
-      return json({ valid: true, userId: session.user_id });
-    }
-
-    return json({ valid: false }, 401);
+    await revokeSession(supabase, token);
+    return json({ revoked: true });
   } catch (err) {
     console.error("verify-session error", err);
-    return json({ valid: false }, 400);
+    return json({ error: "Session revoke failed" }, 502);
   }
 });
 
