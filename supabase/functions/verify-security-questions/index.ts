@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { consumeRateLimit } from "../_shared/rate-limit.ts";
 import { requireAdminCaller } from "../_shared/admin-caller.ts";
+import { findAdminUserId } from "../_shared/admin-user.ts";
 import { createSession } from "../_shared/session.ts";
 
 const corsHeaders = {
@@ -10,20 +11,10 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const ADMIN_USER_ID_FALLBACK = "00000000-0000-0000-0000-000000000000";
 
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
-
-async function getAdminUserId(): Promise<string> {
-  const { data } = await supabase
-    .from("users")
-    .select("id")
-    .eq("is_admin", true)
-    .maybeSingle();
-  return data?.id ?? ADMIN_USER_ID_FALLBACK;
-}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -32,10 +23,7 @@ function json(data: unknown, status = 200) {
   });
 }
 
-async function createAdminSession(): Promise<string> {
-  const session = await createSession(supabase, await getAdminUserId());
-  return session.token;
-}
+const UNAVAILABLE = "The sign-in check is unavailable. Try again shortly.";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -61,6 +49,14 @@ Deno.serve(async (req) => {
     return json({ success: false, error: "Unauthorized" }, caller.status);
   }
 
+  // Every path below reads or writes the admin's own row. With no admin row the
+  // install is misconfigured, and a made-up owner id must not be signed in.
+  const adminId = await findAdminUserId(supabase);
+  if (!adminId) {
+    console.error("verify-security-questions: no admin user configured");
+    return json({ success: false, error: UNAVAILABLE }, 503);
+  }
+
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     || req.headers.get("x-real-ip")
     || "unknown";
@@ -75,7 +71,7 @@ Deno.serve(async (req) => {
       if (!rateCheck.allowed) {
         if (!rateCheck.resetAt) {
           return json(
-            { success: false, error: "The sign-in check is unavailable. Try again shortly." },
+            { success: false, error: UNAVAILABLE },
             503,
           );
         }
@@ -110,7 +106,7 @@ Deno.serve(async (req) => {
             fav_teacher: favTeacher.trim().toLowerCase(),
             best_night_date: bestNightDate,
           })
-          .eq("id", await getAdminUserId());
+          .eq("id", adminId);
 
         if (updateError) {
           console.error("Failed to set security questions:", updateError);
@@ -128,7 +124,7 @@ Deno.serve(async (req) => {
         const { data: admin, error: fetchError } = await supabase
           .from("users")
           .select("fav_teacher, best_night_date")
-          .eq("id", await getAdminUserId())
+          .eq("id", adminId)
           .single();
 
         if (fetchError || !admin) {
@@ -143,7 +139,7 @@ Deno.serve(async (req) => {
           admin.best_night_date === bestNightDate;
 
         if (favTeacherMatch && bestNightMatch) {
-          const token = await createAdminSession();
+          const { token } = await createSession(supabase, adminId);
           return json({ success: true, verified: true, token });
         }
 
@@ -162,7 +158,7 @@ Deno.serve(async (req) => {
       const { data: admin } = await supabase
         .from("users")
         .select("fav_teacher, best_night_date")
-        .eq("id", await getAdminUserId())
+        .eq("id", adminId)
         .single();
 
       const hasQuestions = !!(admin?.fav_teacher && admin?.best_night_date);

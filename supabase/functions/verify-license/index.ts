@@ -7,6 +7,7 @@ import {
   normalizeLicenseKey,
 } from "../_shared/license.ts";
 import { createSession } from "../_shared/session.ts";
+import { findAdminUserId } from "../_shared/admin-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -16,20 +17,10 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const LICENSE_PEPPER = Deno.env.get("LICENSE_PEPPER") || "";
-const ADMIN_USER_ID_FALLBACK = "00000000-0000-0000-0000-000000000000";
 
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
-
-async function getAdminUserId(): Promise<string> {
-  const { data } = await supabase
-    .from("users")
-    .select("id")
-    .eq("is_admin", true)
-    .maybeSingle();
-  return data?.id ?? ADMIN_USER_ID_FALLBACK;
-}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -113,10 +104,15 @@ Deno.serve(async (req) => {
       return json({ valid: false, error: "Invalid license key" }, 401);
     }
 
-    // A key bound to a user mints that user's session; a legacy key without
-    // an owner keeps the admin fallback.
+    // A key bound to a user mints that user's session; a legacy key with no
+    // owner signs in as the admin — and with no admin row there is nobody to
+    // sign in as, so say the check is down rather than mint a phantom owner.
     const ownerId = (license as { user_id?: string | null }).user_id
-      ?? await getAdminUserId();
+      ?? await findAdminUserId(supabase);
+    if (!ownerId) {
+      console.error("verify-license: no admin user configured for a legacy license");
+      return json({ valid: false, error: UNAVAILABLE }, 503);
+    }
     const { token, expiresAt } = await createSession(supabase, ownerId);
 
     await supabase
