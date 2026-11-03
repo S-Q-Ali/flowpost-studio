@@ -10,6 +10,9 @@ columns that only exist after a migration, every stored platform token is sealed
 with a key that only exists once it is set as a secret, and `verify-license`
 answers 503 until its pepper secret is set.
 
+Steps 1–5 ran on 2026-11-03; **read the run log at the bottom before treating
+the table below as what is outstanding.**
+
 ## What is actually waiting
 
 | Kind | Count | Names |
@@ -55,10 +58,12 @@ Two rules, from ADR 0005 and the runbook:
   every stored platform token unreadable (every account shows *expired*) and
   every wizard-stored key unreadable.
 - If the project already has a value here (an earlier deploy of
-  `connected_accounts` tokens), **do not set a new one** — read the existing
-  value with `npx supabase secrets get TOKEN_ENCRYPTION_KEY` and reuse it. That
-  command prints the key to the terminal: look at it, do not paste it into an
-  issue, a commit or this file.
+  `connected_accounts` tokens), **do not set a new one** — read it from the
+  password manager copy made above. There is no way to read a secret back: this
+  CLI has no `secrets get`, and the Management API returns every value masked as
+  a fixed-length 64-character digest, so a name in `secrets list` proves only
+  that a value exists. That is also how to tell a real placeholder from a set
+  secret — check the length, not the shape.
 
 Also confirm these exist, since the changed functions now read them through the
 `_shared/secrets.ts` reader (operator config first, environment fallback):
@@ -116,6 +121,19 @@ re-schedule any of them by hand afterwards.
 npx supabase db push
 ```
 
+`db push` needs a linked project, and `supabase link` asks for the Postgres
+password — the access token alone is not enough. If that password is not to
+hand, apply the same files in filename order through the Management API instead:
+`POST /v1/projects/<ref>/database/migrations` runs the SQL **and** records the
+row, and `GET …/database/migrations` lists what is already applied, so the same
+"unapplied only" check works. Two traps: the endpoint ignores the `version` in
+the body and stamps its own second-precision timestamp, so two files applied in
+the same second collide on the primary key (leave a second or two between
+calls), and the recorded versions then differ from the filenames — fix that with
+one `update supabase_migrations.schema_migrations set version = …` so a later
+`db push` sees no drift. Reading the table directly is enough for everything
+else: `POST …/database/query` takes any statement.
+
 The CLI applies them in filename order, which is the dependency order here:
 `licenses` → `posts.claimed_at` + the unique index → `licenses.user_id` →
 `consume_rate_limit()` → `operator_config` → `oauth_states.return_to` →
@@ -170,6 +188,12 @@ server's key names. The third answers **200 with `[]`**: the `users` policy
 matches rows rather than blocking the table, and an anonymous caller owns no row.
 Anything else — a list of ids — means `20261103000000` did not apply.
 
+These three need the publishable key, and the only place to read it is the
+dashboard (**Project Settings → API keys**): every secret endpoint masks its
+values. `desktop-flutter/config/prod.json` is a committed placeholder template,
+not a source of a real origin — copying a URL from there sends the request to
+`placeholder.invalid`.
+
 ## Step 4 — Edge functions
 
 ```bash
@@ -208,13 +232,47 @@ for f in posts-api operator-config config-status verify-license; do
 done
 ```
 
-Four numbers, none of them `401`. A `401` on a new function means the CLI did not
-pick up `config.toml` for it — redeploy that one alone with
-`npx supabase functions deploy <name> --no-verify-jwt`. A `400` or a `500` with a
-short message is the function answering, which is what is being proved here. A
-`503` from `verify-license` is also it answering: `LICENSE_PEPPER` (Step 1) is
-unset or shorter than 16 characters, and the function refuses to compare against
-hashes it cannot reproduce — fix that before Step 6.
+None of the four answers `200`, and that is the point: each of them refuses a
+caller it cannot identify, which it can only do after it has loaded. Read the
+**body**, not the number.
+
+| Answer | Meaning |
+|---|---|
+| `{"error":"Sign in with the license key of this server first."}` (401) | `operator-config` / `config-status` booted and applied their own gate. |
+| `{"error":"Unauthorized"}` (401) | `posts-api` booted and reached its own caller check. |
+| `{"valid":false,"error":"Invalid license key"}` (400) | `verify-license` booted, read `LICENSE_PEPPER`, and compared an empty submission. |
+| `503` with `{"code":"BOOT_ERROR"}` and header `sb-error-code: BOOT_ERROR` | Not the function: the runtime could not instantiate the module. Nothing inside it ran. |
+
+A bare `401` with `{"message":"JWT could not be decoded"}` or `"Invalid JWT"` is
+the platform rejecting the call before the function — that is what the
+`--no-verify-jwt` redeploy in the paragraph above fixes. A `503` from
+`verify-license` naming the pepper means `LICENSE_PEPPER` (Step 1) is unset or
+shorter than 16 characters: the function fails closed rather than comparing
+against hashes it cannot reproduce. Fix that before Step 6.
+
+### If a function answers `BOOT_ERROR`
+
+Logs are the only way in, and this machine could not reach them: CLI 2.109.1 has
+no `functions logs`, `analytics/endpoints/logs.all` is retired (410) and
+`analytics/endpoints/logs` serves Postgres only. The dashboard
+(**Edge Functions → the function → Logs**) has them.
+
+What to check from here, in this order — `npm test` does the first one for you:
+
+1. Does the source parse? `supabase/functions/_shared/edge-function-syntax.test.ts`
+   compiles every file under `supabase/functions` and asserts no TS1xxx grammar
+   error. That test exists because `await` inside a non-async arrow in
+   `posts-api` shipped, and every other cause below was already ruled out.
+2. Is the deployed bundle what the repo holds? `npx supabase functions download
+   <slug>` unpacks it into `supabase/functions/**` — read `git status`
+   afterwards, not the download itself; a clean tree proves they match.
+3. Is a module-scope statement the cause? Copy the same module-scope lines into
+   a function that already boots and deploy that. `operator-config` builds its
+   client from `Deno.env.get("SUPABASE_URL")!` exactly like `posts-api` does, so
+   a non-null assertion on a missing variable is `undefined`, not a throw.
+4. Delete the function and redeploy it. Stale slots have produced this answer
+   for other people; it did not here, and it is the one step that destroys the
+   only copy of the deployed code, so download it first.
 
 ## Step 5 — The scheduler
 
@@ -231,7 +289,8 @@ where j.jobname = 'process-scheduled-posts'
 order by d.start_time desc limit 5;
 ```
 
-`status = 'SUCCEEDED'` on the newest row, within the last minute. A
+`status = 'succeeded'` on the newest row, within the last five minutes — the
+value pg_cron writes is lowercase, not the `SUCCEEDED` the docs show. A
 `return_message` with `401` means the service-role bearer the job sends is no
 longer accepted — check Step 4 did not leave that function needing a different
 credential.
@@ -358,3 +417,49 @@ of the expired → reconnect pair, and the Publish rejection message.
 - `verify-password`'s removal from the project — a separate decision.
 - Anything the owner alone can do: the actual commands above need their Supabase
   login, their project ref and their service role.
+
+## Run log — 2026-11-03
+
+Ran against project ref `ximorwzknbizpceaoflw` with the owner's access token. No
+secret value is recorded here; secrets are masked by every endpoint that lists
+them, which is also why names are the only thing read back.
+
+| Step | State | Evidence |
+|---|---|---|
+| 0 | partial | No dashboard backup was taken (that click is owner-side). Forward-only migrations, so this is the one gap worth closing by hand. |
+| 1 | done | `TOKEN_ENCRYPTION_KEY` was already set and was **not** touched. `LICENSE_PEPPER` set once: 32 random hex, generated locally, kept in the gitignored `.env`. |
+| 2 | done | The duplicate query returned 0 rows, so nothing was mid-queue when the index landed. |
+| 3 | done | 32 migrations applied before → 39 after, matching the 39 files in `supabase/migrations`. `users_select` `qual` now reads `(auth.uid() = id)`. |
+| 3 (anon REST) | **not run** | Needs the publishable key, readable only from the dashboard. The two `licenses`/`operator_config` probes and the `users` probe are outstanding. |
+| 4 | done | 32 local function directories deployed. `posts-api` first answered `BOOT_ERROR`; the cause and the fix are below. Three probes now return their own bodies, not a platform rejection. |
+| 5 | done | `process-workflows` (28) and `process-scheduled-posts` (29) both `succeeded` at 09:15, 09:20 and 09:25 UTC — after the `posts-api` redeploy, so the scheduler runs the new code. |
+| 6 | seeded, **not yet used** | The first key exists: `HMAC-SHA-256(LICENSE_PEPPER, key)` stored as 64-character lowercase hex, `active = true`, no expiry, `user_id` = the admin `public.users` uuid. The plaintext is only in the gitignored `.env` as `LICENSE_KEY_ADMIN`. `last_used_at` is still null because the activation belongs to the desktop, not a script. |
+| 7–9 | owner-only | The setup wizard, the smoke order and the live browser connect need the installed app, a browser and a platform OAuth app that allowlists the callback. |
+
+**The one real fault found.** `posts-api` answered `503 BOOT_ERROR` to every
+request from the moment it was deployed: the disconnect branch put `await` in a
+non-async arrow function, so the module never parsed. Nothing else could be the
+cause — the deployed bundle was byte-identical to the repo (a
+`functions download` left the tree clean), every named import resolved, and
+`operator-config` builds its client from the same module-scope lines and booted
+fine. Fixed in `78778c3`, guarded by `f017e9d`, redeployed as version 3.
+
+Both commits are **local**: production runs code that `origin/main` does not
+have yet, so they need pushing before anything else deploys from this branch.
+
+Two facts worth keeping for the next run:
+
+- The masked secret list is `sha256(value)`, so a candidate can be **tested**
+  against what the server holds even though no value can be read back. That is
+  how the pepper was proved byte-identical here and in the project before any
+  key was hashed against it — `verify-license` hashes the env value
+  untrimmed, so a stray `\r` from a CRLF `.env` would have silently made every
+  issued key unverifiable.
+- The admin's only `sessions` row expired on 2026-11-01. Sign in again on the
+  web before Step 8, and expect the desktop unlock in Step 6 to mint the one
+  live session for that user.
+
+One remote function, `get-upload-url`, has no local counterpart. It was left
+deployed — deleting it is a separate decision, but it is dead weight that no
+`functions deploy` will ever update.
+

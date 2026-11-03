@@ -206,12 +206,23 @@ license key (user)            hash = hmac(pepper, key)         secure vault:
     the runbook instead of repeating the hash commands. The capability map and
     `SPEC-identity.md` carry the supersession.
 
-- [ ] **L11 — Deploy and seed a key** (owner-assisted)
+- [ ] **L11 — Deploy and seed a key** (owner-assisted) — deploy and seed done 2026-11-03
   The ordered run is `tasks/deploy-server-68.md`: migrations, the secrets
   (`TOKEN_ENCRYPTION_KEY` **and** `LICENSE_PEPPER`, before the first key is
   hashed), the function deploys, then the first license row and the manual
   Windows gate — activate, restart offline, expire, revoke, and check the log
-  carries no key. Nothing here is runnable without the owner's Supabase login.
+  carries no key.
+  - Done with the owner's access token: `LICENSE_PEPPER` set once,
+    `TOKEN_ENCRYPTION_KEY` left as it was, all 7 pending migrations applied
+    (39 recorded = 39 files), all 32 functions deployed, `users_select` verified
+    narrowed, and both `pg_cron` jobs still succeeding on the new code.
+    `posts-api` deployed broken — an `await` in a non-async arrow meant every
+    call answered `503 BOOT_ERROR`; fixed and guarded, see the run log. The
+    first key was minted locally and only its digest inserted, with `user_id`
+    set to the admin `public.users` uuid as Step 6 requires.
+  - Still open: unlocking once from the desktop (the seeded key sits unused in
+    `licenses`), the anon REST probes, and the manual gate. The plaintext key is
+    in the gitignored `.env` as `LICENSE_KEY_ADMIN`.
   - Acceptance: manual gate passes; `sessions` gets a row on activation.
 
 - [x] **L12 — Gate** (S)
@@ -234,7 +245,7 @@ license key (user)            hash = hmac(pepper, key)         secure vault:
 | OSS client check bypassed | High | The check is server-side; functions still need the session token |
 | Key leak / sharing | Med | Peppered digests only, per-key revoke (`active=false`), 10-per-15-min on IP and on key, optional expiry, `last_used_at` as the sharing clue |
 | Single-session model logs out the web gate | Med | Documented; expired token → license screen with a clear message |
-| Owner deploy credentials unavailable | High (blocks L11) | Everything through L10 is testable with fakes; only L11 is owner-blocked |
+| Owner deploy credentials unavailable | Was High, closed 2026-11-03 | The owner supplied a Supabase access token; Steps 1–5 ran. Two reads still need the dashboard: the publishable key for the anon probes and any secret value |
 | Identity files rot once unwired | Low | Kept as reference; `SPEC-identity.md` marks them inactive, tests still run |
 
 ## Owner Actions

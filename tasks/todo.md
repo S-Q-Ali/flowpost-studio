@@ -824,7 +824,8 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 - [x] L9 — Settings license section and deactivation (`Session.accessToken` moves in L9b)
 - [x] L9b — `posts-api` edge function and the desktop switch to it
 - [x] L10 — SPEC-license, ADR 0006, the runbook's License keys section, SPEC-identity marked inactive
-- [ ] L11 — **Owner:** deploy migration + functions, set `LICENSE_PEPPER`, seed the first key, manual Windows gate (`tasks/deploy-server-68.md` Steps 1–9)
+- [x] L11a — Deploy: `LICENSE_PEPPER` set, `TOKEN_ENCRYPTION_KEY` left alone, 7 migrations applied (39 = 39 files), 32 functions deployed, `users_select` narrowed, both cron jobs green, first license key seeded (`licenses` 1 row, digest only) — 2026-11-03, `tasks/deploy-server-68.md` Steps 1–6. `posts-api` deployed broken (`await` in a non-async arrow → `503 BOOT_ERROR`) and is fixed + guarded on `main`, **not yet pushed**.
+- [ ] L11b — **Owner:** unlock the desktop with the seeded key, run the anon REST probes, manual Windows gate (`tasks/deploy-server-68.md` Steps 6–9)
 - [x] L12 — Gate run 2026-11-03 on `feature/license-access`: format 213 files / 0 changed, analyze clean, 1051 Flutter + 295 Vitest tests, `tsc -b` 0, build 0, lint 0 errors, graph refreshed
 
 ---
