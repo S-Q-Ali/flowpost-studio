@@ -2802,9 +2802,9 @@
     "semantic_hash": ""
   },
   "tasks/todo.md": {
-    "mtime": 1793698316.6782534,
-    "seen": 1793698383.7326913,
-    "ast_hash": "23161e04b7ebc355ea4853fee49be3a7",
+    "mtime": 1793706686.7940676,
+    "seen": 1793706777.4761376,
+    "ast_hash": "d027c23cd251cf995dd5485b46dfefd3",
     "semantic_hash": ""
   },
   ".opencode/skills/theme-factory/theme-showcase.pdf": {
@@ -4248,9 +4248,9 @@
     "semantic_hash": ""
   },
   "tasks/plan-license.md": {
-    "mtime": 1793698307.9750063,
-    "seen": 1793698383.7317355,
-    "ast_hash": "10c27e83a33132b06c26ee21b0bc04c8",
+    "mtime": 1793706711.004426,
+    "seen": 1793706777.4745336,
+    "ast_hash": "bd2de33f39accec24afa57be55eb7aba",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/core/security/secret_vault.dart": {
@@ -4656,9 +4656,9 @@
     "semantic_hash": ""
   },
   "tasks/deploy-server-68.md": {
-    "mtime": 1793698281.7423887,
-    "seen": 1793698383.730714,
-    "ast_hash": "66ed0f794fd6c667abe2ad6c031d242b",
+    "mtime": 1793706672.766498,
+    "seen": 1793706777.4733195,
+    "ast_hash": "5692be4b74d7bbf427add4ee231450e9",
     "semantic_hash": ""
   },
   "tasks/issue-typed-supabase-client.md": {
@@ -4674,9 +4674,9 @@
     "semantic_hash": ""
   },
   "docs/spec/SPEC-license.md": {
-    "mtime": 1793656170.3750439,
-    "seen": 1793661071.499732,
-    "ast_hash": "9b2361e43230727d857990d1c8092cd0",
+    "mtime": 1793706721.854602,
+    "seen": 1793706777.4699385,
+    "ast_hash": "31c194132ad740c028c86b00a6c80a32",
     "semantic_hash": ""
   },
   "supabase/functions/_shared/edge-function-syntax.test.ts": {
