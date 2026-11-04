@@ -389,6 +389,20 @@ describe("donePageUrl", () => {
       "https://ref.supabase.co/functions/v1/google-drive-auth?action=done",
     );
   });
+
+  it("sends the browser to https even though the runtime sees http", () => {
+    // Production proved it: Deno reports req.url as http:// behind the gateway,
+    // and a plain-http Location is the one hop an on-path attacker can answer.
+    expect(
+      donePageUrl("http://ximorwzknbizpceaoflw.supabase.co/google-drive-auth?action=callback"),
+    ).toBe("https://ximorwzknbizpceaoflw.supabase.co/functions/v1/google-drive-auth?action=done");
+  });
+
+  it("leaves a local dev server on http", () => {
+    expect(donePageUrl("http://localhost:54321/youtube-auth?action=callback")).toBe(
+      "http://localhost:54321/functions/v1/youtube-auth?action=done",
+    );
+  });
 });
 
 describe("connectDeclineResponse", () => {

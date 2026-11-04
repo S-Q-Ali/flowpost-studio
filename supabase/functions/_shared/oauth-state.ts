@@ -91,7 +91,14 @@ export function donePageUrl(requestUrl: string): string {
   const url = new URL(requestUrl);
   const prefix = "/functions/v1";
   const path = url.pathname.startsWith(prefix) ? url.pathname : `${prefix}${url.pathname}`;
-  return `${url.origin}${path}?action=done`;
+  // Behind the gateway the runtime reports its own URL as plain http. The
+  // browser must not be sent there: the first hop would be answerable by
+  // anyone on the path. A local dev server stays on http, where https is not
+  // available at all.
+  const host = url.hostname;
+  const local = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+  const origin = url.protocol === "http:" && !local ? "https://" + url.host : url.origin;
+  return `${origin}${path}?action=done`;
 }
 
 /// Where a finished connect sends the browser.
