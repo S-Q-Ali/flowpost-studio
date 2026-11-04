@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -179,6 +182,21 @@ describe("downloadButtonHref", () => {
     expect(downloadButtonHref(null)).toBe("#download");
     expect(downloadButtonHref({ state: "no-release" })).toBe("#download");
     expect(downloadButtonHref({ state: "unreachable" })).toBe("#download");
+  });
+});
+
+describe("the deployed Content-Security-Policy", () => {
+  it("lets the page ask GitHub about the newest release", () => {
+    // A blocked fetch is silent: the panel just falls back to "could not be
+    // reached", so the host the download system reads belongs in the CSP.
+    // jsdom gives this module an http import.meta.url, so read from the run root.
+    const policy = JSON.parse(
+      readFileSync(join(process.cwd(), "vercel.json"), "utf8"),
+    ).headers[0].headers.find((header: { key: string }) => header.key === "Content-Security-Policy")
+      .value as string;
+    const connectSrc = /connect-src([^;]*)/.exec(policy)?.[1] ?? "";
+
+    expect(connectSrc).toContain("https://api.github.com");
   });
 });
 
