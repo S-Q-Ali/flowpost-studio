@@ -384,9 +384,9 @@
     "semantic_hash": "56c0e8759328865e67fc2c480b916804"
   },
   "src/pages/PipelineLandingPage.tsx": {
-    "mtime": 1793482881.4484286,
-    "seen": 1793483262.540771,
-    "ast_hash": "e511ba140b9500a5e7b3bf76b5f8688c",
+    "mtime": 1793829260.1818736,
+    "seen": 1793829681.194687,
+    "ast_hash": "8d1f0aadcea399a3738499b52a835d9d",
     "semantic_hash": ""
   },
   "src/pages/PrivacyPage.tsx": {
@@ -4392,21 +4392,21 @@
     "semantic_hash": ""
   },
   "src/lib/desktop-download.test.ts": {
-    "mtime": 1793482859.6544223,
-    "seen": 1793483262.536515,
-    "ast_hash": "2683faf24b363dbc3ab26df4a2e70f31",
+    "mtime": 1793829285.2886155,
+    "seen": 1793829681.1890314,
+    "ast_hash": "378efafa9dc3e08fb507e40c87361f8f",
     "semantic_hash": ""
   },
   "src/lib/desktop-download.ts": {
-    "mtime": 1793482871.1895566,
-    "seen": 1793483262.5365179,
-    "ast_hash": "d057007a11ab39714dd46a2b1929a81e",
+    "mtime": 1793829244.1078422,
+    "seen": 1793829681.189034,
+    "ast_hash": "5ac18cdf900edd533da3f6e18ca3e1c4",
     "semantic_hash": ""
   },
   ".github/workflows/release-desktop.yml": {
-    "mtime": 1793826030.516076,
-    "seen": 1793826133.4784942,
-    "ast_hash": "5586c71f3126dbd6bddf60b2862bf31f",
+    "mtime": 1793828635.041644,
+    "seen": 1793829681.253035,
+    "ast_hash": "ce621fc9f1bcfd7972b364af2ce30a13",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/media/data/connection_failure.dart": {
@@ -4752,9 +4752,27 @@
     "semantic_hash": ""
   },
   "scripts/build-desktop.ps1": {
-    "mtime": 1793827570.20634,
-    "seen": 1793827675.645322,
-    "ast_hash": "ecb9e504cff9fe62206a6a90d850ada5",
+    "mtime": 1793828693.5107584,
+    "seen": 1793829681.160661,
+    "ast_hash": "1e3f39ad09dc2ad21ddaec591ea11c51",
+    "semantic_hash": ""
+  },
+  "src/components/ReleaseDownloads.test.tsx": {
+    "mtime": 1793829275.0192044,
+    "seen": 1793829681.1659408,
+    "ast_hash": "5deb3f39518d8003fe8a5ffae5f52fa7",
+    "semantic_hash": ""
+  },
+  "src/components/ReleaseDownloads.tsx": {
+    "mtime": 1793829269.523396,
+    "seen": 1793829681.1659453,
+    "ast_hash": "125b29fac66b176a7c879052a3a6b199",
+    "semantic_hash": ""
+  },
+  "src/hooks/useDesktopRelease.ts": {
+    "mtime": 1793829238.258248,
+    "seen": 1793829681.1855729,
+    "ast_hash": "4e50080721cd9f903101182c8d07863b",
     "semantic_hash": ""
   }
 }
