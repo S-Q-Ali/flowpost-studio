@@ -3132,15 +3132,15 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/accounts/presentation/accounts_page.dart": {
-    "mtime": 1793585814.3747694,
-    "seen": 1793587808.622615,
-    "ast_hash": "703102aef700bad74ca75b0119cf05c9",
+    "mtime": 1793791928.3816912,
+    "seen": 1793793133.9806027,
+    "ast_hash": "788cdf4c5609a78860732ff9aa89b8dc",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/accounts/accounts_page_test.dart": {
-    "mtime": 1793586141.7074904,
-    "seen": 1793587808.643636,
-    "ast_hash": "ebbfce582fd500c61c041ec8dea74a5e",
+    "mtime": 1793791862.6220949,
+    "seen": 1793793134.0164304,
+    "ast_hash": "aa058d2e489d5871248c5afa85ff5da1",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/accounts/accounts_repository_test.dart": {
@@ -3156,9 +3156,9 @@
     "semantic_hash": ""
   },
   "docs/spec/SPEC-accounts.md": {
-    "mtime": 1793543118.1852653,
-    "seen": 1793543852.9176679,
-    "ast_hash": "2bc92d53a2b8b9d869b9b5046f6c979d",
+    "mtime": 1793793051.834736,
+    "seen": 1793793134.1770973,
+    "ast_hash": "3c56094d105f3a348f3f193d1e7af897",
     "semantic_hash": ""
   },
   "docs/spec/SPEC-identity.md": {
@@ -4739,28 +4739,16 @@
     "ast_hash": "1f125278ff3e060d220926f988955280",
     "semantic_hash": ""
   },
-  ".tmp-keys.json": {
-    "mtime": 1793761065.960328,
-    "seen": 1793761574.7834384,
-    "ast_hash": "b2f3331343ea37e8939becd6491fb227",
+  "desktop-flutter/lib/features/accounts/domain/account_groups.dart": {
+    "mtime": 1793791584.1542559,
+    "seen": 1793793133.9796338,
+    "ast_hash": "43e85a9c204f358192c699d1c9b19c58",
     "semantic_hash": ""
   },
-  ".tmp-p.json": {
-    "mtime": 1793761071.820067,
-    "seen": 1793761574.783446,
-    "ast_hash": "31272193a11f111885234727ad2a507d",
-    "semantic_hash": ""
-  },
-  ".tmp-anon.txt": {
-    "mtime": 1793761066.1487725,
-    "seen": 1793761574.9887533,
-    "ast_hash": "8e82f39ae4a9e6554d4c3c13c765277e",
-    "semantic_hash": ""
-  },
-  ".tmp-pub.txt": {
-    "mtime": 1793761066.1467073,
-    "seen": 1793761574.988758,
-    "ast_hash": "fbbf80bc76ffadf5ef0de8a2d809d84f",
+  "desktop-flutter/test/features/accounts/account_groups_test.dart": {
+    "mtime": 1793791868.3930485,
+    "seen": 1793793134.016426,
+    "ast_hash": "3e27e1e2e4be7c7f2a25dcdb5bc36343",
     "semantic_hash": ""
   }
 }
