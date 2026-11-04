@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../publishing/domain/publish_target.dart';
 import '../accounts_providers.dart';
 import '../connect_controller.dart';
+import '../domain/account_groups.dart';
 import '../domain/connect_target.dart';
 import '../domain/connected_account.dart';
 
@@ -70,8 +71,8 @@ class AccountsPage extends ConsumerWidget {
                         style: theme.textTheme.bodyMedium,
                       )
                     else
-                      _AccountGrid(
-                        items: read.accounts,
+                      _AccountGroups(
+                        groups: accountGroupsOf(read.accounts),
                         onDisconnect: (account) =>
                             _confirmDisconnect(context, controller, account),
                         onReconnect: controller.start,
@@ -172,8 +173,114 @@ class _ConnectChips extends StatelessWidget {
   }
 }
 
-class _AccountGrid extends StatelessWidget {
-  const _AccountGrid({
+/// The accounts under one heading, split into sections the admin can read:
+/// the publish networks first, the storage grants after, and one section per
+/// network — because Instagram and Facebook share a card, not a section.
+class _AccountGroups extends StatelessWidget {
+  const _AccountGroups({
+    required this.groups,
+    required this.onDisconnect,
+    required this.onReconnect,
+  });
+
+  final List<AccountGroup> groups;
+  final void Function(ConnectedAccount account) onDisconnect;
+  final void Function(String serverPlatform) onReconnect;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sectionsOf = <AccountCategory, List<AccountGroup>>{};
+    for (final group in groups) {
+      sectionsOf.putIfAbsent(group.category, () => []).add(group);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final category in AccountCategory.values) ...[
+          // The categories are the top of this list, so they read above the
+          // networks they hold rather than at the bottom of the page.
+          if (sectionsOf.containsKey(category))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Semantics(
+                header: true,
+                child: Text(
+                  category.label,
+                  key: Key('category-${category.name}'),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          for (final group in sectionsOf[category] ?? const <AccountGroup>[])
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // The network carries its own name now, so the card is free
+                  // to say whose account it is.
+                  _SectionHeader(
+                    group: group,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  _CardWrap(
+                    items: group.accounts,
+                    onDisconnect: onDisconnect,
+                    onReconnect: onReconnect,
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.group, required this.style});
+
+  final AccountGroup group;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      header: true,
+      child: Row(
+        // The key names the whole header, so a test can read the count beside
+        // the network without reaching for the text itself.
+        key: Key('group-${group.serverPlatform}'),
+        children: [
+          // Flexible with an ellipsis: at 200% text a long network name
+          // shrinks instead of overflowing the section.
+          Flexible(
+            child: Text(
+              group.label,
+              style: style,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            group.countLine,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The cards of one section, in as many columns as the window allows.
+class _CardWrap extends StatelessWidget {
+  const _CardWrap({
     required this.items,
     required this.onDisconnect,
     required this.onReconnect,
@@ -273,16 +380,15 @@ class _AccountCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            Text(account.platform.label, style: theme.textTheme.titleMedium),
-            if (account.accountName.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                account.accountName,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+            // The section above the card already names the network, so the
+            // card says whose account it is. A row the server gave no name to
+            // falls back to the network rather than showing an empty title.
+            Text(
+              account.accountName.isEmpty
+                  ? connectLabelOf(account.serverPlatform)
+                  : account.accountName,
+              style: theme.textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             // The compose screen only takes a connected row with the platform's
             // own id, so the card says whether this one is something to publish

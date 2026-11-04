@@ -80,9 +80,11 @@ class ConnectedAccount {
 ## UI
 
 - `NavigationRail`: Home, Accounts, Upload, Calendar, Settings.
-- Accounts page: responsive card grid (max 400 px per card, three columns max); cards size to content so large text never clips.
+- Accounts page: one section per network the server named, under two headings — **Publishing** networks first, **Media storage** after, each in the order the connect chips offer them (`accountGroupsOf`). A network with no row gets no section; a name the desktop has never seen still gets one rather than dropping off the screen.
+- Section header: the network name, its account count, and how many rows cannot publish (`2 accounts · 1 needs attention`). A storage network never asks for attention: it holds the media whatever its sign-in says.
+- Under each header a responsive card grid (max 400 px per card, three columns max); cards size to content so large text never clips.
 - One card per row, keyed `account-<platform>-<accountId>`, so two Instagram accounts are two cards.
-- Card: platform icon, status badge (colored dot + readable text), account name when the row names it. Status is never carried by color alone.
+- Card: platform icon, status badge (colored dot + readable text), the account name as its title — the network is named by the section above, not repeated on the card — and the line saying what publishing takes from that row. Status is never carried by color alone.
 - An offline read that kept something says the list is the copy this PC kept; a live read does not.
 - Load failure shows a readable message and **Try again**, which reads from the server again.
 
@@ -101,8 +103,8 @@ class ConnectedAccount {
 
 | Level | Scope | Command |
 |---|---|---|
-| Unit | Cache read/write, corrupt and partial files, row → account mapping, offline fallback, refused session | `flutter test test/features/accounts/accounts_repository_test.dart` |
-| Widget | Cards per row, expired badge, empty state, offline note, load error, large text, rail navigation | `flutter test test/features/accounts/accounts_page_test.dart` |
+| Unit | Cache read/write, corrupt and partial files, row → account mapping, offline fallback, refused session, grouping by network | `flutter test test/features/accounts/accounts_repository_test.dart test/features/accounts/account_groups_test.dart` |
+| Widget | Cards per row, sections per network, expired badge, empty state, offline note, load error, large text, rail navigation | `flutter test test/features/accounts/accounts_page_test.dart` |
 | Unit | Row → publish target rules (status, platform, account id, the Instagram story) | `flutter test test/features/publishing/publish_target_test.dart` |
 | Provider | The targets follow the accounts read, including after a refresh | `flutter test test/features/publishing/publish_targets_provider_test.dart` |
 | Manual | Connect on a real server, then publish to it | Open — needs Phase F and a deployed `posts-api` |

@@ -4,6 +4,7 @@ import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/features/accounts/accounts_providers.dart';
 import 'package:flowpost_desktop/features/accounts/connect_controller.dart';
 import 'package:flowpost_desktop/features/accounts/data/accounts_repository.dart';
+import 'package:flowpost_desktop/features/accounts/domain/account_groups.dart';
 import 'package:flowpost_desktop/features/accounts/domain/connected_account.dart';
 import 'package:flowpost_desktop/features/license/license_providers.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
@@ -52,6 +53,20 @@ const _expiredMega = ConnectedAccount(
   status: AccountStatus.expired,
   accountId: 'm-1',
   serverPlatform: 'mega',
+);
+
+/// A row as the server read it: the card follows from the platform the row
+/// names, so the test sets both rather than inventing a pairing.
+ConnectedAccount _row(
+  String serverPlatform,
+  String accountId, {
+  AccountStatus status = AccountStatus.connected,
+}) => ConnectedAccount(
+  platform: socialPlatformOf(serverPlatform)!,
+  accountName: accountId,
+  status: status,
+  accountId: accountId,
+  serverPlatform: serverPlatform,
 );
 
 late FakeConnectGateway _gateway;
@@ -106,10 +121,73 @@ void main() {
     expect(find.byKey(const Key('account-youtube-UC-1')), findsOneWidget);
     expect(find.byKey(const Key('account-meta-ig-1')), findsOneWidget);
     expect(find.text('FlowPost Studio'), findsOneWidget);
-    expect(find.text('Instagram & Facebook'), findsOneWidget);
+    // The card no longer wears the platform's card name, because that name is
+    // shared by Instagram and Facebook. Each reads as its own network above
+    // the card, and the card itself says whose account it is.
+    expect(find.byKey(const Key('group-instagram')), findsOneWidget);
+    expect(find.text('flowpost.studio'), findsOneWidget);
+    expect(find.text('Instagram & Facebook'), findsNothing);
     // The list is the server's, so no card is offered for a platform that
     // was never connected.
     expect(find.byKey(const Key('account-mega-')), findsNothing);
+  });
+
+  testWidgets('the accounts read as networks, not one mixed list', (
+    tester,
+  ) async {
+    await _pumpApp(
+      tester,
+      FakeAccountsRepository([
+        _youtube,
+        _instagram,
+        _row('facebook', 'fb-1'),
+        _row('facebook', 'fb-2', status: AccountStatus.expired),
+        _expiredTiktok,
+        _row('google_drive', 'd-1'),
+        _row('mega', 'm-1'),
+      ]),
+    );
+
+    // One section per network the server named, and none for the networks
+    // this admin never connected.
+    for (final serverPlatform in [
+      'youtube',
+      'instagram',
+      'facebook',
+      'tiktok',
+      'google_drive',
+      'mega',
+    ]) {
+      expect(
+        find.byKey(Key('group-$serverPlatform')),
+        findsOneWidget,
+        reason: serverPlatform,
+      );
+    }
+    expect(find.byKey(const Key('group-linkedin')), findsNothing);
+
+    // The two categories the admin reads the list by.
+    expect(find.byKey(const Key('category-publishing')), findsOneWidget);
+    expect(find.byKey(const Key('category-storage')), findsOneWidget);
+
+    // The section names its own problem, so a stuck publish is found without
+    // reading every card.
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('group-facebook')),
+        matching: find.text('2 accounts · ${needsAttentionLine(1)}'),
+      ),
+      findsOneWidget,
+    );
+    // A storage grant holds the media whatever its sign-in says, so its
+    // section never reads as a publish that is stuck.
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('group-google_drive')),
+        matching: find.text('1 account'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('an account that is not connected says so', (tester) async {
