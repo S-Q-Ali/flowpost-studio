@@ -678,9 +678,9 @@
     "semantic_hash": "ea3b5c2d9c1cc5d2b3fb3af706f2ca1a"
   },
   "vercel.json": {
-    "mtime": 1793829889.3507385,
-    "seen": 1793830405.6854753,
-    "ast_hash": "354ea87bb2b27aa86414d38d0815de50",
+    "mtime": 1793833012.7770114,
+    "seen": 1793833203.3984182,
+    "ast_hash": "566507e895886eff6a38d09e29fdfff0",
     "semantic_hash": ""
   },
   "vite.config.ts": {
@@ -4392,9 +4392,9 @@
     "semantic_hash": ""
   },
   "src/lib/desktop-download.test.ts": {
-    "mtime": 1793831124.8978794,
-    "seen": 1793831317.4301734,
-    "ast_hash": "24bb42f68a5002c416813af4c421f750",
+    "mtime": 1793832967.1897933,
+    "seen": 1793833203.3710513,
+    "ast_hash": "905d23c5557509151e16a8128f0066e4",
     "semantic_hash": ""
   },
   "src/lib/desktop-download.ts": {
