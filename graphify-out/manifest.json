@@ -1632,9 +1632,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/oauth-state.ts": {
-    "mtime": 1793795989.668866,
-    "seen": 1793796449.4251118,
-    "ast_hash": "5c2836cbfbd975be5cb09b71526faf6b",
+    "mtime": 1793796499.0816715,
+    "seen": 1793826133.4436004,
+    "ast_hash": "495c0fd00b4d589764f9ed2a7281b67c",
     "semantic_hash": ""
   },
   "supabase/functions/upload-local-file/index.ts": {
@@ -4404,9 +4404,9 @@
     "semantic_hash": ""
   },
   ".github/workflows/release-desktop.yml": {
-    "mtime": 1793482836.6892326,
-    "seen": 1793483262.5630562,
-    "ast_hash": "2f0b6e0063e5f7272eb77cf9fac9922a",
+    "mtime": 1793826030.516076,
+    "seen": 1793826133.4784942,
+    "ast_hash": "5586c71f3126dbd6bddf60b2862bf31f",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/media/data/connection_failure.dart": {
@@ -4749,6 +4749,12 @@
     "mtime": 1793791868.3930485,
     "seen": 1793793134.016426,
     "ast_hash": "3e27e1e2e4be7c7f2a25dcdb5bc36343",
+    "semantic_hash": ""
+  },
+  "scripts/build-desktop.ps1": {
+    "mtime": 1793825956.842463,
+    "seen": 1793826133.390302,
+    "ast_hash": "b174c392ff4f3ab2a0b6987107609b03",
     "semantic_hash": ""
   }
 }

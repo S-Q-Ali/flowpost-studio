@@ -1,17 +1,17 @@
-# Graph Report - flowpost-studio  (2026-11-04)
+# Graph Report - flowpost-studio  (2026-11-05)
 
 ## Corpus Check
-- 718 files · ~737,885 words
+- 719 files · ~738,535 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 199 file(s) not represented in the graph (top: .xsd 117, .ttf 54, (none) 8)
 
 ## Summary
-- 8878 nodes · 13559 edges · 473 communities (425 shown, 48 thin omitted)
+- 8879 nodes · 13559 edges · 474 communities (425 shown, 49 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 216 edges (avg confidence: 0.91)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `513a6081`
+- Built from commit: `ff976ffe`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -501,7 +501,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (473 total, 48 thin omitted)
+## Communities (474 total, 49 thin omitted)
 
 ### Community 0 - "UploadPage.tsx"
 Cohesion: 0.09
@@ -2205,14 +2205,14 @@ Nodes (3): 1. Use Prompt Caching for Repeated Context, 2. Use Token Counting Bef
 
 ## Knowledge Gaps
 - **2351 isolated node(s):** `file`, `deadline`, `result`, `lines`, `directory` (+2346 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 5931 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **48 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 5932 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **49 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `run_single_query()` connect `argparse` to `tempfile`, `react`, `sys`, `evaluation.py`?**
-  _High betweenness centrality (0.147) - this node is a cross-community bridge._
+  _High betweenness centrality (0.146) - this node is a cross-community bridge._
 - **What connects `file`, `deadline`, `result` to the rest of the system?**
   _2351 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `UploadPage.tsx` be split into smaller, more focused modules?**
@@ -2222,6 +2222,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `App.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.08456659619450317 - nodes in this community are weakly interconnected._
 - **Why does `react` connect `react` to `UploadPage.tsx`, `App.tsx`, `WorkflowItemsPage.tsx`, `PipelineLandingPage.tsx`, `package.json`, `use-toast.ts`, `cn`, `AuthContext.tsx`?**
-  _High betweenness centrality (0.027) - this node is a cross-community bridge._
+  _High betweenness centrality (0.029) - this node is a cross-community bridge._
 - **Should `StoragePage` be split into smaller, more focused modules?**
   _Cohesion score 0.08140610545790934 - nodes in this community are weakly interconnected._
