@@ -1,7 +1,7 @@
 # Graph Report - flowpost-studio  (2026-11-05)
 
 ## Corpus Check
-- 722 files · ~740,981 words
+- 722 files · ~741,221 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 197 file(s) not represented in the graph (top: .xsd 117, .ttf 54, (none) 8)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `6ce52139`
+- Built from commit: `675e1f64`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

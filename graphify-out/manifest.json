@@ -4392,15 +4392,15 @@
     "semantic_hash": ""
   },
   "src/lib/desktop-download.test.ts": {
-    "mtime": 1793830096.2378962,
-    "seen": 1793830405.617122,
-    "ast_hash": "46d966dbfe8b25a0ece078d12c8baf5d",
+    "mtime": 1793831124.8978794,
+    "seen": 1793831317.4301734,
+    "ast_hash": "24bb42f68a5002c416813af4c421f750",
     "semantic_hash": ""
   },
   "src/lib/desktop-download.ts": {
-    "mtime": 1793829244.1078422,
-    "seen": 1793829681.189034,
-    "ast_hash": "5ac18cdf900edd533da3f6e18ca3e1c4",
+    "mtime": 1793831118.3436854,
+    "seen": 1793831317.4301784,
+    "ast_hash": "2aa0b491af74e8cb126e4ec7919738ae",
     "semantic_hash": ""
   },
   ".github/workflows/release-desktop.yml": {
