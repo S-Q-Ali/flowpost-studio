@@ -212,18 +212,28 @@ describe("downloadButtonHref", () => {
   });
 });
 
+// jsdom gives this module an http import.meta.url, so read from the run root.
+const cspPolicy = JSON.parse(
+  readFileSync(join(process.cwd(), "vercel.json"), "utf8"),
+).headers[0].headers.find((header: { key: string }) => header.key === "Content-Security-Policy")
+  .value as string;
+
 describe("the deployed Content-Security-Policy", () => {
   it("lets the page ask GitHub about the newest release", () => {
     // A blocked fetch is silent: the panel just falls back to "could not be
     // reached", so the host the download system reads belongs in the CSP.
-    // jsdom gives this module an http import.meta.url, so read from the run root.
-    const policy = JSON.parse(
-      readFileSync(join(process.cwd(), "vercel.json"), "utf8"),
-    ).headers[0].headers.find((header: { key: string }) => header.key === "Content-Security-Policy")
-      .value as string;
-    const connectSrc = /connect-src([^;]*)/.exec(policy)?.[1] ?? "";
+    const connectSrc = /connect-src([^;]*)/.exec(cspPolicy)?.[1] ?? "";
 
     expect(connectSrc).toContain("https://api.github.com");
+  });
+
+  it("lets the page load the declared web fonts", () => {
+    // The stylesheet link in index.html is a cross-origin style, and a blocked
+    // one is only a console error: the landing page then renders in a fallback
+    // face and the download section looks nothing like the design.
+    const styleSrc = /style-src([^;]*)/.exec(cspPolicy)?.[1] ?? "";
+
+    expect(styleSrc).toContain("https://fonts.googleapis.com");
   });
 });
 
