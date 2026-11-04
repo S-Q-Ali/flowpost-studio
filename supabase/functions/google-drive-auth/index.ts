@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
-import { createOAuthState, consumeOAuthState, callbackLocation, connectDoneResponse, donePageUrl, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
+import { createOAuthState, consumeOAuthState, callbackLocation, connectDeclineResponse, connectDoneResponse, donePageUrl, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 import { driveMediaUrl } from "../_shared/google-drive.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
@@ -187,9 +187,14 @@ Deno.serve(async (req) => {
     if (action === "callback") {
       const error = url.searchParams.get("error");
       if (error) {
-        return html(
-          `<!DOCTYPE html><html><head><title>Error</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f0f0f;color:white;"><h2>Connection failed</h2><p>You can close this tab and try again in FlowPost.</p></body></html>`,
-        );
+        const refused = await consumeOAuthState(supabaseAdmin, url.searchParams.get("state") || "");
+        return connectDeclineResponse({
+          error,
+          returnTo: refused?.returnTo ?? null,
+          appOrigin: APP_ORIGIN,
+          platform: "google_drive",
+          doneUrl,
+        });
       }
 
       const code = url.searchParams.get("code");

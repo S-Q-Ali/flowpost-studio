@@ -114,11 +114,13 @@ export function callbackLocation(
   const trusted = normalizeReturnTo(returnTo, appOrigin, platform);
   if (trusted === null) return fallback;
   if (trusted.startsWith("flowpost://")) {
-    const done = usableDoneUrl(doneUrl);
-    if (done === null) return fallback;
     const nonce = new URL(trusted).searchParams.get("nonce") ?? "";
-    const sep = done.includes("?") ? "&" : "?";
-    return `${done}${sep}platform=${encodeURIComponent(platform)}&nonce=${nonce}&result=connected`;
+    return (
+      doneResultUrl(doneUrl, platform, nonce, "connected") ??
+      // Without a loadable page of our own the tab would spin on a custom
+      // scheme, so the app origin is the only place left to finish.
+      fallback
+    );
   }
   const sep = trusted.includes("?") ? "&" : "?";
   return `${trusted}${sep}connected=${encodeURIComponent(platform)}`;
@@ -136,6 +138,81 @@ function usableDoneUrl(doneUrl: string | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+/// The done page for one outcome of a desktop connect, or null when there is no
+/// loadable page to send the browser to.
+function doneResultUrl(
+  doneUrl: string | undefined,
+  platform: string,
+  nonce: string,
+  result: string,
+): string | null {
+  const done = usableDoneUrl(doneUrl);
+  if (done === null) return null;
+  const sep = done.includes("?") ? "&" : "?";
+  return `${done}${sep}platform=${encodeURIComponent(platform)}&nonce=${nonce}&result=${result}`;
+}
+
+/// How the provider reports that the visitor refused the consent.
+///
+/// Anything outside this list is the provider's own breakage, which the app
+/// should hear about as a failure rather than a cancellation.
+const REFUSED_CONSENT = new Set([
+  "access_denied",
+  "user_denied",
+  "consent_required",
+  "interaction_required",
+  "login_required",
+]);
+
+/// The answer to a callback that came back without a code.
+///
+/// A visitor who clicks Cancel on the consent screen gets `?error=access_denied`
+/// on this same callback URL. Before, that was an inline HTML page: the desktop
+/// never heard, so its connect sat until the timeout. A desktop wait is sent to
+/// the done page instead, with the outcome the app is waiting to read. The
+/// provider's error text is never echoed — it is caller-supplied and the page
+/// is served from the function's own origin.
+export function connectDeclineResponse(input: {
+  error: string;
+  returnTo: string | null;
+  appOrigin: string;
+  platform: string;
+  doneUrl?: string;
+}): Response {
+  const { error, returnTo, appOrigin, platform, doneUrl } = input;
+  const trusted = returnTo ? normalizeReturnTo(returnTo, appOrigin, platform) : null;
+  if (trusted && trusted.startsWith("flowpost://")) {
+    const nonce = new URL(trusted).searchParams.get("nonce") ?? "";
+    const location = doneResultUrl(
+      doneUrl,
+      platform,
+      nonce,
+      REFUSED_CONSENT.has(error) ? "denied" : "failed",
+    );
+    if (location) {
+      return new Response(null, { status: 302, headers: { Location: location } });
+    }
+  }
+  return new Response(declinePage(), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+function declinePage(): string {
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">`
+    + `<meta name="viewport" content="width=device-width, initial-scale=1">`
+    + `<title>FlowPost</title>`
+    + `<style>body{font-family:system-ui,sans-serif;text-align:center;padding:48px 24px;`
+    + `background:#0f0f0f;color:#fff}</style></head><body>`
+    + `<h2>Connection not finished</h2>`
+    + `<p>Nothing was saved. You can close this tab and start again in FlowPost.</p>`
+    + `</body></html>`;
 }
 
 const CONNECT_RESULTS = new Set(["connected", "denied", "failed"]);

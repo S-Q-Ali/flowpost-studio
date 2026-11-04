@@ -9,6 +9,7 @@ import {
   callbackLocation,
   desktopReturnTo,
   connectDoneResponse,
+  connectDeclineResponse,
   donePageUrl,
 } from "./oauth-state.ts";
 
@@ -390,6 +391,92 @@ describe("donePageUrl", () => {
   });
 });
 
+describe("connectDeclineResponse", () => {
+  const desktop = `flowpost://connect-callback?platform=youtube&nonce=${NONCE}`;
+  const doneUrl = `${FUNCTION_ORIGIN}?action=done`;
+  const decline = (input: {
+    error: string;
+    returnTo: string | null;
+    doneUrl?: string;
+  }) => connectDeclineResponse({ ...input, appOrigin: APP_ORIGIN, platform: "youtube" });
+
+  it("sends a refused desktop consent to the done page with result=denied", () => {
+    // Google answers a Cancel with error=access_denied. Before this the tab got
+    // a bare HTML page, so the app never heard and waited out its timeout.
+    const response = decline({ error: "access_denied", returnTo: desktop, doneUrl });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(
+      `${doneUrl}&platform=youtube&nonce=${NONCE}&result=denied`,
+    );
+  });
+
+  it("calls a provider-side breakage failed rather than denied", () => {
+    const response = decline({ error: "server_error", returnTo: desktop, doneUrl });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toContain("result=failed");
+  });
+
+  it("reads the refusal names a user cancelled, not only Google's", () => {
+    // Facebook and LinkedIn report the same cancel as user_denied.
+    const response = decline({ error: "user_denied", returnTo: desktop, doneUrl });
+    expect(response.headers.get("Location")).toContain("result=denied");
+  });
+
+  it("hands the browser no custom-protocol navigation", () => {
+    const location = decline({ error: "access_denied", returnTo: desktop, doneUrl }).headers.get(
+      "Location",
+    );
+    expect(location?.startsWith("flowpost://")).toBe(false);
+  });
+
+  it("stays on a page when the connect was a web flow, not a desktop wait", () => {
+    // The web app never waits on a nonce; appending a connected flag for a
+    // refused consent would tell it the opposite of what happened.
+    const response = decline({ error: "access_denied", returnTo: `${APP_ORIGIN}/accounts`, doneUrl });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+  });
+
+  it("stays on a page when no state row answers for the callback", () => {
+    const response = decline({ error: "access_denied", returnTo: null, doneUrl });
+    expect(response.status).toBe(200);
+  });
+
+  it("sends nothing to the app when no done page is wired", () => {
+    const response = decline({ error: "access_denied", returnTo: desktop });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+  });
+
+  it("never echoes the provider's own text into the page", async () => {
+    // The error query parameter is caller-supplied and the page is served from
+    // the function's origin, so an echo would be script in that origin.
+    const response = decline({
+      error: '<script>alert("steal")</script>',
+      returnTo: null,
+      doneUrl,
+    });
+    const text = await response.text();
+    expect(text).not.toContain("alert");
+    expect(text).not.toContain("<script>");
+  });
+
+  it("names a foreign return_to nowhere in the answer", async () => {
+    const response = decline({
+      error: "access_denied",
+      returnTo: "https://evil.example/accounts",
+      doneUrl,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.text()).not.toContain("evil.example");
+  });
+
+  it("tells the visitor to close the tab and start again in FlowPost", async () => {
+    const text = await (await decline({ error: "access_denied", returnTo: null, doneUrl })).text();
+    expect(text).toContain("FlowPost");
+  });
+});
+
 describe("the auth functions hand the browser a loadable done page", () => {
   const slugs = [
     "facebook-auth",
@@ -406,5 +493,11 @@ describe("the auth functions hand the browser a loadable done page", () => {
     const source = readFileSync(`supabase/functions/${slug}/index.ts`, "utf8");
     expect(source).toContain("donePageUrl(");
     expect(source).not.toContain("${url.origin}${url.pathname}");
+  });
+
+  it.each(slugs)("%s answers a refused consent through the shared decline page", (slug) => {
+    const source = readFileSync(`supabase/functions/${slug}/index.ts`, "utf8");
+    expect(source).toContain("connectDeclineResponse(");
+    expect(source).not.toContain("Connection failed</h2>");
   });
 });
