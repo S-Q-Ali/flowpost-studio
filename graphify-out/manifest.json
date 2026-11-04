@@ -1062,9 +1062,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793761296.146664,
-    "seen": 1793761574.989795,
-    "ast_hash": "e8a81cff1a68d16c84bdba6339bc8683",
+    "mtime": 1793827587.1291854,
+    "seen": 1793827675.7917247,
+    "ast_hash": "bb4fa36677ddfe37d23d9ebfdf297786",
     "semantic_hash": ""
   },
   "USER_GUIDE.md": {
@@ -2988,9 +2988,9 @@
     "semantic_hash": ""
   },
   "desktop-flutter/README.md": {
-    "mtime": 1793545796.3403695,
-    "seen": 1793546442.7284558,
-    "ast_hash": "c03b99f255e5bfb5b3162ba7f5198442",
+    "mtime": 1793827578.7281988,
+    "seen": 1793827675.7922518,
+    "ast_hash": "b62b6762544b6dc663ae8f5e234879ca",
     "semantic_hash": ""
   },
   "desktop-flutter/analysis_options.yaml": {
@@ -4656,9 +4656,9 @@
     "semantic_hash": ""
   },
   "tasks/deploy-server-68.md": {
-    "mtime": 1793759536.9002,
-    "seen": 1793761575.000857,
-    "ast_hash": "60f7c363d1a57755e79004868c44a610",
+    "mtime": 1793827554.3160226,
+    "seen": 1793827675.807493,
+    "ast_hash": "0ec63606be4e78fcb5e8271f4a881e09",
     "semantic_hash": ""
   },
   "tasks/issue-typed-supabase-client.md": {
@@ -4752,9 +4752,9 @@
     "semantic_hash": ""
   },
   "scripts/build-desktop.ps1": {
-    "mtime": 1793825956.842463,
-    "seen": 1793826133.390302,
-    "ast_hash": "b174c392ff4f3ab2a0b6987107609b03",
+    "mtime": 1793827570.20634,
+    "seen": 1793827675.645322,
+    "ast_hash": "ecb9e504cff9fe62206a6a90d850ada5",
     "semantic_hash": ""
   }
 }
