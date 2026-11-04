@@ -59,15 +59,30 @@ try {
   }
 
   "==> flutter build windows --release ($Version)"
-  flutter build windows --release --build-name=$Version --dart-define-from-file=$ConfigFile
+  # A running app locks cnativeapi.dll and the exe, so a from-clean build dies
+  # halfway through with a sharing violation.
+  if (Get-Process flowpost -ErrorAction SilentlyContinue) {
+    throw "flowpost.exe is running. Quit it from the tray icon first, then re-run."
+  }
+  # Output is captured, not streamed: a failing native command writes to stderr
+  # and PowerShell prints that as a native error, which is what let a broken
+  # build look like it had continued. The tail is shown when it fails.
+  $build = flutter build windows --release --build-name=$Version --dart-define-from-file=$ConfigFile 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $build | Select-Object -Last 20 | ForEach-Object { "    $_" }
+    throw "flutter build windows failed with exit code $LASTEXITCODE"
+  }
 
-  $exe = Get-ChildItem -Path $Release -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-  if (-not $exe) { throw "Release output missing under $Release (did the build fail?)" }
+  # A running app holds the exe and the linker fails, so name the likely cause.
+  $exe = Join-Path $Release 'flowpost.exe'
+  if (-not (Test-Path $exe)) {
+    throw "no $exe after a build that reported success (is the app still running and holding the file?)"
+  }
 
   New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 
   if ($Target -in 'all', 'portable') {
-    "==> portable zip ($($exe.Name))"
+    "==> portable zip (flowpost.exe)"
     $stage = Join-Path $Dist "portable\FlowPost-$Version"
     if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $stage | Out-Null
@@ -84,9 +99,13 @@ try {
 
   if ($Target -in 'all', 'installer') {
     '==> setup .exe (Inno Setup)'
-    $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-    if (-not (Test-Path $iscc)) {
-      throw "Inno Setup not found at '$iscc'. Install it: choco install innosetup --yes"
+    # A non-admin install lands under LOCALAPPDATA, not Program Files (x86).
+    $iscc = @(
+      "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+      "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $iscc) {
+      throw "Inno Setup 6 not found (checked Program Files (x86) and LOCALAPPDATA\Programs). Install it: winget install JRSoftware.InnoSetup"
     }
     & $iscc "/DMyAppVersion=$Version" (Join-Path $App 'installer\flowpost.iss')
     if ($LASTEXITCODE -ne 0) { throw "ISCC.exe failed with exit code $LASTEXITCODE" }
