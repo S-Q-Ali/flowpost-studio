@@ -481,11 +481,54 @@ Three facts worth keeping for the next run:
   untrimmed, so a stray `\r` from a CRLF `.env` would have silently made every
   issued key unverifiable.
 - The admin's only `sessions` row expired on 2026-11-01. The Step 6b probe
-  minted the replacement, which lives until **2026-11-10**. Because the model is
-  one session per user, the desktop unlock in Step 6 replaces it — sign in again
-  on the web after that, and expect the same in the other direction.
+  minted the replacement, which lived until **2026-11-10** — the 2026-11-04 run
+  revoked it through `verify-session`, so the project now holds **zero** live
+  sessions and the desktop unlock is the next one written. Because the model is
+  one session per user, the desktop unlock in Step 6 replaces whatever is there
+  — sign in again on the web after that, and expect the same in the other
+  direction.
 
 One remote function, `get-upload-url`, has no local counterpart. It was left
 deployed — deleting it is a separate decision, but it is dead weight that no
 `functions deploy` will ever update.
 
+
+## Run log — 2026-11-04 (the audit hardening)
+
+Same project ref, same token. This run shipped the six fix commits
+(`304aa29`…`d1e27ec`): the strict-unseal helper, the shared media-URL
+allowlist, claim-fenced publisher writes, the scheduler's fired-memory and lock
+heartbeat, the no-fallback admin owner, revoke-only `verify-session`, and the
+desktop's give-up timer.
+
+| Step | State | Evidence |
+|---|---|---|
+| 1 | unchanged | Neither secret was listed, set or rotated — the 11-03 values are still in place, and `verify-license` answering `200 valid=true` for a key hashed against the local `.env` pepper proves the deployed pepper still matches it. |
+| 4 | done | `npx supabase functions deploy --remote=<ref> --yes` for the 15 changed code dirs (14 functions plus `_shared`, which every function imports). `functions list` reads back 33 live functions, all at `updated_at 2026-11-04T02:01:21Z`: `get-file` v29, `posts-api` v4, `verify-license` v2, `verify-session` v63, `verify-security-questions` v65, `linkedin-upload` v22, `youtube-upload` v100, `facebook-upload`/`instagram-upload` v101, `post-story` v85, `tiktok-upload` v76, `google-drive-auth` v45, `drive-to-mega` v41, `generate-ai-captions` v32, `process-workflow` v156. |
+| 4 (read-back) | done | `get-file` with an unsigned plaintext token → `403 Invalid token`: the new `openSealed` gate is live. `posts-api` with no session → `401`. `connect-url` now **requires** a nonce — without one every platform answers `400 A connect nonce is required`, and with a 64-hex one all five answer `200` with the real provider hosts. |
+| 5 | done | `cron.job_run_details`: both jobs `succeeded` at 02:25 and 02:30 UTC — the first two ticks after the restart, and the first after the deploy. |
+| 6b (server chain) | done | `LICENSE_KEY_ADMIN` through the desktop's own path: `verify-license` → `200 valid=true`, 72-character token, `expiresAt` 2026-11-11; `licenses.last_used_at` stamped `02:26:27Z`. That token authorized `account-list` (rows back) and `list`. `verify-session` with `{action:"check"}` → `400 Unsupported action`; with `{action:"revoke"}` → `200 {"revoked":true}`; the same token at `posts-api` immediately after → `401 {"error":"Unauthorized"}`, and `sessions` holds **0** live rows. A garbage key answers `401 Invalid license key`. |
+| 7–9 | owner-only | Unchanged: the release bundle at `desktop-flutter/build/windows/x64/runner/Release/flowpost.exe` is current (`data/app.so` built 2026-11-03 18:52, after the last Dart change), so the connect → close browser → quit → reopen → publish checkpoint needs only the owner's click and a browser. |
+
+**The stall, and what it proved.** For ~90 minutes before this deploy the
+project's Postgres stopped handing out connections: `database/query` timed out,
+`posts-api` DB reads hung past 45s, and `cron.job_run_details` filled with
+`job startup timeout` for both jobs from 01:50 to 02:16 UTC. `verify-license`
+answered `503` and `verify-session` `429` through it — which is the fail-closed
+rate limiter doing exactly what it was written to do: with no store, the limit
+holds shut instead of opening. The project was restarted (owner-approved,
+`POST /v1/projects/<ref>/restart`), came back `ACTIVE_HEALTHY` at 02:20 with
+`posts = 1159`, and every endpoint above answered correctly within a second
+afterwards. Nothing in the deployed code was implicated: REST table reads with
+the publishable key, and `rpc/consume_rate_limit` called directly with both key
+types, worked while the functions were failing.
+
+Two facts worth keeping for the next run:
+
+- A rate-limited function that answers `503`/`429` on *every* request is a
+  store problem, not a code problem. Confirm with a direct REST call to the
+  same RPC before reading the function.
+- `GET /rest/v1/` is no longer a health probe: with the new `sb_publishable_…`
+  key it answers `401 Secret API key required` and with the legacy `anon` key
+  `401 Invalid API key`, while actual table reads return `200 []` normally.
+  Probe a table, not the root.
