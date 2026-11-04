@@ -678,9 +678,9 @@
     "semantic_hash": "ea3b5c2d9c1cc5d2b3fb3af706f2ca1a"
   },
   "vercel.json": {
-    "mtime": 1789130168.1047373,
-    "seen": 1792963109.463826,
-    "ast_hash": "ee1620f52a39ab26c629f92eae2f8faa",
+    "mtime": 1793829889.3507385,
+    "seen": 1793830405.6854753,
+    "ast_hash": "354ea87bb2b27aa86414d38d0815de50",
     "semantic_hash": ""
   },
   "vite.config.ts": {
@@ -4392,9 +4392,9 @@
     "semantic_hash": ""
   },
   "src/lib/desktop-download.test.ts": {
-    "mtime": 1793829285.2886155,
-    "seen": 1793829681.1890314,
-    "ast_hash": "378efafa9dc3e08fb507e40c87361f8f",
+    "mtime": 1793830096.2378962,
+    "seen": 1793830405.617122,
+    "ast_hash": "46d966dbfe8b25a0ece078d12c8baf5d",
     "semantic_hash": ""
   },
   "src/lib/desktop-download.ts": {
@@ -4404,9 +4404,9 @@
     "semantic_hash": ""
   },
   ".github/workflows/release-desktop.yml": {
-    "mtime": 1793828635.041644,
-    "seen": 1793829681.253035,
-    "ast_hash": "ce621fc9f1bcfd7972b364af2ce30a13",
+    "mtime": 1793830089.3783743,
+    "seen": 1793830405.6929746,
+    "ast_hash": "da1570e278da43704a33706d6f5f637c",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/media/data/connection_failure.dart": {
