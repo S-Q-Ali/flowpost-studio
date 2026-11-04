@@ -1,7 +1,6 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { describe, expect, it } from "vitest";
+
+import vercelConfig from "../../vercel.json";
 
 import {
   RELEASE_ASSETS,
@@ -212,11 +211,10 @@ describe("downloadButtonHref", () => {
   });
 });
 
-// jsdom gives this module an http import.meta.url, so read from the run root.
-const cspPolicy = JSON.parse(
-  readFileSync(join(process.cwd(), "vercel.json"), "utf8"),
-).headers[0].headers.find((header: { key: string }) => header.key === "Content-Security-Policy")
-  .value as string;
+// The policy Vercel serves in production, read straight from the config file.
+const cspPolicy =
+  vercelConfig.headers[0].headers.find((header) => header.key === "Content-Security-Policy")
+    ?.value ?? "";
 
 describe("the deployed Content-Security-Policy", () => {
   it("lets the page ask GitHub about the newest release", () => {
