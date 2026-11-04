@@ -80,6 +80,20 @@ export function normalizeReturnTo(
   return null;
 }
 
+/// The browser-facing URL of this function's own done page.
+///
+/// The edge runtime reports `req.url` without the gateway's `/functions/v1`
+/// prefix, and Supabase only routes the prefixed path — a browser sent to the
+/// bare slug gets `404 {"error":"requested path is invalid"}` and the connect
+/// tab never finishes. Adding the prefix here keeps the caller's own path
+/// intact if a runtime ever hands it over complete.
+export function donePageUrl(requestUrl: string): string {
+  const url = new URL(requestUrl);
+  const prefix = "/functions/v1";
+  const path = url.pathname.startsWith(prefix) ? url.pathname : `${prefix}${url.pathname}`;
+  return `${url.origin}${path}?action=done`;
+}
+
 /// Where a finished connect sends the browser.
 ///
 /// A web flow returns to [appOrigin] with the connected flag. A desktop wait

@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
-import { createOAuthState, consumeOAuthState, callbackLocation, connectDoneResponse, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
+import { createOAuthState, consumeOAuthState, callbackLocation, connectDoneResponse, donePageUrl, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 import { driveMediaUrl } from "../_shared/google-drive.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
@@ -133,8 +133,9 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const action = url.searchParams.get("action") || body?.action;
   // The done page the browser is sent to after a desktop connect; it is this
-  // same function at ?action=done, so it is always this function's own origin.
-  const doneUrl = `${url.origin}${url.pathname}?action=done`;
+  // same function at ?action=done, whose gateway-prefixed path is the only one
+  // the browser can load.
+  const doneUrl = donePageUrl(url.href);
 
   let auth: Awaited<ReturnType<typeof authorize>> | null = null;
   if (action !== "callback" && action !== "done") {

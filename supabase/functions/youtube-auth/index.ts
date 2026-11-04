@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
-import { createOAuthState, consumeOAuthState, callbackLocation, connectDoneResponse, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
+import { createOAuthState, consumeOAuthState, callbackLocation, connectDoneResponse, donePageUrl, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -127,8 +127,9 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const action = url.searchParams.get("action");
   // The done page the browser is sent to after a desktop connect; it is this
-  // same function at ?action=done, so it is always this function's own origin.
-  const doneUrl = `${url.origin}${url.pathname}?action=done`;
+  // same function at ?action=done, whose gateway-prefixed path is the only one
+  // the browser can load.
+  const doneUrl = donePageUrl(url.href);
 
   // The Google redirect carries no headers, so the callback is public; every
   // other action runs for a signed-in caller or the service key.

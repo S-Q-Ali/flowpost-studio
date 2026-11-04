@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, it, expect } from "vitest";
 import {
   newOAuthStateValue,
@@ -7,10 +9,14 @@ import {
   callbackLocation,
   desktopReturnTo,
   connectDoneResponse,
+  donePageUrl,
 } from "./oauth-state.ts";
 
 const APP_ORIGIN = "https://flowpost-studio.vercel.app";
 const FUNCTION_ORIGIN = "https://ximorwzknbizpceaoflw.supabase.co/functions/v1/youtube-auth";
+// What the edge runtime actually reports in req.url: the gateway's
+// /functions/v1 prefix is gone, so this path is not loadable as it stands.
+const RUNTIME_URL = "https://ximorwzknbizpceaoflw.supabase.co/youtube-auth";
 const NONCE = "a".repeat(64);
 
 function makeSupabase(handlers: {
@@ -359,5 +365,46 @@ describe("return_to through the state row", () => {
     });
     await createOAuthState(supabase as never, { userId: "user-1", returnTo: "https://evil.example/x" });
     expect(captured?.return_to).toBeNull();
+  });
+});
+
+describe("donePageUrl", () => {
+  it("puts the done page on the path the gateway routes", () => {
+    // A browser sent to the bare slug gets 404 {"error":"requested path is
+    // invalid"} from Supabase, so the tab never finishes the connect.
+    expect(donePageUrl(`${RUNTIME_URL}?action=callback&code=abc&state=xyz`)).toBe(
+      "https://ximorwzknbizpceaoflw.supabase.co/functions/v1/youtube-auth?action=done",
+    );
+  });
+
+  it("does not double the prefix when the caller already carries it", () => {
+    expect(donePageUrl(`${FUNCTION_ORIGIN}?action=callback`)).toBe(
+      `${FUNCTION_ORIGIN}?action=done`,
+    );
+  });
+
+  it("keeps the function slug the request came in on", () => {
+    expect(donePageUrl("https://ref.supabase.co/google-drive-auth?action=callback")).toBe(
+      "https://ref.supabase.co/functions/v1/google-drive-auth?action=done",
+    );
+  });
+});
+
+describe("the auth functions hand the browser a loadable done page", () => {
+  const slugs = [
+    "facebook-auth",
+    "google-drive-auth",
+    "instagram-auth",
+    "linkedin-auth",
+    "tiktok-auth",
+    "youtube-auth",
+  ];
+
+  it.each(slugs)("%s builds its done URL through the shared helper", (slug) => {
+    // Reading the shipped source is the only way to catch this: the runtime
+    // shape of req.url cannot be reproduced from a test that invents it.
+    const source = readFileSync(`supabase/functions/${slug}/index.ts`, "utf8");
+    expect(source).toContain("donePageUrl(");
+    expect(source).not.toContain("${url.origin}${url.pathname}");
   });
 });
