@@ -6,9 +6,11 @@ import {
   normalizeReturnTo,
   callbackLocation,
   desktopReturnTo,
+  connectDoneResponse,
 } from "./oauth-state.ts";
 
 const APP_ORIGIN = "https://flowpost-studio.vercel.app";
+const FUNCTION_ORIGIN = "https://ximorwzknbizpceaoflw.supabase.co/functions/v1/youtube-auth";
 const NONCE = "a".repeat(64);
 
 function makeSupabase(handlers: {
@@ -225,9 +227,12 @@ describe("desktopReturnTo", () => {
 
 describe("callbackLocation", () => {
   const desktop = `flowpost://connect-callback?platform=youtube&nonce=${NONCE}`;
+  const doneUrl = `${FUNCTION_ORIGIN}?action=done`;
 
-  it("answers a desktop wait with the outcome, keeping its nonce", () => {
-    expect(callbackLocation(desktop, APP_ORIGIN, "youtube")).toBe(`${desktop}&result=connected`);
+  it("answers a desktop wait with the function's own done page", () => {
+    expect(callbackLocation(desktop, APP_ORIGIN, "youtube", doneUrl)).toBe(
+      `${doneUrl}&platform=youtube&nonce=${NONCE}&result=connected`,
+    );
   });
 
   it("falls back to the app accounts page for a web flow", () => {
@@ -254,6 +259,74 @@ describe("callbackLocation", () => {
     expect(callbackLocation(`flowpost://evil/step?platform=youtube&nonce=${NONCE}`, APP_ORIGIN, "youtube")).toBe(
       `${APP_ORIGIN}/accounts?connected=youtube`,
     );
+  });
+
+  it("refuses a done page that is not an http(s) location", () => {
+    // Only a real URL can load a page; a hand-written flowpost:// done target
+    // would spin the tab exactly like the 302 it replaces, so fall back.
+    const location = callbackLocation(desktop, APP_ORIGIN, "youtube", "flowpost://x?action=done");
+    expect(location.startsWith("flowpost://")).toBe(false);
+    expect(location).toBe(`${APP_ORIGIN}/accounts?connected=youtube`);
+  });
+
+  it("falls back to the app page for a desktop wait the caller gave no done page for", () => {
+    // A caller that never wired action=done must not 302 the browser to a
+    // custom scheme; the safe web accounts page is the fallback.
+    expect(callbackLocation(desktop, APP_ORIGIN, "youtube")).toBe(
+      `${APP_ORIGIN}/accounts?connected=youtube`,
+    );
+  });
+
+  it("hands the browser no custom-protocol navigation", () => {
+    // A 302 straight to flowpost:// never completes, so the tab spins forever.
+    const location = callbackLocation(desktop, APP_ORIGIN, "youtube", doneUrl);
+    expect(location.startsWith("flowpost://")).toBe(false);
+  });
+});
+
+describe("connectDoneResponse", () => {
+  const deepLink = `flowpost://connect-callback?platform=google_drive&nonce=${NONCE}`;
+  const requestUrl = (query: string) => `${FUNCTION_ORIGIN}?action=done&${query}`;
+  const body = (url: string) => connectDoneResponse(url);
+
+  it("answers a good desktop handoff with a page that ends the navigation", async () => {
+    const response = await body(requestUrl(`platform=google_drive&nonce=${NONCE}&result=connected`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+    const text = await response.text();
+    // The app link reaches the OS from the script (raw) and the anchor (escaped).
+    expect(text).toContain(`${deepLink}&result=connected`);
+    expect(text).toContain(`${deepLink.replace(/&/g, "&amp;")}&amp;result=connected`);
+    expect(text).toContain("FlowPost");
+  });
+
+  it("refuses a nonce that is not the one a connect can carry", async () => {
+    const response = await body(requestUrl("platform=google_drive&nonce=deadbeef&result=connected"));
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain("flowpost://");
+  });
+
+  it("refuses a platform the desktop never waits on", async () => {
+    const response = await body(requestUrl(`platform=pinterest&nonce=${NONCE}&result=connected`));
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain("flowpost://");
+  });
+
+  it("refuses a result the flow never answers with", async () => {
+    const response = await body(requestUrl(`platform=google_drive&nonce=${NONCE}&result=maybe`));
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain("flowpost://");
+  });
+
+  it("hands off nothing when the request itself is not a done page", async () => {
+    const response = await connectDoneResponse(`${FUNCTION_ORIGIN}?platform=google_drive&nonce=${NONCE}&result=connected`);
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain("flowpost://");
+  });
+
+  it("names only the outcome, never the raw query, in the refused page", async () => {
+    const response = await body(requestUrl("platform=google_drive&nonce=deadbeef&result=connected"));
+    expect(await response.text()).not.toContain("deadbeef");
   });
 });
 

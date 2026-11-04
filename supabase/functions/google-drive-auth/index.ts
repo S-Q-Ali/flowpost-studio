@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
-import { createOAuthState, consumeOAuthState, callbackLocation, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
+import { createOAuthState, consumeOAuthState, callbackLocation, connectDoneResponse, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 import { driveMediaUrl } from "../_shared/google-drive.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
@@ -132,9 +132,12 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const body = await req.json().catch(() => ({}));
   const action = url.searchParams.get("action") || body?.action;
+  // The done page the browser is sent to after a desktop connect; it is this
+  // same function at ?action=done, so it is always this function's own origin.
+  const doneUrl = `${url.origin}${url.pathname}?action=done`;
 
   let auth: Awaited<ReturnType<typeof authorize>> | null = null;
-  if (action !== "callback") {
+  if (action !== "callback" && action !== "done") {
     auth = await authorize(req);
     if (!auth.allowed) {
       return json({ error: "Unauthorized" }, 401);
@@ -144,6 +147,8 @@ Deno.serve(async (req) => {
 
   try {
     if (!action) return json({ error: "Missing action" }, 400);
+
+    if (action === "done") return connectDoneResponse(req.url);
 
     const redirectUri = `${SUPABASE_URL}/functions/v1/google-drive-auth?action=callback`;
 
@@ -233,7 +238,7 @@ Deno.serve(async (req) => {
 
       return new Response(null, {
         status: 302,
-        headers: { Location: callbackLocation(oauthState.returnTo, APP_ORIGIN, "google_drive") },
+        headers: { Location: callbackLocation(oauthState.returnTo, APP_ORIGIN, "google_drive", doneUrl) },
       });
     }
 

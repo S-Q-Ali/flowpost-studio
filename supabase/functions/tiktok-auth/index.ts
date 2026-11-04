@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
-import { createOAuthState, consumeOAuthState, callbackLocation, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
+import { createOAuthState, consumeOAuthState, callbackLocation, connectDoneResponse, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -113,9 +113,13 @@ Deno.serve(async (req) => {
   // (TikTok always sends both on the redirect). The redirect URI registered
   // in the TikTok app is the bare function URL with no query string.
   const isCallback = url.searchParams.has("code") && url.searchParams.has("state");
+  // The done page the browser is sent to after a desktop connect; it is this
+  // same function at ?action=done, so it is always this function's own origin.
+  const doneUrl = `${url.origin}${url.pathname}?action=done`;
+  const isDone = url.searchParams.get("action") === "done";
 
   let auth: Awaited<ReturnType<typeof authorize>> | null = null;
-  if (!isCallback) {
+  if (!isCallback && !isDone) {
     auth = await authorize(req);
     if (!auth.allowed) {
       return json({ error: "Unauthorized" }, 401);
@@ -124,6 +128,8 @@ Deno.serve(async (req) => {
   const sessionUserId = auth && auth.kind === "session" ? auth.userId : null;
 
   try {
+    if (isDone) return connectDoneResponse(req.url);
+
     if (isCallback) {
       const error = url.searchParams.get("error");
       if (error) {
@@ -190,7 +196,7 @@ Deno.serve(async (req) => {
 
       return new Response(null, {
         status: 302,
-        headers: { Location: callbackLocation(oauthState.returnTo, APP_ORIGIN, "tiktok") },
+        headers: { Location: callbackLocation(oauthState.returnTo, APP_ORIGIN, "tiktok", doneUrl) },
       });
     }
 
