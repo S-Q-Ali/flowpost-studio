@@ -1,8 +1,9 @@
 name: Release the desktop app
 
-# A tag like `desktop-v1.0.0` builds the Windows installer, writes its
-# SHA-256 next to it, and publishes both on a GitHub release. The tag is the
-# only version: the installer and the app's own version come from it.
+# A tag like `desktop-v1.0.0` builds the Windows setup .exe and a portable zip,
+# writes each SHA-256 next to it, and publishes all of them on a GitHub release.
+# The tag is the only version: both artifacts and the app's own version come
+# from it. The same build is available locally via scripts\build-desktop.ps1.
 on:
   push:
     tags:
@@ -58,6 +59,24 @@ jobs:
           --build-number=${{ github.run_number }}
           --dart-define-from-file=config/prod.json
 
+      - name: Build the portable zip
+        working-directory: desktop-flutter
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.value }}"
+          $rel = "build\windows\x64\runner\Release"
+          $dist = Join-Path (Get-Item ..).FullName "dist-desktop"
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+          $stage = Join-Path $dist "portable\FlowPost-$v"
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "$rel\*" $stage -Recurse
+          # The app resolves FFmpeg at <exe>\ffmpeg\bin, so mirror the installer layout.
+          if (Test-Path "third_party\ffmpeg\bin") {
+            Copy-Item "third_party\ffmpeg\bin" (Join-Path $stage "ffmpeg") -Recurse
+          }
+          Compress-Archive -Path $stage -DestinationPath (Join-Path $dist "FlowPost-$v-portable.zip")
+
       - name: Build the installer
         working-directory: desktop-flutter
         shell: powershell
@@ -71,16 +90,18 @@ jobs:
           # A native tool that fails leaves PowerShell running happily.
           exit $LASTEXITCODE
 
-      - name: Write the checksum of the installer
+      - name: Write the checksums
         shell: pwsh
         run: |
+          $v = "${{ steps.version.outputs.value }}"
           $installer = "dist-desktop\FlowPostNativeSetup.exe"
-          if (-not (Test-Path $installer)) {
-            throw "The installer was not produced: $installer"
+          $zip = "dist-desktop\FlowPost-$v-portable.zip"
+          foreach ($artifact in @($installer, $zip)) {
+            if (-not (Test-Path $artifact)) { throw "Expected artifact was not produced: $artifact" }
+            $hash = (Get-FileHash -Algorithm SHA256 $artifact).Hash.ToLower()
+            "$hash  $(Split-Path -Leaf $artifact)" | Set-Content -Encoding ascii "$artifact.sha256"
+            Write-Host "SHA-256 $hash $artifact"
           }
-          $hash = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLower()
-          "$hash  FlowPostNativeSetup.exe" | Set-Content -Encoding ascii "$installer.sha256"
-          Write-Host "SHA-256 $hash"
 
       - name: Publish the release
         shell: bash
@@ -88,15 +109,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.value }}
         run: |
+          ARTIFACTS=(
+            dist-desktop/FlowPostNativeSetup.exe
+            dist-desktop/FlowPostNativeSetup.exe.sha256
+            "dist-desktop/FlowPost-$VERSION-portable.zip"
+            "dist-desktop/FlowPost-$VERSION-portable.zip.sha256"
+          )
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" \
-              dist-desktop/FlowPostNativeSetup.exe \
-              dist-desktop/FlowPostNativeSetup.exe.sha256 \
-              --clobber
+            gh release upload "$GITHUB_REF_NAME" "${ARTIFACTS[@]}" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" \
-              dist-desktop/FlowPostNativeSetup.exe \
-              dist-desktop/FlowPostNativeSetup.exe.sha256 \
+            gh release create "$GITHUB_REF_NAME" "${ARTIFACTS[@]}" \
               --title "FlowPost Studio $VERSION" \
-              --notes "Windows installer for FlowPost Studio $VERSION. Check it with: certutil -hashfile FlowPostNativeSetup.exe SHA256"
+              --notes "Windows build for FlowPost Studio $VERSION: FlowPostNativeSetup.exe (per-user installer) and FlowPost-$VERSION-portable.zip (extract and run, no install). Verify with: certutil -hashfile <file> SHA256"
           fi
