@@ -10,7 +10,7 @@
     - a setup .exe   : the per-user Inno Setup installer.
   Paths are resolved against this script's repo root, so it runs from anywhere.
   Needs: Flutter (windows enabled), the C++ build toolchain, and Inno Setup 6
-  for the installer (choco install innosetup --yes).
+  for the installer (winget install JRSoftware.InnoSetup).
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts\build-desktop.ps1
 .EXAMPLE
@@ -44,6 +44,23 @@ if (-not $Version) {
 
 if (-not (Test-Path (Join-Path $App $ConfigFile))) {
   throw "Dart-define config not found: $App\$ConfigFile. Copy dev.example.json or create prod.json first."
+}
+
+# The gitignored example configs ship placeholder values, so a build from one
+# produces an app that opens on the setup screen instead of a working one.
+$configJson = Get-Content (Join-Path $App $ConfigFile) -Raw | ConvertFrom-Json
+foreach ($field in 'SUPABASE_URL', 'SUPABASE_ANON_KEY') {
+  $value = "$($configJson.$field)"
+  if ($value -match 'placeholder|<.*>' -or [string]::IsNullOrWhiteSpace($value)) {
+    Write-Warning "$field in $ConfigFile is not a real value - the built app will ask for credentials on first run."
+  }
+}
+
+function Write-Checksum([string]$Path) {
+  # Same "<hash>  <name>" shape the CI release publishes, so one certutil
+  # comparison works no matter where the file came from.
+  $hash = (Get-FileHash -Algorithm SHA256 $Path).Hash.ToLower()
+  "$hash  $(Split-Path -Leaf $Path)" | Set-Content "$Path.sha256" -Encoding ascii
 }
 
 Push-Location $App
@@ -90,10 +107,10 @@ try {
     if (Test-Path $FfmpegBin) {
       Copy-Item -Path $FfmpegBin -Destination (Join-Path $stage 'ffmpeg') -Recurse -Force
     }
-    $zip = Join-Path $Dist "FlowPost-$Version-portable.zip"
+    $zip = Join-Path $Dist 'FlowPost-portable.zip'
     if (Test-Path $zip) { Remove-Item $zip -Force }
     Compress-Archive -Path $stage -DestinationPath $zip
-    (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower() | Set-Content "$zip.sha256" -Encoding ascii
+    Write-Checksum $zip
     "    -> $zip"
   }
 
@@ -111,7 +128,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "ISCC.exe failed with exit code $LASTEXITCODE" }
     $setup = Join-Path $Dist 'FlowPostNativeSetup.exe'
     if (-not (Test-Path $setup)) { throw "Installer was not produced: $setup" }
-    (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLower() | Set-Content "$setup.sha256" -Encoding ascii
+    Write-Checksum $setup
     "    -> $setup"
   }
 
