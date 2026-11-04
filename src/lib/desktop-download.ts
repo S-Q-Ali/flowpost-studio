@@ -58,9 +58,16 @@ const LATEST_RELEASE_API =
   "https://api.github.com/repos/S-Q-Ali/flowpost-studio/releases/latest";
 
 export async function fetchReleaseStatus(
-  respond: JsonResponder = (input) => fetch(input).then(
-    ({ ok, status, json }) => ({ ok, status, json }),
-  ),
+  respond: JsonResponder = async (input) => {
+    // Keep the Response and call json() on it: taking the method out of the
+    // object loses its receiver, and a browser then throws.
+    const response = await fetch(input);
+    return {
+      ok: response.ok,
+      status: response.status,
+      json: () => response.json(),
+    };
+  },
 ): Promise<ReleaseStatus> {
   let response;
   try {
@@ -71,7 +78,14 @@ export async function fetchReleaseStatus(
   if (response.status === 404) return { state: "no-release" };
   if (!response.ok) return { state: "unreachable" };
 
-  const release = await response.json();
+  // A body that is not the JSON GitHub sends (a proxy page, a truncated
+  // reply) is not a statement about the release, so say nothing either way.
+  let release: unknown;
+  try {
+    release = await response.json();
+  } catch {
+    return { state: "unreachable" };
+  }
   const files = releaseDownloadFiles(release);
   if (!files) return { state: "no-release" };
   return {

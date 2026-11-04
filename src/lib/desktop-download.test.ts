@@ -151,6 +151,33 @@ describe("fetchReleaseStatus", () => {
       await fetchReleaseStatus(async () => response(500, { message: "Server Error" })),
     ).toEqual({ state: "unreachable" });
   });
+
+  it("reads a real Response when it does the fetching itself", async () => {
+    // Every stub above is a plain object. The browser hands back a Response,
+    // whose json() only works when called on that class — copying it off loses
+    // the receiver, the promise rejects, and the panel hangs on "loading".
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify(releaseBody(BOTH_ASSETS)), { status: 200 })) as typeof fetch;
+    try {
+      expect(await fetchReleaseStatus()).toMatchObject({ state: "ready", version: "1.2.0" });
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it("says the release is unreachable when the reply is not JSON", async () => {
+    // A 200 from a proxy or a captive portal is not an answer about the build,
+    // and must not be reported as "there is no release".
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response("<html>sign in</html>", { status: 200 })) as typeof fetch;
+    try {
+      expect(await fetchReleaseStatus()).toEqual({ state: "unreachable" });
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
 });
 
 describe("downloadButtonHref", () => {
