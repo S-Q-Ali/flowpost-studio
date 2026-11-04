@@ -90,6 +90,17 @@ Do not run `flutter test` and `flutter build` at the same time — they share
 
 ## Build
 
+One command from the repository root builds both artifacts into `dist-desktop`
+(portable zip and setup `.exe`, each with a `.sha256`):
+
+```powershell
+./scripts/build-desktop.ps1                  # both
+./scripts/build-desktop.ps1 -Target portable # only the zip
+```
+
+Quit the tray app first — it locks the output. The manual route, if you want the
+raw executable only:
+
 ```powershell
 flutter clean
 flutter build windows --release --dart-define-from-file=config/prod.json
@@ -104,8 +115,13 @@ The executable is `build\windows\x64\runner\Release\flowpost.exe`.
 ## Installer
 
 ```powershell
-& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\flowpost.iss
+./scripts/build-desktop.ps1 -Target installer
 ```
+
+The script compiles `installer\flowpost.iss` with Inno Setup 6, which it looks
+for in `Program Files (x86)` and then `%LOCALAPPDATA%\Programs` (a non-admin
+install lands in the second). `winget install JRSoftware.InnoSetup` gets it if
+neither exists.
 
 Output: `..\dist-desktop\FlowPostNativeSetup.exe` (repository root).
 

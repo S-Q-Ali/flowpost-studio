@@ -488,9 +488,10 @@ Three facts worth keeping for the next run:
   — sign in again on the web after that, and expect the same in the other
   direction.
 
-One remote function, `get-upload-url`, has no local counterpart. It was left
-deployed — deleting it is a separate decision, but it is dead weight that no
-`functions deploy` will ever update.
+One remote function, `get-upload-url`, had no local counterpart — dead weight no
+`functions deploy` would ever update. Deleted from production on 2026-11-05; its
+endpoint now answers 404 (it answered 401 before, JWT-gated and unreachable from
+any client in this repo).
 
 
 ## Run log — 2026-11-04 (the audit hardening)

@@ -148,12 +148,14 @@ Local tooling reads `.env` (ignored by git). `ACCESS_TOKEN` there is a Supabase 
 
 ## Scripts
 
-Desktop commands live in `desktop-flutter/`:
+Desktop commands live in `desktop-flutter/`; the release build script runs from
+the repository root.
 
 | Command | What it does |
 |---|---|
 | `flutter run -d windows` | Run the client |
 | `flutter build windows --release` | Release build |
+| `./scripts/build-desktop.ps1` | Portable zip **and** setup `.exe`, with SHA-256, into `dist-desktop` |
 | `flutter analyze lib test integration_test` | Static analysis |
 | `dart format --set-exit-if-changed lib test integration_test` | Format gate |
 | `flutter test` | Unit, provider and widget tests |
