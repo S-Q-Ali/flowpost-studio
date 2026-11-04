@@ -43,7 +43,7 @@ When the app has no backend values yet it opens a guided setup instead of a blan
 
 Which steps you see depends on the track:
 
-- **End user** — point the app at an existing FlowPost server (project address + anon key, saved in `credentials.json` on this PC), then unlock with a license key. Nothing else.
+- **End user** — point the app at an existing FlowPost server (project address + publishable key, saved in `credentials.json` on this PC), then unlock with a license key. Nothing else.
 - **Operator** — your own deployment. The server step, then the platform keys the next steps read: AI captions (Groq), media storage (Cloudflare R2), and the OAuth app for each of Google/YouTube+Drive, Instagram/Facebook (Meta), TikTok and LinkedIn, then the license step. The deploy step is commands to run (`supabase db push`, `supabase functions deploy`, set `TOKEN_ENCRYPTION_KEY`, `LICENSE_PEPPER` and the service-role key as server secrets), not values to type.
 
 An operator's keys are not stored on the PC. The wizard sends each one to the `operator-config` edge function, which seals it with AES-GCM and stores it in the server's `operator_config` table; `config-status` tells the wizard which steps are satisfied without ever returning a value. A deployment that already keeps those keys as edge-function secrets is unaffected — the stored value wins and the environment is the fallback. [ADR 0005](docs/adr/0005-server-held-secrets.md) is the full write-up.
@@ -64,7 +64,7 @@ powershell -ExecutionPolicy Bypass -File tool\fetch_ffmpeg.ps1
 flutter run -d windows
 ```
 
-A build with no baked values opens a setup screen asking for the Supabase URL and anon key (and optionally the update manifest URL). The values are stored in `credentials.json` under `%APPDATA%\com.flowpost\FlowPost`; bake them in instead with `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`.
+A build with no baked values opens a setup screen asking for the Supabase URL and publishable key (the older anon key works too; optionally the update manifest URL). The values are stored in `credentials.json` under `%APPDATA%\com.flowpost\FlowPost`; bake them in instead with `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`.
 
 A source build still unlocks with a license key, so the backend it points at needs your key's hash in the `licenses` table.
 

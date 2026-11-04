@@ -7,7 +7,7 @@ Support, release and rollback notes for the web dashboard and the Windows client
 | Item | Path |
 |---|---|
 | Data root | `%APPDATA%\com.flowpost\FlowPost` |
-| Supabase URL, anon key, update manifest URL | `credentials.json` in the data root |
+| Supabase URL, publishable key, update manifest URL | `credentials.json` in the data root |
 | Local account list (platform, label, status only) | `accounts.json` in the data root |
 | Read cache | `cache.db` in the data root |
 | Offline drafts | `drafts.db` in the data root |

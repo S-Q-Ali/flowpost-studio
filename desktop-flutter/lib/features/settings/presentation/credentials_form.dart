@@ -200,7 +200,7 @@ class _CredentialsFormState extends State<CredentialsForm> {
           autocorrect: false,
           enableSuggestions: false,
           decoration: InputDecoration(
-            labelText: 'Anon key',
+            labelText: 'Publishable key',
             errorText: _problems[ConfigField.supabaseAnonKey],
             suffixIcon: IconButton(
               key: const Key('credentials-show-key'),

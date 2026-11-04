@@ -156,12 +156,13 @@ const Map<String, SetupStep> setupSteps = {
       ),
       SetupField(
         name: 'SUPABASE_ANON_KEY',
-        label: 'Anon key',
+        label: 'Publishable key',
         rule: SetupRule.anonKey,
         store: SetupFieldStore.onThisMachine,
         help:
-            'The public anon or publishable key. The service-role key stays '
-            'on the server; the app refuses it.',
+            'Project Settings → API → Publishable key. The older anon key '
+            'works too; the service-role key stays on the server and the app '
+            'refuses it.',
       ),
       SetupField(
         name: 'UPDATE_MANIFEST_URL',

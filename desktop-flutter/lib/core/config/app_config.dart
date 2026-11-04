@@ -39,7 +39,7 @@ String? configFieldProblem(ConfigField field, String value) {
       if (trimmed.isEmpty) return null;
       return httpsUrlProblem(trimmed);
     case ConfigField.supabaseAnonKey:
-      if (trimmed.isEmpty) return 'The anon key is required.';
+      if (trimmed.isEmpty) return 'The publishable key is required.';
       if (_looksLikeServiceRole(trimmed)) {
         return 'This looks like a service-role key. The app only accepts '
             'the public anon/publishable key.';

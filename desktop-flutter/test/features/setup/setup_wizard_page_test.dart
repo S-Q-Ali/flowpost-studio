@@ -298,8 +298,8 @@ void main() {
 
       expect(
         find.text(
-          'Anon key: This looks like a service-role key. The app only accepts '
-          'the public anon/publishable key.',
+          'Publishable key: This looks like a service-role key. The app only '
+          'accepts the public anon/publishable key.',
         ),
         findsOneWidget,
       );
