@@ -20,9 +20,13 @@ import queueShot from "../../docs/screenshots/queue.webp";
 import calendarShot from "../../docs/screenshots/calendar.webp";
 import settingsShot from "../../docs/screenshots/settings.webp";
 import licenseShot from "../../docs/screenshots/license.webp";
-import { desktopDownloadUrl } from "../lib/desktop-download";
+import { ReleaseDownloads } from "../components/ReleaseDownloads";
+import {
+  downloadButtonHref,
+  type ReleaseStatus,
+} from "../lib/desktop-download";
+import { useDesktopRelease } from "../hooks/useDesktopRelease";
 
-const DOWNLOAD_URL = desktopDownloadUrl();
 const REPO_URL = "https://github.com/S-Q-Ali/flowpost-studio";
 
 /* ────────────────────────── helpers ────────────────────────── */
@@ -96,7 +100,7 @@ function PlatformChip({ platform, label, beta }: { platform: string; label: stri
 
 /* ────────────────────────── Nav + Hero ────────────────────────── */
 
-function LandingNav() {
+function LandingNav({ downloadHref }: { downloadHref: string }) {
   const { theme, setTheme } = useTheme();
   return (
     <nav className="fixed inset-x-0 top-0 z-50 border-b border-border bg-background/70 backdrop-blur-xl [backdrop-filter:saturate(180%)_blur(20px)]">
@@ -122,7 +126,7 @@ function LandingNav() {
             {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
           <a
-            href={DOWNLOAD_URL}
+            href={downloadHref}
             className="gradient-primary rounded-full px-5 py-2 text-sm font-medium text-primary-foreground shadow-glow transition-transform duration-200 hover:scale-[1.03]"
           >
             Download
@@ -180,7 +184,7 @@ function HeroPipelineCard() {
   );
 }
 
-function Hero() {
+function Hero({ downloadHref }: { downloadHref: string }) {
   return (
     <header className="px-6 pb-24 pt-40 text-center">
       <p className="reveal visible mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-primary">
@@ -194,7 +198,7 @@ function Hero() {
         the pipeline does the rest.
       </p>
       <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-        <PillButton href={DOWNLOAD_URL}>
+        <PillButton href={downloadHref}>
           Download for Windows <ArrowRight className="h-4 w-4" />
         </PillButton>
         <PillButton href="#desktop" variant="ghost">
@@ -209,7 +213,7 @@ function Hero() {
 
 /* ────────────────────────── Desktop app ────────────────────────── */
 
-function DesktopShowcase() {
+function DesktopShowcase({ release }: { release: ReleaseStatus | null }) {
   const shots = [
     {
       src: uploadShot,
@@ -261,9 +265,7 @@ function DesktopShowcase() {
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-3">
-            <PillButton href={DOWNLOAD_URL}>
-              Download for Windows <ArrowRight className="h-4 w-4" />
-            </PillButton>
+            <PillButton href="#download">Get the Windows build <ArrowRight className="h-4 w-4" /></PillButton>
             <PillButton href={REPO_URL} variant="ghost">
               View on GitHub
             </PillButton>
@@ -293,6 +295,9 @@ function DesktopShowcase() {
         <p className="mt-8 text-center text-sm text-muted-foreground">
           Unlocks with a license key — no login, no sign-up.
         </p>
+        <div className="mt-10">
+          <ReleaseDownloads status={release} />
+        </div>
       </div>
     </section>
   );
@@ -547,7 +552,7 @@ function Stats() {
   );
 }
 
-function Cta() {
+function Cta({ downloadHref }: { downloadHref: string }) {
   return (
     <section id="cta" className="px-6 py-28 text-center">
       <div className="reveal-scale mx-auto max-w-3xl">
@@ -559,7 +564,7 @@ function Cta() {
           — says thanks.
         </p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <PillButton href={DOWNLOAD_URL} className="!px-10 !py-4 text-lg">
+          <PillButton href={downloadHref} className="!px-10 !py-4 text-lg">
             Download for Windows <ArrowRight className="h-5 w-5" />
           </PillButton>
           <PillButton href={REPO_URL} variant="ghost" className="!px-10 !py-4 text-lg">
@@ -597,6 +602,8 @@ function Footer() {
 
 const PipelineLandingPage = () => {
   const rootRef = useScrollReveal();
+  const release = useDesktopRelease();
+  const downloadHref = downloadButtonHref(release);
 
   useEffect(() => {
     document.title = "FlowPost Studio — Schedule and publish to every platform from Windows";
@@ -617,15 +624,15 @@ const PipelineLandingPage = () => {
         .headline-md { font-size: clamp(1.4rem, 2.5vw, 2rem); font-weight: 600; letter-spacing: -0.01em; }
         .body-lg { font-size: clamp(1.1rem, 2vw, 1.4rem); line-height: 1.5; }
       `}</style>
-      <LandingNav />
+      <LandingNav downloadHref={downloadHref} />
       <main>
-        <Hero />
-        <DesktopShowcase />
+        <Hero downloadHref={downloadHref} />
+        <DesktopShowcase release={release} />
         <HowItWorks />
         <Features />
         <Platforms />
         <Stats />
-        <Cta />
+        <Cta downloadHref={downloadHref} />
       </main>
       <Footer />
     </div>
