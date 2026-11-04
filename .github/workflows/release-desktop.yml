@@ -53,6 +53,9 @@ jobs:
 
       - name: Write the build config
         working-directory: desktop-flutter
+        # The default shell on a Windows runner is PowerShell, which cannot read
+        # the `if [ -z … ]` below.
+        shell: bash
         env:
           SUPABASE_URL: ${{ secrets.DESKTOP_SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.DESKTOP_SUPABASE_ANON_KEY }}
