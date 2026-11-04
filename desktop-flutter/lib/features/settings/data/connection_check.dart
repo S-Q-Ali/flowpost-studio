@@ -9,15 +9,17 @@ typedef StatusProbe = Future<int> Function(
 });
 
 /// Tests the typed values without needing a session (SPEC-credentials
-/// Decision 9): the Supabase root says whether the server is there and
+/// Decision 9): the auth health endpoint says whether the server is there and
 /// whether it accepts the key, and the manifest must answer when it is set.
+/// The REST root is not an option — it answers `401 Secret API key required`
+/// to every publishable key, so a good key would read as a refused one.
 Future<String> checkCredentialsConnection(
   AppConfig config, {
   StatusProbe probe = httpStatus,
 }) async {
   try {
     final status = await probe(
-      Uri.parse('${config.supabaseUrl}/rest/v1/'),
+      Uri.parse('${config.supabaseUrl}/auth/v1/health'),
       headers: {'apikey': config.supabaseAnonKey},
     );
     if (status == 401 || status == 403) {

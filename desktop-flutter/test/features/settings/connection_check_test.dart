@@ -29,10 +29,25 @@ void main() {
     );
     expect(answer, 'The server answered.');
     expect(seen, [
-      Uri.parse('https://project.supabase.co/rest/v1/'),
+      Uri.parse('https://project.supabase.co/auth/v1/health'),
       Uri.parse('https://example.com/update.json'),
     ]);
   });
+
+  test(
+    'the probe is not the REST root, which no publishable key may read',
+    () async {
+      final seen = <Uri>[];
+      await checkCredentialsConnection(
+        _config,
+        probe: (url, {headers = const {}}) async {
+          seen.add(url);
+          return 200;
+        },
+      );
+      expect(seen.single.path, isNot('/rest/v1/'));
+    },
+  );
 
   test('the key travels in the apikey header, and nowhere else', () async {
     Map<String, String>? sent;
