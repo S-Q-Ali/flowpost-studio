@@ -4,7 +4,7 @@ import { fileProxyUrl } from "../_shared/get-file-token.ts";
 import { driveMediaUrl, getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 import { skipReason, type ScheduledWorkflow } from "../_shared/workflow-schedule.ts";
-import { closeWorkflowRun, describeRun, openWorkflowRun } from "../_shared/workflow-runs.ts";
+import { closeWorkflowRun, describeRun, maintainWorkflowRuns, openWorkflowRun } from "../_shared/workflow-runs.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
@@ -128,26 +128,21 @@ async function releaseWorkflowLock(workflowId: string): Promise<void> {
   if (error) console.error(`Failed to release the run lock of workflow ${workflowId}`, error);
 }
 
-/** The run row one workflow body opened, and what it had ready and made. */
 type HeldRun = {
   id: string | null;
   errorsSeen: number;
   report: { rows: number; posts: number } | null;
+  failed: boolean;
 };
 
-/**
- * Writes the run this invocation has open, then forgets it.
- *
- * Called from the same two places that release a lock, so a workflow that leaves
- * its block through one of the many `continue`s still ends up with a row.
- */
 async function endHeldRun(held: HeldRun, errors: string[]): Promise<void> {
   const runId = held.id;
-  if (!runId) return;
-  const report = held.report;
+  const outcome = describeRun(held.report, errors.slice(held.errorsSeen), held.failed);
   held.id = null;
   held.report = null;
-  await closeWorkflowRun(supabase, runId, describeRun(report, errors.slice(held.errorsSeen)));
+  held.failed = false;
+  held.errorsSeen = errors.length;
+  await closeWorkflowRun(supabase, runId, outcome);
 }
 
 Deno.serve(async (req) => {
@@ -180,31 +175,14 @@ Deno.serve(async (req) => {
   // Clean up expired locks
   await supabase.from("workflow_locks").delete().lt("expires_at", new Date().toISOString());
 
-  // Run history grows one row per run per workflow; keep 90 days.
-  await supabase
-    .from("workflow_runs")
-    .delete()
-    .lt("started_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());
-
-  // A run whose invocation was killed never reached a release point, so its row
-  // would read "still running" forever. Nothing legitimately lives past the
-  // 140-second upload budget, let alone twenty minutes.
-  await supabase
-    .from("workflow_runs")
-    .update({
-      status: "failed",
-      message: "the run stopped answering",
-      finished_at: new Date().toISOString(),
-    })
-    .eq("status", "running")
-    .lt("started_at", new Date(Date.now() - 20 * 60 * 1000).toISOString());
+  await maintainWorkflowRuns(supabase);
 
   const uploadPromises: Promise<void>[] = [];
   const functionStartMs = Date.now();
   // The workflow whose run lock this invocation holds, if any.
   let heldWorkflowId: string | null = null;
   const errors: string[] = [];
-  const heldRun: HeldRun = { id: null, errorsSeen: 0, report: null };
+  const heldRun: HeldRun = { id: null, errorsSeen: 0, report: null, failed: false };
 
   try {
 
@@ -417,6 +395,7 @@ Deno.serve(async (req) => {
         }
       });
 
+      heldRun.report = { rows: readyRows.length, posts: 0 };
       console.log(`Ready rows for workflow ${wf.name}: ${readyRows.length}`);
       if (readyRows.length === 0) {
         console.log(`No ready rows found for workflow ${wf.name}, skipping`);
@@ -567,6 +546,8 @@ Deno.serve(async (req) => {
               errors.push(`Row ${rowIndex}: failed to insert carousel posts: ${postsError?.message || "no records"}`);
               continue;
             }
+
+            heldRun.report.posts += insertedPosts.length;
 
             // Insert carousel_items
             for (const post of insertedPosts as { id: string }[]) {
@@ -895,6 +876,8 @@ Deno.serve(async (req) => {
             continue;
           }
 
+          heldRun.report.posts += insertedPosts.length;
+
           // Store sheet info in post metadata before triggering uploads
           const { error: metadataUpdateError } = await supabase
             .from("posts")
@@ -1059,6 +1042,7 @@ Deno.serve(async (req) => {
                     .single();
 
                   if (storyPost) {
+                    heldRun.report.posts++;
                     const igStoryPId = storyPost.id;
                     uploadPromises.push(
                       fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
@@ -1127,8 +1111,6 @@ Deno.serve(async (req) => {
           );
         }
       }
-
-      heldRun.report = { rows: readyRows.length, posts: workflowVideoCount };
     }
 
     // Await all upload promises for cron runs (manual runs return immediately)
@@ -1156,6 +1138,8 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("process-workflow error", err);
+    heldRun.failed = true;
+    errors.push(err instanceof Error ? err.message : "Unknown error");
 
     return json(
       {
