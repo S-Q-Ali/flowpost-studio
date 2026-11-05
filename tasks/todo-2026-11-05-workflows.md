@@ -107,10 +107,21 @@
   lines with 0 errors — every deployed entry point, not a cache hit; `npm test` 442
   tests in 33 files, `npm run lint` 0 errors / 184 warnings, `npx tsc -b` clean,
   `npm run build` clean.
-- [ ] Commit and push — needs a fresh explicit go.
-- [ ] Watch the new `functions` job go green on the pushed commit.
-- [ ] Required status checks: `Edge Functions` must be added next to `Lint` and
-  `Web (type check, test, build, dependency audit)` for the job to block a merge.
+- [x] Commit and push (owner's go 2026-11-05, "sab karo"): four atomic commits —
+  `03e830b` the 77-error fix plus the failing test, `79b7a29` `deno.json` + the CI
+  job, `3152984` runbook and plan/todo records, `a8e83f8` graph — pushed
+  `48cfe53..a8e83f8` to `origin/main`
+- [x] New job proven green on the pushed commit: CI run 42058443145 — Edge
+  Functions, Web, Lint and Desktop all success, CodeQL success
+  (https://github.com/S-Q-Ali/flowpost-studio/actions/runs/42058443145). The
+  `Edge Functions` log shows 114 dependency downloads and 53 `Check` lines with
+  zero errors, so it really type-checked every entry point from cold, in 12s.
+- [x] `Edge Functions` added to the required status checks for `main`. The contexts
+  are now `Web`, `Desktop`, `Edge Functions` (`strict: true`). `enforce_admins` is
+  off, so a direct push to `main` still lands; these gate pull requests.
+- [ ] `Lint` is **not** a required context, even though `e4b5048` says "make Lint
+  blocking" — the protection lost it at some point. Adding it is a policy change
+  outside this work item; needs the owner's call.
 
 ## Not started — needs its own go
 
