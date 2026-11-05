@@ -192,17 +192,23 @@ export default function AccountsPage() {
 
   useEffect(() => {
     const platform = searchParams.get("connected");
-    if (!platform) return;
+    const declined = searchParams.get("declined");
+    if (!platform && !declined) return;
     const label: Record<string, string> = {
       facebook: "Facebook & Instagram",
       instagram: "Instagram",
       drive: "Google Drive",
+      google_drive: "Google Drive",
+      linkedin: "LinkedIn",
       tiktok: "TikTok",
       youtube: "YouTube",
     };
-    toast.success(`${label[platform] || platform} connected!`);
+    // A consent the visitor refused on the provider's screen comes back here as
+    // ?declined; nothing was saved, so say so instead of leaving a silent page.
+    if (platform) toast.success(`${label[platform] || platform} connected!`);
+    if (declined) toast.error(`${label[declined] || declined} was not connected.`);
     setSearchParams({}, { replace: true });
-    if (window.opener) {
+    if (platform && window.opener) {
       window.opener.postMessage({ type: "oauth-connected", platform }, window.location.origin);
       setTimeout(() => window.close(), 1500);
     }

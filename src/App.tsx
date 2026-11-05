@@ -29,8 +29,9 @@ const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const TermsPage = lazy(() => import("./pages/TermsPage"));
 const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 const PipelineLandingPage = lazy(() => import("./pages/PipelineLandingPage"));
+const ConnectDonePage = lazy(() => import("./pages/ConnectDonePage"));
 
-const PUBLIC_PATHS = new Set(["/", "/terms", "/privacy", "/auth/callback", "/pipeline"]);
+const PUBLIC_PATHS = new Set(["/", "/terms", "/privacy", "/auth/callback", "/pipeline", "/connect-done"]);
 
 function RequireVerified() {
   const { isAuthenticated, pendingSecurityVerification } = useAuth();
@@ -71,6 +72,7 @@ function AppRoutes() {
       <Route path="/terms" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><TermsPage /></Suspense>} />
       <Route path="/privacy" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><PrivacyPage /></Suspense>} />
       <Route path="/pipeline" element={<Navigate to="/" replace />} />
+      <Route path="/connect-done" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><ConnectDonePage /></Suspense>} />
       <Route element={<RequireVerified />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}><Dashboard /></Suspense>} />
