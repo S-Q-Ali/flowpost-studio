@@ -63,14 +63,15 @@ W1 drift migration (no deps)
   **Acceptance:** each card shows created posts with "publication not confirmed", "nothing was ready", or "failed: <message>"; no history keeps legacy trigger text. One RPC serves all cards; failed reads show "Run history unavailable". Long reasons wrap.
   **Verify:** `npx tsc -b --force`, `npm run build`, `npx vitest run` for any lib extract, and the owner's browser check.
   **Files:** `src/pages/WorkflowsPage.tsx`, possibly one small lib. **Scope:** M.
-- [ ] **W2e** gates + docs
+- [x] **W2e** gates + docs
   `npx vitest run`, `npx eslint .`, `npx tsc -b --force`, `npm run build`, `graphify update .`; `docs/runbook.md` troubleshooting row ("a workflow ran but posted nothing — read `workflow_runs`"); `docs/adr/0007-workflow-run-history.md`.
 
 ### Checkpoint: W2 done
 - [x] Local Vitest (441 tests), ESLint (0 errors / 184 warnings), TypeScript build check and Vite build pass
 - [x] Browser synthetic state checks and responsive widths pass; graph updated
 - [x] History deadlines re-run against the pinned `@supabase/supabase-js@2.49.0` in an isolated temp install — open/close/maintenance each gave up at ~1.01s, every signal aborted, and the pinned client surfaces the stall as an error object instead of a throw (recipe in `tasks/todo-2026-11-05-workflows.md`)
-- [ ] Final corrections committed after explicit approval
+- [x] Final corrections committed and pushed on the owner's go (2026-11-05): `95c89c6` `974d921` `29e1fe6` `293fba2` `ffdec12` `53bc795`, `b82b5b8..53bc795` on `origin/main`
+- [x] CI green on the pushed commit — Lint, Web (type check, test, build, dependency audit) and Desktop all success, CodeQL success
 - [ ] Deno type-check and real database/RLS validation
 - [ ] Migration applied to production through the Management API and read back (`db push` is unusable here — see `tasks/deploy-server-68.md`)
 - [ ] `process-workflow` redeployed; a cron tick leaves rows in `workflow_runs` for both live workflows

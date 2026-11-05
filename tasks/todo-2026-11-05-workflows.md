@@ -49,13 +49,14 @@
   - [x] `docs/adr/0007-workflow-run-history.md`: bounded best-effort writes and created-not-published semantics
   - [x] `graphify update .` completed
   - [x] Local synthetic browser: history read-error and empty-page states; Create Workflow opens, Tab moves focus, Escape closes and restores focus; no console errors/warnings or external API requests
-  - [ ] Commit
+  - [x] Commit and push (owner's go 2026-11-05): six commits — `95c89c6` deadlines, `974d921` counts and failed runs, `29e1fe6` web labels and unavailable state, `293fba2` ADR 0007 and runbook, `ffdec12` this plan, `53bc795` graph — pushed `b82b5b8..53bc795` to `origin/main`
 
 ## Checkpoint: W2
 
 - [x] Every gate above run and green — 441 tests, 0 lint errors, type-check, Vite build, synthetic browser at four widths, graph update
 - [x] Deadlines proven against the pinned 2.49.0 server client, outside the suite: `npm install --prefix <temp dir> --no-save --ignore-scripts @supabase/supabase-js@2.49.0`, then run the helper's three deadline cases with a fake `fetch` that never answers (transpiled from `supabase/functions/_shared/workflow-runs.ts` with the workspace TypeScript). Hold the Node event loop with a ref'd timer — `AbortSignal.timeout()` is unref'd. Script kept at `E:\tmp\pinned-deadline-verify.cjs`, not in the repo, so no dependency is added to verify it.
 - [ ] Deno type-check (not installed here); deployment bundling and Node syntax checks are not substitutes
+- [x] Pushed CI gate green on `53bc795` (2026-11-05): CI [Lint, Web (type check, test, build, dependency audit), Desktop] and CodeQL all success — https://github.com/S-Q-Ali/flowpost-studio/actions/runs/42050207829
 - [ ] Owner's yes, then: apply all three migrations through the Management API (`POST /v1/projects/<ref>/database/query`, versions fixed in `supabase_migrations.schema_migrations` so `db push` sees no drift) and redeploy `process-workflow`, then the web dashboard
 - [ ] Read back: after one cron tick, `select workflow_id, triggered_by, status, rows_seen, posts_created, message from workflow_runs order by started_at desc limit 6;` shows one closed row per live workflow
 - [ ] Owner sees the last run in the browser
