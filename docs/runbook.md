@@ -121,12 +121,49 @@ under the new pepper, and tell each holder to type the new one.
 | "Too many attempts…" | One of the two `verify-license` buckets spent (10 per 15 minutes per IP, per key) | Wait out the countdown the app shows; check nothing is looping activations from one machine |
 | The license screen appears while the user works | The stored key was refused: the row went inactive, its `expires_at` passed, or another machine took the same user's session | The app already tried to renew silently and the server said no. Check the row, then issue or re-activate |
 | Edge calls return 401 | The minted session expired, or a newer activation replaced it | Both `verify-license` and `verify-security-questions` mint that user's one live session; the desktop renews from its stored key, so a persistent 401 means the key is gone |
+| A workflow appears to have run but nothing published | No ready rows, a source failure, or posts still being processed | Read **Workflow run history** below; `posts_created` is not proof of publication |
 | Queue row stuck on "processing" | The publish call died mid-flight | Delete the row after 30 minutes; the app offers it, then re-run the publish |
 | "Update check failed" | `UPDATE_MANIFEST_URL` empty or unreachable | Empty is valid before release hosting exists; the check is manual and non-blocking |
 | Deep link ignored | Anything but `/` (the router's allowlist) or `flowpost://connect-callback` (the connect dispatcher), or the app never ran for this user | The link is rejected and logged without its query string; launch the app once to re-register `flowpost://` |
 | Everyone stops at the license screen, each seeing "Something went wrong. Try again." | `LICENSE_PEPPER` is unset or shorter than 16 characters, so `verify-license` answers 503 and refuses to guess | Set the pepper in **Edge Functions → Secrets**. Do not change a pepper that issued keys already — see **License keys** |
 | Publish fails with a short sentence | The platform refused the upload | The service text is cleaned (no URLs or paths) before it reaches the screen and the log; retry from the row menu |
 | An account shows expired and will not publish | The platform grant was revoked or the refresh token expired — not a browser sign-out | See **Platform accounts and browser sign-out**; a browser sign-out changes nothing, so use **Reconnect** on the card to mint a fresh grant |
+
+## Workflow run history
+
+After the W2 migrations and deployments, each entered workflow has a best-effort
+row in `workflow_runs`. Schedule skips and lock conflicts create no row.
+
+- `completed`, zero ready rows: nothing was ready; old trigger timestamps can remain unchanged.
+- `posts_created`: inserted target posts, including tracked Instagram stories. This is **not a published count**; inspect the posts' status before retrying to avoid duplicates.
+- `failed`: read `message`. Counts can be nonzero if failure followed a successful insert.
+- `still running`: no close has been recorded. A successful later tick marks rows older than 20 minutes failed with "the run stopped answering". This is a heuristic, not a guaranteed total runtime limit.
+- `Run history unavailable`: the card's read failed or timed out. Check that the table and `latest_workflow_runs()` RPC were deployed; do not infer that the workflow never ran.
+
+History writes and maintenance use one-second abort deadlines and do not fail
+publishing. Missing history therefore does not prove missing work. Retention is
+90 days, purged on successful scheduler maintenance.
+
+Authorized read-back in the project's SQL editor (do not invoke **Run now** to test history):
+
+```sql
+select workflow_id, triggered_by, status, rows_seen, posts_created,
+       message, started_at, finished_at
+from public.workflow_runs
+order by started_at desc
+limit 20;
+```
+
+Deploy only after a fresh approval, in order:
+
+1. Apply `20261105120000_workflow_drift.sql`, `20261105130000_workflow_runs.sql`, then `20261105140000_latest_workflow_runs.sql`. Use `db push` when reachable, or the ordered Management API procedure in `tasks/deploy-server-68.md`; preserve migration tracking.
+2. Deploy `process-workflow`, then the web dashboard. No other publisher needs redeployment for W2.
+3. Wait for a naturally due cron tick; read back entered runs and their close statuses. A scheduled skip is not missing history.
+4. Owner checks the cards in the signed-in browser and confirms that another user's runs are not visible. Live publishing remains an owner-run check.
+
+Local tests and a web build do not type-check the Deno entry point. A Deno check
+and live schema/RLS read-back remain release gates; deployment bundling is not a
+substitute for either. See ADR `0007-workflow-run-history.md` and the workflow todo.
 
 ## Release checklist (desktop)
 
