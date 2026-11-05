@@ -288,9 +288,9 @@
     "semantic_hash": ""
   },
   "src/integrations/supabase/types.ts": {
-    "mtime": 1793389043.5145135,
-    "seen": 1793392570.0241613,
-    "ast_hash": "e4ac0bdb144f9a29cc4d23c8eba97aa0",
+    "mtime": 1793882358.9450383,
+    "seen": 1793889024.6230187,
+    "ast_hash": "c02e034330f9cf97967972be9747126d",
     "semantic_hash": ""
   },
   "src/lib/captions.ts": {
@@ -438,9 +438,9 @@
     "semantic_hash": ""
   },
   "src/pages/WorkflowsPage.tsx": {
-    "mtime": 1793640016.7757194,
-    "seen": 1793648310.991898,
-    "ast_hash": "d140330eb2e672f3de6d4f17581d9dbf",
+    "mtime": 1793888871.3528857,
+    "seen": 1793889024.633544,
+    "ast_hash": "dbf0f1d8651accc23eff9afe6ec24fe8",
     "semantic_hash": ""
   },
   "src/test/setup.ts": {
@@ -594,9 +594,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/process-workflow/index.ts": {
-    "mtime": 1793712104.3867712,
-    "seen": 1793713739.2961333,
-    "ast_hash": "5af58caee518b20c0a65582408c463d2",
+    "mtime": 1793888605.4176836,
+    "seen": 1793889024.6533365,
+    "ast_hash": "538eec770961442e4f6a22ef6fa6843b",
     "semantic_hash": ""
   },
   "supabase/functions/tiktok-auth/index.ts": {
@@ -4176,9 +4176,9 @@
     "semantic_hash": ""
   },
   "docs/runbook.md": {
-    "mtime": 1793761296.167793,
-    "seen": 1793761574.9945638,
-    "ast_hash": "03db528d50f7e765e84f359d5882321d",
+    "mtime": 1793888931.9870558,
+    "seen": 1793889024.7373877,
+    "ast_hash": "66a5c71872a5cf101bbce7be3097a6cb",
     "semantic_hash": ""
   },
   "src/components/BrandIcons.tsx": {
@@ -4566,15 +4566,15 @@
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/accounts/connect_controller.dart": {
-    "mtime": 1793844137.1036766,
-    "seen": 1793875297.974352,
-    "ast_hash": "b83c7f589691d136dc9d441a011f2b8b",
+    "mtime": 1793876646.5057955,
+    "seen": 1793889024.5435557,
+    "ast_hash": "c3b4b28e8aa17a2f101c6462c265e932",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/accounts/data/connect_gateway.dart": {
-    "mtime": 1793843583.787421,
-    "seen": 1793875297.9748442,
-    "ast_hash": "fbf0d268f44921b3297eff530751c459",
+    "mtime": 1793876646.5563989,
+    "seen": 1793889024.5438623,
+    "ast_hash": "3a0bae83fb3d6296987e454a249db5ea",
     "semantic_hash": ""
   },
   "desktop-flutter/lib/features/accounts/data/pending_connect_store.dart": {
@@ -4596,15 +4596,15 @@
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/accounts/connect_controller_test.dart": {
-    "mtime": 1793844501.503919,
-    "seen": 1793875298.0071988,
-    "ast_hash": "43266850358aff5d83c52b793b40a6f0",
+    "mtime": 1793876648.6230385,
+    "seen": 1793889024.5784364,
+    "ast_hash": "2325e03c8391b2ecd8348ab90365ea06",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/accounts/connect_gateway_test.dart": {
-    "mtime": 1793842262.0684042,
-    "seen": 1793875298.0072012,
-    "ast_hash": "fbe042dbd42e53fd191fc454e2c346f4",
+    "mtime": 1793876648.6461768,
+    "seen": 1793889024.57844,
+    "ast_hash": "8457e5b1b69cd19544197a9850b101a8",
     "semantic_hash": ""
   },
   "desktop-flutter/test/features/accounts/connect_link_test.dart": {
@@ -4785,6 +4785,60 @@
     "mtime": 1793841444.6520617,
     "seen": 1793875298.0440252,
     "ast_hash": "50408944486c2fd32198fac5abc80720",
+    "semantic_hash": ""
+  },
+  "src/lib/workflow-run-label.test.ts": {
+    "mtime": 1793888496.3767512,
+    "seen": 1793889024.6277118,
+    "ast_hash": "701e4d8a89ee736e8f0d4d485c42d67d",
+    "semantic_hash": ""
+  },
+  "src/lib/workflow-run-label.ts": {
+    "mtime": 1793888605.9266086,
+    "seen": 1793889024.627716,
+    "ast_hash": "bcd254a24008cf2fffe7ed15f132eafe",
+    "semantic_hash": ""
+  },
+  "src/pages/WorkflowsPage.test.tsx": {
+    "mtime": 1793888845.2987409,
+    "seen": 1793889024.6335409,
+    "ast_hash": "53e80f41c82e394464f474fd1a578e81",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/process-workflow-history.test.ts": {
+    "mtime": 1793888825.2219884,
+    "seen": 1793889024.6421669,
+    "ast_hash": "b1681e3b5869fe275e86c67de3bf7a85",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/workflow-runs.test.ts": {
+    "mtime": 1793888825.4393287,
+    "seen": 1793889024.645842,
+    "ast_hash": "28b9edc764399b794cc419dfa0159141",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/workflow-runs.ts": {
+    "mtime": 1793888576.0216763,
+    "seen": 1793889024.6458468,
+    "ast_hash": "1f56ff000656d8b87714ff29b11b42e9",
+    "semantic_hash": ""
+  },
+  "docs/adr/0007-workflow-run-history.md": {
+    "mtime": 1793888931.4582822,
+    "seen": 1793889024.7371023,
+    "ast_hash": "477e07faf02f01cab2e28835084e1bf5",
+    "semantic_hash": ""
+  },
+  "tasks/plan-2026-11-05-workflows.md": {
+    "mtime": 1793888961.75319,
+    "seen": 1793889024.7448306,
+    "ast_hash": "fddeba962759a1c1e0139d8d25b8aa86",
+    "semantic_hash": ""
+  },
+  "tasks/todo-2026-11-05-workflows.md": {
+    "mtime": 1793889000.5434647,
+    "seen": 1793889024.745613,
+    "ast_hash": "2c8e910d69df58264165980398925132",
     "semantic_hash": ""
   }
 }
