@@ -4176,9 +4176,9 @@
     "semantic_hash": ""
   },
   "docs/runbook.md": {
-    "mtime": 1793894293.6641366,
-    "seen": 1793894322.6299055,
-    "ast_hash": "dea6adb013007f2ceea0293624693c9f",
+    "mtime": 1793894597.4018207,
+    "seen": 1793894635.0707538,
+    "ast_hash": "fbd2670ac43385f562dc99ae5dbabe6e",
     "semantic_hash": ""
   },
   "src/components/BrandIcons.tsx": {
@@ -4836,9 +4836,9 @@
     "semantic_hash": ""
   },
   "tasks/todo-2026-11-05-workflows.md": {
-    "mtime": 1793894286.4544752,
-    "seen": 1793894322.6365716,
-    "ast_hash": "a30a7763d8f15a881c54a052eb34218b",
+    "mtime": 1793894604.4417906,
+    "seen": 1793894635.084232,
+    "ast_hash": "3edbd73ed562b8882bec9c9878f7d242",
     "semantic_hash": ""
   },
   "supabase/functions/deno.json": {
