@@ -186,6 +186,19 @@ Deno.serve(async (req) => {
     .delete()
     .lt("started_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());
 
+  // A run whose invocation was killed never reached a release point, so its row
+  // would read "still running" forever. Nothing legitimately lives past the
+  // 140-second upload budget, let alone twenty minutes.
+  await supabase
+    .from("workflow_runs")
+    .update({
+      status: "failed",
+      message: "the run stopped answering",
+      finished_at: new Date().toISOString(),
+    })
+    .eq("status", "running")
+    .lt("started_at", new Date(Date.now() - 20 * 60 * 1000).toISOString());
+
   const uploadPromises: Promise<void>[] = [];
   const functionStartMs = Date.now();
   // The workflow whose run lock this invocation holds, if any.
