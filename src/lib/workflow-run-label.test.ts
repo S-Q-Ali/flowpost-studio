@@ -14,8 +14,12 @@ function run(over: Partial<WorkflowRunSummary> = {}): WorkflowRunSummary {
 }
 
 describe("describeWorkflowRun", () => {
-  it("says how much a run posted", () => {
-    expect(describeWorkflowRun(run())).toMatch(/last run .* · 2 posted$/);
+  it("reports created posts without claiming publication", () => {
+    expect(describeWorkflowRun(run())).toMatch(/last run .* · 2 posts created · publication not confirmed$/);
+  });
+
+  it("does not claim that ready rows were posted when no post was inserted", () => {
+    expect(describeWorkflowRun(run({ posts_created: 0 }))).toMatch(/· no posts created$/);
   });
 
   it("says the schedule found nothing ready", () => {

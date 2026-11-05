@@ -112,6 +112,7 @@ export default function WorkflowsPage() {
   const [linkedinAccounts, setLinkedinAccounts] = useState<ConnectedAccount[]>([]);
   const [pageEligibility, setPageEligibility] = useState<Record<string, string>>({});
   const [lastRuns, setLastRuns] = useState<Record<string, WorkflowRunSummary>>({});
+  const [historyUnavailable, setHistoryUnavailable] = useState(false);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("create");
@@ -173,10 +174,12 @@ export default function WorkflowsPage() {
     setPageEligibility(map);
 
     // One call for every card: the newest run of each workflow this account owns.
-    const { data: runData } = await supabase.rpc("latest_workflow_runs");
+    const { data: runData, error: runError } = await supabase.rpc("latest_workflow_runs")
+      .abortSignal(AbortSignal.timeout(5000));
     const runs: Record<string, WorkflowRunSummary> = {};
     (runData ?? []).forEach((r) => { runs[r.workflow_id] = r; });
     setLastRuns(runs);
+    setHistoryUnavailable(!!runError);
   };
 
   const loadAccounts = async () => {
@@ -1543,7 +1546,7 @@ export default function WorkflowsPage() {
   };
 
   const renderLastTriggered = (wf: WorkflowRow) => {
-    // The run row is the truth; the two counters only move when something posted.
+    if (historyUnavailable) return "Run history unavailable";
     const run = lastRuns[wf.id];
     if (run) return describeWorkflowRun(run);
 
@@ -1693,7 +1696,7 @@ export default function WorkflowsPage() {
           {workflows.map((wf) => (
             <Card
               key={wf.id}
-              className="bg-card border-border shadow-card hover:border-primary/40 transition-colors"
+              className="min-w-0 bg-card border-border shadow-card hover:border-primary/40 transition-colors"
             >
               <CardHeader className="flex flex-row items-start justify-between pb-2">
                 <div className="space-y-1">
@@ -1710,10 +1713,10 @@ export default function WorkflowsPage() {
                     )}
                     {renderEligibilityBadge(wf)}
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
                     <Clock3 className="h-3 w-3" />
                     {renderWorkflowTriggerText(wf)}
-                  </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Switch
@@ -1727,14 +1730,14 @@ export default function WorkflowsPage() {
                   <p className="text-[11px] text-muted-foreground mb-1">Platforms</p>
                   {renderWorkflowCardPlatforms(wf)}
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>
+                <div className="flex items-start justify-between gap-3 text-[11px] text-muted-foreground">
+                  <span className="shrink-0">
                     {wf.media_type === "image" ? "Images" : "Videos"}:{" "}
                     <span className="text-foreground">
                       {wf.videos_per_run ?? 1} per run
                     </span>
                   </span>
-                  <span className="max-w-[58%] truncate text-right" title={renderLastTriggered(wf)}>
+                  <span className="min-w-0 text-right [overflow-wrap:anywhere]">
                     {renderLastTriggered(wf)}
                   </span>
                 </div>
