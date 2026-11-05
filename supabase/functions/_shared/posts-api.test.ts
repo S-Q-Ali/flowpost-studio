@@ -299,6 +299,38 @@ describe("listAccounts", () => {
     expect(error).toEqual({ message: "db down" });
     expect(data).toEqual([]);
   });
+
+  it("drops the deadline the server renews past on the next use", async () => {
+    const { supabase } = fakeAccounts(
+      ["google_drive", "youtube", "tiktok"].map((platform) => ({
+        user_id: "user-1",
+        platform,
+        account_id: `${platform}-1`,
+        is_connected: true,
+        token_expiry: "2026-11-05T13:05:00Z",
+      })),
+    );
+
+    const { data } = await listAccounts(supabase, "user-1");
+
+    expect(data?.map((row) => row.token_expiry)).toEqual([null, null, null]);
+  });
+
+  it("keeps the deadline of a token nothing renews", async () => {
+    const { supabase } = fakeAccounts([
+      {
+        user_id: "user-1",
+        platform: "instagram",
+        account_id: "ig-1",
+        is_connected: true,
+        token_expiry: "2026-11-05T13:05:00Z",
+      },
+    ]);
+
+    const { data } = await listAccounts(supabase, "user-1");
+
+    expect(data?.[0].token_expiry).toBe("2026-11-05T13:05:00Z");
+  });
 });
 
 describe("retryInstant", () => {

@@ -53,8 +53,9 @@ const EDIT_FIELDS = [
 
 /**
  * What `account-list` returns: the fields a screen shows about an account.
- * `token_expiry` tells the caller a refresh is due; the tokens themselves
- * never leave the table.
+ * `token_expiry` is the deadline of the stored access token, and
+ * `listAccounts` blanks it where the server renews the token by itself; the
+ * tokens themselves never leave the table.
  */
 export const ACCOUNT_COLUMNS =
   "id,platform,account_id,account_name,display_name,is_connected," +
@@ -236,22 +237,46 @@ export interface AccountRows {
 }
 
 /**
+ * Platforms whose access token the server renews on its own, from the stored
+ * refresh token, the next time the account is used. Their `token_expiry` is
+ * the deadline of the current short-lived token, not the end of the
+ * connection, so a screen that reads it as health would mark a working
+ * account Expired once an hour. Meta tokens are not renewed on use, so their
+ * deadline stays a real signal.
+ *
+ * The cost: once a row is masked, a refresh that later fails outright still
+ * reads as connected until the publish or transfer itself errors.
+ */
+const SELF_RENEWING_PLATFORMS = new Set(["google_drive", "youtube", "tiktok"]);
+
+/**
  * The caller's own connected accounts, ready to await.
  *
  * The owner comes from the session and never from the body, so the read the
  * service-role client makes carries the same `user_id` filter the row-level
  * policy would apply to an anon key.
  */
-export function listAccounts(
+export async function listAccounts(
   supabase: any,
   userId: string,
-): PromiseLike<AccountRows> {
-  return supabase
+): Promise<AccountRows> {
+  const result: AccountRows = await supabase
     .from("connected_accounts")
     .select(ACCOUNT_COLUMNS)
     .eq("user_id", userId)
     .order("platform")
     .order("account_name");
+
+  if (result.error || !result.data) return result;
+
+  return {
+    ...result,
+    data: result.data.map((row) =>
+      SELF_RENEWING_PLATFORMS.has(String(row.platform))
+        ? { ...row, token_expiry: null }
+        : row,
+    ),
+  };
 }
 
 export type Checked<T> =
