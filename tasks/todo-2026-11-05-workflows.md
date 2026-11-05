@@ -119,9 +119,11 @@
 - [x] `Edge Functions` added to the required status checks for `main`. The contexts
   are now `Web`, `Desktop`, `Edge Functions` (`strict: true`). `enforce_admins` is
   off, so a direct push to `main` still lands; these gate pull requests.
-- [ ] `Lint` is **not** a required context, even though `e4b5048` says "make Lint
-  blocking" — the protection lost it at some point. Adding it is a policy change
-  outside this work item; needs the owner's call.
+- [x] `Lint` added to the required status checks (owner's go 2026-11-05). The
+  drift is closed: `e4b5048` said "make Lint blocking" but the protection only
+  carried `Web` and `Desktop`. Required contexts are now `Web`, `Desktop`,
+  `Edge Functions`, `Lint` with `strict: true`; `enforce_admins` stays off, so a
+  direct push to `main` still lands and the owner reads the run.
 
 ## Not started — needs its own go
 

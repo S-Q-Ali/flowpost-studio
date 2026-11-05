@@ -184,10 +184,10 @@ rows, that a platform API answers the way the client expects, that a scheduled
 cron tick fires, or that a secret is actually set in production. Those stay
 release gates: the read-back above and the owner's live checks.
 
-A pull request needs **Web**, **Desktop** and **Edge Functions** to pass before it
-can merge. **Lint** is not in the required list — read its job before merging,
-because nothing blocks it for you. `enforce_admins` is off, so a direct push to
-`main` runs the same jobs but is not gated by them; check the run before deploying.
+A pull request needs **Web**, **Lint**, **Desktop** and **Edge Functions** to pass
+before it can merge, with `strict: true` so a branch behind `main` has to be
+updated first. `enforce_admins` is off, so a direct push to `main` runs the same
+jobs but is not gated by them; check the run before deploying.
 
 ## Release checklist (desktop)
 
