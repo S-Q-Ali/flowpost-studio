@@ -1,17 +1,17 @@
 # Graph Report - flowpost-studio  (2026-11-05)
 
 ## Corpus Check
-- 738 files · ~754,495 words
+- 738 files · ~755,148 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 197 file(s) not represented in the graph (top: .xsd 117, .ttf 54, (none) 8)
 
 ## Summary
-- 8986 nodes · 13791 edges · 471 communities (421 shown, 50 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 235 edges (avg confidence: 0.91)
+- 8986 nodes · 13792 edges · 466 communities (417 shown, 49 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 236 edges (avg confidence: 0.91)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `bd4b0fba`
+- Built from commit: `1c1c8de0`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -282,7 +282,7 @@
 - scheduled_post.dart
 - thumbnail.py
 - Token Counting
-- upload-local-file/index.ts
+- facebook-auth/index.ts
 - 12. THE BLOCK LIBRARY (Contract - Implementations Land Here Iteratively)
 - 5. CONTEXT-AWARE PROACTIVITY
 - 8. DARK MODE PROTOCOL
@@ -327,7 +327,7 @@
 - Streaming - Ruby
 - captions_client.dart
 - protocol_registration_test.dart
-- verify-security-questions/index.ts
+- instagram-auth/index.ts
 - license_controller.dart
 - flowpost-desktop.md
 - idea-refine.sh
@@ -353,7 +353,7 @@
 - Spec: `shell` — FlowPost Native Windows Bootstrap
 - utils.cpp
 - ADR 0006: A license key, checked on the server, opens the desktop app
-- instagram-auth/index.ts
+- tiktok-auth/index.ts
 - media_processor.dart
 - Win32Window
 - media_probe.dart
@@ -418,11 +418,10 @@
 - media_format.dart
 - app.dart
 - ffmpeg_progress.dart
-- Todo — Audit Fixes + Dark Mode, Guided Setup, Browser Connect
+- youtube-auth/index.ts
 - Structured Outputs
 - ref_npm_supabase
 - ref_npm_supabase
-- Todo: Workflows — run history and rebuild-safe schema
 - static const String
 - Available Utilities
 - Spec: `settings` — Settings Screen (Phase 6.1)
@@ -455,19 +454,15 @@
 - issue-typed-supabase-client.md
 - aggregate_benchmark.py
 - startup_failure.dart
-- workflow-runs.ts
 - offline_banner.dart
-- url-guard.ts
-- workflow-schedule.ts
+- Implementation Plan: Audit Fixes + Dark Mode, Guided Setup, Browser Account Connections
 - license_client_test.dart
-- Implementation Plan: Workflows — run history and the drift that breaks a rebuild
 - connect_link_test.dart
 - typedef
 - pending_connect_store_test.dart
 - session.dart
 - scripts
-- ADR 0007: Every workflow run leaves one row
-- chain
+- setup.ts
 - Point
 - SetupApi
 - SetupTransport
@@ -499,7 +494,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (471 total, 50 thin omitted)
+## Communities (466 total, 49 thin omitted)
 
 ### Community 0 - "QueuePage.tsx"
 Cohesion: 0.07
@@ -550,8 +545,8 @@ Cohesion: 0.10
 Nodes (37): Commands, Current Coverage, Discrepancy corrections (vs earlier brief), Key structural recommendation (critical), Priority, Test Coverage Analysis — FlowPost Studio (2026-09-10), CaptionPromptEditorProps, AICaptionResult (+29 more)
 
 ### Community 12 - "process-workflow/index.ts"
-Cohesion: 0.11
-Nodes (15): authorize, corsHeaders, CRON_API_KEY, driveTokenCtx, HeldRun, lockExpiry(), R2_ACCESS_KEY, R2_BUCKET (+7 more)
+Cohesion: 0.04
+Nodes (56): ADR 0007: Every workflow run leaves one row, Alternatives considered, Consequences, Context, Decision, @supabase/supabase-js, authorize, corsHeaders (+48 more)
 
 ### Community 13 - "compilerOptions"
 Cohesion: 0.10
@@ -582,8 +577,8 @@ Cohesion: 0.06
 Nodes (36): FfmpegMediaProcessor, MediaProcessor, MediaProgressCallback, MediaWorkspace, calls, cancel, cancelCalls, completer (+28 more)
 
 ### Community 20 - "tiktok-upload/index.ts"
-Cohesion: 0.05
-Nodes (49): Security, authorize, corsHeaders, supabase, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, authorize (+41 more)
+Cohesion: 0.04
+Nodes (73): Security, authorize, corsHeaders, supabase, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, authorize (+65 more)
 
 ### Community 21 - "compilerOptions"
 Cohesion: 0.12
@@ -595,7 +590,7 @@ Nodes (18): main, _config, main, _withManifest, all, available, availableNow, de
 
 ### Community 23 - "google-drive-auth/index.ts"
 Cohesion: 0.07
-Nodes (32): Design (from test-engineer, Critical #1), Findings consolidated (priority order for THIS refactor), Goal, Live verification findings (2026-09-10), Out of scope (deferred), Unified Edge-Function Auth Helper — Implementation Plan (2026-09-10), Verification, Verified (+24 more)
+Nodes (33): Design (from test-engineer, Critical #1), Execution order (THIS session), Findings consolidated (priority order for THIS refactor), Goal, Live verification findings (2026-09-10), Out of scope (deferred), Unified Edge-Function Auth Helper — Implementation Plan (2026-09-10), Verification (+25 more)
 
 ### Community 24 - "screen_walk_test.dart"
 Cohesion: 0.05
@@ -754,8 +749,8 @@ Cohesion: 0.08
 Nodes (24): Accessibility Verification with DevTools, Available Tools, Browser Testing with DevTools, Clean Console Standard, Common Rationalizations, Console Analysis Patterns, Content Boundary Markers, For Network Issues (+16 more)
 
 ### Community 69 - "generate-ai-captions/index.ts"
-Cohesion: 0.07
-Nodes (31): corsHeaders, driveTokenCtx, generateCaptions(), groqApiKey(), json(), noGroqKey(), PLATFORM_ALLOWED_KEYS, supabase (+23 more)
+Cohesion: 0.05
+Nodes (47): vitest, corsHeaders, driveTokenCtx, generateCaptions(), groqApiKey(), json(), noGroqKey(), PLATFORM_ALLOWED_KEYS (+39 more)
 
 ### Community 70 - "setup_steps.dart"
 Cohesion: 0.04
@@ -782,8 +777,8 @@ Cohesion: 0.09
 Nodes (22): Common Rationalizations, Contract-First Slicing, Implementation Rules, Increment Checklist, Incremental Implementation, Overview, Red Flags, Risk-First Slicing (+14 more)
 
 ### Community 76 - "posts-api/index.ts"
-Cohesion: 0.11
-Nodes (40): authorize, corsHeaders, json(), supabase, SUPABASE_ANON_KEY, tableFailure(), desktopReturnTo(), normalizeReturnTo() (+32 more)
+Cohesion: 0.07
+Nodes (58): disconnect(), authorize, corsHeaders, json(), supabase, SUPABASE_ANON_KEY, tableFailure(), callbackLocation() (+50 more)
 
 ### Community 77 - "Managed Agents - cURL / Raw HTTP"
 Cohesion: 0.09
@@ -978,8 +973,8 @@ Cohesion: 0.05
 Nodes (24): MediaProbeException, allowed, main, main, main, main, main, audioCodec (+16 more)
 
 ### Community 126 - "FlowPost Studio"
-Cohesion: 0.06
-Nodes (25): ADR 0005: The server holds every secret; the desktop holds none of them, Alternatives considered, Consequences, Context, Decision, Apply migrations, Backend, Build from source (+17 more)
+Cohesion: 0.08
+Nodes (22): ADR 0005: The server holds every secret; the desktop holds none of them, Alternatives considered, Consequences, Context, Decision, Apply migrations, Backend, Build from source (+14 more)
 
 ### Community 127 - "media_job.dart"
 Cohesion: 0.12
@@ -1090,8 +1085,8 @@ Cohesion: 0.25
 Nodes (7): 1. Security (severity: CRITICAL first), 2. Code Quality, 3. Performance, 4. UI + Whop/Earn-readiness, FlowPost Studio — Full Audit Report, Open Items, Recommended Fix Order
 
 ### Community 154 - "operator-config.ts"
-Cohesion: 0.10
-Nodes (25): authorize, corsHeaders, supabase, SUPABASE_ANON_KEY, UNAUTHORISED, authorize, corsHeaders, supabase (+17 more)
+Cohesion: 0.07
+Nodes (33): authorize, corsHeaders, supabase, SUPABASE_ANON_KEY, UNAUTHORISED, authorize, corsHeaders, supabase (+25 more)
 
 ### Community 155 - "Runbook"
 Cohesion: 0.11
@@ -1114,8 +1109,8 @@ Cohesion: 0.13
 Nodes (14): Basic Message Request, Claude API - Java, Client Initialization, Discovering type and member names, Effort Parameter, Error Type, Installation, Key types per feature (+6 more)
 
 ### Community 160 - "auth.ts"
-Cohesion: 0.08
-Nodes (30): Execution order (THIS session), Slice B — belt 5 non-OAuth functions + C3 ownership, Step 2: Identify Simplification Opportunities, authorize, corsHeaders, fetchMeta(), fetchSingleMetric(), supabase (+22 more)
+Cohesion: 0.07
+Nodes (33): Slice B — belt 5 non-OAuth functions + C3 ownership, Step 2: Identify Simplification Opportunities, authorize, corsHeaders, fetchMeta(), fetchSingleMetric(), supabase, SUPABASE_ANON_KEY (+25 more)
 
 ### Community 161 - "Steering Patterns"
 Cohesion: 0.13
@@ -1545,9 +1540,9 @@ Nodes (8): build_slide_list(), convert_to_images(), create_grid(), create_grids(
 Cohesion: 0.40
 Nodes (4): CLI, Count a file or string, Diffing a file across two versions, Token Counting
 
-### Community 270 - "upload-local-file/index.ts"
-Cohesion: 0.15
-Nodes (15): ALLOWED_UPLOAD_TYPES, buildUploadObjectKey(), checkUpload(), isValidIdempotencyKey(), MAX_UPLOAD_BYTES, UploadCheck, uploadExtension(), authorize (+7 more)
+### Community 270 - "facebook-auth/index.ts"
+Cohesion: 0.18
+Nodes (12): authorize, corsHeaders, exchangeCodeForUserToken(), FB_APP_ID, FB_APP_SECRET, fetchFacebookPages(), getLongLivedUserToken(), json() (+4 more)
 
 ### Community 271 - "12. THE BLOCK LIBRARY (Contract - Implementations Land Here Iteratively)"
 Cohesion: 0.40
@@ -1677,9 +1672,9 @@ Nodes (27): _analysisPrompt, body, cancel, _captionModel, CaptionTransport, _cha
 Cohesion: 0.17
 Nodes (10): RegistryResult, calls, command, exe, failAdd, key, main, queryResult (+2 more)
 
-### Community 315 - "verify-security-questions/index.ts"
-Cohesion: 0.15
-Nodes (10): vitest, AdminCallerDeps, AdminCallerResult, requireAdminCaller(), findAdminUserId(), bearerOf(), corsHeaders, supabase (+2 more)
+### Community 315 - "instagram-auth/index.ts"
+Cohesion: 0.18
+Nodes (12): APP_ID, APP_SECRET, authorize, corsHeaders, exchangeCodeForShortLivedToken(), fetchIgProfile(), getLongLivedToken(), json() (+4 more)
 
 ### Community 316 - "license_controller.dart"
 Cohesion: 0.13
@@ -1749,9 +1744,9 @@ Nodes (4): wWinMain(), CreateAndAttachConsole(), GetCommandLineArguments(), Utf8
 Cohesion: 0.40
 Nodes (5): ADR 0006: A license key, checked on the server, opens the desktop app, Alternatives considered, Consequences, Context, Decision
 
-### Community 346 - "instagram-auth/index.ts"
-Cohesion: 0.04
-Nodes (80): Phase 4B (anon-key elimination across remaining 11 functions + payment) — 2026-09-11, Slice C — OAuth state hardening + belt 6 OAuth functions, Slice D — XSS hardening (localStorage risk), Slice E — final verification + deployment, authorize, corsHeaders, exchangeCodeForUserToken(), FB_APP_ID (+72 more)
+### Community 346 - "tiktok-auth/index.ts"
+Cohesion: 0.07
+Nodes (28): Phase 4B (anon-key elimination across remaining 11 functions + payment) — 2026-09-11, Slice C — OAuth state hardening + belt 6 OAuth functions, Slice D — XSS hardening (localStorage risk), Slice E — final verification + deployment, authorize, corsHeaders, exchangeCodeForToken(), fetchLinkedInProfile() (+20 more)
 
 ### Community 347 - "media_processor.dart"
 Cohesion: 0.05
@@ -2001,9 +1996,9 @@ Nodes (8): createState, dispose, initialDeepLink, licenseGuard, notify, refreshL
 Cohesion: 0.40
 Nodes (4): isProgressComplete, micros, parseProgressOutTime, prefix
 
-### Community 414 - "Todo — Audit Fixes + Dark Mode, Guided Setup, Browser Connect"
-Cohesion: 0.22
-Nodes (8): #70 / #68 / #69 — status, #71 — ESLint baseline cleared, lint job now blocks, Audit coverage, Issue close-out — #68, #69, #70, #71 (2026-11-02), Phase B — Desktop correctness, Phase C — Real publish targets, Phase D — Dark mode, Todo — Audit Fixes + Dark Mode, Guided Setup, Browser Connect
+### Community 414 - "youtube-auth/index.ts"
+Cohesion: 0.18
+Nodes (12): authorize, corsHeaders, exchangeCodeForTokens(), fetchChannelInfo(), json(), refreshAccessToken(), SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY (+4 more)
 
 ### Community 415 - "Structured Outputs"
 Cohesion: 0.40
@@ -2014,12 +2009,8 @@ Cohesion: 0.33
 Nodes (6): Evaluation Process, Step 1: Documentation Inspection, Step 2: Tool Inspection, Step 3: Developing Understanding, Step 4: Read-Only Content Inspection, Step 5: Task Generation
 
 ### Community 418 - "ref_npm_supabase"
-Cohesion: 0.14
-Nodes (8): corsHeaders, supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, corsHeaders, supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
-
-### Community 419 - "Todo: Workflows — run history and rebuild-safe schema"
-Cohesion: 0.25
-Nodes (7): EnvSecret, Checkpoint: W2, DG — the release gate CI never had, DP — pre-deploy readiness (read-only, 2026-11-05), Not started — needs its own go, Todo: Workflows — run history and rebuild-safe schema, W1 — Rebuild-safe schema
+Cohesion: 0.07
+Nodes (17): corsHeaders, supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, corsHeaders, supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL (+9 more)
 
 ### Community 420 - "static const String"
 Cohesion: 0.25
@@ -2038,8 +2029,8 @@ Cohesion: 0.13
 Nodes (14): accountId, accountName, AccountStatus, ConnectedAccount, copyWith, fromJson, label, platform (+6 more)
 
 ### Community 424 - "ref_npm_supabase"
-Cohesion: 0.06
-Nodes (38): authorize, corsHeaders, GD_CLIENT_ID, GD_CLIENT_SECRET, start(), SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, supabaseAdmin (+30 more)
+Cohesion: 0.08
+Nodes (27): authorize, corsHeaders, GD_CLIENT_ID, GD_CLIENT_SECRET, start(), SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, supabaseAdmin (+19 more)
 
 ### Community 425 - "Quality Checklist"
 Cohesion: 0.25
@@ -2125,29 +2116,17 @@ Nodes (6): aggregate_results(), calculate_stats(), generate_benchmark(), generat
 Cohesion: 0.18
 Nodes (8): _caption, _fallbackFolder, folder, reportStartupFailure, showStartupMessageBox, startupFailureMessage, StartupFailureReporter, text
 
-### Community 452 - "workflow-runs.ts"
-Cohesion: 0.25
-Nodes (11): @supabase/supabase-js, endHeldRun(), closeWorkflowRun(), describeRun(), historyRequest(), maintainWorkflowRuns(), openWorkflowRun(), WorkflowRunOutcome (+3 more)
-
 ### Community 453 - "offline_banner.dart"
 Cohesion: 0.17
 Nodes (9): build, latestVersion, onDownload, UpdateBanner, build, _clock, OfflineBanner, onRetry (+1 more)
 
-### Community 454 - "url-guard.ts"
-Cohesion: 0.07
-Nodes (30): corsHeaders, supabase, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, DRIVE_HOSTS, hostnameOf(), isAllowedDriveUrl(), isAllowedMediaUrl() (+22 more)
-
-### Community 455 - "workflow-schedule.ts"
-Cohesion: 0.29
-Nodes (7): ALL_DAYS, customRangeTarget(), dayKey(), HourRange, minutesOfDay(), ScheduledWorkflow, skipReason()
+### Community 454 - "Implementation Plan: Audit Fixes + Dark Mode, Guided Setup, Browser Account Connections"
+Cohesion: 0.14
+Nodes (13): Browser account connections, Dark mode, Decisions taken, Definition of Done (every task), Feature specs (short form), Guided setup wizard, Implementation Plan: Audit Fixes + Dark Mode, Guided Setup, Browser Account Connections, Open questions (defaults chosen if no answer) (+5 more)
 
 ### Community 456 - "license_client_test.dart"
 Cohesion: 0.18
 Nodes (9): LicenseReply, LicenseException, bodies, _client, keys, main, reply, send (+1 more)
-
-### Community 457 - "Implementation Plan: Workflows — run history and the drift that breaks a rebuild"
-Cohesion: 0.18
-Nodes (10): Architecture Decisions, Checkpoint: W2 done, Dependency graph, Implementation Plan: Workflows — run history and the drift that breaks a rebuild, Open questions (owner's call, none block W1/W2), Overview, Risks and mitigations, Task List (+2 more)
 
 ### Community 459 - "connect_link_test.dart"
 Cohesion: 0.20
@@ -2169,9 +2148,9 @@ Nodes (7): build, clear, offline, Session, SessionController, sessionToken, sign
 Cohesion: 0.25
 Nodes (8): scripts, build, build:dev, dev, lint, preview, test, test:watch
 
-### Community 464 - "ADR 0007: Every workflow run leaves one row"
-Cohesion: 0.29
-Nodes (6): ADR 0007: Every workflow run leaves one row, Alternatives considered, Consequences, Context, Decision, takeWorkflowLock()
+### Community 465 - "setup.ts"
+Cohesion: 0.18
+Nodes (3): @testing-library/jest-dom, fakeAccountRow(), chain
 
 ### Community 467 - "Point"
 Cohesion: 0.50
@@ -2187,8 +2166,8 @@ Nodes (3): HttpSetupTransport, SetupTransport, _FakeTransport
 
 ## Knowledge Gaps
 - **2357 isolated node(s):** `file`, `deadline`, `result`, `lines`, `directory` (+2352 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 5973 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **50 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 5972 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **49 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -2199,7 +2178,7 @@ _Questions this graph is uniquely positioned to answer:_
   _2357 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `QueuePage.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.0725760183591509 - nodes in this community are weakly interconnected._
-- **Why does `vitest` connect `verify-security-questions/index.ts` to `QueuePage.tsx`, `App.tsx`, `WorkflowsPage.tsx`, `PipelineLandingPage.tsx`, `package.json`, `cn`, `upload-local-file/index.ts`, `verify-license/index.ts`, `react`, `tiktok-upload/index.ts`, `google-drive-auth/index.ts`, `operator-config.ts`, `auth.ts`, `license.ts`, `process-workflow-history.test.ts`, `ref_npm_supabase`, `config.ts`, `workflow-runs.ts`, `generate-ai-captions/index.ts`, `url-guard.ts`, `workflow-schedule.ts`, `posts-api/index.ts`, `instagram-auth/index.ts`, `verify-session/index.ts`?**
+- **Why does `vitest` connect `generate-ai-captions/index.ts` to `QueuePage.tsx`, `App.tsx`, `WorkflowsPage.tsx`, `PipelineLandingPage.tsx`, `package.json`, `cn`, `process-workflow/index.ts`, `verify-license/index.ts`, `react`, `tiktok-upload/index.ts`, `google-drive-auth/index.ts`, `operator-config.ts`, `auth.ts`, `ref_npm_supabase`, `license.ts`, `process-workflow-history.test.ts`, `ref_npm_supabase`, `config.ts`, `posts-api/index.ts`, `verify-session/index.ts`?**
   _High betweenness centrality (0.075) - this node is a cross-community bridge._
 - **Should `App.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.05328218243819267 - nodes in this community are weakly interconnected._
