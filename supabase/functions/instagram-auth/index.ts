@@ -65,18 +65,15 @@ async function exchangeCodeForShortLivedToken(code: string, redirectUri: string)
 }
 
 async function getLongLivedToken(shortLivedToken: string) {
-  const url = "https://graph.instagram.com/v21.0/access_token";
-  
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "ig_exchange_token",
-      client_secret: APP_SECRET!,
-      access_token: shortLivedToken,
-    }),
-  });
-  
+  // Meta answers this one only on GET; a POST is rejected as
+  // "Unsupported request - method type: post" (code 100).
+  const url = new URL("https://graph.instagram.com/v21.0/access_token");
+  url.searchParams.set("grant_type", "ig_exchange_token");
+  url.searchParams.set("client_secret", APP_SECRET!);
+  url.searchParams.set("access_token", shortLivedToken);
+
+  const res = await fetch(url.toString(), { method: "GET" });
+
   const jsonRes = await res.json();
   if (!res.ok || jsonRes.error) throw new Error(`IG long-lived exchange failed: ${JSON.stringify(jsonRes)}`);
   return jsonRes as { access_token: string; expires_in?: number };
@@ -134,7 +131,6 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
   }
-  const sessionUserId = auth && auth.kind === "session" ? auth.userId : null;
 
   try {
     if (!action) return json({ error: "Missing action" }, 400);
@@ -228,42 +224,6 @@ Deno.serve(async (req) => {
         status: 302,
         headers: { Location: callbackLocation(oauthState.returnTo, APP_ORIGIN, "instagram") },
       });
-    }
-
-    if (action === "refresh") {
-      const body = await req.json();
-      const accountId = body?.accountId;
-      if (!accountId) return json({ error: "Missing accountId" }, 400);
-
-      let accountQuery = supabaseAdmin
-        .from("connected_accounts")
-        .select("*")
-        .eq("account_id", accountId)
-        .eq("platform", "instagram");
-      if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
-      const { data: account, error: accountError } = await accountQuery.single();
-
-      if (accountError || !account?.access_token) {
-        return json({ error: "Instagram account not found" }, 404);
-      }
-
-      const { decrypt } = await import("../_shared/crypto.ts");
-      const currentToken = await decrypt(account.access_token);
-      if (!currentToken) return json({ error: "Could not decrypt token" }, 500);
-
-      const refreshed = await getLongLivedToken(currentToken);
-
-      const { error: updateError } = await supabaseAdmin
-        .from("connected_accounts")
-        .update({
-          access_token: await encrypt(refreshed.access_token),
-          connected_at: new Date().toISOString(),
-        })
-        .eq("id", account.id);
-
-      if (updateError) throw updateError;
-
-      return json({ success: true });
     }
 
     return json({ error: "Invalid action" }, 400);
