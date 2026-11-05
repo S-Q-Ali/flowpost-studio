@@ -55,11 +55,62 @@
 
 - [x] Every gate above run and green — 441 tests, 0 lint errors, type-check, Vite build, synthetic browser at four widths, graph update
 - [x] Deadlines proven against the pinned 2.49.0 server client, outside the suite: `npm install --prefix <temp dir> --no-save --ignore-scripts @supabase/supabase-js@2.49.0`, then run the helper's three deadline cases with a fake `fetch` that never answers (transpiled from `supabase/functions/_shared/workflow-runs.ts` with the workspace TypeScript). Hold the Node event loop with a ref'd timer — `AbortSignal.timeout()` is unref'd. Script kept at `E:\tmp\pinned-deadline-verify.cjs`, not in the repo, so no dependency is added to verify it.
-- [ ] Deno type-check (not installed here); deployment bundling and Node syntax checks are not substitutes
-- [x] Pushed CI gate green on `53bc795` (2026-11-05): CI [Lint, Web (type check, test, build, dependency audit), Desktop] and CodeQL all success — https://github.com/S-Q-Ali/flowpost-studio/actions/runs/42050207829
+- [x] Deno type-check — see **DG** below: run for the first time on 2026-11-05, 77 errors found and fixed, `deno check` now exits 0 over all 53 deployed files, and CI has a blocking `functions` job so it can never be skipped again
+- [x] Pushed CI gate green on `53bc795` (2026-11-05): CI [Lint, Web (type check, test, build, dependency audit), Desktop] and CodeQL all success — https://github.com/S-Q-Ali/flowpost-studio/actions/runs/42050207829. That run did **not** type-check the Edge Functions; the `functions` job added under **DG** closes the gap.
 - [ ] Owner's yes, then: apply all three migrations through the Management API (`POST /v1/projects/<ref>/database/query`, versions fixed in `supabase_migrations.schema_migrations` so `db push` sees no drift) and redeploy `process-workflow`, then the web dashboard
 - [ ] Read back: after one cron tick, `select workflow_id, triggered_by, status, rows_seen, posts_created, message from workflow_runs order by started_at desc limit 6;` shows one closed row per live workflow
 - [ ] Owner sees the last run in the browser
+
+## DG — the release gate CI never had
+
+- [x] **DG1** Install Deno outside the repo (no PATH or registry change): official
+  `deno-x86_64-pc-windows-msvc.zip` at `E:\tmp\deno\deno.exe`, 2.9.8, digest compared
+  by hand against `Get-FileHash` because GitHub's `.zip.sha256sum` is PowerShell
+  output, not `sha256sum -c` format.
+- [x] **DG2** `supabase/functions/deno.json`: `nodeModulesDir: "auto"` — without it
+  Deno 2.9.8 refuses to resolve the `npm:` specifiers at all. No `imports` map: the
+  check is green without one (proved by deleting it and re-running), and every
+  function already pins its own `npm:@supabase/supabase-js@2.49.0`. `"lock": false`
+  because the command runs with `--no-lock`.
+  First `deno check` of the deployed code: **77 errors**. All fixed, category by
+  category:
+  - 43 + 6 in `_shared/auth.ts` and its callers — `Deno.env.get()` answers
+    "unset" with `undefined`, request headers with `null`; the interfaces now say
+    so (`EnvSecret`), and the three narrowing sites test `auth.allowed` instead of
+    assuming it.
+  - 3 **real crashes**: `process-workflow` called `.catch()` on a Postgrest builder.
+    The pinned 2.49.0 builder is a thenable with no `.catch`, so a failed upload
+    fetch threw a `TypeError` that `Promise.allSettled` swallowed and the post
+    stayed in `processing` forever. RED first — the new fixture test failed with
+    "expected [] to have a length of 2", GREEN after the fix, 10/10 in the file.
+  - 2 **real bugs**: `drive-to-mega` assigned to an undeclared `onProgress`
+    (ReferenceError in strict ESM, so the progress stream could never run);
+    `get-file` called `downloadBuffer()` with the argument its own types require.
+  - 3 **real bugs**: `instagram-upload` read the to-one `videos(*)` embed as an
+    array (untyped client inference) and used a hoisted `function` that lost the
+    `post`-non-null narrowing; `youtube-upload` used `megaFile.size` that TS says
+    can be undefined — now throws instead of sending `Content-Length: 0`.
+  - 6 `duplex: "half"`: probed against Deno 2.9.8 — the property is inert in
+    Deno's `RequestInit`. Kept and annotated with the repo's own
+    `@ts-expect-error` precedent rather than deleted, because these are live
+    publish paths.
+  - Type-boundary singles: the hand-rolled `HmacSubtle` seam in `_shared/license.ts`
+    deleted in favour of the platform `SubtleCrypto`; `Buffer` → `Uint8Array<ArrayBuffer>`
+    for the fetch body in `get-file` (the plain cast and the zero-copy view both
+    fail TS2345 — settled by a compile probe, not belief); `Record<string, unknown>`
+    → `string | undefined` at the linkedin-auth boundary.
+  - Every change is behaviour-preserving except where the behaviour *was* the bug.
+- [x] **DG3** CI: blocking `functions` job in `.github/workflows/ci.yml`
+  (`denoland/setup-deno@v2`, pinned 2.9.8) running `deno check --no-lock` over
+  `*/index.ts` and the non-test `_shared/*.ts` — the same 53 files.
+- [x] Gates after the fixes: `deno check` exit 0, and a cold run prints 53 `Check`
+  lines with 0 errors — every deployed entry point, not a cache hit; `npm test` 442
+  tests in 33 files, `npm run lint` 0 errors / 184 warnings, `npx tsc -b` clean,
+  `npm run build` clean.
+- [ ] Commit and push — needs a fresh explicit go.
+- [ ] Watch the new `functions` job go green on the pushed commit.
+- [ ] Required status checks: `Edge Functions` must be added next to `Lint` and
+  `Web (type check, test, build, dependency audit)` for the job to block a merge.
 
 ## Not started — needs its own go
 

@@ -57,7 +57,7 @@ W1 drift migration (no deps)
   **Files:** 2. **Scope:** S.
 - [x] **W2c** `process-workflow` writes a run per entered workflow
   **Acceptance:** each lock-taken workflow attempts one best-effort history row, `running` → `completed`/`failed`, with `rows_seen`/`posts_created`; the two release points (loop top, end-of-function `finally`) are the only places that close a run; a body that left through a `continue` with a complaint is `failed` with that complaint as `message`; a run that found nothing ready is `completed` with zeros; 409-on-manual-conflict and every schedule skip write nothing; the per-request `HeldRun` is declared inside the handler, so two invocations sharing one isolate cannot close each other's run.
-  **Verify:** Vitest executes the transpiled real handler with fake external boundaries: fatal source reads, failed history open followed by another workflow, target/carousel/story counts, partial failures and maintenance failure. Syntax parsing is not a Deno type-check; Deno is unavailable locally and deployment bundling does not replace that check. After approved deployment, read back naturally entered cron runs.
+  **Verify:** Vitest executes the transpiled real handler with fake external boundaries: fatal source reads, failed history open followed by another workflow, target/carousel/story counts, partial failures and maintenance failure. Syntax parsing is not a Deno type-check; that check was still missing when this was written, and now runs as the CI `functions` job (see **DG** in the todo). After approved deployment, read back naturally entered cron runs.
   **Files:** `process-workflow/index.ts`. **Scope:** M.
 - [x] **W2d** web: last run on the workflow cards
   **Acceptance:** each card shows created posts with "publication not confirmed", "nothing was ready", or "failed: <message>"; no history keeps legacy trigger text. One RPC serves all cards; failed reads show "Run history unavailable". Long reasons wrap.
@@ -71,8 +71,9 @@ W1 drift migration (no deps)
 - [x] Browser synthetic state checks and responsive widths pass; graph updated
 - [x] History deadlines re-run against the pinned `@supabase/supabase-js@2.49.0` in an isolated temp install — open/close/maintenance each gave up at ~1.01s, every signal aborted, and the pinned client surfaces the stall as an error object instead of a throw (recipe in `tasks/todo-2026-11-05-workflows.md`)
 - [x] Final corrections committed and pushed on the owner's go (2026-11-05): `95c89c6` `974d921` `29e1fe6` `293fba2` `ffdec12` `53bc795`, `b82b5b8..53bc795` on `origin/main`
-- [x] CI green on the pushed commit — Lint, Web (type check, test, build, dependency audit) and Desktop all success, CodeQL success
-- [ ] Deno type-check and real database/RLS validation
+- [x] CI green on the pushed commit — Lint, Web (type check, test, build, dependency audit) and Desktop all success, CodeQL success. That pipeline had no Edge Functions job, so it proved nothing about the Deno code.
+- [x] Deno type-check (2026-11-05): 77 errors found on the first-ever `deno check` of the deployed functions, all fixed, exit 0 across 53 files, and a blocking `functions` job added to CI. At least eight were live runtime defects. Detail in `tasks/todo-2026-11-05-workflows.md` under **DG**.
+- [ ] Real database/RLS validation against production
 - [ ] Migration applied to production through the Management API and read back (`db push` is unusable here — see `tasks/deploy-server-68.md`)
 - [ ] `process-workflow` redeployed; a cron tick leaves rows in `workflow_runs` for both live workflows
 - [ ] Owner sees the last run in the browser before W3 starts

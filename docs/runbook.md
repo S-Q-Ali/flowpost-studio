@@ -161,9 +161,28 @@ Deploy only after a fresh approval, in order:
 3. Wait for a naturally due cron tick; read back entered runs and their close statuses. A scheduled skip is not missing history.
 4. Owner checks the cards in the signed-in browser and confirms that another user's runs are not visible. Live publishing remains an owner-run check.
 
-Local tests and a web build do not type-check the Deno entry point. A Deno check
-and live schema/RLS read-back remain release gates; deployment bundling is not a
-substitute for either. See ADR `0007-workflow-run-history.md` and the workflow todo.
+Local tests, a web build and `supabase functions deploy` do not type-check the
+Deno entry points — deployment bundles the code without checking it. The CI
+**Edge Functions** job does, and its very first run reported 77 type errors, at
+least eight of them defects that would have broken a live function. Read ADR
+`0007-workflow-run-history.md` and the workflow todo, then see **What CI proves**
+below for the gates that stay manual.
+
+### What CI proves
+
+The pipeline runs four jobs on every push and pull request:
+
+- **Web** — `npx tsc -b`, `npm test` (vitest, including the `_shared/*.test.ts`
+  Deno-source harnesses), `npm run build`, `npm audit --omit=dev`.
+- **Lint** — `npm run lint`.
+- **Edge Functions** — `deno check` over every deployed function.
+- **Desktop** — `dart format`, `flutter analyze`, `flutter test`.
+
+That is compile-time truth plus pure-logic tests. CI never proves that the
+deployed schema matches what a query assumes, that RLS still hides another user's
+rows, that a platform API answers the way the client expects, that a scheduled
+cron tick fires, or that a secret is actually set in production. Those stay
+release gates: the read-back above and the owner's live checks.
 
 ## Release checklist (desktop)
 
@@ -191,10 +210,45 @@ The provider resolves FFmpeg once and caches it, so an app that already showed t
 ## Release checklist (web and backend)
 
 1. `npm run build`, `npm run lint`, `npm test`
-2. `npx supabase db push` if migrations are new
-3. `npx supabase functions deploy` (or name the changed functions)
-4. Deploy the dashboard through the usual Vercel pipeline
-5. Sign in, connect one account, publish one post end to end
+2. Type-check the Edge Functions (see below)
+3. `npx supabase db push` if migrations are new
+4. `npx supabase functions deploy` (or name the changed functions)
+5. Deploy the dashboard through the usual Vercel pipeline
+6. Sign in, connect one account, publish one post end to end
+
+### Type-checking the Edge Functions locally
+
+The gate is the CI `functions` job. Run the same command locally before a deploy:
+
+```bash
+cd supabase/functions
+deno check --no-lock $(ls */index.ts) $(ls _shared/*.ts | grep -v '\.test\.ts$')
+```
+
+`supabase/functions/deno.json` turns on `nodeModulesDir: "auto"`. Without it
+Deno 2.9.8 refuses to resolve the `npm:` specifiers the functions import; with
+it, the first run installs them into `supabase/functions/node_modules`
+(gitignored). The file pins nothing — every function keeps its own
+`npm:@supabase/supabase-js@2.49.0` specifier — so there is no dependency setting
+for a deploy bundle to pick up, which is the thing Supabase's docs warn against
+putting in a global `deno.json`. The `*.test.ts` files import vitest, which only
+Node resolves; vitest runs them in the web job, this job checks the code that is
+actually deployed.
+
+Deno is not installed on this machine. Put the official Windows build outside the
+repo and use it by path; the version must match the pin in
+`.github/workflows/ci.yml`, because Deno's bundled TypeScript and lib types move
+between minors.
+
+```powershell
+Invoke-WebRequest -OutFile deno.zip https://github.com/denoland/deno/releases/download/v2.9.8/deno-x86_64-pc-windows-msvc.zip
+Expand-Archive .\deno.zip -DestinationPath E:\tmp\deno
+E:\tmp\deno\deno.exe --version
+```
+
+Check the download before using it. GitHub's `.zip.sha256sum` is PowerShell
+output, not the `sha256sum -c` format, so compare the two digests by hand against
+`Get-FileHash .\deno.zip`.
 
 ## Rollback
 
