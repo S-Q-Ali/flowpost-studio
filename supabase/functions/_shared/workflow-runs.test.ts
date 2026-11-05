@@ -1,10 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
-import { closeWorkflowRun, describeRun, openWorkflowRun } from "./workflow-runs.ts";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { createClient } from "@supabase/supabase-js";
+import { closeWorkflowRun, describeRun, maintainWorkflowRuns, openWorkflowRun } from "./workflow-runs.ts";
+
+afterEach(() => vi.restoreAllMocks());
 
 function makeSupabase(handlers: {
   insertResult?: { data: unknown; error: unknown };
   insertThrows?: boolean;
   updateThrows?: boolean;
+  updateError?: string;
 }) {
   const inserted: unknown[] = [];
   const updates: unknown[] = [];
@@ -18,8 +22,10 @@ function makeSupabase(handlers: {
           return {
             select() {
               return {
-                single: () =>
-                  Promise.resolve(handlers.insertResult ?? { data: { id: "run-1" }, error: null }),
+                single: () => {
+                  const result = Promise.resolve(handlers.insertResult ?? { data: { id: "run-1" }, error: null });
+                  return Object.assign(result, { abortSignal: () => result });
+                },
               };
             },
           };
@@ -30,7 +36,8 @@ function makeSupabase(handlers: {
           return {
             eq(column: string, value: unknown) {
               filters.push(`${column}=${value}`);
-              return Promise.resolve({ error: null });
+              const result = Promise.resolve({ error: handlers.updateError ? { message: handlers.updateError } : null });
+              return Object.assign(result, { abortSignal: () => result });
             },
           };
         },
@@ -110,7 +117,36 @@ describe("describeRun", () => {
   });
 });
 
+describe("history deadlines", () => {
+  it.each([
+    ["open", (client: ReturnType<typeof createClient>) => openWorkflowRun(client, { workflowId: "wf-1", triggeredBy: "cron" })],
+    ["close", (client: ReturnType<typeof createClient>) => closeWorkflowRun(client, "run-1", { status: "completed" })],
+    ["maintenance", (client: ReturnType<typeof createClient>) => maintainWorkflowRuns(client)],
+  ] as const)("bounds %s when the history server stops responding", async (operationName, operation) => {
+    const signals: AbortSignal[] = [];
+    const client = createClient("https://example.invalid", "synthetic-key", {
+      auth: { persistSession: false, autoRefreshToken: false, storageKey: `history-${operationName}` },
+      global: { fetch: (_url, init) => new Promise((_resolve, reject) => {
+        const signal = init?.signal;
+        if (!signal) return;
+        signals.push(signal);
+        if (signal.aborted) reject(signal.reason);
+        else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }) },
+    });
+    await operation(client);
+    expect(signals.length).toBeGreaterThan(0);
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
+  }, 3500);
+});
+
 describe("closeWorkflowRun", () => {
+  it("logs a returned database error without interrupting publishing", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { supabase } = makeSupabase({ updateError: "permission denied" });
+    await expect(closeWorkflowRun(supabase, "run-1", { status: "completed" })).resolves.toBeUndefined();
+    expect(logged).toHaveBeenCalled();
+  });
   it("writes the outcome and stamps the end on the row it opened", async () => {
     const { supabase, updates, filters } = makeSupabase({});
 
