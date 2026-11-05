@@ -96,9 +96,11 @@ Deno.serve(async (req) => {
         return new Response("File not found in Mega", { status: 404, headers: corsHeaders });
       }
 
-      const data = await child.downloadBuffer();
+      const data = await child.downloadBuffer({});
 
-      return new Response(data, {
+      // megajs hands back a Buffer over a plain ArrayBuffer; the generic Buffer
+      // type also allows a shared one, which a fetch body does not.
+      return new Response(data as Uint8Array<ArrayBuffer>, {
         status: 200,
         headers: {
           "Content-Type": "application/octet-stream",
@@ -110,8 +112,8 @@ Deno.serve(async (req) => {
 
     if (tokenPayload.megaUrl) {
       const megaFile = MegaFile.fromURL(tokenPayload.megaUrl);
-      const data = await megaFile.downloadBuffer();
-      return new Response(data, {
+      const data = await megaFile.downloadBuffer({});
+      return new Response(data as Uint8Array<ArrayBuffer>, {
         status: 200,
         headers: {
           "Content-Type": "application/octet-stream",

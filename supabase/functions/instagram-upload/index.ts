@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
       : "https://graph.facebook.com/v25.0";
 
     // Helper: resolve a video's file_url to a usable media URL
-    async function resolveMediaUrl(videoFileUrl: string): Promise<string> {
+    const resolveMediaUrl = async (videoFileUrl: string): Promise<string> => {
       if (megaFileName && megaAccountId) {
         return await fileProxyUrl({ megaFileName, megaAccountId }, post.user_id);
       }
@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
         );
       }
       return videoFileUrl;
-    }
+    };
 
     // === CAROUSEL PATH ===
     if (isCarousel) {
@@ -293,7 +293,9 @@ Deno.serve(async (req) => {
     }
 
     // === SINGLE MEDIA PATH ===
-    const video = post.videos;
+    // posts -> videos is a to-one embed, so the server answers with one object;
+    // the untyped client infers an array for any "(*)" embed.
+    const video = post.videos as unknown as { file_url?: string; media_type?: string } | null;
     if (!video || !video.file_url) {
       await fail();
       return json({ error: "Video not found or missing file_url" }, 404);
@@ -302,7 +304,7 @@ Deno.serve(async (req) => {
     const mediaType = video.media_type ?? "video";
     const isImage = mediaType === "image";
 
-    const mediaUrl = await resolveMediaUrl(video.file_url as string);
+    const mediaUrl = await resolveMediaUrl(video.file_url);
 
     console.log(`Creating Instagram ${isImage ? "image" : "reel"} container for user:`, igUserId);
     console.log("Using media URL:", redactTokens(mediaUrl));

@@ -506,6 +506,7 @@ Deno.serve(async (req) => {
         method: "PUT",
         headers: { "Content-Type": contentType },
         body: driveRes.body,
+        // @ts-expect-error duplex required for streaming request body
         duplex: "half",
       });
       if (!putRes.ok) throw new Error(`R2 PUT failed: ${putRes.status}`);

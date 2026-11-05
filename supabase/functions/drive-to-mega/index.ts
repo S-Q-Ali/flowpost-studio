@@ -192,12 +192,12 @@ Deno.serve(async (req) => {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          onProgress = (pct: number) => {
+          const reportProgress = (pct: number) => {
             controller.enqueue(new TextEncoder().encode(JSON.stringify({ type: "progress", percent: pct }) + "\n"));
           };
           await uploadWithMega(
             target as any, fileName, contentLength, driveRes.body as ReadableStream<Uint8Array>,
-            onProgress,
+            reportProgress,
           );
           controller.enqueue(new TextEncoder().encode(JSON.stringify({ type: "done", success: true, fileName, size: contentLength }) + "\n"));
         } catch (err) {

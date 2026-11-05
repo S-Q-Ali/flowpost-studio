@@ -59,7 +59,7 @@ function noGroqKey(err: unknown) {
 /// Only sessions are counted: the workflow path uses the service role and is
 /// already bounded by the workflow itself.
 async function chatQuota(
-  auth: AuthResult,
+  auth: Extract<AuthResult, { allowed: true }>,
   namespace: string,
   limit: number,
 ): Promise<{ allowed: true } | { allowed: false; error: string }> {

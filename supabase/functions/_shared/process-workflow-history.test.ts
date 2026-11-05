@@ -29,9 +29,11 @@ function fixture(options: {
   fatalAfterInsert?: boolean;
   missingDrive?: string;
   maintenanceThrows?: boolean;
+  uploadFetchThrows?: boolean;
 } = {}) {
   const runs: Record<string, unknown>[] = [];
   const posts: Record<string, unknown>[] = [];
+  const postUpdates: Record<string, unknown>[] = [];
   const locks = new Set<string>();
   const workflows = options.workflows ?? [workflow()];
   let openAttempt = 0;
@@ -81,6 +83,7 @@ function fixture(options: {
               return { data: Array.isArray(payload) ? batch : batch[0], error: null };
             }
             if (table === "posts" && action === "update" && options.failAfterInsert) throw new Error("metadata transport failed");
+            if (table === "posts" && action === "update") postUpdates.push({ id: filters.id, ...payload });
             if (table === "connected_accounts") return { data: { access_token: "synthetic-token" }, error: null };
             return { data: null, error: null };
           }).then(resolve, reject);
@@ -94,6 +97,7 @@ function fixture(options: {
       if (options.sourceThrows) throw new Error("source read failed");
       return Response.json({ values: options.rows ?? sheet });
     }
+    if (options.uploadFetchThrows && url.includes("/functions/v1/")) throw new Error("upload transport failed");
     return Response.json({ success: true });
   });
   let handler!: (request: Request) => Promise<Response>;
@@ -126,7 +130,7 @@ function fixture(options: {
     setTimeout: (fn: () => void, ms: number) => { const timer = setTimeout(fn, ms); timer.unref(); return timer; },
   });
   return {
-    runs, posts, locks,
+    runs, posts, postUpdates, locks,
     invoke: () => handler(new Request("https://example.invalid/process-workflow", { method: "POST", body: "{}" })),
   };
 }
@@ -187,6 +191,12 @@ describe("workflow history through the real handler", () => {
     await app.invoke();
     expect(app.posts).toHaveLength(0);
     expect(app.runs[0]).toMatchObject({ posts_created: 0 });
+  });
+
+  it("marks each post failed when its upload fetch fails", async () => {
+    const app = fixture({ uploadFetchThrows: true });
+    expect((await app.invoke()).status).toBe(200);
+    expect(app.postUpdates.filter((update) => update.status === "failed")).toHaveLength(2);
   });
 
   it("does not let a failed history sweep prevent workflow processing", async () => {

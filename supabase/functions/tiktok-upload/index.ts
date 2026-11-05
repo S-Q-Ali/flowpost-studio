@@ -336,6 +336,7 @@ Deno.serve(async (req) => {
       },
       body: videoRes.body,
       signal: uploadController.signal,
+      // @ts-expect-error duplex required for streaming request body
       duplex: "half",
     });
     clearTimeout(uploadTimeout);

@@ -496,6 +496,7 @@ Deno.serve(async (req) => {
                       method: "PUT",
                       headers: { "Content-Type": "image/jpeg" },
                       body: driveRes.body,
+                      // @ts-expect-error duplex required for streaming request body
                       duplex: "half",
                     });
                     if (putRes.ok) {
@@ -600,7 +601,11 @@ Deno.serve(async (req) => {
                   })
                   .catch(async () => {
                     console.error(`Carousel upload fetch failed for post ${carPostId}`);
-                    await supabase.from("posts").update({ status: "failed" }).eq("id", carPostId).catch((e) => console.error("process-workflow: failed to mark carousel post failed", e));
+                    const { error: markFailedError } = await supabase
+                      .from("posts")
+                      .update({ status: "failed" })
+                      .eq("id", carPostId);
+                    if (markFailedError) console.error("process-workflow: failed to mark carousel post failed", markFailedError);
                   }),
               );
             }
@@ -711,6 +716,7 @@ Deno.serve(async (req) => {
                   method: "PUT",
                   headers: { "Content-Type": contentType },
                   body: driveRes.body,
+                  // @ts-expect-error duplex required for streaming request body
                   duplex: "half",
                 });
                 if (!putRes.ok) {
@@ -946,7 +952,11 @@ Deno.serve(async (req) => {
                 })
                 .catch(async () => {
                   console.error(`Upload fetch failed for post ${pId} (${pPlatform})`);
-                  await supabase.from("posts").update({ status: "failed" }).eq("id", pId).catch((e) => console.error("process-workflow: failed to mark post failed", e));
+                  const { error: markFailedError } = await supabase
+                    .from("posts")
+                    .update({ status: "failed" })
+                    .eq("id", pId);
+                  if (markFailedError) console.error("process-workflow: failed to mark post failed", markFailedError);
                 }),
             );
           }
@@ -1065,7 +1075,11 @@ Deno.serve(async (req) => {
                         })
                         .catch(async () => {
                           console.error(`Instagram story upload fetch failed for post ${igStoryPId}`);
-                          await supabase.from("posts").update({ status: "failed" }).eq("id", igStoryPId).catch((e) => console.error("process-workflow: failed to mark ig story post failed", e));
+                          const { error: markFailedError } = await supabase
+                            .from("posts")
+                            .update({ status: "failed" })
+                            .eq("id", igStoryPId);
+                          if (markFailedError) console.error("process-workflow: failed to mark ig story post failed", markFailedError);
                         }),
                     );
                   }

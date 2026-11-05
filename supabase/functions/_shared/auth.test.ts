@@ -4,6 +4,7 @@ import {
   createSessionLookup,
   createRequestAuthorizer,
   resolveSessionOwner,
+  type AuthResult,
   type SessionLookupResult,
   type AuthInputs,
 } from "./auth";

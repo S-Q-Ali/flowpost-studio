@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
       if (!owner.userId) return json({ error: "Missing userId" }, 400);
       const state = await createOAuthState(supabaseAdmin, {
         userId: owner.userId,
-        returnTo: url.searchParams.get("return_to") || body?.return_to,
+        returnTo: (url.searchParams.get("return_to") || body?.return_to) as string | undefined,
         appOrigin: APP_ORIGIN,
       });
       const authUrl = new URL("https://www.linkedin.com/oauth/v2/authorization");

@@ -191,6 +191,7 @@ Deno.serve(async (req) => {
     } else if (megaUrl) {
       const megaFile = File.fromURL(megaUrl);
       await megaFile.loadAttributes();
+      if (megaFile.size === undefined) throw new Error("Mega file has no size");
       contentLength = megaFile.size.toString();
       contentType = "video/mp4";
       sourceUrl = await fileProxyUrl({ megaUrl }, post.user_id);
@@ -279,6 +280,7 @@ Deno.serve(async (req) => {
         "Content-Type": contentType,
       },
       body: videoStream.body,
+      // @ts-expect-error duplex required for streaming request body
       duplex: "half",
     });
 

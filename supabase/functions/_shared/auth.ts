@@ -12,11 +12,18 @@ export type AuthResult =
       reason: string;
     };
 
+/**
+ * `Deno.env.get()` answers "not set" with undefined and request headers answer
+ * it with null. Every consumer below only tests truthiness, so both mean
+ * "this credential is not configured".
+ */
+type EnvSecret = string | null | undefined;
+
 export function resolveSessionOwner(
   auth: AuthResult | null,
   requestedUserId?: string | null,
 ): { userId: string | null; denied: boolean } {
-  if (auth && auth.kind === "session") {
+  if (auth && auth.allowed && auth.kind === "session") {
     // A session row without a user owns nothing; trusting the requested id
     // here is what let a null-user token act as any account.
     if (!auth.userId) return { userId: null, denied: true };
@@ -29,9 +36,9 @@ export function resolveSessionOwner(
 export interface AuthInputs {
   authorizationHeader: string | null;
   adminTokenHeader: string | null;
-  serviceRoleKey: string | null;
-  cronApiKey: string | null;
-  anonKey: string | null;
+  serviceRoleKey: EnvSecret;
+  cronApiKey: EnvSecret;
+  anonKey: EnvSecret;
   sessionLookup: (token: string) => Promise<SessionLookupResult>;
 }
 
@@ -109,9 +116,9 @@ export function createSessionLookup(supabase: any) {
 }
 
 export interface RequestAuthorizerDeps {
-  serviceRoleKey: string | null;
-  cronApiKey: string | null;
-  anonKey: string | null;
+  serviceRoleKey: EnvSecret;
+  cronApiKey: EnvSecret;
+  anonKey: EnvSecret;
   sessionLookup: (token: string) => Promise<SessionLookupResult>;
 }
 

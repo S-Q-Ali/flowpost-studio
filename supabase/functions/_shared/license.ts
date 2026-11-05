@@ -28,17 +28,6 @@ export function isLicenseUsable(
   return expiresAt > now.getTime();
 }
 
-type HmacSubtle = {
-  importKey(
-    format: string,
-    keyData: BufferSource,
-    algorithm: object,
-    extractable: boolean,
-    keyUsages: string[],
-  ): Promise<CryptoKey>;
-  sign(algorithm: string, key: CryptoKey, data: BufferSource): Promise<ArrayBuffer>;
-};
-
 /**
  * Lowercase HMAC-SHA-256 hex under a server-side pepper. Deterministic, so one
  * key still matches exactly one row, and an offline attacker holding a database
@@ -48,7 +37,7 @@ type HmacSubtle = {
 export async function hashLicenseKey(
   key: string,
   pepper: string,
-  subtle: HmacSubtle = globalThis.crypto.subtle,
+  subtle: SubtleCrypto = globalThis.crypto.subtle,
 ): Promise<string> {
   if (pepper.length < MIN_LICENSE_PEPPER_LENGTH) {
     throw new Error(
