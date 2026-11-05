@@ -1,6 +1,7 @@
 import 'package:flowpost_desktop/features/accounts/data/connect_gateway.dart';
+import 'package:flowpost_desktop/features/accounts/domain/connect_link.dart';
 
-/// Answers the two connect calls with what the test names.
+/// Answers the three connect calls with what the test names.
 class FakeConnectGateway implements ConnectGateway {
   FakeConnectGateway({
     this.url = 'https://test.supabase.co/functions/v1/youtube-auth?state=x',
@@ -9,10 +10,17 @@ class FakeConnectGateway implements ConnectGateway {
   /// The address `connect-url` hands back.
   String url;
 
-  /// What the next call throws instead of answering.
+  /// What the next connect or disconnect call throws instead of answering.
   Object? failure;
 
+  /// What the next outcome poll throws instead of answering.
+  Object? outcomeFailure;
+
+  /// What the outcome polls answer. Null is the server saying nothing yet.
+  ConnectResult? outcome;
+
   final List<({String platform, String nonce})> connects = [];
+  final List<({String platform, String nonce})> outcomes = [];
   final List<({String platform, String accountId})> disconnects = [];
 
   @override
@@ -24,6 +32,17 @@ class FakeConnectGateway implements ConnectGateway {
     if (failure != null) throw failure;
     connects.add((platform: platform, nonce: nonce));
     return url;
+  }
+
+  @override
+  Future<ConnectResult?> connectOutcome({
+    required String platform,
+    required String nonce,
+  }) async {
+    final outcomeFailure = this.outcomeFailure;
+    if (outcomeFailure != null) throw outcomeFailure;
+    outcomes.add((platform: platform, nonce: nonce));
+    return outcome;
   }
 
   @override

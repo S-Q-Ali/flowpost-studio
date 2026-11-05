@@ -46,6 +46,15 @@ final Provider<ValueNotifier<String?>> connectCallbackProvider =
       return links;
     });
 
+/// How often an open wait asks the server what the browser did.
+///
+/// The link back from the browser is the fast answer. This is the answer for
+/// the connect that never hands one over — a tab closed after the consent, a
+/// browser that blocks the jump to the app, an OS handoff that goes nowhere.
+/// The ask stops the moment the wait ends, so a normal connect makes one call.
+final Provider<Duration> connectPollIntervalProvider =
+    Provider<Duration>((ref) => const Duration(seconds: 3));
+
 /// What the accounts screen shows about the connects this app started.
 class ConnectState {
   const ConnectState({this.waitingOn, this.message});
@@ -66,14 +75,16 @@ connectControllerProvider = NotifierProvider<ConnectController, ConnectState>(
   ConnectController.new,
 );
 
-/// Starts a browser connect, listens for its answer, and cuts a grant off.
+/// Starts a browser connect, watches for its answer, and cuts a grant off.
 ///
 /// The app never sees the platform's page: it hands the browser an address
-/// that carries a nonce only this process knows, and the answer is the link
-/// that comes back. So a connect is only finished when the nonce it names is
-/// one this app made — anything else is a stray tab, an old link, or a guess.
+/// that carries a nonce only this process knows. The answer comes back as the
+/// link the browser opens, and — for a browser that never hands one over — as
+/// what the callback recorded on the server. Both are matched to the nonce this
+/// app made, so anything else is a stray tab, an old link, or a guess.
 class ConnectController extends Notifier<ConnectState> {
   Timer? _giveUpTimer;
+  Timer? _pollTimer;
 
   @override
   ConnectState build() {
@@ -81,6 +92,7 @@ class ConnectController extends Notifier<ConnectState> {
     links.addListener(_onLink);
     ref.onDispose(() {
       _giveUpTimer?.cancel();
+      _pollTimer?.cancel();
       links.removeListener(_onLink);
     });
     return const ConnectState();
@@ -117,11 +129,41 @@ class ConnectController extends Notifier<ConnectState> {
     // will answer, and one wait at a time means no other platform can start.
     _giveUpTimer?.cancel();
     _giveUpTimer = Timer(store.lifetime, () => _gaveUp(wait.platform));
+    // And not silent either: the callback writes what it decided, so a wait
+    // the browser never hands back still ends on the browser's own answer.
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(ref.read(connectPollIntervalProvider), (_) {
+      _askServer(wait.platform, wait.nonce);
+    });
+  }
+
+  /// Asks the server what this connect's callback recorded. A call that fails
+  /// is only a missed ask: the next one still comes, and the timeout still
+  /// speaks, so a network that briefly drops says nothing to the admin.
+  Future<void> _askServer(String serverPlatform, String nonce) async {
+    final ConnectResult? result;
+    try {
+      result = await ref
+          .read(connectGatewayProvider)
+          .connectOutcome(platform: serverPlatform, nonce: nonce);
+    } on Object catch (error) {
+      _log.warning('The connect status did not answer: ${_wordsFor(error)}');
+      return;
+    }
+    if (result == null) return;
+    _finish(
+      ConnectCallback(
+        platform: serverPlatform,
+        nonce: nonce,
+        result: result,
+      ),
+    );
   }
 
   /// Closes a wait the browser never answered.
   void _gaveUp(String serverPlatform) {
     if (state.waitingOn != serverPlatform) return;
+    _pollTimer?.cancel();
     ref.read(pendingConnectStoreProvider).cancel(serverPlatform);
     state = ConnectState(
       message:
@@ -134,6 +176,7 @@ class ConnectController extends Notifier<ConnectState> {
   /// connect this app is not waiting on, so it changes nothing.
   void stop() {
     _giveUpTimer?.cancel();
+    _pollTimer?.cancel();
     final waiting = state.waitingOn;
     if (waiting != null) ref.read(pendingConnectStoreProvider).cancel(waiting);
     state = const ConnectState();
@@ -180,6 +223,14 @@ class ConnectController extends Notifier<ConnectState> {
       );
       return;
     }
+    _finish(callback);
+  }
+
+  /// Closes the wait [callback] answers. The store spends the wait, so the
+  /// link and the server answer cannot both speak over each other: whichever
+  /// arrives first is the one that ends it, and the other is a nonce this app
+  /// is no longer waiting on.
+  void _finish(ConnectCallback callback) {
     final store = ref.read(pendingConnectStoreProvider);
     final answer = store.answer(callback);
     if (answer != ConnectAnswer.trusted && answer != ConnectAnswer.expired) {
@@ -187,8 +238,9 @@ class ConnectController extends Notifier<ConnectState> {
       // as it was; the list the server gives is the truth either way.
       return;
     }
-    // This link is the answer to the wait, so the timer watching it is spent.
+    // This is the answer to the wait, so nothing else needs to watch it.
     _giveUpTimer?.cancel();
+    _pollTimer?.cancel();
     if (answer == ConnectAnswer.expired) {
       state = const ConnectState(
         message: 'That connect took too long. Start it again.',

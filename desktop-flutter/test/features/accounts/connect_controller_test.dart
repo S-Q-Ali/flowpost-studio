@@ -4,6 +4,7 @@ import 'package:flowpost_desktop/core/providers/app_providers.dart';
 import 'package:flowpost_desktop/features/accounts/accounts_providers.dart';
 import 'package:flowpost_desktop/features/accounts/connect_controller.dart';
 import 'package:flowpost_desktop/features/accounts/data/pending_connect_store.dart';
+import 'package:flowpost_desktop/features/accounts/domain/connect_link.dart';
 import 'package:flowpost_desktop/features/accounts/domain/connected_account.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flowpost_desktop/features/publishing/domain/publish_target.dart';
@@ -37,8 +38,9 @@ void main() {
 
   /// Wires the controller to test doubles. [connectLifetime] is how long the
   /// app waits for the browser, so a test that watches a wait run out can make
-  /// it short instead of sitting on the real ten minutes.
-  void buildHarness(Duration connectLifetime) {
+  /// it short instead of sitting on the real ten minutes. [poll] is how often
+  /// the wait asks the server what the browser did.
+  void buildHarness(Duration connectLifetime, {Duration poll = const Duration(seconds: 30)}) {
     gateway = FakeConnectGateway();
     browser = FakeBrowser();
     repository = FakeAccountsRepository(const []);
@@ -49,6 +51,7 @@ void main() {
         connectGatewayProvider.overrideWithValue(gateway),
         pendingConnectStoreProvider.overrideWithValue(store),
         connectCallbackProvider.overrideWithValue(links),
+        connectPollIntervalProvider.overrideWithValue(poll),
         urlLauncherProvider.overrideWithValue(browser.call),
         accountsRepositoryProvider.overrideWith((ref) => repository),
       ],
@@ -378,4 +381,127 @@ void main() {
       );
     },
   );
+
+  group('the server answer', () {
+    /// A wait that the browser never hands a link back to — a closed tab, a
+    /// browser that blocks the jump, an OS handoff that never lands — still
+    /// ends on what the callback recorded on the server.
+    Future<void> pollHarness({ConnectResult? outcome = ConnectResult.connected}) async {
+      container.dispose();
+      buildHarness(const Duration(minutes: 10), poll: const Duration(milliseconds: 5));
+      gateway.outcome = outcome;
+    }
+
+    test('ends the wait on a connect the server recorded as made', () async {
+      await pollHarness();
+      final nonce = await started('youtube');
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(state().waitingOn, isNull);
+      expect(state().message, 'Connected to YouTube.');
+      expect(store.waiting(), isEmpty);
+      expect(gateway.outcomes.single, (platform: 'youtube', nonce: nonce));
+      expect(repository.reads, 2);
+    });
+
+    test('reads a cancel the way the link reads it', () async {
+      await pollHarness(outcome: ConnectResult.denied);
+      await started('youtube');
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(state().waitingOn, isNull);
+      expect(state().message, 'The connect was cancelled in the browser.');
+      expect(repository.reads, 2);
+    });
+
+    test('reads a failure the way the link reads it', () async {
+      await pollHarness(outcome: ConnectResult.failed);
+      await started('youtube');
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(state().waitingOn, isNull);
+      expect(state().message, 'The connect did not finish. Start it again.');
+    });
+
+    test('a server with no answer recorded leaves the wait open', () async {
+      await pollHarness(outcome: null);
+      await started('youtube');
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(state().waitingOn, 'youtube');
+      expect(state().message, isNull);
+      expect(gateway.outcomes, isNotEmpty);
+    });
+
+    test('a status call that fails leaves the wait open and says nothing', () async {
+      container.dispose();
+      buildHarness(const Duration(minutes: 10), poll: const Duration(milliseconds: 5));
+      gateway.outcomeFailure = const PostsException('The server did not answer.');
+      await controller().start('youtube');
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(state().waitingOn, 'youtube');
+      expect(state().message, isNull);
+    });
+
+    test('a server answer ends the wait before its timeout speaks', () async {
+      container.dispose();
+      buildHarness(
+        const Duration(milliseconds: 20),
+        poll: const Duration(milliseconds: 5),
+      );
+      gateway.outcome = ConnectResult.connected;
+      await controller().start('youtube');
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      expect(state().message, 'Connected to YouTube.');
+    });
+
+    test('a link that answers stops the asking', () async {
+      await pollHarness(outcome: null);
+      final nonce = await started('youtube');
+
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      final polls = gateway.outcomes.length;
+      answered('youtube', nonce);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(state().message, 'Connected to YouTube.');
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(gateway.outcomes, hasLength(polls));
+      expect(state().message, 'Connected to YouTube.');
+    });
+
+    test('a cancel stops the asking', () async {
+      await pollHarness(outcome: ConnectResult.connected);
+      await started('youtube');
+
+      controller().stop();
+      final polls = gateway.outcomes.length;
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(gateway.outcomes, hasLength(polls));
+      expect(state().message, isNull);
+    });
+
+    test('a browser that never opened is never asked about', () async {
+      await pollHarness();
+      browser.opens = false;
+
+      await controller().start('youtube');
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(gateway.outcomes, isEmpty);
+      expect(state().waitingOn, isNull);
+    });
+  });
 }

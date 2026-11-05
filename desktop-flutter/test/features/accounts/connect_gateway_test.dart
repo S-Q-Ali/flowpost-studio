@@ -1,4 +1,5 @@
 import 'package:flowpost_desktop/features/accounts/data/connect_gateway.dart';
+import 'package:flowpost_desktop/features/accounts/domain/connect_link.dart';
 import 'package:flowpost_desktop/features/publishing/data/posts_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -144,5 +145,47 @@ void main() {
     );
 
     await gateway.disconnect(platform: 'tiktok', accountId: 'tt-1');
+  });
+
+  test(
+    'the connect outcome comes from the row the server answers with',
+    () async {
+      final transport = _FakeTransport([
+        {'result': 'connected'},
+      ]);
+      final gateway = ServerConnectGateway(
+        sessionToken: 'session-1',
+        transport: transport,
+      );
+
+      final outcome = await gateway.connectOutcome(
+        platform: 'google_drive',
+        nonce: nonce,
+      );
+
+      expect(outcome, ConnectResult.connected);
+      expect(transport.bodies.single, {
+        'action': 'connect-status',
+        'platform': 'google_drive',
+        'nonce': nonce,
+      });
+      expect(transport.tokens.single, 'session-1');
+    },
+  );
+
+  test('the outcome words the server has are read, the rest are not', () async {
+    Future<ConnectResult?> outcomeOf(String? result) =>
+        ServerConnectGateway(
+          sessionToken: 'session-1',
+          transport: _FakeTransport(
+            result == null ? const [] : [{'result': result}],
+          ),
+        ).connectOutcome(platform: 'youtube', nonce: nonce);
+
+    expect(await outcomeOf('denied'), ConnectResult.denied);
+    expect(await outcomeOf('failed'), ConnectResult.failed);
+    expect(await outcomeOf('pending'), isNull);
+    expect(await outcomeOf('<script>'), isNull);
+    expect(await outcomeOf(null), isNull);
   });
 }
