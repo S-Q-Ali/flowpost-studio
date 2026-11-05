@@ -125,6 +125,100 @@
   `Edge Functions`, `Lint` with `strict: true`; `enforce_admins` stays off, so a
   direct push to `main` still lands and the owner reads the run.
 
+## DP — pre-deploy readiness (read-only, 2026-11-05)
+
+Everything below was read from `ximorwzknbizpceaoflw` on 2026-11-05 with the
+`.env` `ACCESS_TOKEN`; nothing was written. `GET /v1/projects` answers `200`,
+one project, `ACTIVE_HEALTHY` — so the token that blocked CD6 is valid again.
+
+- [x] **State of the database.** `supabase_migrations.schema_migrations` holds
+  40 versions; `supabase/migrations/` holds 43 files. Diffed on the 14-digit
+  prefix: the only unapplied ones are `20261105120000`, `20261105130000`,
+  `20261105140000`, and there is **no** live-only drift in the other direction.
+- [x] **What each migration actually changes live.** `workflow_runs` absent
+  (`has_runs_table = false`) and `latest_workflow_runs()` absent (`has_rpc = 0`),
+  so W2a and W2d create real objects. The two drift columns are already there
+  (`drift_cols = 2`) and `workflow_locks` exists, so W1 records state and applies
+  nothing. Every statement is `if not exists` / `DO $$`, so a re-run is a no-op.
+- [x] **No new secrets.** `git diff` of the W2 + Deno work over
+  `supabase/functions` adds no `Deno.env.get` — the run-history writes use the
+  service client the function already has. Nothing to set under
+  Edge Functions → Secrets before this deploy.
+- [x] **Scheduler still armed.** `cron.job` 28 `process-workflows` and 29
+  `process-scheduled-posts`, both `*/5 * * * *` and `active = true`.
+  Caveat for the next reader: `cron.job.command` stores the CRON_API_KEY in
+  plaintext, so this query prints a live secret. Never paste its output into a
+  doc, an issue or a commit.
+- [x] **What is deployed.** `functions list`: `process-workflow` v157,
+  `updated_at 2026-11-04T13:37:55Z`. That predates both `cbe8de3` (the run rows)
+  and `03e830b`, so production is missing the feature **and** still carries the
+  three builder-`.catch` crashes: a failed upload fetch today throws a
+  `TypeError`, `Promise.allSettled` swallows it and the post stays `processing`.
+  This deploy is the fix for a live defect, not only for the new history.
+- [x] **CI gates for the code being shipped** — all green on `bd4b0fb`, which is
+  `origin/main`: Web (type check, 442 tests, build, audit), Lint, Desktop,
+  Edge Functions (53 entry points, cold). CodeQL success. Four required contexts,
+  `strict: true`.
+- [ ] **Owner's go, then apply in this order** (each step read back before the next).
+  The SQL goes through `POST …/database/query` and the version row is written to
+  match the filename, because the recorded versions must equal the file timestamps
+  or a later `db push` sees drift; `20261105000000` is recorded that same way
+  already (`name = oauth_state_result`, `statements = null`). The helper is
+  `E:\tmp\apply-run-history-migrations.cjs` — outside the repo, like the 2.49.0
+  deadline script — and it reads the token from `.env` without printing it:
+
+  ```bash
+  node "E:/tmp/apply-run-history-migrations.cjs" --dry-run   # prints what it would send
+  node "E:/tmp/apply-run-history-migrations.cjs"             # applies, then reads back
+  ```
+
+  Read back after it runs: 43 tracked, `to_regclass('public.workflow_runs')` not
+  null, `latest_workflow_runs()` present, and the prefix diff — both lists empty.
+- [ ] **Then redeploy the function, then the dashboard:**
+
+  ```bash
+  TOK=$(awk -F= '/^ACCESS_TOKEN=/{print $2}' .env | tr -d '\r"')
+  SUPABASE_ACCESS_TOKEN=$TOK npx supabase functions deploy process-workflow \
+    --remote=ximorwzknbizpceaoflw --yes
+  ```
+
+  Read back `functions list` (version up, `updated_at` now) and that it boots:
+  `POST /functions/v1/process-workflow` with no key answers the function's own
+  `401`, not a `503 BOOT_ERROR`. **Do not** send a `workflowId` — that publishes
+  real content. The next `*/5` cron tick is the test.
+- [ ] **Rollback for this release** (general form in `docs/runbook.md` →
+  Rollback; this is the release-specific one):
+  - `process-workflow` alone:
+    `git checkout a3df4b5 -- supabase/functions/process-workflow && npx supabase functions deploy process-workflow --remote=ximorwzknbizpceaoflw --yes && git checkout HEAD -- supabase/functions/process-workflow`.
+    `a3df4b5` is the last commit that touched the file before `cbe8de3` added the
+    run rows, so the rollback bundle keeps the pre-history scheduler and loses
+    only the new feature. Takes under five minutes.
+  - History misbehaving without a rollback: the writes are best-effort with a
+    one-second deadline each and swallow their own errors, so disabling the
+    feature is a redeploy, not a schema change.
+  - Database: `drop function if exists public.latest_workflow_runs(); drop table
+    if exists public.workflow_runs;` then delete the two version rows from
+    `supabase_migrations.schema_migrations`. Nothing else depends on either
+    object and the table holds only run history, so dropping it loses no user
+    data. The drift migration has nothing to undo — it records columns that were
+    already live.
+  - Order matters and is fixed above: **migrations first, then the function.** A
+    new function against an absent `workflow_runs` still publishes (the open
+    fails, the run is simply not recorded), but the dashboard would show
+    "Run history unavailable" until `latest_workflow_runs()` exists, and the web
+    goes last for that reason.
+  - Web: Vercel keeps every deployment; promote the previous one.
+- [ ] **After deploy — post-launch verification** (owner, first hour):
+  - Wait for a naturally due tick, then
+    `select workflow_id, triggered_by, status, rows_seen, posts_created, message, started_at, finished_at from public.workflow_runs order by started_at desc limit 20;`
+    — one **closed** row per entered workflow, `running` rows only for a run in
+    flight, and no row older than 90 days.
+  - `cron.job_run_details` shows both jobs `succeeded` on the ticks after the deploy.
+  - In the browser: the workflow card shows the last run; a second account sees
+    none of the first account's runs (owner-select RLS).
+  - No post sits in `processing` after a failed upload fetch — it goes `failed`,
+    which is the crash fix shipping with this release.
+
 ## Not started — needs its own go
 
 - [ ] **W3** named stages (`workflows.steps jsonb`, per-item `step`/`step_status`/`error`/`attempt`, server-side captions)
