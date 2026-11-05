@@ -115,7 +115,7 @@ under the new pepper, and tell each holder to type the new one.
 | Symptom | Likely cause | What to do |
 |---|---|---|
 | Window never appears; message box about the start | Unreadable `credentials.json`, or another instance holds the lock | Read `app.log`. If the file is invalid, the client refuses to start rather than guessing: fix or delete `credentials.json` and reopen the setup wizard |
-| "Checking the file…" never ends | FFmpeg missing or a probe timeout | Confirm `third_party\ffmpeg\bin\ffmpeg.exe` shipped next to the executable; the log distinguishes a missing build from a damaged file |
+| "FFmpeg is missing. Reinstall the app to process media." or "Checking the file…" never ends | The build shipped without FFmpeg, or a probe timed out | The app looks for `ffmpeg.exe` and `ffprobe.exe` in `<exe folder>\ffmpeg\bin` — see the note under the desktop checklist; the log distinguishes a missing build from a damaged file |
 | Dashboard sign-in rejected | Signups are closed, or the password is wrong | Only an existing `public.users` row may sign in; check the account in Supabase. The desktop has no sign-in — see **License keys** |
 | "This license key is not valid." | No row matches, the row is inactive, its expiry passed, or the key is under 16 or over 256 characters | Look the key up (License keys → **Check what a key is doing**). A 401 never says which of those it was, on purpose |
 | "Too many attempts…" | One of the two `verify-license` buckets spent (10 per 15 minutes per IP, per key) | Wait out the countdown the app shows; check nothing is looping activations from one machine |
@@ -142,6 +142,14 @@ under the new pepper, and tell each holder to type the new one.
 10. Record the installer checksum next to the release
 
 Quit the tray app before a build: Windows locks `cnativeapi.dll` while it runs. The installer is unsigned, so SmartScreen shows "Windows protected your PC"; publish the checksum and tell users to trust it before choosing **More info → Run anyway**.
+
+Step 7 alone leaves `build\windows\x64\runner\Release` without FFmpeg — only the installer and the portable stage in `scripts\build-desktop.ps1` copy `third_party\ffmpeg\bin` next to the exe. Running that bare `flowpost.exe` gives "FFmpeg is missing"; for a local run copy the folder yourself:
+
+```powershell
+Copy-Item -Recurse -Force desktop-flutter\third_party\ffmpeg\bin desktop-flutter\build\windows\x64\runner\Release\ffmpeg
+```
+
+The provider resolves FFmpeg once and caches it, so an app that already showed that message keeps it until it is restarted.
 
 ## Release checklist (web and backend)
 
