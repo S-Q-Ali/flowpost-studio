@@ -56,6 +56,30 @@ jobs:
 
       - run: npm run lint
 
+  functions:
+    name: Edge Functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: supabase/functions
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pinned to the version the check was green against locally; a Deno minor
+      # bump can change the bundled lib types and fail a build nobody touched.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.8
+
+      # The *.test.ts files import vitest, which only Node resolves. Vitest runs
+      # them in the web job; this job checks the code that is actually deployed.
+      - name: Type check
+        run: |
+          deno check --no-lock \
+            $(ls */index.ts) \
+            $(ls _shared/*.ts | grep -v '\.test\.ts$')
+
   desktop:
     name: Desktop
     runs-on: windows-latest
