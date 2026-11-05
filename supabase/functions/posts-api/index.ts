@@ -6,11 +6,13 @@ import {
   POST_COLUMNS,
   POST_STATUSES,
   accountIdList,
+  connectStatusOf,
   connectTarget,
   connectUrlRequest,
   disconnectTarget,
   editPatch,
   findAccountForDisconnect,
+  findConnectOutcome,
   idOf,
   insertRow,
   listAccounts,
@@ -192,6 +194,25 @@ Deno.serve(async (req) => {
       // already stored with the caller's nonce as its return link. It travels in
       // `rows` like every other answer here, because the desktop reads one shape.
       return json({ rows: [{ url: payload.url, platform: target.value.platform }] });
+    }
+
+    case "connect-status": {
+      // The desktop asks this while it waits, so a browser that never hands the
+      // link over — closed tab, blocked jump, failed OS handoff — still ends the
+      // connect on the outcome the callback recorded.
+      const target = connectTarget(body);
+      if (!target.ok) return json({ error: target.error }, target.status);
+      const { data, error } = await findConnectOutcome(supabase, {
+        userId,
+        platform: target.value.platform,
+        nonce: target.value.nonce,
+        appOrigin: APP_ORIGIN,
+      });
+      if (error) {
+        console.error("connect-status read failed", error);
+        return json({ error: "The connect status did not answer." }, 502);
+      }
+      return json({ rows: [{ result: connectStatusOf(data) }] });
     }
 
     case "disconnect": {

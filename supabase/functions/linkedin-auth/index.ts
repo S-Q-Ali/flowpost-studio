@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
-import { createOAuthState, consumeOAuthState, callbackLocation, connectDeclineResponse, connectDoneResponse, donePageUrl, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
+import { createOAuthState, consumeOAuthState, callbackLocation, connectDeclineResponse, reportConnectResult, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -96,13 +96,8 @@ Deno.serve(async (req) => {
 
   const action = (url.searchParams.get("action") || body?.action) as string | undefined;
   const reqUserId = (url.searchParams.get("userId") || body?.userId) as string | undefined;
-  // The done page the browser is sent to after a desktop connect; it is this
-  // same function at ?action=done, whose gateway-prefixed path is the only one
-  // the browser can load.
-  const doneUrl = donePageUrl(url.href);
-
   let auth: Awaited<ReturnType<typeof authorize>> | null = null;
-  if (action !== "callback" && action !== "done") {
+  if (action !== "callback") {
     auth = await authorize(req);
     if (!auth.allowed) {
       return json({ error: "Unauthorized" }, 401);
@@ -111,8 +106,6 @@ Deno.serve(async (req) => {
 
   try {
     if (!action) return json({ error: "Missing action" }, 400);
-
-    if (action === "done") return connectDoneResponse(req.url);
 
     const redirectUri = `${SUPABASE_URL}/functions/v1/linkedin-auth?action=callback`;
 
@@ -137,13 +130,15 @@ Deno.serve(async (req) => {
     if (action === "callback") {
       const error = url.searchParams.get("error");
       if (error) {
-        const refused = await consumeOAuthState(supabaseAdmin, url.searchParams.get("state") || "");
-        return connectDeclineResponse({
+        const declinedState = url.searchParams.get("state") || "";
+        const refused = await consumeOAuthState(supabaseAdmin, declinedState);
+        return await connectDeclineResponse({
+          supabase: supabaseAdmin,
+          state: declinedState,
           error,
           returnTo: refused?.returnTo ?? null,
           appOrigin: APP_ORIGIN,
           platform: "linkedin",
-          doneUrl,
         });
       }
 
@@ -181,16 +176,18 @@ Deno.serve(async (req) => {
         );
 
       if (upsertError) throw upsertError;
+      await reportConnectResult(supabaseAdmin, rawState, "connected");
 
       return new Response(null, {
         status: 302,
-        headers: { Location: callbackLocation(oauthState.returnTo, APP_ORIGIN, "linkedin", doneUrl) },
+        headers: { Location: callbackLocation(oauthState.returnTo, APP_ORIGIN, "linkedin") },
       });
     }
 
     return json({ error: "Invalid action" }, 400);
   } catch (err) {
     console.error("linkedin-auth error", err);
+    await reportConnectResult(supabaseAdmin, url.searchParams.get("state") || "", "failed");
     return json({ error: err instanceof Error ? err.message : "Unknown error" }, 500);
   }
 });

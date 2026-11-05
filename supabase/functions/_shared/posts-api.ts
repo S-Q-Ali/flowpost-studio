@@ -6,7 +6,13 @@
  * owner.
  */
 
-import { CONNECT_PLATFORMS, desktopReturnTo, normalizeReturnTo } from "./oauth-state.ts";
+import {
+  CONNECT_PLATFORMS,
+  CONNECT_RESULTS,
+  type ConnectResult,
+  desktopReturnTo,
+  normalizeReturnTo,
+} from "./oauth-state.ts";
 
 export const POST_STATUSES = [
   "scheduled",
@@ -188,6 +194,40 @@ export function connectUrlRequest(
     url: url.toString(),
     body: { action: "url", userId: input.userId, return_to: link },
   };
+}
+
+/**
+ * The outcome a browser callback recorded for the connect this caller is
+ * waiting on.
+ *
+ * The desktop reads this when no flowpost:// link reaches it: the tab was
+ * closed, the browser blocked the automatic jump, or the OS handoff never
+ * landed. The link the row was stored under is rebuilt here from the platform
+ * and the caller's own nonce, and the owner comes from the session, so one
+ * desktop can only ever read its own wait.
+ */
+export function findConnectOutcome(
+  supabase: any,
+  input: { userId: string; platform: string; nonce: string; appOrigin: string },
+): PromiseLike<{ data: { result: string | null } | null; error: unknown }> {
+  const trusted = normalizeReturnTo(
+    desktopReturnTo(input.platform, input.nonce),
+    input.appOrigin,
+    input.platform,
+  );
+  if (!trusted) return Promise.resolve({ data: null, error: null });
+  return supabase
+    .from("oauth_states")
+    .select("result")
+    .eq("user_id", input.userId)
+    .eq("return_to", trusted)
+    .maybeSingle();
+}
+
+/** What the desktop is told: the outcome recorded, or that nothing landed. */
+export function connectStatusOf(row: { result: string | null } | null): string {
+  const result = row?.result;
+  return CONNECT_RESULTS.includes(result as ConnectResult) ? result as ConnectResult : "pending";
 }
 
 export interface AccountRows {

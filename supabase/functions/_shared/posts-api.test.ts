@@ -3,12 +3,14 @@ import {
   ACCOUNT_COLUMNS,
   POST_COLUMNS,
   accountIdList,
+  connectStatusOf,
   connectTarget,
   connectUrlRequest,
   disconnectTarget,
   DISCONNECT_COLUMNS,
   editPatch,
   findAccountForDisconnect,
+  findConnectOutcome,
   idOf,
   insertRow,
   listAccounts,
@@ -468,6 +470,102 @@ describe("connectUrlRequest", () => {
     expect(
       connectUrlRequest("https://proj.supabase.co", { platform: "youtube", nonce: "short", ...base }),
     ).toBeNull();
+  });
+});
+
+describe("findConnectOutcome", () => {
+  const nonce = "a".repeat(64);
+  const link = `flowpost://connect-callback?platform=youtube&nonce=${nonce}`;
+  const input = {
+    userId: "user-1",
+    platform: "youtube",
+    nonce,
+    appOrigin: "https://flowpost-studio.vercel.app",
+  };
+
+  function fakeStates(row: { result: string | null } | null, error: unknown = null) {
+    const calls: string[] = [];
+    const selects: string[] = [];
+    const chain: Record<string, any> = {};
+    chain.select = vi.fn((columns: string) => {
+      calls.push("select");
+      selects.push(columns);
+      return chain;
+    });
+    chain.eq = vi.fn((column: string, value: unknown) => {
+      calls.push(`eq:${column}=${String(value)}`);
+      return chain;
+    });
+    chain.maybeSingle = vi.fn(() => Promise.resolve({ data: row, error }));
+    const supabase = {
+      from: vi.fn((table: string) => {
+        calls.push(`from:${table}`);
+        return chain;
+      }),
+    };
+    return { supabase, calls, selects };
+  }
+
+  it("reads the outcome the browser callback left on this caller's own connect", async () => {
+    const { supabase, calls } = fakeStates({ result: "connected" });
+
+    const { data } = await findConnectOutcome(supabase, input);
+
+    expect(data).toEqual({ result: "connected" });
+    expect(calls).toEqual([
+      "from:oauth_states",
+      "select",
+      "eq:user_id=user-1",
+      `eq:return_to=${link}`,
+    ]);
+  });
+
+  it("asks for the outcome alone — never the state, the owner or a token", async () => {
+    const { supabase, selects } = fakeStates(null);
+
+    await findConnectOutcome(supabase, input);
+
+    expect(selects).toEqual(["result"]);
+  });
+
+  it("hands a table failure back to the handler", async () => {
+    const { supabase } = fakeStates(null, { message: "db down" });
+
+    const { data, error } = await findConnectOutcome(supabase, input);
+
+    expect(error).toEqual({ message: "db down" });
+    expect(data).toBeNull();
+  });
+
+  it("reads nothing for a connect the desktop never could have started", async () => {
+    const { supabase, calls } = fakeStates({ result: "connected" });
+
+    const unknown = await findConnectOutcome(supabase, {
+      ...input,
+      platform: "twitter",
+    });
+    const malformed = await findConnectOutcome(supabase, {
+      ...input,
+      nonce: "not-64-hex",
+    });
+
+    expect(unknown.data).toBeNull();
+    expect(malformed.data).toBeNull();
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("connectStatusOf", () => {
+  it("says pending until a callback records an outcome", () => {
+    expect(connectStatusOf(null)).toBe("pending");
+    expect(connectStatusOf({ result: null })).toBe("pending");
+    expect(connectStatusOf({ result: "connected" })).toBe("connected");
+    expect(connectStatusOf({ result: "denied" })).toBe("denied");
+    expect(connectStatusOf({ result: "failed" })).toBe("failed");
+  });
+
+  it("will not pass on a word the connect contract does not have", () => {
+    expect(connectStatusOf({ result: "<script>" })).toBe("pending");
   });
 });
 

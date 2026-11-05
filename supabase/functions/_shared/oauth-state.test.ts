@@ -8,17 +8,14 @@ import {
   normalizeReturnTo,
   callbackLocation,
   desktopReturnTo,
-  connectDoneResponse,
+  connectDoneUrl,
   connectDeclineResponse,
-  donePageUrl,
+  reportConnectResult,
 } from "./oauth-state.ts";
 
 const APP_ORIGIN = "https://flowpost-studio.vercel.app";
-const FUNCTION_ORIGIN = "https://ximorwzknbizpceaoflw.supabase.co/functions/v1/youtube-auth";
-// What the edge runtime actually reports in req.url: the gateway's
-// /functions/v1 prefix is gone, so this path is not loadable as it stands.
-const RUNTIME_URL = "https://ximorwzknbizpceaoflw.supabase.co/youtube-auth";
 const NONCE = "a".repeat(64);
+const DESKTOP = `flowpost://connect-callback?platform=youtube&nonce=${NONCE}`;
 
 function makeSupabase(handlers: {
   insert?: (payload: unknown) => Promise<{ error: { message: string } | null }>;
@@ -26,13 +23,15 @@ function makeSupabase(handlers: {
   deleteThrows?: boolean;
 }) {
   const calls: string[] = [];
+  const updates: unknown[] = [];
   const builder: any = {
     insert: (payload: unknown) => {
       calls.push("insert");
       return handlers.insert ? handlers.insert(payload) : Promise.resolve({ error: null });
     },
-    update: () => {
+    update: (payload: unknown) => {
       calls.push("update");
+      updates.push(payload);
       return builder;
     },
     delete: () => {
@@ -74,7 +73,7 @@ function makeSupabase(handlers: {
       return builder;
     },
   };
-  return { supabase, calls };
+  return { supabase, calls, updates };
 }
 
 describe("newOAuthStateValue", () => {
@@ -233,13 +232,21 @@ describe("desktopReturnTo", () => {
 });
 
 describe("callbackLocation", () => {
-  const desktop = `flowpost://connect-callback?platform=youtube&nonce=${NONCE}`;
-  const doneUrl = `${FUNCTION_ORIGIN}?action=done`;
-
-  it("answers a desktop wait with the function's own done page", () => {
-    expect(callbackLocation(desktop, APP_ORIGIN, "youtube", doneUrl)).toBe(
-      `${doneUrl}&platform=youtube&nonce=${NONCE}&result=connected`,
+  it("answers a desktop wait with the app's own done page", () => {
+    // Supabase rewrites text/html to text/plain, so a page served from the
+    // function only ever shows the visitor its own source. The app origin can
+    // render, and can hand the link to the OS.
+    expect(callbackLocation(DESKTOP, APP_ORIGIN, "youtube")).toBe(
+      `${APP_ORIGIN}/connect-done?platform=youtube&nonce=${NONCE}&result=connected`,
     );
+  });
+
+  it("needs nothing from the caller but the app origin", () => {
+    // There is no function-side done page left to wire, so a caller that
+    // passes nothing still ends the browser tab.
+    const location = callbackLocation(DESKTOP, APP_ORIGIN, "youtube");
+    expect(location).toContain("/connect-done");
+    expect(location).not.toContain("supabase.co");
   });
 
   it("falls back to the app accounts page for a web flow", () => {
@@ -268,72 +275,54 @@ describe("callbackLocation", () => {
     );
   });
 
-  it("refuses a done page that is not an http(s) location", () => {
-    // Only a real URL can load a page; a hand-written flowpost:// done target
-    // would spin the tab exactly like the 302 it replaces, so fall back.
-    const location = callbackLocation(desktop, APP_ORIGIN, "youtube", "flowpost://x?action=done");
-    expect(location.startsWith("flowpost://")).toBe(false);
-    expect(location).toBe(`${APP_ORIGIN}/accounts?connected=youtube`);
-  });
-
-  it("falls back to the app page for a desktop wait the caller gave no done page for", () => {
-    // A caller that never wired action=done must not 302 the browser to a
-    // custom scheme; the safe web accounts page is the fallback.
-    expect(callbackLocation(desktop, APP_ORIGIN, "youtube")).toBe(
-      `${APP_ORIGIN}/accounts?connected=youtube`,
-    );
-  });
-
   it("hands the browser no custom-protocol navigation", () => {
     // A 302 straight to flowpost:// never completes, so the tab spins forever.
-    const location = callbackLocation(desktop, APP_ORIGIN, "youtube", doneUrl);
-    expect(location.startsWith("flowpost://")).toBe(false);
+    expect(callbackLocation(DESKTOP, APP_ORIGIN, "youtube").startsWith("flowpost://")).toBe(false);
   });
 });
 
-describe("connectDoneResponse", () => {
-  const deepLink = `flowpost://connect-callback?platform=google_drive&nonce=${NONCE}`;
-  const requestUrl = (query: string) => `${FUNCTION_ORIGIN}?action=done&${query}`;
-  const body = (url: string) => connectDoneResponse(url);
-
-  it("answers a good desktop handoff with a page that ends the navigation", async () => {
-    const response = await body(requestUrl(`platform=google_drive&nonce=${NONCE}&result=connected`));
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toContain("text/html");
-    const text = await response.text();
-    // The app link reaches the OS from the script (raw) and the anchor (escaped).
-    expect(text).toContain(`${deepLink}&result=connected`);
-    expect(text).toContain(`${deepLink.replace(/&/g, "&amp;")}&amp;result=connected`);
-    expect(text).toContain("FlowPost");
+describe("connectDoneUrl", () => {
+  it.each(["connected", "denied", "failed"])("names the %s outcome on the app page", (result) => {
+    expect(connectDoneUrl(APP_ORIGIN, "google_drive", NONCE, result)).toBe(
+      `https://flowpost-studio.vercel.app/connect-done?platform=google_drive&nonce=${NONCE}&result=${result}`,
+    );
   });
 
-  it("refuses a nonce that is not the one a connect can carry", async () => {
-    const response = await body(requestUrl("platform=google_drive&nonce=deadbeef&result=connected"));
-    expect(response.status).toBe(400);
-    expect(await response.text()).not.toContain("flowpost://");
+  it("is the page the desktop link is answered from", () => {
+    const url = new URL(connectDoneUrl(APP_ORIGIN, "youtube", NONCE, "connected"));
+    expect(url.searchParams.get("platform")).toBe("youtube");
+    expect(url.searchParams.get("nonce")).toBe(NONCE);
+    expect(url.searchParams.get("result")).toBe("connected");
+  });
+});
+
+describe("reportConnectResult", () => {
+  it("writes the outcome on the state row the callback is answering", async () => {
+    const { supabase, calls, updates } = makeSupabase({});
+    await reportConnectResult(supabase as never, "state-1", "connected");
+    expect(calls).toContain("from:oauth_states");
+    expect(calls).toContain("update");
+    expect(calls).toContain("eq:state");
+    expect(updates).toEqual([{ result: "connected" }]);
   });
 
-  it("refuses a platform the desktop never waits on", async () => {
-    const response = await body(requestUrl(`platform=pinterest&nonce=${NONCE}&result=connected`));
-    expect(response.status).toBe(400);
-    expect(await response.text()).not.toContain("flowpost://");
+  it("writes nothing when the callback carried no state", async () => {
+    const { supabase, calls } = makeSupabase({});
+    await reportConnectResult(supabase as never, "", "failed");
+    expect(calls).toEqual([]);
   });
 
-  it("refuses a result the flow never answers with", async () => {
-    const response = await body(requestUrl(`platform=google_drive&nonce=${NONCE}&result=maybe`));
-    expect(response.status).toBe(400);
-    expect(await response.text()).not.toContain("flowpost://");
-  });
-
-  it("hands off nothing when the request itself is not a done page", async () => {
-    const response = await connectDoneResponse(`${FUNCTION_ORIGIN}?platform=google_drive&nonce=${NONCE}&result=connected`);
-    expect(response.status).toBe(400);
-    expect(await response.text()).not.toContain("flowpost://");
-  });
-
-  it("names only the outcome, never the raw query, in the refused page", async () => {
-    const response = await body(requestUrl("platform=google_drive&nonce=deadbeef&result=connected"));
-    expect(await response.text()).not.toContain("deadbeef");
+  it("still answers when the table refuses the write", async () => {
+    // The browser link is the fast path; a status row that did not save must
+    // not break a connect that already worked.
+    const builder: any = {
+      from: () => {
+        throw new Error("the table is down");
+      },
+    };
+    await expect(
+      reportConnectResult(builder as never, "state-1", "connected"),
+    ).resolves.toBeUndefined();
   });
 });
 
@@ -369,129 +358,88 @@ describe("return_to through the state row", () => {
   });
 });
 
-describe("donePageUrl", () => {
-  it("puts the done page on the path the gateway routes", () => {
-    // A browser sent to the bare slug gets 404 {"error":"requested path is
-    // invalid"} from Supabase, so the tab never finishes the connect.
-    expect(donePageUrl(`${RUNTIME_URL}?action=callback&code=abc&state=xyz`)).toBe(
-      "https://ximorwzknbizpceaoflw.supabase.co/functions/v1/youtube-auth?action=done",
-    );
-  });
-
-  it("does not double the prefix when the caller already carries it", () => {
-    expect(donePageUrl(`${FUNCTION_ORIGIN}?action=callback`)).toBe(
-      `${FUNCTION_ORIGIN}?action=done`,
-    );
-  });
-
-  it("keeps the function slug the request came in on", () => {
-    expect(donePageUrl("https://ref.supabase.co/google-drive-auth?action=callback")).toBe(
-      "https://ref.supabase.co/functions/v1/google-drive-auth?action=done",
-    );
-  });
-
-  it("sends the browser to https even though the runtime sees http", () => {
-    // Production proved it: Deno reports req.url as http:// behind the gateway,
-    // and a plain-http Location is the one hop an on-path attacker can answer.
-    expect(
-      donePageUrl("http://ximorwzknbizpceaoflw.supabase.co/google-drive-auth?action=callback"),
-    ).toBe("https://ximorwzknbizpceaoflw.supabase.co/functions/v1/google-drive-auth?action=done");
-  });
-
-  it("leaves a local dev server on http", () => {
-    expect(donePageUrl("http://localhost:54321/youtube-auth?action=callback")).toBe(
-      "http://localhost:54321/functions/v1/youtube-auth?action=done",
-    );
-  });
-});
-
 describe("connectDeclineResponse", () => {
-  const desktop = `flowpost://connect-callback?platform=youtube&nonce=${NONCE}`;
-  const doneUrl = `${FUNCTION_ORIGIN}?action=done`;
-  const decline = (input: {
-    error: string;
-    returnTo: string | null;
-    doneUrl?: string;
-  }) => connectDeclineResponse({ ...input, appOrigin: APP_ORIGIN, platform: "youtube" });
+  const decline = (
+    input: { error: string; returnTo: string | null },
+    supabase = makeSupabase({}).supabase,
+  ) =>
+    connectDeclineResponse({
+      ...input,
+      supabase: supabase as never,
+      state: "state-1",
+      appOrigin: APP_ORIGIN,
+      platform: "youtube",
+    });
 
-  it("sends a refused desktop consent to the done page with result=denied", () => {
+  it("sends a refused desktop consent to the app's done page with result=denied", async () => {
     // Google answers a Cancel with error=access_denied. Before this the tab got
     // a bare HTML page, so the app never heard and waited out its timeout.
-    const response = decline({ error: "access_denied", returnTo: desktop, doneUrl });
+    const response = await decline({ error: "access_denied", returnTo: DESKTOP });
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe(
-      `${doneUrl}&platform=youtube&nonce=${NONCE}&result=denied`,
+      `${APP_ORIGIN}/connect-done?platform=youtube&nonce=${NONCE}&result=denied`,
     );
   });
 
-  it("calls a provider-side breakage failed rather than denied", () => {
-    const response = decline({ error: "server_error", returnTo: desktop, doneUrl });
-    expect(response.status).toBe(302);
+  it("calls a provider-side breakage failed rather than denied", async () => {
+    const response = await decline({ error: "server_error", returnTo: DESKTOP });
     expect(response.headers.get("Location")).toContain("result=failed");
   });
 
-  it("reads the refusal names a user cancelled, not only Google's", () => {
+  it("reads the refusal names a user cancelled, not only Google's", async () => {
     // Facebook and LinkedIn report the same cancel as user_denied.
-    const response = decline({ error: "user_denied", returnTo: desktop, doneUrl });
+    const response = await decline({ error: "user_denied", returnTo: DESKTOP });
     expect(response.headers.get("Location")).toContain("result=denied");
   });
 
-  it("hands the browser no custom-protocol navigation", () => {
-    const location = decline({ error: "access_denied", returnTo: desktop, doneUrl }).headers.get(
-      "Location",
-    );
-    expect(location?.startsWith("flowpost://")).toBe(false);
+  it("writes the outcome down so the app can read it without the link", async () => {
+    const { supabase, calls, updates } = makeSupabase({});
+    await decline({ error: "access_denied", returnTo: DESKTOP }, supabase);
+    expect(calls).toContain("from:oauth_states");
+    expect(calls).toContain("eq:state");
+    expect(updates).toEqual([{ result: "denied" }]);
   });
 
-  it("stays on a page when the connect was a web flow, not a desktop wait", () => {
-    // The web app never waits on a nonce; appending a connected flag for a
-    // refused consent would tell it the opposite of what happened.
-    const response = decline({ error: "access_denied", returnTo: `${APP_ORIGIN}/accounts`, doneUrl });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Location")).toBeNull();
+  it("hands the browser no custom-protocol navigation", async () => {
+    const response = await decline({ error: "access_denied", returnTo: DESKTOP });
+    expect((response.headers.get("Location") ?? "").startsWith("flowpost://")).toBe(false);
   });
 
-  it("stays on a page when no state row answers for the callback", () => {
-    const response = decline({ error: "access_denied", returnTo: null, doneUrl });
-    expect(response.status).toBe(200);
+  it("tells a web flow the connect was refused, on a page it can render", async () => {
+    // The web app never waits on a nonce, and a page served from the function
+    // shows it only source; the accounts page is the one place that can speak.
+    const response = await decline({ error: "access_denied", returnTo: `${APP_ORIGIN}/accounts` });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`${APP_ORIGIN}/accounts?declined=youtube`);
   });
 
-  it("sends nothing to the app when no done page is wired", () => {
-    const response = decline({ error: "access_denied", returnTo: desktop });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Location")).toBeNull();
+  it("still sends a refused connect with no wait back to the app", async () => {
+    const response = await decline({ error: "access_denied", returnTo: null });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`${APP_ORIGIN}/accounts?declined=youtube`);
   });
 
-  it("never echoes the provider's own text into the page", async () => {
-    // The error query parameter is caller-supplied and the page is served from
-    // the function's origin, so an echo would be script in that origin.
-    const response = decline({
+  it("never echoes the provider's own text into the answer", async () => {
+    // The error query parameter is caller-supplied and the answer carries the
+    // function's own origin, so an echo would be script in that origin.
+    const response = await decline({
       error: '<script>alert("steal")</script>',
       returnTo: null,
-      doneUrl,
     });
-    const text = await response.text();
-    expect(text).not.toContain("alert");
-    expect(text).not.toContain("<script>");
+    expect(response.headers.get("Location")).not.toContain("alert");
+    expect(await response.text()).not.toContain("<script>");
   });
 
   it("names a foreign return_to nowhere in the answer", async () => {
-    const response = decline({
+    const response = await decline({
       error: "access_denied",
       returnTo: "https://evil.example/accounts",
-      doneUrl,
     });
-    expect(response.status).toBe(200);
-    expect(await response.text()).not.toContain("evil.example");
-  });
-
-  it("tells the visitor to close the tab and start again in FlowPost", async () => {
-    const text = await (await decline({ error: "access_denied", returnTo: null, doneUrl })).text();
-    expect(text).toContain("FlowPost");
+    expect(response.headers.get("Location")).not.toContain("evil.example");
   });
 });
 
-describe("the auth functions hand the browser a loadable done page", () => {
+describe("the auth functions serve no page of their own", () => {
   const slugs = [
     "facebook-auth",
     "google-drive-auth",
@@ -501,17 +449,25 @@ describe("the auth functions hand the browser a loadable done page", () => {
     "youtube-auth",
   ];
 
-  it.each(slugs)("%s builds its done URL through the shared helper", (slug) => {
-    // Reading the shipped source is the only way to catch this: the runtime
-    // shape of req.url cannot be reproduced from a test that invents it.
+  it.each(slugs)("%s sends the browser to the app origin, never its own", (slug) => {
+    // Supabase answers a text/html body with text/plain and a sandbox CSP, so
+    // HTML from an edge function is source code in the tab, never a page.
     const source = readFileSync(`supabase/functions/${slug}/index.ts`, "utf8");
-    expect(source).toContain("donePageUrl(");
+    expect(source).not.toContain("donePageUrl(");
+    expect(source).not.toContain("connectDoneResponse(");
     expect(source).not.toContain("${url.origin}${url.pathname}");
   });
 
-  it.each(slugs)("%s answers a refused consent through the shared decline page", (slug) => {
+  it.each(slugs)("%s answers a refused consent through the shared decline path", (slug) => {
     const source = readFileSync(`supabase/functions/${slug}/index.ts`, "utf8");
     expect(source).toContain("connectDeclineResponse(");
     expect(source).not.toContain("Connection failed</h2>");
+  });
+
+  it.each(slugs)("%s writes the outcome of a callback it finished", (slug) => {
+    // The desktop reads this row when no browser link reaches it, so a connect
+    // that ended silently cannot leave the app waiting for ten minutes.
+    const source = readFileSync(`supabase/functions/${slug}/index.ts`, "utf8");
+    expect(source).toMatch(/reportConnectResult\(supabaseAdmin,[^)]*"connected"\)/);
   });
 });

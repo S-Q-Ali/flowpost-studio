@@ -80,25 +80,29 @@ export function normalizeReturnTo(
   return null;
 }
 
-/// The browser-facing URL of this function's own done page.
+/// How a desktop connect ended, as the app is told and as the row stores it.
+export type ConnectResult = "connected" | "denied" | "failed";
+
+export const CONNECT_RESULTS: readonly ConnectResult[] = ["connected", "denied", "failed"];
+
+/// Where a finished desktop connect leaves the browser tab.
 ///
-/// The edge runtime reports `req.url` without the gateway's `/functions/v1`
-/// prefix, and Supabase only routes the prefixed path — a browser sent to the
-/// bare slug gets `404 {"error":"requested path is invalid"}` and the connect
-/// tab never finishes. Adding the prefix here keeps the caller's own path
-/// intact if a runtime ever hands it over complete.
-export function donePageUrl(requestUrl: string): string {
-  const url = new URL(requestUrl);
-  const prefix = "/functions/v1";
-  const path = url.pathname.startsWith(prefix) ? url.pathname : `${prefix}${url.pathname}`;
-  // Behind the gateway the runtime reports its own URL as plain http. The
-  // browser must not be sent there: the first hop would be answerable by
-  // anyone on the path. A local dev server stays on http, where https is not
-  // available at all.
-  const host = url.hostname;
-  const local = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
-  const origin = url.protocol === "http:" && !local ? "https://" + url.host : url.origin;
-  return `${origin}${path}?action=done`;
+/// It has to be the shipped web app: Supabase rewrites a text/html body from an
+/// edge function to text/plain behind a sandbox CSP, so a page served here would
+/// show the visitor its own source and never hand the link to the OS.
+const CONNECT_DONE_PATH = "/connect-done";
+
+/// The app's done page for one outcome, built only from validated parts.
+export function connectDoneUrl(
+  appOrigin: string,
+  platform: string,
+  nonce: string,
+  result: ConnectResult,
+): string {
+  return (
+    `${appOrigin}${CONNECT_DONE_PATH}?platform=${encodeURIComponent(platform)}` +
+    `&nonce=${nonce}&result=${result}`
+  );
 }
 
 /// Where a finished connect sends the browser.
@@ -106,15 +110,13 @@ export function donePageUrl(requestUrl: string): string {
 /// A web flow returns to [appOrigin] with the connected flag. A desktop wait
 /// cannot be handed a `flowpost://` 302 — the browser starts a navigation to a
 /// custom protocol, the OS opens the app, and the tab never completes, so it
-/// spins. Instead the desktop wait is sent to the function's own done page
-/// ([doneUrl], built from the callback's own URL), which shows the outcome and
-/// fires the app link from script. The stored value is re-checked here, because
-/// a row written before this rule must not become an open redirect.
+/// spins. It goes to the app's own done page, which can render and fire the link
+/// from there. The stored value is re-checked here, because a row written before
+/// this rule must not become an open redirect.
 export function callbackLocation(
   returnTo: string | null,
   appOrigin: string,
   platform: string,
-  doneUrl?: string,
 ): string {
   const fallback = `${appOrigin}/accounts?connected=${encodeURIComponent(platform)}`;
   if (!returnTo) return fallback;
@@ -122,43 +124,10 @@ export function callbackLocation(
   if (trusted === null) return fallback;
   if (trusted.startsWith("flowpost://")) {
     const nonce = new URL(trusted).searchParams.get("nonce") ?? "";
-    return (
-      doneResultUrl(doneUrl, platform, nonce, "connected") ??
-      // Without a loadable page of our own the tab would spin on a custom
-      // scheme, so the app origin is the only place left to finish.
-      fallback
-    );
+    return connectDoneUrl(appOrigin, platform, nonce, "connected");
   }
   const sep = trusted.includes("?") ? "&" : "?";
   return `${trusted}${sep}connected=${encodeURIComponent(platform)}`;
-}
-
-/// The function's own done-page URL, or null if it is not a loadable http(s)
-/// address. Only a real page can end the browser navigation; anything else
-/// would spin the tab the way the custom-scheme 302 did.
-function usableDoneUrl(doneUrl: string | undefined): string | null {
-  if (!doneUrl) return null;
-  try {
-    const parsed = new URL(doneUrl);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
-    return doneUrl;
-  } catch {
-    return null;
-  }
-}
-
-/// The done page for one outcome of a desktop connect, or null when there is no
-/// loadable page to send the browser to.
-function doneResultUrl(
-  doneUrl: string | undefined,
-  platform: string,
-  nonce: string,
-  result: string,
-): string | null {
-  const done = usableDoneUrl(doneUrl);
-  if (done === null) return null;
-  const sep = done.includes("?") ? "&" : "?";
-  return `${done}${sep}platform=${encodeURIComponent(platform)}&nonce=${nonce}&result=${result}`;
 }
 
 /// How the provider reports that the visitor refused the consent.
@@ -173,127 +142,54 @@ const REFUSED_CONSENT = new Set([
   "login_required",
 ]);
 
+/// Write down how a connect ended, for the app that started it.
+///
+/// The browser link is the fast path, but a tab the user closed, a browser that
+/// blocks the jump, or an OS that never delivers it all leave the app waiting on
+/// nothing. It asks this row instead. Best effort: a status that did not save
+/// must not break a connect the browser already finished.
+export async function reportConnectResult(
+  supabase: any,
+  state: string,
+  result: ConnectResult,
+): Promise<void> {
+  if (!state) return;
+  try {
+    await supabase.from("oauth_states").update({ result }).eq("state", state);
+  } catch {
+    // The browser link still carries the answer.
+  }
+}
+
 /// The answer to a callback that came back without a code.
 ///
 /// A visitor who clicks Cancel on the consent screen gets `?error=access_denied`
 /// on this same callback URL. Before, that was an inline HTML page: the desktop
-/// never heard, so its connect sat until the timeout. A desktop wait is sent to
-/// the done page instead, with the outcome the app is waiting to read. The
-/// provider's error text is never echoed — it is caller-supplied and the page
-/// is served from the function's own origin.
-export function connectDeclineResponse(input: {
+/// never heard, so its connect sat until the timeout. Now the outcome goes on
+/// the state row and the tab is sent somewhere that can actually render — the
+/// app's done page for a desktop wait, its accounts page for a web flow. The
+/// provider's error text is never used, because it is caller-supplied.
+export async function connectDeclineResponse(input: {
+  supabase: any;
+  state: string;
   error: string;
   returnTo: string | null;
   appOrigin: string;
   platform: string;
-  doneUrl?: string;
-}): Response {
-  const { error, returnTo, appOrigin, platform, doneUrl } = input;
+}): Promise<Response> {
+  const { supabase, state, error, returnTo, appOrigin, platform } = input;
+  const outcome: ConnectResult = REFUSED_CONSENT.has(error) ? "denied" : "failed";
+  await reportConnectResult(supabase, state, outcome);
   const trusted = returnTo ? normalizeReturnTo(returnTo, appOrigin, platform) : null;
   if (trusted && trusted.startsWith("flowpost://")) {
     const nonce = new URL(trusted).searchParams.get("nonce") ?? "";
-    const location = doneResultUrl(
-      doneUrl,
-      platform,
-      nonce,
-      REFUSED_CONSENT.has(error) ? "denied" : "failed",
-    );
-    if (location) {
-      return new Response(null, { status: 302, headers: { Location: location } });
-    }
+    return redirect(connectDoneUrl(appOrigin, platform, nonce, outcome));
   }
-  return new Response(declinePage(), {
-    status: 200,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
-  });
+  return redirect(`${appOrigin}/accounts?declined=${encodeURIComponent(platform)}`);
 }
 
-function declinePage(): string {
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">`
-    + `<meta name="viewport" content="width=device-width, initial-scale=1">`
-    + `<title>FlowPost</title>`
-    + `<style>body{font-family:system-ui,sans-serif;text-align:center;padding:48px 24px;`
-    + `background:#0f0f0f;color:#fff}</style></head><body>`
-    + `<h2>Connection not finished</h2>`
-    + `<p>Nothing was saved. You can close this tab and start again in FlowPost.</p>`
-    + `</body></html>`;
-}
-
-const CONNECT_RESULTS = new Set(["connected", "denied", "failed"]);
-
-/// The page a finished desktop connect leaves in the browser.
-///
-/// It answers the callback's 302 to `?action=done` — a normal http navigation
-/// the browser completes, so the tab stops spinning and shows the outcome. The
-/// app link is handed to the OS from script (and a visible fallback link for a
-/// browser that blocks the automatic jump). Every field of the link is rebuilt
-/// from validated query values, never echoed raw, so a crafted request cannot
-/// put arbitrary text — or another host — into the page.
-export function connectDoneResponse(rawUrl: string): Response {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    return doneErrorPage();
-  }
-  if (url.searchParams.get("action") !== "done") return doneErrorPage();
-  const platform = url.searchParams.get("platform") ?? "";
-  const nonce = url.searchParams.get("nonce") ?? "";
-  const result = url.searchParams.get("result") ?? "";
-  if (!CONNECT_PLATFORMS.has(platform)) return doneErrorPage();
-  if (!/^[0-9a-f]{64}$/.test(nonce)) return doneErrorPage();
-  if (!CONNECT_RESULTS.has(result)) return doneErrorPage();
-
-  const link = `flowpost://${CONNECT_CALLBACK_HOST}?platform=${platform}&nonce=${nonce}&result=${result}`;
-  return new Response(donePage(link, result), {
-    status: 200,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
-  });
-}
-
-function donePage(link: string, result: string): string {
-  const headline = result === "connected" ? "Connected" : result === "denied" ? "Cancelled" : "Not finished";
-  const body = result === "connected"
-    ? "You can close this tab and keep working in FlowPost."
-    : result === "denied"
-    ? "The connection was cancelled in the browser. Nothing was saved."
-    : "The connection did not finish. Start it again in FlowPost.";
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">`
-    + `<meta name="viewport" content="width=device-width, initial-scale=1">`
-    + `<title>${headline} \u00b7 FlowPost</title>`
-    + `<style>body{font-family:system-ui,sans-serif;text-align:center;padding:48px 24px;`
-    + `background:#0f0f0f;color:#fff}a{color:#7cc4ff}</style></head><body>`
-    + `<h2>${headline} to FlowPost</h2><p>${body}</p>`
-    + `<p><a href="${escapeHtmlAttr(link)}">Open FlowPost</a></p>`
-    + `<script>location.href = ${JSON.stringify(link)};</script>`
-    + `</body></html>`;
-}
-
-function doneErrorPage(): Response {
-  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">`
-    + `<meta name="viewport" content="width=device-width, initial-scale=1">`
-    + `<title>FlowPost</title>`
-    + `<style>body{font-family:system-ui,sans-serif;text-align:center;padding:48px 24px;`
-    + `background:#0f0f0f;color:#fff}</style></head><body>`
-    + `<h2>This link is not valid</h2>`
-    + `<p>Start the connection again in FlowPost.</p></body></html>`;
-  return new Response(html, {
-    status: 400,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
-  });
-}
-
-function escapeHtmlAttr(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function redirect(location: string): Response {
+  return new Response(null, { status: 302, headers: { Location: location } });
 }
 
 /// Forget waits a day past their minute.
