@@ -4,6 +4,7 @@ import { fileProxyUrl } from "../_shared/get-file-token.ts";
 import { driveMediaUrl, getDriveToken, type DriveTokenContext } from "../_shared/google-drive.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 import { skipReason, type ScheduledWorkflow } from "../_shared/workflow-schedule.ts";
+import { closeWorkflowRun, describeRun, openWorkflowRun } from "../_shared/workflow-runs.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
@@ -127,6 +128,28 @@ async function releaseWorkflowLock(workflowId: string): Promise<void> {
   if (error) console.error(`Failed to release the run lock of workflow ${workflowId}`, error);
 }
 
+/** The run row one workflow body opened, and what it had ready and made. */
+type HeldRun = {
+  id: string | null;
+  errorsSeen: number;
+  report: { rows: number; posts: number } | null;
+};
+
+/**
+ * Writes the run this invocation has open, then forgets it.
+ *
+ * Called from the same two places that release a lock, so a workflow that leaves
+ * its block through one of the many `continue`s still ends up with a row.
+ */
+async function endHeldRun(held: HeldRun, errors: string[]): Promise<void> {
+  const runId = held.id;
+  if (!runId) return;
+  const report = held.report;
+  held.id = null;
+  held.report = null;
+  await closeWorkflowRun(supabase, runId, describeRun(report, errors.slice(held.errorsSeen)));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -157,10 +180,18 @@ Deno.serve(async (req) => {
   // Clean up expired locks
   await supabase.from("workflow_locks").delete().lt("expires_at", new Date().toISOString());
 
+  // Run history grows one row per run per workflow; keep 90 days.
+  await supabase
+    .from("workflow_runs")
+    .delete()
+    .lt("started_at", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());
+
   const uploadPromises: Promise<void>[] = [];
   const functionStartMs = Date.now();
   // The workflow whose run lock this invocation holds, if any.
   let heldWorkflowId: string | null = null;
+  const errors: string[] = [];
+  const heldRun: HeldRun = { id: null, errorsSeen: 0, report: null };
 
   try {
 
@@ -185,7 +216,6 @@ Deno.serve(async (req) => {
       return json({ processed: 0, workflows_triggered: 0, errors: [] });
     }
 
-    const errors: string[] = [];
     let totalProcessedVideos = 0;
     let workflowsTriggered = 0;
 
@@ -197,6 +227,7 @@ Deno.serve(async (req) => {
       // Released here rather than with a `finally` per workflow, so every
       // `continue` in the body below lets go of the previous lock.
       if (heldWorkflowId) {
+        await endHeldRun(heldRun, errors);
         await releaseWorkflowLock(heldWorkflowId);
         heldWorkflowId = null;
       }
@@ -227,6 +258,11 @@ Deno.serve(async (req) => {
         continue;
       }
       heldWorkflowId = wf.id;
+      heldRun.id = await openWorkflowRun(supabase, {
+        workflowId: wf.id,
+        triggeredBy: isManualRun ? "manual" : "cron",
+      });
+      heldRun.errorsSeen = errors.length;
 
       const googleToken = await getDriveToken(wf.user_id, wf.drive_account_id, driveTokenCtx);
       if (!googleToken) {
@@ -1078,6 +1114,8 @@ Deno.serve(async (req) => {
           );
         }
       }
+
+      heldRun.report = { rows: readyRows.length, posts: workflowVideoCount };
     }
 
     // Await all upload promises for cron runs (manual runs return immediately)
@@ -1116,7 +1154,10 @@ Deno.serve(async (req) => {
       500,
     );
   } finally {
-    if (heldWorkflowId) await releaseWorkflowLock(heldWorkflowId);
+    if (heldWorkflowId) {
+      await endHeldRun(heldRun, errors);
+      await releaseWorkflowLock(heldWorkflowId);
+    }
   }
 });
 

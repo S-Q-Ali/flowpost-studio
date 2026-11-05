@@ -22,6 +22,10 @@ create table if not exists public.workflow_runs (
 create index if not exists workflow_runs_workflow_started
   on public.workflow_runs (workflow_id, started_at desc);
 
+-- The 90-day purge in process-workflow filters on started_at alone.
+create index if not exists workflow_runs_started
+  on public.workflow_runs (started_at);
+
 alter table public.workflow_runs enable row level security;
 
 -- process-workflow writes with the service key, which bypasses row level security,

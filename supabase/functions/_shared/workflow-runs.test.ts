@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { openWorkflowRun, closeWorkflowRun } from "./workflow-runs.ts";
+import { closeWorkflowRun, describeRun, openWorkflowRun } from "./workflow-runs.ts";
 
 function makeSupabase(handlers: {
   insertResult?: { data: unknown; error: unknown };
@@ -66,6 +66,47 @@ describe("openWorkflowRun", () => {
     await expect(
       openWorkflowRun(supabase, { workflowId: "wf-1", triggeredBy: "cron" }),
     ).resolves.toBeNull();
+  });
+});
+
+describe("describeRun", () => {
+  it("calls a body that reached its counters completed, complaints and all", () => {
+    const run = describeRun({ rows: 4, posts: 1 }, ["Failed to update stats for wf-1"]);
+
+    expect(run).toEqual({
+      status: "completed",
+      rowsSeen: 4,
+      postsCreated: 1,
+      message: "Failed to update stats for wf-1",
+    });
+  });
+
+  it("calls a body that left early with a complaint failed", () => {
+    const run = describeRun(null, ["No Google Drive connected for workflow wf-1"]);
+
+    expect(run).toEqual({
+      status: "failed",
+      rowsSeen: 0,
+      postsCreated: 0,
+      message: "No Google Drive connected for workflow wf-1",
+    });
+  });
+
+  it("calls a schedule that found nothing ready completed", () => {
+    const run = describeRun(null, []);
+
+    expect(run).toEqual({ status: "completed", rowsSeen: 0, postsCreated: 0, message: null });
+  });
+
+  it("joins every complaint a run collected after it opened", () => {
+    const run = describeRun(null, [
+      "Sheet for wf-1 needs at least 2 image_url_N columns",
+      "Row processing failed for wf-1: timeout",
+    ]);
+
+    expect(run.message).toBe(
+      "Sheet for wf-1 needs at least 2 image_url_N columns; Row processing failed for wf-1: timeout",
+    );
   });
 });
 
