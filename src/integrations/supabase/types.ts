@@ -485,6 +485,50 @@ export type Database = {
         }
         Relationships: []
       }
+      workflow_runs: {
+        Row: {
+          finished_at: string | null
+          id: string
+          message: string | null
+          posts_created: number
+          rows_seen: number
+          started_at: string
+          status: string
+          triggered_by: string
+          workflow_id: string
+        }
+        Insert: {
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          posts_created?: number
+          rows_seen?: number
+          started_at?: string
+          status?: string
+          triggered_by?: string
+          workflow_id: string
+        }
+        Update: {
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          posts_created?: number
+          rows_seen?: number
+          started_at?: string
+          status?: string
+          triggered_by?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_runs_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflows: {
         Row: {
           caption_master_prompt: Json | null
@@ -612,7 +656,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      // Hand-written with the 20261105140000 migration: this file is generated,
+      // so the next `supabase gen types` run replaces this with its own shape.
+      latest_workflow_runs: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          finished_at: string | null
+          id: string
+          message: string | null
+          posts_created: number
+          rows_seen: number
+          started_at: string
+          status: string
+          triggered_by: string
+          workflow_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

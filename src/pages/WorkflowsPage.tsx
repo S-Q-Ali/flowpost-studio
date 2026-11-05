@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
 import { invokeFunction, type InvokeFunctionResult } from "@/lib/invoke";
+import { describeWorkflowRun, type WorkflowRunSummary } from "@/lib/workflow-run-label";
 
 type WorkflowRow = {
   id: string;
@@ -110,6 +111,7 @@ export default function WorkflowsPage() {
   const [tiktokAccounts, setTiktokAccounts] = useState<ConnectedAccount[]>([]);
   const [linkedinAccounts, setLinkedinAccounts] = useState<ConnectedAccount[]>([]);
   const [pageEligibility, setPageEligibility] = useState<Record<string, string>>({});
+  const [lastRuns, setLastRuns] = useState<Record<string, WorkflowRunSummary>>({});
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("create");
@@ -169,6 +171,12 @@ export default function WorkflowsPage() {
     const map: Record<string, string> = {};
     (eligData ?? []).forEach((r) => { if (r.page_id) map[r.page_id] = r.eligibility_bucket ?? "unknown"; });
     setPageEligibility(map);
+
+    // One call for every card: the newest run of each workflow this account owns.
+    const { data: runData } = await supabase.rpc("latest_workflow_runs");
+    const runs: Record<string, WorkflowRunSummary> = {};
+    (runData ?? []).forEach((r) => { runs[r.workflow_id] = r; });
+    setLastRuns(runs);
   };
 
   const loadAccounts = async () => {
@@ -1535,6 +1543,10 @@ export default function WorkflowsPage() {
   };
 
   const renderLastTriggered = (wf: WorkflowRow) => {
+    // The run row is the truth; the two counters only move when something posted.
+    const run = lastRuns[wf.id];
+    if (run) return describeWorkflowRun(run);
+
     const scheduled = wf.last_triggered_at;
     const manual = wf.last_manual_triggered_at;
 
@@ -1722,7 +1734,9 @@ export default function WorkflowsPage() {
                       {wf.videos_per_run ?? 1} per run
                     </span>
                   </span>
-                  <span>{renderLastTriggered(wf)}</span>
+                  <span className="max-w-[58%] truncate text-right" title={renderLastTriggered(wf)}>
+                    {renderLastTriggered(wf)}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>
