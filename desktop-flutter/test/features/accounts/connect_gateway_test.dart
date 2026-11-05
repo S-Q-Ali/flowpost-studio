@@ -174,13 +174,16 @@ void main() {
   );
 
   test('the outcome words the server has are read, the rest are not', () async {
-    Future<ConnectResult?> outcomeOf(String? result) =>
-        ServerConnectGateway(
-          sessionToken: 'session-1',
-          transport: _FakeTransport(
-            result == null ? const [] : [{'result': result}],
-          ),
-        ).connectOutcome(platform: 'youtube', nonce: nonce);
+    Future<ConnectResult?> outcomeOf(String? result) => ServerConnectGateway(
+      sessionToken: 'session-1',
+      transport: _FakeTransport(
+        result == null
+            ? const []
+            : [
+                {'result': result},
+              ],
+      ),
+    ).connectOutcome(platform: 'youtube', nonce: nonce);
 
     expect(await outcomeOf('denied'), ConnectResult.denied);
     expect(await outcomeOf('failed'), ConnectResult.failed);

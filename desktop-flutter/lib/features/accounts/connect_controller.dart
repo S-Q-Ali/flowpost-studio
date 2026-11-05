@@ -52,8 +52,9 @@ final Provider<ValueNotifier<String?>> connectCallbackProvider =
 /// the connect that never hands one over — a tab closed after the consent, a
 /// browser that blocks the jump to the app, an OS handoff that goes nowhere.
 /// The ask stops the moment the wait ends, so a normal connect makes one call.
-final Provider<Duration> connectPollIntervalProvider =
-    Provider<Duration>((ref) => const Duration(seconds: 3));
+final Provider<Duration> connectPollIntervalProvider = Provider<Duration>(
+  (ref) => const Duration(seconds: 3),
+);
 
 /// What the accounts screen shows about the connects this app started.
 class ConnectState {
@@ -152,11 +153,7 @@ class ConnectController extends Notifier<ConnectState> {
     }
     if (result == null) return;
     _finish(
-      ConnectCallback(
-        platform: serverPlatform,
-        nonce: nonce,
-        result: result,
-      ),
+      ConnectCallback(platform: serverPlatform, nonce: nonce, result: result),
     );
   }
 

@@ -40,7 +40,10 @@ void main() {
   /// app waits for the browser, so a test that watches a wait run out can make
   /// it short instead of sitting on the real ten minutes. [poll] is how often
   /// the wait asks the server what the browser did.
-  void buildHarness(Duration connectLifetime, {Duration poll = const Duration(seconds: 30)}) {
+  void buildHarness(
+    Duration connectLifetime, {
+    Duration poll = const Duration(seconds: 30),
+  }) {
     gateway = FakeConnectGateway();
     browser = FakeBrowser();
     repository = FakeAccountsRepository(const []);
@@ -386,9 +389,14 @@ void main() {
     /// A wait that the browser never hands a link back to — a closed tab, a
     /// browser that blocks the jump, an OS handoff that never lands — still
     /// ends on what the callback recorded on the server.
-    Future<void> pollHarness({ConnectResult? outcome = ConnectResult.connected}) async {
+    Future<void> pollHarness({
+      ConnectResult? outcome = ConnectResult.connected,
+    }) async {
       container.dispose();
-      buildHarness(const Duration(minutes: 10), poll: const Duration(milliseconds: 5));
+      buildHarness(
+        const Duration(minutes: 10),
+        poll: const Duration(milliseconds: 5),
+      );
       gateway.outcome = outcome;
     }
 
@@ -437,17 +445,25 @@ void main() {
       expect(gateway.outcomes, isNotEmpty);
     });
 
-    test('a status call that fails leaves the wait open and says nothing', () async {
-      container.dispose();
-      buildHarness(const Duration(minutes: 10), poll: const Duration(milliseconds: 5));
-      gateway.outcomeFailure = const PostsException('The server did not answer.');
-      await controller().start('youtube');
+    test(
+      'a status call that fails leaves the wait open and says nothing',
+      () async {
+        container.dispose();
+        buildHarness(
+          const Duration(minutes: 10),
+          poll: const Duration(milliseconds: 5),
+        );
+        gateway.outcomeFailure = const PostsException(
+          'The server did not answer.',
+        );
+        await controller().start('youtube');
 
-      await Future<void>.delayed(const Duration(milliseconds: 80));
+        await Future<void>.delayed(const Duration(milliseconds: 80));
 
-      expect(state().waitingOn, 'youtube');
-      expect(state().message, isNull);
-    });
+        expect(state().waitingOn, 'youtube');
+        expect(state().message, isNull);
+      },
+    );
 
     test('a server answer ends the wait before its timeout speaks', () async {
       container.dispose();

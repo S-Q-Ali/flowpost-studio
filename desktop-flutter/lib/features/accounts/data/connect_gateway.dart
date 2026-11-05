@@ -61,11 +61,7 @@ class ServerConnectGateway implements ConnectGateway {
     required String nonce,
   }) async {
     final rows = await transport.send(
-      body: {
-        'action': 'connect-status',
-        'platform': platform,
-        'nonce': nonce,
-      },
+      body: {'action': 'connect-status', 'platform': platform, 'nonce': nonce},
       token: sessionToken,
     );
     // Only the three words the server was told to record answer. Anything
