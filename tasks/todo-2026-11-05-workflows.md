@@ -57,8 +57,8 @@
 - [x] Deadlines proven against the pinned 2.49.0 server client, outside the suite: `npm install --prefix <temp dir> --no-save --ignore-scripts @supabase/supabase-js@2.49.0`, then run the helper's three deadline cases with a fake `fetch` that never answers (transpiled from `supabase/functions/_shared/workflow-runs.ts` with the workspace TypeScript). Hold the Node event loop with a ref'd timer — `AbortSignal.timeout()` is unref'd. Script kept at `E:\tmp\pinned-deadline-verify.cjs`, not in the repo, so no dependency is added to verify it.
 - [x] Deno type-check — see **DG** below: run for the first time on 2026-11-05, 77 errors found and fixed, `deno check` now exits 0 over all 53 deployed files, and CI has a blocking `functions` job so it can never be skipped again
 - [x] Pushed CI gate green on `53bc795` (2026-11-05): CI [Lint, Web (type check, test, build, dependency audit), Desktop] and CodeQL all success — https://github.com/S-Q-Ali/flowpost-studio/actions/runs/42050207829. That run did **not** type-check the Edge Functions; the `functions` job added under **DG** closes the gap.
-- [ ] Owner's yes, then: apply all three migrations through the Management API (`POST /v1/projects/<ref>/database/query`, versions fixed in `supabase_migrations.schema_migrations` so `db push` sees no drift) and redeploy `process-workflow`, then the web dashboard
-- [ ] Read back: after one cron tick, `select workflow_id, triggered_by, status, rows_seen, posts_created, message from workflow_runs order by started_at desc limit 6;` shows one closed row per live workflow
+- [x] Owner's yes received and spent (2026-11-05): all three migrations applied through the Management API and recorded by filename version, and `process-workflow` redeployed v157 → v158. Evidence in **DP** below. The web dashboard is still owner-side — no Vercel origin or token lives in this repo.
+- [ ] Read back after a **due** tick: the first tick post-deploy was 18:15 UTC and `custom_ranges` are UTC hours, so no workflow was entered and `workflow_runs` legitimately stayed empty. Next entries ~20:50 and ~21:10 UTC on 2026-11-05.
 - [ ] Owner sees the last run in the browser
 
 ## DG — the release gate CI never had
@@ -159,33 +159,54 @@ one project, `ACTIVE_HEALTHY` — so the token that blocked CD6 is valid again.
   `origin/main`: Web (type check, 442 tests, build, audit), Lint, Desktop,
   Edge Functions (53 entry points, cold). CodeQL success. Four required contexts,
   `strict: true`.
-- [ ] **Owner's go, then apply in this order** (each step read back before the next).
-  The SQL goes through `POST …/database/query` and the version row is written to
-  match the filename, because the recorded versions must equal the file timestamps
-  or a later `db push` sees drift; `20261105000000` is recorded that same way
-  already (`name = oauth_state_result`, `statements = null`). The helper is
-  `E:\tmp\apply-run-history-migrations.cjs` — outside the repo, like the 2.49.0
-  deadline script — and it reads the token from `.env` without printing it:
+- [x] **Owner's go (2026-11-05) — applied in this order**, each step read back
+  before the next. The SQL goes through `POST …/database/query` and the version
+  row is written to match the filename, because the recorded versions must equal
+  the file timestamps or a later `db push` sees drift; `20261105000000` is
+  recorded that same way already (`name = oauth_state_result`,
+  `statements = null`). The helper is `E:\tmp\apply-run-history-migrations.cjs` —
+  outside the repo, like the 2.49.0 deadline script — and it reads the token from
+  `.env` without printing it. `--dry-run` first, then apply:
 
   ```bash
   node "E:/tmp/apply-run-history-migrations.cjs" --dry-run   # prints what it would send
   node "E:/tmp/apply-run-history-migrations.cjs"             # applies, then reads back
   ```
 
-  Read back after it runs: 43 tracked, `to_regclass('public.workflow_runs')` not
-  null, `latest_workflow_runs()` present, and the prefix diff — both lists empty.
-- [ ] **Then redeploy the function, then the dashboard:**
-
-  ```bash
-  TOK=$(awk -F= '/^ACCESS_TOKEN=/{print $2}' .env | tr -d '\r"')
-  SUPABASE_ACCESS_TOKEN=$TOK npx supabase functions deploy process-workflow \
-    --remote=ximorwzknbizpceaoflw --yes
-  ```
-
-  Read back `functions list` (version up, `updated_at` now) and that it boots:
-  `POST /functions/v1/process-workflow` with no key answers the function's own
-  `401`, not a `503 BOOT_ERROR`. **Do not** send a `workflowId` — that publishes
-  real content. The next `*/5` cron tick is the test.
+  Before: `tracked=40, new_rows=0, has_runs_table=false, run_columns=0,
+  run_policies=0, has_rpc=0`. After: `tracked=43, new_rows=3,
+  has_runs_table=true, run_columns=9, run_policies=1, has_rpc=1`. Re-running the
+  prefix diff gives **empty in both directions** — 43 local against 43 live, so
+  `db push` now sees no drift either way.
+- [x] **Schema read-back, object by object.** `workflow_runs`: RLS on, 3 indexes
+  (`workflow_runs_pkey`, `workflow_runs_started`,
+  `workflow_runs_workflow_started`), exactly one policy
+  `"Users can read own workflow runs"` with `cmd = SELECT`, 6 not-null columns,
+  2 CHECK constraints (`triggered_by`, `status`). `latest_workflow_runs()` exists
+  with `prosecdef = false` — invoker security, so it inherits the policy instead
+  of bypassing it. The two drift columns are on `workflows` as W1 said they
+  would be.
+- [x] **Function redeployed** — `npx supabase functions deploy process-workflow
+  --remote=ximorwzknbizpceaoflw --yes` uploaded `index.ts` plus six `_shared`
+  modules including the new `workflow-runs.ts`, and
+  `GET /v1/projects/<ref>/functions` reads **v158**, `status ACTIVE`,
+  `updated_at 2026-11-05T18:12:36.702Z` (was v157 at 2026-11-04T13:37:55Z). Boot
+  probe — `POST /functions/v1/process-workflow` with `{}` and no key — answers
+  **401 `{"error":"Unauthorized"}`** from the function's own caller check, with
+  no `sb-error-code: BOOT_ERROR` header, so the module instantiated. No
+  `workflowId` was ever sent.
+- [x] **The scheduler ran the new code.** First tick after the deploy:
+  `cron.job_run_details` jobid 28 `succeeded` at `18:15:00.120Z`, and `pg_net`
+  recorded the real call — `net._http_response` **status 200**, content
+  `{"processed":0,"workflows_triggered":0,"errors":[]}`. That is the answer the
+  redeployed isolate gives, not a platform rejection.
+- [x] **Why history is still empty, and it is not a fault.** `custom_ranges` are
+  **UTC hours** (`workflow-schedule.ts` reads `getUTCDay()` and `getUTCHours()`),
+  and both active workflows have day-4 ranges `08–10` and `20–22`. The tick above
+  landed at 18:15 UTC, so no workflow was entered and — by W2c's design — an
+  un-entered workflow writes no row. Predicted next entries from the same
+  `customRangeTarget` hash: **VSC FB+IG 20:50–20:55 UTC, SVC FB+IG 21:10–21:15
+  UTC** on 2026-11-05.
 - [ ] **Rollback for this release** (general form in `docs/runbook.md` →
   Rollback; this is the release-specific one):
   - `process-workflow` alone:
@@ -208,16 +229,39 @@ one project, `ACTIVE_HEALTHY` — so the token that blocked CD6 is valid again.
     "Run history unavailable" until `latest_workflow_runs()` exists, and the web
     goes last for that reason.
   - Web: Vercel keeps every deployment; promote the previous one.
-- [ ] **After deploy — post-launch verification** (owner, first hour):
-  - Wait for a naturally due tick, then
-    `select workflow_id, triggered_by, status, rows_seen, posts_created, message, started_at, finished_at from public.workflow_runs order by started_at desc limit 20;`
-    — one **closed** row per entered workflow, `running` rows only for a run in
-    flight, and no row older than 90 days.
-  - `cron.job_run_details` shows both jobs `succeeded` on the ticks after the deploy.
-  - In the browser: the workflow card shows the last run; a second account sees
-    none of the first account's runs (owner-select RLS).
-  - No post sits in `processing` after a failed upload fetch — it goes `failed`,
-    which is the crash fix shipping with this release.
+- [x] **First-hour checks done from the server side** (2026-11-05):
+  - Ticks after the deploy: job 28 and job 29 both `succeeded` in
+    `cron.job_run_details`, and `net._http_response` carries their real 200
+    bodies — `process-workflow` `{"processed":0,"workflows_triggered":0,"errors":[]}`,
+    `process-scheduled-posts` `{"processed":0,"total":0}`. No 4xx/5xx, no
+    `timed_out`.
+  - `select count(*) from public.workflow_runs` → **0**, which the due-window
+    reading above explains. The table, its policy and its RPC exist and are
+    reachable; that is all a no-work tick can prove.
+- [ ] **Still open, and each one needs the next due window or the owner:**
+  - A **closed** row per entered workflow: after ~20:50 and ~21:10 UTC (or the
+    same windows tomorrow), read
+    `select workflow_id, triggered_by, status, rows_seen, posts_created, message, started_at, finished_at from public.workflow_runs order by started_at desc limit 20;`.
+    A `running` row older than 20 minutes should be swept to `failed` by the next
+    successful maintenance pass — that is the other half of W2c and it is still
+    unproven in production.
+  - Cross-account RLS: with zero rows every probe answers `[]` and proves
+    nothing, so read it once rows exist — the owner's own account sees its last
+    run, a second account sees none. The `E:\tmp\verify-rpc-rls.cjs` attempt on
+    2026-11-05 stopped at the key: `api-keys?reveal=true` now returns every key
+    with `is_public = false`, so there is no public key to call REST with, and a
+    call against an empty table would not have distinguished the policy from the
+    row count anyway.
+  - The browser check on the workflow cards — needs the dashboard deployed (next
+    item) and the owner's eyes.
+  - The upload-failure crash fix has no production witness yet: it only runs when
+    a real upload fetch fails, which cannot be provoked without publishing.
+- [ ] **Web dashboard: not deployed by this run.** W2d is on `origin/main`
+  (`29e1fe6`, `23ca358`) and CI is green there, but no Vercel project origin or
+  token is recorded in this repo (`vercel.json` exists; the live URL is nowhere
+  in `README.md`, `docs/` or `.env`), and the deploy is owner-side. Until it
+  ships, the cards keep calling the old bundle — the new RPC is live, so nothing
+  breaks either way.
 
 ## Not started — needs its own go
 

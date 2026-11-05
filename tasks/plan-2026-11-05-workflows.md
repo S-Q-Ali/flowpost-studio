@@ -73,9 +73,9 @@ W1 drift migration (no deps)
 - [x] Final corrections committed and pushed on the owner's go (2026-11-05): `95c89c6` `974d921` `29e1fe6` `293fba2` `ffdec12` `53bc795`, `b82b5b8..53bc795` on `origin/main`
 - [x] CI green on the pushed commit — Lint, Web (type check, test, build, dependency audit) and Desktop all success, CodeQL success. That pipeline had no Edge Functions job, so it proved nothing about the Deno code.
 - [x] Deno type-check (2026-11-05): 77 errors found on the first-ever `deno check` of the deployed functions, all fixed, exit 0 across 53 files, and a blocking `functions` job added to CI. At least eight were live runtime defects. Detail in `tasks/todo-2026-11-05-workflows.md` under **DG**.
-- [ ] Real database/RLS validation against production
-- [ ] Migration applied to production through the Management API and read back (`db push` is unusable here — see `tasks/deploy-server-68.md`)
-- [ ] `process-workflow` redeployed; a cron tick leaves rows in `workflow_runs` for both live workflows
+- [x] Real database validation against production: the three migrations are live and every created object was read back from `information_schema`, `pg_indexes`, `pg_policies` and `pg_proc`. Cross-account RLS is still unproven — with zero rows a filtered read and an empty table look identical.
+- [x] Migrations applied through the Management API (`POST /database/query` per file, version rows written to match the filenames so `db push` sees no drift) and read back: 40 → 43 tracked, empty diff in both directions. `db push` remains unusable here — `supabase link` needs the Postgres password.
+- [x] `process-workflow` redeployed v157 → v158 and proven to run the new code: the 18:15 UTC tick answered `200 {"processed":0,"workflows_triggered":0,"errors":[]}`. No `workflow_runs` row yet, correctly — both active workflows are `custom_ranges` in UTC hours and none was due; next entries ~20:50 and ~21:10 UTC.
 - [ ] Owner sees the last run in the browser before W3 starts
 
 ## W3 / W4 — scoped, not approved

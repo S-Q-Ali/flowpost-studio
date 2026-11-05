@@ -161,6 +161,16 @@ Deploy only after a fresh approval, in order:
 3. Wait for a naturally due cron tick; read back entered runs and their close statuses. A scheduled skip is not missing history.
 4. Owner checks the cards in the signed-in browser and confirms that another user's runs are not visible. Live publishing remains an owner-run check.
 
+**State as of 2026-11-05:** step 1 and the `process-workflow` half of step 2 are
+live on this project — the three migrations are applied and recorded under their
+filename versions (`db push` sees no drift), and the function is at v158. The
+dashboard half of step 2 and steps 3–4 are still open. `workflow_runs` is empty
+in production because the first tick after the deploy (18:15 UTC) fell outside
+both active workflows' `custom_ranges`, which are UTC hours; an un-entered
+workflow writes no row. Re-applying step 1 is not needed and is a no-op anyway —
+every statement in those files is guarded. Evidence:
+`tasks/todo-2026-11-05-workflows.md`, section **DP**.
+
 Local tests, a web build and `supabase functions deploy` do not type-check the
 Deno entry points — deployment bundles the code without checking it. The CI
 **Edge Functions** job does, and its very first run reported 77 type errors, at
