@@ -65,9 +65,13 @@ async function exchangeCodeForShortLivedToken(code: string, redirectUri: string)
 }
 
 async function getLongLivedToken(shortLivedToken: string) {
-  // Meta answers this one only on GET; a POST is rejected as
-  // "Unsupported request - method type: post" (code 100).
-  const url = new URL("https://graph.instagram.com/v21.0/access_token");
+  // Meta documents this exchange as GET on the UNVERSIONED path:
+  //   GET https://graph.instagram.com/access_token?grant_type=ig_exchange_token
+  //       &client_secret=<APP_SECRET>&access_token=<SHORT_LIVED>
+  // A `/vNN.0/` prefix before `access_token` is not a node at all, and with a
+  // real Instagram-login token both verbs come back as
+  // "Unsupported request - method type: ..." (code 100, IGApiException).
+  const url = new URL("https://graph.instagram.com/access_token");
   url.searchParams.set("grant_type", "ig_exchange_token");
   url.searchParams.set("client_secret", APP_SECRET!);
   url.searchParams.set("access_token", shortLivedToken);
