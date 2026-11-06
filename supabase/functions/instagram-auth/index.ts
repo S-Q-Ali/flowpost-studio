@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt } from "../_shared/crypto.ts";
+import { instagramTokenRecord } from "../_shared/instagram-token.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
 import { createOAuthState, consumeOAuthState, callbackLocation, connectDeclineResponse, reportConnectResult, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 
@@ -61,32 +62,41 @@ async function exchangeCodeForShortLivedToken(code: string, redirectUri: string)
 
   const jsonRes = await res.json();
   if (!res.ok || jsonRes.error) throw new Error(`IG token exchange failed: ${JSON.stringify(jsonRes)}`);
-  return jsonRes as { access_token: string; user_id: string; permissions?: string[] };
+  return jsonRes as { access_token: string; user_id: string; expires_in?: number; permissions?: string[] };
 }
 
-async function getLongLivedToken(shortLivedToken: string) {
-  // Meta documents this exchange as GET on the UNVERSIONED path:
-  //   GET https://graph.instagram.com/access_token?grant_type=ig_exchange_token
-  //       &client_secret=<APP_SECRET>&access_token=<SHORT_LIVED>
-  // A `/vNN.0/` prefix before `access_token` is not a node at all, and with a
-  // real Instagram-login token both verbs come back as
-  // "Unsupported request - method type: ..." (code 100, IGApiException).
+/**
+ * The longer lifetime Meta will hand out for this token, or null when it
+ * refuses. Refusal is the normal answer for an app on the current Instagram
+ * API with Instagram Login: `ig_exchange_token` belongs to the older
+ * product and answers "Unsupported request - method type: get" (code 100,
+ * IGApiException) for these tokens, and the platform's own get-started
+ * guide calls the Graph with the exchanged token directly.
+ */
+async function renewLongLivedToken(accessToken: string) {
   const url = new URL("https://graph.instagram.com/access_token");
   url.searchParams.set("grant_type", "ig_exchange_token");
   url.searchParams.set("client_secret", APP_SECRET!);
-  url.searchParams.set("access_token", shortLivedToken);
+  url.searchParams.set("access_token", accessToken);
 
-  const res = await fetch(url.toString(), { method: "GET" });
-
-  const jsonRes = await res.json();
-  if (!res.ok || jsonRes.error) throw new Error(`IG long-lived exchange failed: ${JSON.stringify(jsonRes)}`);
-  return jsonRes as { access_token: string; expires_in?: number };
+  try {
+    const res = await fetch(url.toString(), { method: "GET" });
+    const jsonRes = await res.json();
+    if (!res.ok || jsonRes.error) {
+      console.warn("IG long-lived renewal declined", JSON.stringify(jsonRes));
+      return null;
+    }
+    return jsonRes as { access_token: string; expires_in?: number };
+  } catch (err) {
+    console.warn("IG long-lived renewal failed", err instanceof Error ? err.message : err);
+    return null;
+  }
 }
 
-async function fetchIgProfile(longLivedToken: string) {
+async function fetchIgProfile(accessToken: string) {
   const url = new URL("https://graph.instagram.com/v21.0/me");
   url.searchParams.set("fields", "user_id,username,name,account_type,profile_picture_url,followers_count");
-  url.searchParams.set("access_token", longLivedToken);
+  url.searchParams.set("access_token", accessToken);
 
   const res = await fetch(url.toString(), { method: "GET" });
   const jsonRes = await res.json();
@@ -189,11 +199,15 @@ Deno.serve(async (req) => {
       if (!oauthState) return html("<html><body>Invalid or expired state. Please start the connection from FlowPost again.</body></html>", 400);
       const userId = oauthState.userId;
 
-      const shortLived = await exchangeCodeForShortLivedToken(code, redirectUri);
-      const longLived = await getLongLivedToken(shortLived.access_token);
-      const profile = await fetchIgProfile(longLived.access_token);
+      const issued = await exchangeCodeForShortLivedToken(code, redirectUri);
+      const token = instagramTokenRecord(
+        issued,
+        await renewLongLivedToken(issued.access_token),
+        Date.now(),
+      );
+      const profile = await fetchIgProfile(token.access_token);
 
-      const igUserId = profile.user_id || shortLived.user_id;
+      const igUserId = profile.user_id || issued.user_id;
       if (!igUserId) {
         return html(
           `<!DOCTYPE html><html><head><title>Error</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f0f0f;color:white;"><h2>Could not retrieve Instagram profile</h2><p>Please try again.</p></body></html>`,
@@ -208,11 +222,13 @@ Deno.serve(async (req) => {
             platform: "instagram",
             account_name: profile.username || profile.name || "Instagram",
             account_id: igUserId,
-            access_token: await encrypt(longLived.access_token),
+            access_token: await encrypt(token.access_token),
             is_connected: true,
             connected_at: new Date().toISOString(),
+            token_expiry: token.token_expiry,
             metadata: {
               instagram_login: true,
+              token_source: token.token_source,
               account_type: profile.account_type || "business",
               profile_picture: profile.profile_picture_url || null,
               followers_count: profile.followers_count || null,
