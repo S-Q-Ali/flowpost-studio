@@ -67,14 +67,13 @@ async function exchangeCodeForShortLivedToken(code: string, redirectUri: string)
 
 /**
  * The longer lifetime Meta will hand out for this token, or null when it
- * refuses. Refusal is the normal answer for an app on the current Instagram
- * API with Instagram Login: `ig_exchange_token` belongs to the older
- * product and answers "Unsupported request - method type: get" (code 100,
- * IGApiException) for these tokens, and the platform's own get-started
- * guide calls the Graph with the exchanged token directly.
+ * refuses. The exchanged token alone lives about an hour, so a refusal means
+ * the connection needs renewing before it can publish; the renewal is tried at
+ * the version the docs serve because `graph.instagram.com/v21.0` answers code
+ * 100 "Unsupported request - method type: get" for every node on it.
  */
 async function renewLongLivedToken(accessToken: string) {
-  const url = new URL("https://graph.instagram.com/access_token");
+  const url = new URL("https://graph.instagram.com/v27.0/access_token");
   url.searchParams.set("grant_type", "ig_exchange_token");
   url.searchParams.set("client_secret", APP_SECRET!);
   url.searchParams.set("access_token", accessToken);
@@ -93,22 +92,32 @@ async function renewLongLivedToken(accessToken: string) {
   }
 }
 
+/**
+ * The profile behind this token, or null when Meta refuses.
+ *
+ * The version and field set are the ones the product's own get-started guide
+ * shows. `graph.instagram.com/v21.0/me` answers code 100 "Unsupported request -
+ * method type: get" for these tokens, and a refused profile must not throw away
+ * a token the user just granted: the exchange already returned the account id,
+ * and the insights function fills the display fields on the first fetch.
+ */
 async function fetchIgProfile(accessToken: string) {
-  const url = new URL("https://graph.instagram.com/v21.0/me");
-  url.searchParams.set("fields", "user_id,username,name,account_type,profile_picture_url,followers_count");
+  const url = new URL("https://graph.instagram.com/v27.0/me");
+  url.searchParams.set("fields", "user_id,username");
   url.searchParams.set("access_token", accessToken);
 
-  const res = await fetch(url.toString(), { method: "GET" });
-  const jsonRes = await res.json();
-  if (!res.ok) throw new Error(`IG profile fetch failed: ${JSON.stringify(jsonRes)}`);
-  return jsonRes as {
-    user_id?: string;
-    username?: string;
-    name?: string;
-    account_type?: string;
-    profile_picture_url?: string;
-    followers_count?: number;
-  };
+  try {
+    const res = await fetch(url.toString(), { method: "GET" });
+    const jsonRes = await res.json();
+    if (!res.ok || jsonRes.error) {
+      console.warn("IG profile read declined", JSON.stringify(jsonRes));
+      return null;
+    }
+    return jsonRes as { user_id?: string; username?: string };
+  } catch (err) {
+    console.warn("IG profile read failed", err instanceof Error ? err.message : err);
+    return null;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -207,7 +216,7 @@ Deno.serve(async (req) => {
       );
       const profile = await fetchIgProfile(token.access_token);
 
-      const igUserId = profile.user_id || issued.user_id;
+      const igUserId = profile?.user_id || issued.user_id;
       if (!igUserId) {
         return html(
           `<!DOCTYPE html><html><head><title>Error</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f0f0f;color:white;"><h2>Could not retrieve Instagram profile</h2><p>Please try again.</p></body></html>`,
@@ -220,7 +229,7 @@ Deno.serve(async (req) => {
           {
             user_id: userId,
             platform: "instagram",
-            account_name: profile.username || profile.name || "Instagram",
+            account_name: profile?.username || "Instagram",
             account_id: igUserId,
             access_token: await encrypt(token.access_token),
             is_connected: true,
@@ -229,9 +238,6 @@ Deno.serve(async (req) => {
             metadata: {
               instagram_login: true,
               token_source: token.token_source,
-              account_type: profile.account_type || "business",
-              profile_picture: profile.profile_picture_url || null,
-              followers_count: profile.followers_count || null,
             },
           },
           { onConflict: "user_id,platform,account_id" },

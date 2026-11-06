@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
 
   async function fetchMeta(path: string): Promise<Response> {
     const base = (account as any)?.metadata?.instagram_login
-      ? "https://graph.instagram.com/v21.0"
+      ? "https://graph.instagram.com/v27.0"
       : "https://graph.facebook.com/v23.0";
     return fetch(`${base}${path}&access_token=${accessToken}`);
   }

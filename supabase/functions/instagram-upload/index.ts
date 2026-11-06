@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
     const igUserId = account.account_id as string;
     const caption = (post.caption || "").substring(0, 2200);
     const igBaseUrl = (account as any)?.metadata?.instagram_login
-      ? "https://graph.instagram.com/v21.0"
+      ? "https://graph.instagram.com/v27.0"
       : "https://graph.facebook.com/v25.0";
 
     // Helper: resolve a video's file_url to a usable media URL
