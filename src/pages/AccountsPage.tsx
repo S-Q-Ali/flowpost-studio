@@ -400,9 +400,10 @@ export default function AccountsPage() {
   const connectInstagram = async () => {
     setIsInstagramConnecting(true);
     try {
-      const { data, error } = await invokeFunction("instagram-auth", {
-        body: { action: "url", userId },
-      });
+      const { data, error } = await invokeFunction(
+        `facebook-auth?action=url&mode=instagram&userId=${userId}`,
+        { method: "GET" },
+      );
 
       if (error) throw new Error(error.message || "Failed to start Instagram OAuth");
       if (!data?.url) throw new Error("Missing OAuth URL");

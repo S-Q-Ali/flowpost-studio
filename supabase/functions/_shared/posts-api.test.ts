@@ -487,6 +487,20 @@ describe("connectUrlRequest", () => {
     );
   });
 
+  it("connects Instagram through the Facebook app, the only route Meta serves here", () => {
+    const request = connectUrlRequest("https://proj.supabase.co", {
+      platform: "instagram",
+      nonce,
+      ...base,
+    });
+    const url = new URL(request!.url);
+    expect(url.pathname).toBe("/functions/v1/facebook-auth");
+    expect(url.searchParams.get("mode")).toBe("instagram");
+    expect(url.searchParams.get("return_to")).toBe(
+      `flowpost://connect-callback?platform=instagram&nonce=${nonce}`,
+    );
+  });
+
   it("sends the same link in the body, for the functions that read a body", () => {
     const request = connectUrlRequest("https://proj.supabase.co", {
       platform: "linkedin",

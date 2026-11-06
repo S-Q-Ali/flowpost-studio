@@ -97,13 +97,22 @@ export function findAccountForDisconnect(
     );
 }
 
-export const AUTH_FUNCTION_FOR_PLATFORM: Record<string, string> = {
-  youtube: "youtube-auth",
-  instagram: "instagram-auth",
-  facebook: "facebook-auth",
-  tiktok: "tiktok-auth",
-  linkedin: "linkedin-auth",
-  google_drive: "google-drive-auth",
+/**
+ * The auth function each connect calls, and the flow inside it.
+ *
+ * Instagram has no function of its own: graph.instagram.com answers code 100
+ * for every node of the standalone "Instagram API with Instagram Login" app,
+ * while facebook-auth's `mode=instagram` returns the real handle on a 60-day
+ * token. That route serves professional accounts only, which is all the
+ * Graph API does either way.
+ */
+export const AUTH_FUNCTION_FOR_PLATFORM: Record<string, { functionName: string; mode?: string }> = {
+  youtube: { functionName: "youtube-auth" },
+  instagram: { functionName: "facebook-auth", mode: "instagram" },
+  facebook: { functionName: "facebook-auth" },
+  tiktok: { functionName: "tiktok-auth" },
+  linkedin: { functionName: "linkedin-auth" },
+  google_drive: { functionName: "google-drive-auth" },
 };
 
 const REVOKE_URLS = {
@@ -183,14 +192,15 @@ export function connectUrlRequest(
   supabaseUrl: string,
   input: { platform: string; nonce: string; userId: string; appOrigin: string },
 ): { url: string; body: Record<string, unknown> } | null {
-  const functionName = AUTH_FUNCTION_FOR_PLATFORM[input.platform];
-  if (!functionName) return null;
+  const auth = AUTH_FUNCTION_FOR_PLATFORM[input.platform];
+  if (!auth) return null;
   const link = desktopReturnTo(input.platform, input.nonce);
   if (normalizeReturnTo(link, input.appOrigin, input.platform) === null) return null;
-  const url = new URL(`${supabaseUrl}/functions/v1/${functionName}`);
+  const url = new URL(`${supabaseUrl}/functions/v1/${auth.functionName}`);
   url.searchParams.set("action", "url");
   url.searchParams.set("userId", input.userId);
   url.searchParams.set("return_to", link);
+  if (auth.mode) url.searchParams.set("mode", auth.mode);
   return {
     url: url.toString(),
     body: { action: "url", userId: input.userId, return_to: link },
