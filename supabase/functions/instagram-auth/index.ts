@@ -68,9 +68,7 @@ async function exchangeCodeForShortLivedToken(code: string, redirectUri: string)
 /**
  * The longer lifetime Meta will hand out for this token, or null when it
  * refuses. The exchanged token alone lives about an hour, so a refusal means
- * the connection needs renewing before it can publish; the renewal is tried at
- * the version the docs serve because `graph.instagram.com/v21.0` answers code
- * 100 "Unsupported request - method type: get" for every node on it.
+ * the connection needs renewing before it can publish.
  */
 async function renewLongLivedToken(accessToken: string) {
   const url = new URL("https://graph.instagram.com/v27.0/access_token");
@@ -95,11 +93,9 @@ async function renewLongLivedToken(accessToken: string) {
 /**
  * The profile behind this token, or null when Meta refuses.
  *
- * The version and field set are the ones the product's own get-started guide
- * shows. `graph.instagram.com/v21.0/me` answers code 100 "Unsupported request -
- * method type: get" for these tokens, and a refused profile must not throw away
- * a token the user just granted: the exchange already returned the account id,
- * and the insights function fills the display fields on the first fetch.
+ * A refusal is the whole verdict on the connection: `graph.instagram.com`
+ * answers every node for such a token with code 100 "Unsupported request -
+ * method type: get", so nothing could be published with it. See the caller.
  */
 async function fetchIgProfile(accessToken: string) {
   const url = new URL("https://graph.instagram.com/v27.0/me");
@@ -215,12 +211,20 @@ Deno.serve(async (req) => {
         Date.now(),
       );
       const profile = await fetchIgProfile(token.access_token);
-
       const igUserId = profile?.user_id || issued.user_id;
-      if (!igUserId) {
-        return html(
-          `<!DOCTYPE html><html><head><title>Error</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f0f0f;color:white;"><h2>Could not retrieve Instagram profile</h2><p>Please try again.</p></body></html>`,
-        );
+
+      // Without a profile there is no connection to store: the card would read
+      // Connected on a token every Graph call refuses. End it as a failure so
+      // the app stops telling the user Instagram is ready.
+      if (!profile || !igUserId) {
+        return await connectDeclineResponse({
+          supabase: supabaseAdmin,
+          state: rawState,
+          error: "instagram_graph_unavailable",
+          returnTo: oauthState.returnTo,
+          appOrigin: APP_ORIGIN,
+          platform: "instagram",
+        });
       }
 
       const { error: upsertError } = await supabaseAdmin
@@ -229,7 +233,7 @@ Deno.serve(async (req) => {
           {
             user_id: userId,
             platform: "instagram",
-            account_name: profile?.username || "Instagram",
+            account_name: profile.username || "Instagram",
             account_id: igUserId,
             access_token: await encrypt(token.access_token),
             is_connected: true,
