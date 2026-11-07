@@ -872,34 +872,69 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          const { data: insertedPosts, error: postsError } = await supabase
+          // The insert below is all-or-nothing: one target already live in the
+          // queue is refused by posts_one_live_per_target and takes every other
+          // account's post with it. Drop the live targets first, in one query.
+          const { data: livePosts, error: livePostsError } = await supabase
             .from("posts")
-            .insert(postsPayload)
-            .select("id, platform, account_id, status");
+            .select("platform, account_id, post_type")
+            .eq("user_id", currentUserId)
+            .eq("video_id", videoRecord.id)
+            .in("status", ["scheduled", "processing", "publishing"]);
 
-          if (postsError || !insertedPosts) {
-            errors.push(`Row ${rowIndex}: failed to insert posts: ${postsError?.message || "no records returned"}`);
+          if (livePostsError) {
+            errors.push(`Row ${rowIndex}: failed to read the live queue: ${livePostsError.message}`);
             continue;
           }
 
-          heldRun.report.posts += insertedPosts.length;
-
-          // Store sheet info in post metadata before triggering uploads
-          const { error: metadataUpdateError } = await supabase
-            .from("posts")
-            .update({
+          const liveTargets = new Set(
+            (livePosts ?? []).map((l: any) => `${l.platform}|${l.account_id ?? ""}|${l.post_type}`),
+          );
+          const newPosts = postsPayload
+            .filter(
+              (p: any) => !liveTargets.has(`${p.platform}|${p.account_id ?? ""}|${p.post_type ?? "feed"}`),
+            )
+            // Sheet info rides on the insert: a second update overwrites the
+            // whole metadata column, which used to erase the keys the payload
+            // itself carried (youtube_video_title among them).
+            .map((p: any) => ({
+              ...p,
               metadata: {
-                ...((insertedPosts as any[])[0]?.metadata || {}),
+                ...(p.metadata || {}),
                 sheet_id: sheetId,
                 sheet_row_index: rowIndex,
                 sheet_col_index: statusIdx,
               },
-            })
-            .in("id", (insertedPosts as { id: string }[]).map((p) => p.id));
-
-          if (metadataUpdateError) {
-            console.error("Failed to update post metadata with sheet info", metadataUpdateError);
+            }));
+          if (newPosts.length < postsPayload.length) {
+            console.log(
+              `Row ${rowIndex}: skipped ${postsPayload.length - newPosts.length} post(s) already live in the queue`,
+            );
           }
+          let insertedPosts: {
+            id: string;
+            platform: string;
+            account_id: string | null;
+            status: string;
+            post_type: string;
+          }[];
+          if (newPosts.length === 0) {
+            // Nothing new, but the queue already holds this row's posts, so the
+            // sheet status and the workflow item still have to be settled below.
+            insertedPosts = [];
+          } else {
+            const { data, error } = await supabase
+              .from("posts")
+              .insert(newPosts)
+              .select("id, platform, account_id, status, post_type");
+            if (error || !data) {
+              errors.push(`Row ${rowIndex}: failed to insert posts: ${error?.message || "no records returned"}`);
+              continue;
+            }
+            insertedPosts = data;
+          }
+
+          heldRun.report.posts += insertedPosts.length;
 
           // For FlowPost mode, mark the workflow_item as posted
           const postedItemId = workflowItemIdByRowIndex[rowIndex];
@@ -925,7 +960,7 @@ Deno.serve(async (req) => {
           if (driveDownloadUrl) filePayload.driveDownloadUrl = driveDownloadUrl;
           if (googleToken) filePayload.googleAccessToken = googleToken;
 
-          for (const post of insertedPosts as { id: string; platform: string; account_id: string | null; status: string }[]) {
+          for (const post of insertedPosts) {
             if (post.status !== "processing") continue;
             const body = { ...filePayload, postId: post.id };
             const pId = post.id;
@@ -979,11 +1014,12 @@ Deno.serve(async (req) => {
             }
             const usedStoryTokens = new Set<string>();
 
-            for (const post of insertedPosts as { id: string; platform: string; account_id: string | null }[]) {
+            for (const post of insertedPosts) {
               if (post.platform === "facebook" && post.account_id) {
                 const { data: fbAcc } = await supabase
                   .from("connected_accounts")
                   .select("access_token")
+                  .eq("user_id", currentUserId)
                   .eq("account_id", post.account_id)
                   .eq("platform", "facebook")
                   .single();
@@ -1027,6 +1063,7 @@ Deno.serve(async (req) => {
                 const { data: igAcc } = await supabase
                   .from("connected_accounts")
                   .select("access_token")
+                  .eq("user_id", currentUserId)
                   .eq("account_id", post.account_id)
                   .eq("platform", "instagram")
                   .single();
@@ -1034,7 +1071,7 @@ Deno.serve(async (req) => {
                 if (igAcc?.access_token) {
                   const rawIgToken = await decrypt(igAcc.access_token);
                   // Insert a story post row to track the story outcome
-                  const { data: storyPost } = await supabase
+                  const { data: storyPost, error: storyInsertError } = await supabase
                     .from("posts")
                     .insert({
                       user_id: currentUserId,
@@ -1051,38 +1088,51 @@ Deno.serve(async (req) => {
                     .select("id")
                     .single();
 
-                  if (storyPost) {
-                    heldRun.report.posts++;
-                    const igStoryPId = storyPost.id;
-                    uploadPromises.push(
-                      fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                        },
-                        body: JSON.stringify({
-                          platform: "instagram",
-                          accountId: post.account_id,
-                          videoUrl: storyVideoUrl,
-                          accessToken: rawIgToken,
-                          mediaType,
-                          postId: igStoryPId,
-                        }),
-                      })
-                        .then(async (res) => {
-                          if (!res.ok) console.error(`Instagram story upload failed for post ${igStoryPId}: ${res.status}`);
-                        })
-                        .catch(async () => {
-                          console.error(`Instagram story upload fetch failed for post ${igStoryPId}`);
-                          const { error: markFailedError } = await supabase
-                            .from("posts")
-                            .update({ status: "failed" })
-                            .eq("id", igStoryPId);
-                          if (markFailedError) console.error("process-workflow: failed to mark ig story post failed", markFailedError);
-                        }),
-                    );
+                  if (storyInsertError || !storyPost) {
+                    // A refused insert used to vanish here: the run report said
+                    // the story was posted and no row existed to publish it.
+                    if (storyInsertError?.code === "23505") {
+                      console.log(
+                        `Instagram story for account ${post.account_id} is already live in the queue, skipping`,
+                      );
+                    } else {
+                      errors.push(
+                        `Instagram story insert failed for account ${post.account_id}: ${storyInsertError?.message || "no record returned"}`,
+                      );
+                    }
+                    continue;
                   }
+
+                  heldRun.report.posts++;
+                  const igStoryPId = storyPost.id;
+                  uploadPromises.push(
+                    fetch(`${SUPABASE_URL}/functions/v1/post-story`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                      },
+                      body: JSON.stringify({
+                        platform: "instagram",
+                        accountId: post.account_id,
+                        videoUrl: storyVideoUrl,
+                        accessToken: rawIgToken,
+                        mediaType,
+                        postId: igStoryPId,
+                      }),
+                    })
+                      .then(async (res) => {
+                        if (!res.ok) console.error(`Instagram story upload failed for post ${igStoryPId}: ${res.status}`);
+                      })
+                      .catch(async () => {
+                        console.error(`Instagram story upload fetch failed for post ${igStoryPId}`);
+                        const { error: markFailedError } = await supabase
+                          .from("posts")
+                          .update({ status: "failed" })
+                          .eq("id", igStoryPId);
+                        if (markFailedError) console.error("process-workflow: failed to mark ig story post failed", markFailedError);
+                      }),
+                  );
                 }
               }
             }
