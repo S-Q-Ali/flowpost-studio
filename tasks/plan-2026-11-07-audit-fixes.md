@@ -59,8 +59,11 @@ After #200–#204: full `_shared` suite green, lint 0 errors, build green, and e
 
 ## State (2026-11-07)
 
-A1–A8 are implemented, gated and committed locally; nothing is pushed, deployed or applied.
+A1–A8 are implemented, gated, committed, **applied to production and deployed**. Nothing is pushed yet (checkpoint 3 is the owner's live run).
 
+- Applied (2026-11-07, project `ximorwzknbizpceaoflw`): the #199 migration ran through the Management API and is recorded in `supabase_migrations.schema_migrations` as version `20261107000000`. Production refused the first attempt with `2BP01` — `posts_unique_per_account` is a UNIQUE **constraint**, not a bare index — so the file now runs `ALTER TABLE public.posts DROP CONSTRAINT IF EXISTS …`. Read-back: the constraint and its index are gone from `pg_constraint` / `pg_indexes`; `posts_one_live_per_target` is untouched.
+- The drop freed nothing by itself: `processing` 263 and `publishing` 74 both before and after. Those rows only move when a publisher or the reaper touches them again, so they stay the owner's per-row call (see **Posts wedged on a live status** in `docs/runbook.md`).
+- Deployed (2026-11-07), all ACTIVE on read-back: `process-workflow` v159, `posts-api` v10, `facebook-upload` v103, `instagram-upload` v104, `post-story` v88, `linkedin-upload` v24, `youtube-upload` v102, `facebook-auth` v98, `fetch-instagram-insights` v43, `fetch-facebook-insights` v35. Each answers `401` to an unauthenticated `POST`, which proves they booted with the new `_shared` imports.
 - Gates: `npx vitest run supabase/functions/_shared` 26 files / 386 tests, `npm test` 37 files / 470 tests, `deno check --no-lock` over every function 0 errors (Deno 2.9.8 at `E:\tmp\deno\deno.exe`), `npx tsc -b` 0 errors, `npm run lint` 0 errors / 186 warnings, `npm run build` green.
 - Found while fixing: `process-workflow`'s follow-up metadata update overwrote the whole `metadata` column from a read-back that never selected it, erasing `youtube_video_title` from every scheduled post. Sheet info now rides on the insert (in the #204 commit).
 - Found and deliberately left: nine `graph.facebook.com/v23.0` strings in `facebook-auth`. That is the connect route the owner proved live on 2026-11-07; changing a working connect without a verification run is the worse trade. The two insights functions did move onto the module (`v25.0`, same value).
