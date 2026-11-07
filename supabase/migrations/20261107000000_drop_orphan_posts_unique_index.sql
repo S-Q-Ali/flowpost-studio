@@ -1,7 +1,11 @@
--- This index exists only in production. Nothing in the repo creates it, and it
--- covers the final statuses: the second post of one video to one account is
--- refused with 23505 exactly when a publisher tries to write `published`, so
--- the platform call succeeded and the row stayed `processing` or `publishing`.
+-- This rule exists only in production: no file in this repo creates it, and it
+-- covers the final statuses, so the second post of one video to one account was
+-- refused with 23505 exactly when a publisher tried to write `published`. The
+-- platform call had already run, and the row stayed `processing` or `publishing`
+-- forever.
 -- posts_one_live_per_target already stops live duplicates per target, which is
--- the rule this index was meant to enforce.
-DROP INDEX IF EXISTS public.posts_unique_per_account;
+-- the rule this one was meant to enforce.
+--
+-- It is a UNIQUE constraint, not a bare index — production says so when a plain
+-- DROP INDEX fails with 2BP01. Dropping the constraint drops its index too.
+ALTER TABLE public.posts DROP CONSTRAINT IF EXISTS posts_unique_per_account;

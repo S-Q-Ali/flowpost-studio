@@ -137,13 +137,21 @@ post of one video to one account refuse its `published` write with 23505. The
 platform call had already succeeded, so the row stayed `processing` or
 `publishing` forever and the reaper reported the same index every cron run.
 
-`20261107000000_drop_orphan_posts_unique_index.sql` removes it.
-`posts_one_live_per_target` stays: it is the repo's own rule, it covers only
+It is a UNIQUE **constraint**, not a bare index, so `DROP INDEX` is refused with
+`2BP01` and the migration drops the constraint instead.
+
+Applied on 2026-11-07 and recorded as version `20261107000000`: the constraint
+and its index are gone from `pg_constraint` / `pg_indexes`, and
+`posts_one_live_per_target` stays — it is the repo's own rule, it covers only
 live statuses, and `process-workflow` now filters live targets before inserting.
 
-Apply the migration first, then count what it freed. Neither number is a
-published count, and nothing here settles rows automatically — a retry of a row
-that already reached the platform publishes it twice:
+The drop freed nothing by itself: 263 `processing` and 74 `publishing` rows were
+still there immediately after, because they only move when a publisher or the
+reaper touches them again.
+
+Count what is still wedged. Neither number is a published count, and nothing
+here settles rows automatically — a retry of a row that already reached the
+platform publishes it twice:
 
 ```sql
 select status, count(*)
