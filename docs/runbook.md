@@ -122,12 +122,46 @@ under the new pepper, and tell each holder to type the new one.
 | The license screen appears while the user works | The stored key was refused: the row went inactive, its `expires_at` passed, or another machine took the same user's session | The app already tried to renew silently and the server said no. Check the row, then issue or re-activate |
 | Edge calls return 401 | The minted session expired, or a newer activation replaced it | Both `verify-license` and `verify-security-questions` mint that user's one live session; the desktop renews from its stored key, so a persistent 401 means the key is gone |
 | A workflow appears to have run but nothing published | No ready rows, a source failure, or posts still being processed | Read **Workflow run history** below; `posts_created` is not proof of publication |
-| Queue row stuck on "processing" | The publish call died mid-flight | Delete the row after 30 minutes; the app offers it, then re-run the publish |
+| Queue row stuck on "processing" | The publish call died mid-flight, or the row was wedged by the orphan index (see **Posts wedged on a live status**) | Read the status counts below before touching a row; deleting or retrying one that already reached the platform publishes twice |
 | "Update check failed" | `UPDATE_MANIFEST_URL` empty or unreachable | Empty is valid before release hosting exists; the check is manual and non-blocking |
 | Deep link ignored | Anything but `/` (the router's allowlist) or `flowpost://connect-callback` (the connect dispatcher), or the app never ran for this user | The link is rejected and logged without its query string; launch the app once to re-register `flowpost://` |
 | Everyone stops at the license screen, each seeing "Something went wrong. Try again." | `LICENSE_PEPPER` is unset or shorter than 16 characters, so `verify-license` answers 503 and refuses to guess | Set the pepper in **Edge Functions → Secrets**. Do not change a pepper that issued keys already — see **License keys** |
 | Publish fails with a short sentence | The platform refused the upload | The service text is cleaned (no URLs or paths) before it reaches the screen and the log; retry from the row menu |
 | An account shows expired and will not publish | The platform grant was revoked or the refresh token expired — not a browser sign-out | See **Platform accounts and browser sign-out**; a browser sign-out changes nothing, so use **Reconnect** on the card to mint a fresh grant |
+
+## Posts wedged on a live status
+
+`posts_unique_per_account` on `(video_id, platform, account_id, status)` existed
+only in production: no migration in this repo creates it, and it made the second
+post of one video to one account refuse its `published` write with 23505. The
+platform call had already succeeded, so the row stayed `processing` or
+`publishing` forever and the reaper reported the same index every cron run.
+
+`20261107000000_drop_orphan_posts_unique_index.sql` removes it.
+`posts_one_live_per_target` stays: it is the repo's own rule, it covers only
+live statuses, and `process-workflow` now filters live targets before inserting.
+
+Apply the migration first, then count what it freed. Neither number is a
+published count, and nothing here settles rows automatically — a retry of a row
+that already reached the platform publishes it twice:
+
+```sql
+select status, count(*)
+from public.posts
+where status in ('scheduled', 'processing', 'publishing')
+group by status
+order by status;
+
+select id, platform, account_id, status, claimed_at, created_at
+from public.posts
+where status in ('processing', 'publishing')
+order by created_at
+limit 50;
+```
+
+For each row the owner decides: mark it `published` when the post is live on the
+platform, or `failed` when it is not. `failed` is what makes the row retryable
+from the Queue.
 
 ## Workflow run history
 
