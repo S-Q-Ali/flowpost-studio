@@ -6,6 +6,7 @@ import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts
 import { checkPostAccess, claimPost, settlePost, type HeldClaim } from "../_shared/post-access.ts";
 import { isAllowedDriveUrl } from "../_shared/url-guard.ts";
 import { redactTokens } from "../_shared/log-safe.ts";
+import { FACEBOOK_GRAPH_BASE, FACEBOOK_GRAPH_VIDEO_BASE } from "../_shared/meta-graph.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -138,6 +139,7 @@ Deno.serve(async (req) => {
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
       .select("account_id, access_token")
+      .eq("user_id", post.user_id)
       .eq("platform", "facebook")
       .eq("account_id", post.account_id)
       .eq("is_connected", true)
@@ -178,7 +180,7 @@ Deno.serve(async (req) => {
 
     if (isImage) {
       postRes = await fetch(
-        `https://graph.facebook.com/v25.0/${encodeURIComponent(pageId)}/photos`,
+        `${FACEBOOK_GRAPH_BASE}/${encodeURIComponent(pageId)}/photos`,
         {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -192,7 +194,7 @@ Deno.serve(async (req) => {
       );
     } else {
       postRes = await fetch(
-        `https://graph-video.facebook.com/v25.0/${encodeURIComponent(pageId)}/videos`,
+        `${FACEBOOK_GRAPH_VIDEO_BASE}/${encodeURIComponent(pageId)}/videos`,
         {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },

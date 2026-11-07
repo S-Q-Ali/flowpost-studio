@@ -86,5 +86,10 @@ export async function settlePost(
     .eq("id", claim.postId)
     .eq("claimed_at", claim.claimedAt)
     .select("id");
+  // A refused write says nothing about who holds the row, so without this the
+  // caller reports "taken over" for a post it published itself.
+  if (error) {
+    console.error(`settlePost: post ${claim.postId} refused the write`, error);
+  }
   return !error && Array.isArray(data) && data.length > 0;
 }

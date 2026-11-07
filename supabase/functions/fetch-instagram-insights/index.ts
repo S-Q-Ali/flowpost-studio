@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
+import { metaGraphBase } from "../_shared/meta-graph.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -77,10 +78,7 @@ Deno.serve(async (req) => {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   async function fetchMeta(path: string): Promise<Response> {
-    const base = (account as any)?.metadata?.graph_host === "instagram"
-      ? "https://graph.instagram.com/v27.0"
-      : "https://graph.facebook.com/v23.0";
-    return fetch(`${base}${path}&access_token=${accessToken}`);
+    return fetch(`${metaGraphBase(account.metadata)}${path}&access_token=${accessToken}`);
   }
 
   const [profileRes, insightsRes1, resProfileViews, resViews] = await Promise.all([

@@ -225,8 +225,16 @@ Deno.serve(async (req) => {
               access_token: await encrypt(longLived.access_token),
               is_connected: true,
               connected_at: new Date().toISOString(),
+              // The long-lived user token is what publishes here, and Meta
+              // states how long it lives. Without the deadline an expired token
+              // would sit in a row the screen still calls Connected.
+              token_expiry:
+                typeof longLived.expires_in === "number"
+                  ? new Date(Date.now() + longLived.expires_in * 1000).toISOString()
+                  : null,
               metadata: {
                 standalone: true,
+                graph_host: "facebook",
                 profile_picture: igAccount.profile_picture_url,
               },
             },
@@ -290,9 +298,13 @@ Deno.serve(async (req) => {
                 access_token: await encrypt(pageAccessToken),
                 is_connected: true,
                 connected_at: new Date().toISOString(),
+                // A Page token does not expire, so any deadline left by an
+                // earlier Instagram-Login connect on this row is cleared.
+                token_expiry: null,
                 metadata: {
                   page_id: page.id,
                   page_name: page.name,
+                  graph_host: "facebook",
                   profile_picture: igAccount.profile_picture_url,
                 },
               },
@@ -392,7 +404,8 @@ Deno.serve(async (req) => {
                     access_token: await encrypt(pageAccessToken),
                     is_connected: true,
                     connected_at: new Date().toISOString(),
-                    metadata: { page_id: pageId, page_name: page.name, profile_picture: igAcct.profile_picture_url },
+                    token_expiry: null,
+                    metadata: { page_id: pageId, page_name: page.name, graph_host: "facebook", profile_picture: igAcct.profile_picture_url },
                   }, { onConflict: "user_id,platform,account_id" });
               }
             }

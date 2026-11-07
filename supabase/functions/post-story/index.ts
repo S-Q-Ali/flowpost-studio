@@ -4,6 +4,8 @@ import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts
 import { checkPostAccess, claimPost, settlePost, type HeldClaim } from "../_shared/post-access.ts";
 import { isAllowedMediaUrl } from "../_shared/url-guard.ts";
 import { redactTokens } from "../_shared/log-safe.ts";
+import { hasExpired } from "../_shared/token-expiry.ts";
+import { FACEBOOK_GRAPH_BASE, metaGraphBase } from "../_shared/meta-graph.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -101,6 +103,12 @@ Deno.serve(async (req) => {
       const access = checkPostAccess(auth, storyPost);
       if (!access.ok) return json({ error: access.error }, access.status);
 
+      // The account is the only way to a token, so a row that names none is
+      // refused before it takes the claim a retry would have to wait for.
+      if (!storyPost.account_id) {
+        return json({ error: "Post has no account_id" }, 400);
+      }
+
       // A workflow row arrives already `publishing`; the claim still stops a
       // second caller from sending the same story twice.
       const claim = await claimPost(supabase, postId);
@@ -133,7 +141,8 @@ Deno.serve(async (req) => {
 
         const { data: acc } = await supabase
           .from("connected_accounts")
-          .select("access_token")
+          .select("access_token, token_expiry")
+          .eq("user_id", storyPost.user_id)
           .eq("account_id", storyPost.account_id)
           .eq("platform", platform)
           .single();
@@ -141,6 +150,14 @@ Deno.serve(async (req) => {
         if (!acc?.access_token) {
           await fail();
           return json({ error: "Access token not found" }, 404);
+        }
+
+        // An Instagram-Login token lives 60 days and nothing here renews it, so
+        // a past deadline is said once instead of at Graph's own refusal. A
+        // Facebook row states no deadline, and no deadline is not an expiry.
+        if (platform === "instagram" && hasExpired(acc.token_expiry ?? null)) {
+          await fail();
+          return json({ error: "The Instagram connection expired. Reconnect it in Accounts." }, 409);
         }
 
         accountId = storyPost.account_id;
@@ -178,7 +195,7 @@ Deno.serve(async (req) => {
   try {
     if (platform === "facebook") {
       const startRes = await fetch(
-        `https://graph.facebook.com/v18.0/${accountId}/video_stories`,
+        `${FACEBOOK_GRAPH_BASE}/${accountId}/video_stories`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -230,7 +247,7 @@ Deno.serve(async (req) => {
       }
 
       const finishRes = await fetch(
-        `https://graph.facebook.com/v18.0/${accountId}/video_stories`,
+        `${FACEBOOK_GRAPH_BASE}/${accountId}/video_stories`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -259,8 +276,9 @@ Deno.serve(async (req) => {
       console.log("Instagram account ID:", accountId);
       console.log("Instagram story using URL:", redactTokens(videoUrl));
 
-      // Determine API base URL based on token type
-      let igBaseUrl = "https://graph.facebook.com/v25.0";
+      // Where the stored token is accepted: Instagram Login issues on its own
+      // host, everything else through the Facebook app.
+      let igBaseUrl = FACEBOOK_GRAPH_BASE;
       try {
         const { data: igAccount } = await supabase
           .from("connected_accounts")
@@ -268,10 +286,8 @@ Deno.serve(async (req) => {
           .eq("account_id", accountId)
           .eq("platform", "instagram")
           .single();
-        if ((igAccount as any)?.metadata?.graph_host === "instagram") {
-          igBaseUrl = "https://graph.instagram.com/v27.0";
-        }
-      } catch { /* fallback to Facebook graph */ }
+        igBaseUrl = metaGraphBase((igAccount as any)?.metadata);
+      } catch { /* the Facebook app serves the token either way */ }
 
       const isImageStory = mediaTypeInput === "image";
       const storyBody: Record<string, unknown> = {

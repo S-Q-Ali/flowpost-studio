@@ -7,6 +7,8 @@ import { checkPostAccess, claimPost, settlePost, type HeldClaim } from "../_shar
 import { isAllowedDriveUrl } from "../_shared/url-guard.ts";
 import { redactTokens } from "../_shared/log-safe.ts";
 import { driveMediaUrl } from "../_shared/google-drive.ts";
+import { hasExpired } from "../_shared/token-expiry.ts";
+import { metaGraphBase } from "../_shared/meta-graph.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -130,6 +132,7 @@ Deno.serve(async (req) => {
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
       .select("*")
+      .eq("user_id", post.user_id)
       .eq("platform", "instagram")
       .eq("account_id", post.account_id)
       .eq("is_connected", true)
@@ -141,11 +144,15 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = await decrypt(account.access_token as string);
+    // A 60-day Instagram token is never renewed here, so a past deadline is
+    // said once, before Graph answers with its own refusal.
+    if (hasExpired((account as any).token_expiry ?? null)) {
+      await fail();
+      return json({ error: "The Instagram connection expired. Reconnect it in Accounts." }, 409);
+    }
     const igUserId = account.account_id as string;
     const caption = (post.caption || "").substring(0, 2200);
-    const igBaseUrl = (account as any)?.metadata?.graph_host === "instagram"
-      ? "https://graph.instagram.com/v27.0"
-      : "https://graph.facebook.com/v25.0";
+    const igBaseUrl = metaGraphBase((account as any).metadata);
 
     // Helper: resolve a video's file_url to a usable media URL
     const resolveMediaUrl = async (videoFileUrl: string): Promise<string> => {

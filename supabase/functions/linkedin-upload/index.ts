@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
       .select("account_id, access_token, metadata")
+      .eq("user_id", post.user_id)
       .eq("platform", "linkedin")
       .eq("account_id", post.account_id)
       .eq("is_connected", true)

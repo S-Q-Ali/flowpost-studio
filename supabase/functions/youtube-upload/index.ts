@@ -6,6 +6,7 @@ import { updateSheetStatus } from "../_shared/sheet-status.ts";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 import { checkPostAccess, claimPost, settlePost, type HeldClaim } from "../_shared/post-access.ts";
 import { isAllowedMediaUrl, isGoogleApiUrl } from "../_shared/url-guard.ts";
+import { hasExpired } from "../_shared/token-expiry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") || "https://flowpost-studio.vercel.app",
@@ -34,11 +35,6 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function isTokenExpired(tokenExpiry: string | null): boolean {
-  if (!tokenExpiry) return true;
-  return new Date(tokenExpiry) <= new Date();
 }
 
 async function refreshYouTubeToken(accountId: string): Promise<string> {
@@ -151,6 +147,7 @@ Deno.serve(async (req) => {
     const { data: account, error: accountError } = await supabase
       .from("connected_accounts")
       .select("account_id, access_token, refresh_token, token_expiry")
+      .eq("user_id", post.user_id)
       .eq("platform", "youtube")
       .eq("account_id", post.account_id)
       .eq("is_connected", true)
@@ -162,11 +159,14 @@ Deno.serve(async (req) => {
     }
 
     let accessToken = await decrypt(account.access_token);
-    if (isTokenExpired(account.token_expiry) && account.refresh_token) {
+    // Google always issues a short-lived token, so a row that states no
+    // deadline is renewed like an expired one.
+    if ((!account.token_expiry || hasExpired(account.token_expiry)) && account.refresh_token) {
       await refreshYouTubeToken(post.account_id);
       const { data: updated } = await supabase
         .from("connected_accounts")
         .select("access_token")
+        .eq("user_id", post.user_id)
         .eq("account_id", post.account_id)
         .eq("platform", "youtube")
         .single();
