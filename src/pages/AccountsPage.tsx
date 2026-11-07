@@ -725,22 +725,29 @@ export default function AccountsPage() {
     }
   };
 
-  const disconnectYouTube = async (accountId: string | null | undefined) => {
-    if (!accountId || !userId) return;
-    const { error } = await supabase
-      .from("connected_accounts")
-      .update({ is_connected: false })
-      .eq("user_id", userId)
-      .eq("platform", "youtube")
-      .eq("account_id", accountId);
+  /**
+   * The server revokes at the provider and then drops the row. Flipping
+   * `is_connected` from the browser only hid the account: the token stayed
+   * valid with nothing in the UI pointing at it.
+   */
+  const disconnect = async (
+    platform: string,
+    label: string,
+    accountId: string | null | undefined,
+    refetch: () => void,
+  ) => {
+    if (!accountId) return;
+    const { error } = await invokeFunction("posts-api", {
+      body: { action: "disconnect", platform, accountId },
+    });
 
     if (error) {
       toast.error(error.message);
       return;
     }
 
-    toast.success("YouTube disconnected");
-    fetchYouTube();
+    toast.success(`${label} disconnected`);
+    refetch();
   };
 
   const setConnected = async (platform: Platform, accountId: string | null | undefined, next: boolean) => {
@@ -758,42 +765,6 @@ export default function AccountsPage() {
     }
 
     refreshAll();
-  };
-
-  const disconnectTikTok = async (accountId: string | null | undefined) => {
-    if (!accountId || !userId) return;
-    const { error } = await supabase
-      .from("connected_accounts")
-      .update({ is_connected: false })
-      .eq("user_id", userId)
-      .eq("platform", "tiktok")
-      .eq("account_id", accountId);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    toast.success("TikTok disconnected");
-    fetchTikTok();
-  };
-
-  const disconnectLinkedIn = async (accountId: string | null | undefined) => {
-    if (!accountId || !userId) return;
-    const { error } = await supabase
-      .from("connected_accounts")
-      .update({ is_connected: false })
-      .eq("user_id", userId)
-      .eq("platform", "linkedin")
-      .eq("account_id", accountId);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    toast.success("LinkedIn disconnected");
-    fetchLinkedIn();
   };
 
   if (loading) {
@@ -986,7 +957,7 @@ export default function AccountsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => disconnectTikTok(tiktokAccounts[0].account_id)}
+                  onClick={() => disconnect("tiktok", "TikTok", tiktokAccounts[0].account_id, fetchTikTok)}
                 >
                   Disconnect
                 </Button>
@@ -1038,7 +1009,7 @@ export default function AccountsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => disconnectLinkedIn(linkedinAccounts[0].account_id)}
+                  onClick={() => disconnect("linkedin", "LinkedIn", linkedinAccounts[0].account_id, fetchLinkedIn)}
                 >
                   Disconnect
                 </Button>
@@ -1100,7 +1071,7 @@ export default function AccountsPage() {
                           : `${youtubeQuota.percentage}% quota used`}
                       </Badge>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => disconnectYouTube(a.account_id)}>
+                    <Button variant="outline" size="sm" onClick={() => disconnect("youtube", "YouTube", a.account_id, fetchYouTube)}>
                       Disconnect
                     </Button>
                   </div>
@@ -1144,7 +1115,7 @@ export default function AccountsPage() {
                         checked={!!a.is_connected}
                         onCheckedChange={(next) => setConnected("facebook", a.account_id, next)}
                       />
-                      <Button variant="outline" size="sm" onClick={() => setConnected("facebook", a.account_id, false)}>
+                      <Button variant="outline" size="sm" onClick={() => disconnect("facebook", "Facebook", a.account_id, fetchFacebook)}>
                         Disconnect
                       </Button>
                     </div>
@@ -1183,7 +1154,7 @@ export default function AccountsPage() {
                           checked={!!a.is_connected}
                           onCheckedChange={(next) => setConnected("instagram", a.account_id, next)}
                         />
-                        <Button variant="outline" size="sm" onClick={() => setConnected("instagram", a.account_id, false)}>
+                        <Button variant="outline" size="sm" onClick={() => disconnect("instagram", "Instagram", a.account_id, fetchInstagram)}>
                           Disconnect
                         </Button>
                       </div>
@@ -1195,7 +1166,7 @@ export default function AccountsPage() {
           ) : (
             <Card className="bg-card border-border shadow-card">
               <CardContent className="py-4 text-sm text-muted-foreground">
-                No Instagram accounts found. Connect one above or via Facebook.
+                No Instagram accounts found. Connect one with "Connect Instagram" above.
               </CardContent>
             </Card>
           )}
@@ -1284,12 +1255,11 @@ export default function AccountsPage() {
                         >
                           <RefreshCw className={`h-4 w-4 ${reconnectingDriveId === a.id ? "animate-spin" : ""}`} />
                         </Button>
-                        <Button variant="outline" size="sm" onClick={async () => {
-                          if (!a.id) return;
-                          await supabase.from("connected_accounts").update({ is_connected: false }).eq("id", a.id);
-                          fetchDrive();
-                          toast.success("Google Drive disconnected");
-                        }}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => disconnect("google_drive", "Google Drive", a.account_id, fetchDrive)}
+                        >
                           Disconnect
                         </Button>
                       </div>
@@ -1342,12 +1312,11 @@ export default function AccountsPage() {
                         {megaFilesLoading[a.id!] ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                         Files
                       </Button>
-                      <Button variant="outline" size="sm" onClick={async () => {
-                        if (!a.id) return;
-                        await supabase.from("connected_accounts").update({ is_connected: false }).eq("id", a.id);
-                        fetchMega();
-                        toast.success("Mega disconnected");
-                      }}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => disconnect("mega", "Mega", a.account_id, fetchMega)}
+                      >
                         Disconnect
                       </Button>
                     </div>

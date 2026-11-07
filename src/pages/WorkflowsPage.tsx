@@ -902,7 +902,7 @@ export default function WorkflowsPage() {
                     <div className="pl-6 sm:pl-7 space-y-1">
                       {instagramAccounts.length === 0 ? (
                         <p className="text-xs text-muted-foreground">
-                          No Instagram Business accounts connected.
+                          No Instagram account connected. Connect a Creator or Business account in Accounts.
                         </p>
                       ) : (
                         instagramAccounts.map((acc) => (
