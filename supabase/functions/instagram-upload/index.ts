@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
     const accessToken = await decrypt(account.access_token as string);
     const igUserId = account.account_id as string;
     const caption = (post.caption || "").substring(0, 2200);
-    const igBaseUrl = (account as any)?.metadata?.instagram_login
+    const igBaseUrl = (account as any)?.metadata?.graph_host === "instagram"
       ? "https://graph.instagram.com/v27.0"
       : "https://graph.facebook.com/v25.0";
 

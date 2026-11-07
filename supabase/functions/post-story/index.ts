@@ -268,7 +268,7 @@ Deno.serve(async (req) => {
           .eq("account_id", accountId)
           .eq("platform", "instagram")
           .single();
-        if ((igAccount as any)?.metadata?.instagram_login) {
+        if ((igAccount as any)?.metadata?.graph_host === "instagram") {
           igBaseUrl = "https://graph.instagram.com/v27.0";
         }
       } catch { /* fallback to Facebook graph */ }

@@ -98,17 +98,16 @@ export function findAccountForDisconnect(
 }
 
 /**
- * The auth function each connect calls, and the flow inside it.
+ * The auth function each connect calls.
  *
- * Instagram has no function of its own: graph.instagram.com answers code 100
- * for every node of the standalone "Instagram API with Instagram Login" app,
- * while facebook-auth's `mode=instagram` returns the real handle on a 60-day
- * token. That route serves professional accounts only, which is all the
- * Graph API does either way.
+ * Instagram Login authorizes on www.instagram.com and exchanges on
+ * api.instagram.com; the instagram_business_* scopes are only valid in that
+ * flow. The Facebook dialog rejects them as invalid scopes, so Instagram has
+ * its own function and cannot share the Facebook route.
  */
 export const AUTH_FUNCTION_FOR_PLATFORM: Record<string, { functionName: string; mode?: string }> = {
   youtube: { functionName: "youtube-auth" },
-  instagram: { functionName: "facebook-auth", mode: "instagram" },
+  instagram: { functionName: "instagram-auth" },
   facebook: { functionName: "facebook-auth" },
   tiktok: { functionName: "tiktok-auth" },
   linkedin: { functionName: "linkedin-auth" },

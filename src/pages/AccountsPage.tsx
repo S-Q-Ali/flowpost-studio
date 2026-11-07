@@ -401,7 +401,7 @@ export default function AccountsPage() {
     setIsInstagramConnecting(true);
     try {
       const { data, error } = await invokeFunction(
-        `facebook-auth?action=url&mode=instagram&userId=${userId}`,
+        `instagram-auth?action=url&userId=${userId}`,
         { method: "GET" },
       );
 

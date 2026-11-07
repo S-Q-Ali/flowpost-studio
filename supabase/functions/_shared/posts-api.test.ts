@@ -487,15 +487,15 @@ describe("connectUrlRequest", () => {
     );
   });
 
-  it("connects Instagram through the Facebook app, the only route Meta serves here", () => {
+  it("connects Instagram through its own function, whose scopes the Facebook dialog rejects", () => {
     const request = connectUrlRequest("https://proj.supabase.co", {
       platform: "instagram",
       nonce,
       ...base,
     });
     const url = new URL(request!.url);
-    expect(url.pathname).toBe("/functions/v1/facebook-auth");
-    expect(url.searchParams.get("mode")).toBe("instagram");
+    expect(url.pathname).toBe("/functions/v1/instagram-auth");
+    expect(url.searchParams.get("mode")).toBeNull();
     expect(url.searchParams.get("return_to")).toBe(
       `flowpost://connect-callback?platform=instagram&nonce=${nonce}`,
     );

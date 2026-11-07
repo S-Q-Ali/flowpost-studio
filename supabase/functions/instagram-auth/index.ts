@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { encrypt } from "../_shared/crypto.ts";
-import { instagramTokenRecord } from "../_shared/instagram-token.ts";
+import { instagramTokenRecord, instagramTokenShape } from "../_shared/instagram-token.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
 import { createOAuthState, consumeOAuthState, callbackLocation, connectDeclineResponse, reportConnectResult, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 
@@ -91,11 +91,8 @@ async function renewLongLivedToken(accessToken: string) {
 }
 
 /**
- * The profile behind this token, or null when Meta refuses.
- *
- * A refusal is the whole verdict on the connection: `graph.instagram.com`
- * answers every node for such a token with code 100 "Unsupported request -
- * method type: get", so nothing could be published with it. See the caller.
+ * The account behind this token, or null when Graph refuses it — in which case
+ * there is nothing here to store that could publish.
  */
 async function fetchIgProfile(accessToken: string) {
   const url = new URL("https://graph.instagram.com/v27.0/me");
@@ -166,7 +163,12 @@ Deno.serve(async (req) => {
         returnTo: url.searchParams.get("return_to"),
         appOrigin: APP_ORIGIN,
       });
-      const authUrl = new URL("https://api.instagram.com/oauth/authorize");
+      // Instagram Login: the page is served from www.instagram.com while the
+      // code is exchanged on api.instagram.com. enable_fb_login=0 keeps it on
+      // Instagram credentials. No force_reauth: it makes an account that is
+      // already signed in re-enter its password instead of seeing consent.
+      const authUrl = new URL("https://www.instagram.com/oauth/authorize");
+      authUrl.searchParams.set("enable_fb_login", "0");
       authUrl.searchParams.set("client_id", APP_ID!);
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set("state", state);
@@ -177,7 +179,6 @@ Deno.serve(async (req) => {
         "instagram_business_manage_comments",
       ].join(","));
       authUrl.searchParams.set("response_type", "code");
-      authUrl.searchParams.set("enable_fb_login", "false");
 
       return json({ url: authUrl.toString() });
     }
@@ -210,13 +211,16 @@ Deno.serve(async (req) => {
         await renewLongLivedToken(issued.access_token),
         Date.now(),
       );
-      const profile = await fetchIgProfile(token.access_token);
-      const igUserId = profile?.user_id || issued.user_id;
+      const account = await fetchIgProfile(token.access_token);
 
-      // Without a profile there is no connection to store: the card would read
-      // Connected on a token every Graph call refuses. End it as a failure so
-      // the app stops telling the user Instagram is ready.
-      if (!profile || !igUserId) {
+      // Graph naming no account is the whole verdict: there is nothing to
+      // store that could publish. The token's family and the field names Meta
+      // returned on the exchange say which half of the setup disagrees.
+      if (!account?.user_id) {
+        console.warn("IG refused token", JSON.stringify({
+          ...instagramTokenShape(token.access_token),
+          exchange_fields: Object.keys(issued).sort(),
+        }));
         return await connectDeclineResponse({
           supabase: supabaseAdmin,
           state: rawState,
@@ -233,14 +237,16 @@ Deno.serve(async (req) => {
           {
             user_id: userId,
             platform: "instagram",
-            account_name: profile.username || "Instagram",
-            account_id: igUserId,
+            account_name: account.username || "Instagram",
+            account_id: account.user_id,
             access_token: await encrypt(token.access_token),
             is_connected: true,
             connected_at: new Date().toISOString(),
             token_expiry: token.token_expiry,
             metadata: {
-              instagram_login: true,
+              // This connect only ever answers on the Instagram host; the
+              // Facebook-routed accounts are written by facebook-auth.
+              graph_host: "instagram",
               token_source: token.token_source,
             },
           },

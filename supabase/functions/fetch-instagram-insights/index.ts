@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   async function fetchMeta(path: string): Promise<Response> {
-    const base = (account as any)?.metadata?.instagram_login
+    const base = (account as any)?.metadata?.graph_host === "instagram"
       ? "https://graph.instagram.com/v27.0"
       : "https://graph.facebook.com/v23.0";
     return fetch(`${base}${path}&access_token=${accessToken}`);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { instagramTokenRecord } from "./instagram-token.ts";
+import { instagramTokenRecord, instagramTokenShape } from "./instagram-token.ts";
 
 const AN_HOUR = 3600;
 const TWO_MONTHS = 5184000;
@@ -58,5 +58,28 @@ describe("instagramTokenRecord", () => {
     );
 
     expect(record.token_expiry).toBe(new Date(NOW).toISOString());
+  });
+});
+
+describe("instagramTokenShape", () => {
+  it("reports the token as an Instagram-login one from its prefix", () => {
+    expect(instagramTokenShape("IGQVJRWn8ZB-this-is-a-long-token")).toEqual({
+      shape: "instagram_login",
+      length: 32,
+    });
+  });
+
+  it("reports a Facebook-shaped token, which graph.instagram.com refuses with code 100", () => {
+    expect(instagramTokenShape("EAAHdZD10t4UZBAPEZBzqk9").shape).toBe("facebook");
+  });
+
+  it("reports an unrecognised token as unknown", () => {
+    expect(instagramTokenShape("someOtherTokenFormat").shape).toBe("unknown");
+  });
+
+  it("keeps no copy of the token it was given", () => {
+    const token = "IGQVJRWn8ZB-this-is-a-long-token";
+
+    expect(JSON.stringify(instagramTokenShape(token))).not.toContain("IGQVJRWn8ZB");
   });
 });
