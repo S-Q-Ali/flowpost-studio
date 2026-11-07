@@ -4,6 +4,21 @@
 
 FlowPost Studio is a multi-platform social media scheduling dashboard (React 18 + TypeScript + Vite + Tailwind + Supabase). It publishes videos/images to YouTube Shorts, Instagram Reels & Stories, Facebook Pages, TikTok, and LinkedIn with scheduled posting, AI caption generation, content calendar, and workflow automation.
 
+## Product surface — Desktop app only
+
+Owner decision, 2026-11-07. It overrides anything in a plan, audit report or
+skill that points at the web app.
+
+- Work happens in `desktop-flutter/` and in the Supabase backend the desktop
+  calls: `supabase/functions/`, `supabase/migrations/`.
+- The web app (`src/`, hosted on `flowpost-studio.vercel.app`) is **not a work
+  target**: no fixes, no features, no copy changes, no verification runs in a
+  browser. Read it for context only.
+- Verification of a change is done against the desktop build. A fix is not
+  "proved live" because the web bundle changed.
+- An audit may still report a defect that only exists in web code; name it, but
+  do not touch `src/` unless the owner asks for web work in that same request.
+
 ## Core Rules
 
 - If a task matches a skill, invoke it with the `skill` tool before acting.
