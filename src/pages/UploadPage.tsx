@@ -572,7 +572,7 @@ export default function UploadPage() {
         return;
       }
 
-      const { data: insertedPosts, error: postsError } = await supabase.from("posts").insert(posts).select("id, platform, account_id, status");
+      const { data: insertedPosts, error: postsError } = await supabase.from("posts").insert(posts).select("id, platform, account_id, status, post_type");
       if (postsError) throw postsError;
 
       if (isPublishNow && insertedPosts && insertedPosts.length > 0) {
@@ -583,20 +583,13 @@ export default function UploadPage() {
           .update({ status: "processing" })
           .in("id", createdPostIds);
 
-        const youtubePosts =
-          insertedPosts.filter((p: any) => p.platform === "youtube") ?? [];
-        const facebookFeedPosts =
-          insertedPosts.filter((p: any) => p.platform === "facebook" && p.post_type !== "story") ?? [];
-        const facebookStoryPosts =
-          insertedPosts.filter((p: any) => p.platform === "facebook" && p.post_type === "story") ?? [];
-        const instagramFeedPosts =
-          insertedPosts.filter((p: any) => p.platform === "instagram" && p.post_type !== "story") ?? [];
-        const instagramStoryPosts =
-          insertedPosts.filter((p: any) => p.platform === "instagram" && p.post_type === "story") ?? [];
-        const tiktokPosts =
-          insertedPosts.filter((p: any) => p.platform === "tiktok") ?? [];
-        const linkedinPosts =
-          insertedPosts.filter((p: any) => p.platform === "linkedin") ?? [];
+        const youtubePosts = insertedPosts.filter((p: any) => p.platform === "youtube");
+        const facebookFeedPosts = insertedPosts.filter((p: any) => p.platform === "facebook" && p.post_type !== "story");
+        const facebookStoryPosts = insertedPosts.filter((p: any) => p.platform === "facebook" && p.post_type === "story");
+        const instagramFeedPosts = insertedPosts.filter((p: any) => p.platform === "instagram" && p.post_type !== "story");
+        const instagramStoryPosts = insertedPosts.filter((p: any) => p.platform === "instagram" && p.post_type === "story");
+        const tiktokPosts = insertedPosts.filter((p: any) => p.platform === "tiktok");
+        const linkedinPosts = insertedPosts.filter((p: any) => p.platform === "linkedin");
 
         if (youtubePosts.length > 0) {
           toast.info("Uploading to YouTube...");
@@ -1007,7 +1000,7 @@ export default function UploadPage() {
                 <div className="ml-6 mt-2 space-y-2">
                   {instagramAccounts.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      No Instagram Business accounts found. Connect via Facebook in Accounts.
+                      No Instagram account connected. Connect a Creator or Business account in Accounts.
                     </p>
                   ) : (
                     instagramAccounts.map((acc) => (
