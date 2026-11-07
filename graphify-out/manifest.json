@@ -342,9 +342,9 @@
     "semantic_hash": ""
   },
   "src/pages/AccountsPage.tsx": {
-    "mtime": 1793978443.4383516,
-    "seen": 1793978879.3203912,
-    "ast_hash": "122acf20230301ca9647ccb120c170de",
+    "mtime": 1794052182.7847633,
+    "seen": 1794053020.0624125,
+    "ast_hash": "d760cfb4da1c0c76c3fd27a70a4c2435",
     "semantic_hash": ""
   },
   "src/pages/AuthCallback.tsx": {
@@ -426,9 +426,9 @@
     "semantic_hash": ""
   },
   "src/pages/UploadPage.tsx": {
-    "mtime": 1793478965.7114043,
-    "seen": 1793480414.9291587,
-    "ast_hash": "97dfda14fe67b866e0d5619696622803",
+    "mtime": 1794051900.1141326,
+    "seen": 1794053020.098163,
+    "ast_hash": "a95a157a3f23c6c31d8bb430ad8a8d3a",
     "semantic_hash": ""
   },
   "src/pages/WorkflowItemsPage.tsx": {
@@ -438,9 +438,9 @@
     "semantic_hash": ""
   },
   "src/pages/WorkflowsPage.tsx": {
-    "mtime": 1793888871.3528857,
-    "seen": 1793889024.633544,
-    "ast_hash": "dbf0f1d8651accc23eff9afe6ec24fe8",
+    "mtime": 1794052176.099202,
+    "seen": 1794053020.102176,
+    "ast_hash": "2d886f846427e27c503e31af1f52ebab",
     "semantic_hash": ""
   },
   "src/test/setup.ts": {
@@ -456,8 +456,8 @@
     "semantic_hash": "8f68c27c3fc38817b2726b20e2d4f1ee"
   },
   "supabase/functions/_shared/crypto.ts": {
-    "mtime": 1794046403.282454,
-    "seen": 1794047259.0757847,
+    "mtime": 1794047283.146942,
+    "seen": 1794048739.0910788,
     "ast_hash": "5cdcc2c783693d6db6b7c4ffc2de26fb",
     "semantic_hash": ""
   },
@@ -480,15 +480,15 @@
     "semantic_hash": ""
   },
   "supabase/functions/facebook-auth/index.ts": {
-    "mtime": 1793839414.9789991,
-    "seen": 1793875298.0566797,
-    "ast_hash": "45ec05e82ec2268e8cd5b8ffbd663a7e",
+    "mtime": 1794051382.3959384,
+    "seen": 1794053020.1984334,
+    "ast_hash": "e96c4a5acc14a285049b0f450685e69a",
     "semantic_hash": ""
   },
   "supabase/functions/facebook-upload/index.ts": {
-    "mtime": 1793711930.148201,
-    "seen": 1793713739.2922451,
-    "ast_hash": "9a38b7a33de7571337801e215d11a73c",
+    "mtime": 1794051187.1118743,
+    "seen": 1794053020.198449,
+    "ast_hash": "8f856af0cb08ab9df4533b771fa3c6b6",
     "semantic_hash": ""
   },
   "supabase/functions/fetch-facebook-insights/deno.json": {
@@ -498,9 +498,9 @@
     "semantic_hash": "045d1316023e6cf6e2e60bd7e52a190e"
   },
   "supabase/functions/fetch-facebook-insights/index.ts": {
-    "mtime": 1793479394.4215095,
-    "seen": 1793480414.9413571,
-    "ast_hash": "2045237008c397d462b9693e14ea5291",
+    "mtime": 1794052641.39898,
+    "seen": 1794053020.2012532,
+    "ast_hash": "43e2462ee2c32a3611794affc850a7a8",
     "semantic_hash": ""
   },
   "supabase/functions/fetch-instagram-insights/deno.json": {
@@ -510,9 +510,9 @@
     "semantic_hash": "045d1316023e6cf6e2e60bd7e52a190e"
   },
   "supabase/functions/fetch-instagram-insights/index.ts": {
-    "mtime": 1793990700.4512327,
-    "seen": 1793991393.854183,
-    "ast_hash": "4b3395d0dc11b59ae58c3d1262eebaee",
+    "mtime": 1794052586.8844254,
+    "seen": 1794053020.2037952,
+    "ast_hash": "129abd9ecb381c9a5c2362d3a3bcb0eb",
     "semantic_hash": ""
   },
   "supabase/functions/generate-ai-captions/index.ts": {
@@ -552,15 +552,15 @@
     "semantic_hash": ""
   },
   "supabase/functions/instagram-auth/index.ts": {
-    "mtime": 1794046907.4125237,
-    "seen": 1794047259.0925877,
+    "mtime": 1794047283.1394827,
+    "seen": 1794048739.1143203,
     "ast_hash": "0822676786b5acf43956d3d1d8881fcb",
     "semantic_hash": ""
   },
   "supabase/functions/instagram-upload/index.ts": {
-    "mtime": 1793990728.845565,
-    "seen": 1793991393.8587961,
-    "ast_hash": "8bf99c2c3a1daec67e9f7ef5d84a0907",
+    "mtime": 1794051121.6949196,
+    "seen": 1794053020.2131016,
+    "ast_hash": "c1c6b99ab2e3c16961016c9c51d6c6ca",
     "semantic_hash": ""
   },
   "supabase/functions/linkedin-auth/index.ts": {
@@ -570,9 +570,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/linkedin-upload/index.ts": {
-    "mtime": 1793710122.278736,
-    "seen": 1793713739.2950838,
-    "ast_hash": "4425f3979606dcc7e97a5a1338cc1cb5",
+    "mtime": 1794050983.1582415,
+    "seen": 1794053020.2157056,
+    "ast_hash": "5319f6db6785a30c247bd85ea990c942",
     "semantic_hash": ""
   },
   "supabase/functions/mega-auth/index.ts": {
@@ -582,9 +582,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/post-story/index.ts": {
-    "mtime": 1793990713.9063601,
-    "seen": 1793991393.870102,
-    "ast_hash": "efaae0af4a3f9a27555f9095ba786cb8",
+    "mtime": 1794051285.7286658,
+    "seen": 1794053020.2191873,
+    "ast_hash": "66433c67a88f6244aad6a755babacd18",
     "semantic_hash": ""
   },
   "supabase/functions/process-scheduled-posts/index.ts": {
@@ -594,9 +594,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/process-workflow/index.ts": {
-    "mtime": 1793892537.1421256,
-    "seen": 1793893035.383516,
-    "ast_hash": "579ab8314fd349b0bdd84cdd51905846",
+    "mtime": 1794053105.4715433,
+    "seen": 1794053585.5625293,
+    "ast_hash": "ae15735ea812b7d18c41b240622c1d55",
     "semantic_hash": ""
   },
   "supabase/functions/tiktok-auth/index.ts": {
@@ -648,9 +648,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/youtube-upload/index.ts": {
-    "mtime": 1793892608.9161475,
-    "seen": 1793893035.3860242,
-    "ast_hash": "e7405058374f9bf27a6f22c34d1ba9b6",
+    "mtime": 1794051319.946182,
+    "seen": 1794053020.2481117,
+    "ast_hash": "7c4a78ad1414c8e8f1cb016b65028ee4",
     "semantic_hash": ""
   },
   "tailwind.config.ts": {
@@ -888,8 +888,8 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/auth.ts": {
-    "mtime": 1794046403.293348,
-    "seen": 1794047259.075482,
+    "mtime": 1794047283.1575484,
+    "seen": 1794048739.0906887,
     "ast_hash": "ef833afbebb72184397daffb59c7bc6f",
     "semantic_hash": ""
   },
@@ -1632,8 +1632,8 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/oauth-state.ts": {
-    "mtime": 1794046403.3133936,
-    "seen": 1794047259.0793047,
+    "mtime": 1794047283.1625464,
+    "seen": 1794048739.0968628,
     "ast_hash": "b8b5091167642ab570e613645af1596e",
     "semantic_hash": ""
   },
@@ -4074,9 +4074,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/post-access.ts": {
-    "mtime": 1793710076.8847108,
-    "seen": 1793713739.286789,
-    "ast_hash": "423a64d4ef866a620c8eb23d5743921b",
+    "mtime": 1794051103.9766102,
+    "seen": 1794053020.1513538,
+    "ast_hash": "cd9e5286b4583165515ae216938fcfad",
     "semantic_hash": ""
   },
   "supabase/functions/_shared/rate-limit.test.ts": {
@@ -4176,9 +4176,9 @@
     "semantic_hash": ""
   },
   "docs/runbook.md": {
-    "mtime": 1793902713.4691772,
-    "seen": 1793902889.060061,
-    "ast_hash": "a1d389962244cc4d32dfd516abd6e985",
+    "mtime": 1794052388.2446928,
+    "seen": 1794053020.8122227,
+    "ast_hash": "ed12d7bde56402ba7142d0cdddea9236",
     "semantic_hash": ""
   },
   "src/components/BrandIcons.tsx": {
@@ -4854,9 +4854,45 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/instagram-token.ts": {
-    "mtime": 1794046931.5239131,
-    "seen": 1794047259.0778408,
+    "mtime": 1794047283.1520095,
+    "seen": 1794048739.094233,
     "ast_hash": "0f5f6b15d975ed12875524f1f0a7764f",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/meta-graph.test.ts": {
+    "mtime": 1794051097.4045756,
+    "seen": 1794053020.1413732,
+    "ast_hash": "f294f1b6c343f10e3b16e85e78d51454",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/meta-graph.ts": {
+    "mtime": 1794051086.3866794,
+    "seen": 1794053020.1413796,
+    "ast_hash": "3b3df8ff0bbdf3e1825e516f3df1e56f",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/publisher-ownership.test.ts": {
+    "mtime": 1794050935.0418072,
+    "seen": 1794053020.1561852,
+    "ast_hash": "c251758602bfcdeae4eaab820958f866",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/token-expiry.test.ts": {
+    "mtime": 1794051056.3990793,
+    "seen": 1794053020.1712928,
+    "ast_hash": "846436560140120401e9ac623d868fd7",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/token-expiry.ts": {
+    "mtime": 1794051075.492528,
+    "seen": 1794053020.171301,
+    "ast_hash": "1b1bb8c0b1099188e70ec3f5a02973e5",
+    "semantic_hash": ""
+  },
+  "tasks/plan-2026-11-07-audit-fixes.md": {
+    "mtime": 1794050874.489583,
+    "seen": 1794053020.8674026,
+    "ast_hash": "6a59c308aa3dadd5f7e4b7332ad13f05",
     "semantic_hash": ""
   }
 }
