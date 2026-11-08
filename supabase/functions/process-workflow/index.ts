@@ -5,6 +5,8 @@ import { driveMediaUrl, getDriveToken, type DriveTokenContext } from "../_shared
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 import { skipReason, type ScheduledWorkflow } from "../_shared/workflow-schedule.ts";
 import { closeWorkflowRun, describeRun, maintainWorkflowRuns, openWorkflowRun } from "../_shared/workflow-runs.ts";
+import { readR2Config } from "../_shared/r2.ts";
+import { SecretProblem } from "../_shared/secrets.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
@@ -17,20 +19,6 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const CRON_API_KEY = Deno.env.get("CRON_API_KEY");
 const GOOGLE_FALLBACK_SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID") || undefined;
-
-const R2_ENDPOINT = Deno.env.get("R2_ENDPOINT");
-const R2_ACCESS_KEY = Deno.env.get("R2_ACCESS_KEY");
-const R2_SECRET_KEY = Deno.env.get("R2_SECRET_KEY");
-const R2_BUCKET = Deno.env.get("R2_BUCKET");
-const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL")!;
-
-const s3Client = (R2_ENDPOINT && R2_ACCESS_KEY && R2_SECRET_KEY && R2_BUCKET)
-  ? new S3Client({
-    region: "auto",
-    endpoint: R2_ENDPOINT,
-    credentials: { accessKeyId: R2_ACCESS_KEY, secretAccessKey: R2_SECRET_KEY },
-  })
-  : null;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for process-workflow");
@@ -183,6 +171,29 @@ Deno.serve(async (req) => {
   let heldWorkflowId: string | null = null;
   const errors: string[] = [];
   const heldRun: HeldRun = { id: null, errorsSeen: 0, report: null, failed: false };
+
+  // R2 is a best-effort cache: without it the run keeps serving Drive URLs.
+  // Read once per invocation so a key saved in the guided setup applies here.
+  type R2Bucket = { client: S3Client; bucket: string; publicUrl: string };
+  let r2Load: Promise<R2Bucket | null> | undefined;
+  const r2Bucket = (): Promise<R2Bucket | null> =>
+    r2Load ??= readR2Config(supabase)
+      .then((config) => ({
+        client: new S3Client({
+          region: "auto",
+          endpoint: config.endpoint,
+          credentials: { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
+        }),
+        bucket: config.bucket,
+        publicUrl: config.publicUrl,
+      }))
+      .catch((err) => {
+        if (err instanceof SecretProblem) {
+          console.error("R2 unavailable, keeping Drive URLs:", err.message);
+          return null;
+        }
+        throw err;
+      });
 
   try {
 
@@ -480,15 +491,16 @@ Deno.serve(async (req) => {
               carouselVideoIds.push(videoRecord.id);
 
               // R2 upload for Drive-sourced carousel children
-              if (!isMegaAccount && !isMegaPublic && driveDownloadUrl && googleToken && s3Client) {
+              const carouselR2 = await r2Bucket();
+              if (!isMegaAccount && !isMegaPublic && driveDownloadUrl && googleToken && carouselR2) {
                 try {
                   const driveRes = await fetch(driveDownloadUrl, {
                     headers: { Authorization: `Bearer ${googleToken}` },
                   });
                   if (driveRes.ok) {
                     const key = `${wf.user_id}/${videoRecord.id}.jpg`;
-                    const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand({
-                      Bucket: R2_BUCKET,
+                    const uploadUrl = await getSignedUrl(carouselR2.client, new PutObjectCommand({
+                      Bucket: carouselR2.bucket,
                       Key: key,
                       ContentType: "image/jpeg",
                     }), { expiresIn: 600 });
@@ -500,7 +512,7 @@ Deno.serve(async (req) => {
                       duplex: "half",
                     });
                     if (putRes.ok) {
-                      const r2Url = `https://${R2_PUBLIC_URL}/${key}`;
+                      const r2Url = `https://${carouselR2.publicUrl}/${key}`;
                       await supabase.from("videos").update({ file_url: r2Url }).eq("id", videoRecord.id);
                     }
                   }
@@ -697,7 +709,8 @@ Deno.serve(async (req) => {
           // Upload Drive-sourced files to R2 for zero-egress serving
           let r2Succeeded = false;
           let r2Url: string | null = null;
-          if (!isMegaAccount && !isMegaPublic && driveDownloadUrl && googleToken && s3Client) {
+          const mediaR2 = await r2Bucket();
+          if (!isMegaAccount && !isMegaPublic && driveDownloadUrl && googleToken && mediaR2) {
             try {
               const driveRes = await fetch(driveDownloadUrl, {
                 headers: { Authorization: `Bearer ${googleToken}` },
@@ -707,8 +720,8 @@ Deno.serve(async (req) => {
               } else {
                 const key = `${currentUserId}/${videoRecord.id}${fileExt}`;
                 const contentType = driveRes.headers.get("Content-Type") || "video/mp4";
-                const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand({
-                  Bucket: R2_BUCKET,
+                const uploadUrl = await getSignedUrl(mediaR2.client, new PutObjectCommand({
+                  Bucket: mediaR2.bucket,
                   Key: key,
                   ContentType: contentType,
                 }), { expiresIn: 600 });
@@ -722,7 +735,7 @@ Deno.serve(async (req) => {
                 if (!putRes.ok) {
                   throw new Error(`R2 PUT failed: ${putRes.status}`);
                 }
-                r2Url = `https://${R2_PUBLIC_URL}/${key}`;
+                r2Url = `https://${mediaR2.publicUrl}/${key}`;
                 const { error: r2UpdateError } = await supabase
                   .from("videos")
                   .update({ file_url: r2Url })

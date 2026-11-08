@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm";
 import { transpileModule, ModuleKind } from "typescript";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as history from "./workflow-runs";
+import { SecretProblem } from "./secrets";
 
 const source = readFileSync(join(import.meta.dirname, "../process-workflow/index.ts"), "utf8");
 const compiled = transpileModule(source, { compilerOptions: { module: ModuleKind.CommonJS } }).outputText;
@@ -112,6 +113,13 @@ function fixture(options: {
     "../_shared/auth.ts": { createSessionLookup: () => ({}), createRequestAuthorizer: () => async () => ({ allowed: true, kind: "cron" }) },
     "../_shared/workflow-schedule.ts": { skipReason: () => null },
     "../_shared/workflow-runs.ts": history,
+    // No bucket configured: the run keeps Drive URLs, as it did before R2 moved to the guided setup.
+    "../_shared/r2.ts": {
+      readR2Config: async () => {
+        throw new SecretProblem(["R2_ENDPOINT"], "R2_ENDPOINT is missing");
+      },
+    },
+    "../_shared/secrets.ts": { SecretProblem },
     "npm:@aws-sdk/client-s3": {},
     "npm:@aws-sdk/s3-request-presigner": {},
   };

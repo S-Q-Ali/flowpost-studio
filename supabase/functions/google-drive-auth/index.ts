@@ -3,6 +3,8 @@ import { encrypt, decrypt } from "../_shared/crypto.ts";
 import { createRequestAuthorizer, createSessionLookup, resolveSessionOwner } from "../_shared/auth.ts";
 import { createOAuthState, consumeOAuthState, callbackLocation, connectDeclineResponse, reportConnectResult, DEFAULT_APP_ORIGIN } from "../_shared/oauth-state.ts";
 import { driveMediaUrl } from "../_shared/google-drive.ts";
+import { readR2Config, type R2Config } from "../_shared/r2.ts";
+import { SecretProblem } from "../_shared/secrets.ts";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 
@@ -17,23 +19,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const APP_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || DEFAULT_APP_ORIGIN;
 
-const R2_ENDPOINT = Deno.env.get("R2_ENDPOINT");
-const R2_ACCESS_KEY = Deno.env.get("R2_ACCESS_KEY");
-const R2_SECRET_KEY = Deno.env.get("R2_SECRET_KEY");
-const R2_BUCKET = Deno.env.get("R2_BUCKET");
-const R2_PUBLIC_URL = Deno.env.get("R2_PUBLIC_URL");
-
 if (!GD_CLIENT_ID || !GD_CLIENT_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing required secrets for google-drive-auth function");
 }
-
-const s3Client = (R2_ENDPOINT && R2_ACCESS_KEY && R2_SECRET_KEY && R2_BUCKET)
-  ? new S3Client({
-      region: "auto",
-      endpoint: R2_ENDPOINT,
-      credentials: { accessKeyId: R2_ACCESS_KEY, secretAccessKey: R2_SECRET_KEY },
-    })
-  : null;
 
 const supabaseAdmin = createClient(
   SUPABASE_URL!,
@@ -53,6 +41,26 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+type R2Bucket = { client: S3Client; config: R2Config };
+
+/** Read per request, so a key saved in the guided setup works on the next call. */
+async function r2Bucket(): Promise<R2Bucket | Response> {
+  try {
+    const config = await readR2Config(supabaseAdmin);
+    return {
+      client: new S3Client({
+        region: "auto",
+        endpoint: config.endpoint,
+        credentials: { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
+      }),
+      config,
+    };
+  } catch (err) {
+    if (err instanceof SecretProblem) return json({ error: err.message }, 500);
+    throw err;
+  }
 }
 
 function html(body: string, status = 200) {
@@ -472,6 +480,10 @@ Deno.serve(async (req) => {
       const size = metaJson.size ? parseInt(metaJson.size, 10) : 0;
       const title = metaJson.name || file_name || "Untitled";
 
+      // Before the insert: no R2 means no import, and no orphan video row.
+      const r2 = await r2Bucket();
+      if (r2 instanceof Response) return r2;
+
       const { data: videoRecord, error: insertError } = await supabaseAdmin
         .from("videos")
         .insert({
@@ -486,8 +498,6 @@ Deno.serve(async (req) => {
 
       if (insertError || !videoRecord) throw new Error(`Failed to create video record: ${JSON.stringify(insertError)}`);
 
-      if (!s3Client) return json({ error: "R2 not configured" }, 500);
-
       const driveDownloadUrl = driveMediaUrl(file_id);
       const driveRes = await fetch(driveDownloadUrl, {
         headers: { Authorization: `Bearer ${refreshed.access_token}` },
@@ -496,8 +506,8 @@ Deno.serve(async (req) => {
 
       const contentType = driveRes.headers.get("Content-Type") || driveMimeType || "video/mp4";
       const key = `${user_id}/${videoRecord.id}${fileExt}`;
-      const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand({
-        Bucket: R2_BUCKET,
+      const uploadUrl = await getSignedUrl(r2.client, new PutObjectCommand({
+        Bucket: r2.config.bucket,
         Key: key,
         ContentType: contentType,
       }), { expiresIn: 600 });
@@ -511,7 +521,7 @@ Deno.serve(async (req) => {
       });
       if (!putRes.ok) throw new Error(`R2 PUT failed: ${putRes.status}`);
 
-      const r2Url = `https://${R2_PUBLIC_URL}/${key}`;
+      const r2Url = `https://${r2.config.publicUrl}/${key}`;
       const { error: r2UpdateError } = await supabaseAdmin
         .from("videos")
         .update({ file_url: r2Url })
@@ -529,7 +539,8 @@ Deno.serve(async (req) => {
       if (!user_id || !file_name) return json({ error: "Missing required fields" }, 400);
       if (sessionUserId && user_id !== sessionUserId) return json({ error: "Unauthorized" }, 401);
 
-      if (!s3Client) return json({ error: "R2 not configured" }, 500);
+      const r2 = await r2Bucket();
+      if (r2 instanceof Response) return r2;
 
       const detectedType = media_type || "video";
       const fileExt = `.${file_name.split(".").pop() || "mp4"}`;
@@ -557,12 +568,12 @@ Deno.serve(async (req) => {
       if (insertError || !videoRecord) throw new Error(`Failed to create video record: ${JSON.stringify(insertError)}`);
 
       const key = `${user_id}/${videoRecord.id}${fileExt}`;
-      const uploadUrl = await getSignedUrl(s3Client, new PutObjectCommand({
-        Bucket: R2_BUCKET,
+      const uploadUrl = await getSignedUrl(r2.client, new PutObjectCommand({
+        Bucket: r2.config.bucket,
         Key: key,
         ContentType: contentType,
       }), { expiresIn: 600 });
-      const r2Url = `https://${R2_PUBLIC_URL}/${key}`;
+      const r2Url = `https://${r2.config.publicUrl}/${key}`;
 
       return json({ upload_url: uploadUrl, video_id: videoRecord.id, key, r2_url: r2Url });
     }
