@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/presentation/accounts_page.dart';
 import '../../features/home/home_page.dart';
+import '../../features/insights/presentation/insights_page.dart';
 import '../../features/license/data/license_models.dart';
 import '../../features/license/presentation/license_gate_page.dart';
 import '../../features/media/presentation/media_page.dart';
@@ -11,14 +12,19 @@ import '../../features/scheduling/presentation/calendar_page.dart';
 import '../../features/scheduling/presentation/queue_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../../features/setup/presentation/setup_wizard_page.dart';
+import '../../features/storage/presentation/storage_page.dart';
+import '../../features/workflows/presentation/workflows_page.dart';
 import '../shell/app_shell.dart';
 
 const String homeRoute = '/';
 const String accountsRoute = '/accounts';
 const String uploadRoute = '/upload';
 const String publishRoute = '/publish';
+const String workflowsRoute = '/workflows';
 const String queueRoute = '/queue';
 const String calendarRoute = '/calendar';
+const String storageRoute = '/storage';
+const String insightsRoute = '/insights';
 const String settingsRoute = '/settings';
 const String setupRoute = '/setup';
 const String licenseRoute = '/license';
@@ -92,12 +98,24 @@ GoRouter buildRouter({
             builder: (context, state) => const PublishPage(),
           ),
           GoRoute(
+            path: workflowsRoute,
+            builder: (context, state) => const WorkflowsPage(),
+          ),
+          GoRoute(
             path: queueRoute,
             builder: (context, state) => const QueuePage(),
           ),
           GoRoute(
             path: calendarRoute,
             builder: (context, state) => const CalendarPage(),
+          ),
+          GoRoute(
+            path: storageRoute,
+            builder: (context, state) => const StoragePage(),
+          ),
+          GoRoute(
+            path: insightsRoute,
+            builder: (context, state) => const InsightsPage(),
           ),
           GoRoute(
             path: settingsRoute,

@@ -20,6 +20,8 @@ import {
   rangeQuery,
   retryInstant,
   revokeRequest,
+  WORKFLOW_COLUMNS,
+  workflowTogglePatch,
 } from "../_shared/posts-api.ts";
 
 const corsHeaders = {
@@ -318,6 +320,69 @@ Deno.serve(async (req) => {
         .eq("status", "failed")
         .select("id");
       if (error) return tableFailure("retry", error);
+      return json({ rows: data ?? [] });
+    }
+
+    case "dashboard-stats": {
+      const [{ count: videos }, { count: scheduled }, { count: published }, { count: accounts }, { data: recent, error: recentErr }] =
+        await Promise.all([
+          supabase.from("videos").select("*", { count: "exact", head: true }).eq("user_id", userId),
+          supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("status", "scheduled"),
+          supabase.from("posts").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("status", "published"),
+          supabase.from("connected_accounts").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("is_connected", true),
+          supabase.from("posts").select(POST_COLUMNS).eq("user_id", userId).order("created_at", { ascending: false }).limit(5),
+        ]);
+      if (recentErr) return tableFailure("dashboard-stats", recentErr);
+      return json({
+        rows: [{
+          videos: videos ?? 0,
+          scheduled: scheduled ?? 0,
+          published: published ?? 0,
+          accounts: accounts ?? 0,
+          recent_posts: recent ?? [],
+        }],
+      });
+    }
+
+    case "workflows-list": {
+      const { data: workflows, error } = await supabase
+        .from("workflows")
+        .select(WORKFLOW_COLUMNS)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+      if (error) return tableFailure("workflows-list", error);
+
+      let runMap: Record<string, unknown> = {};
+      try {
+        const { data: runData } = await supabase.rpc("latest_workflow_runs");
+        if (Array.isArray(runData)) {
+          for (const r of runData) {
+            if (r?.workflow_id) runMap[r.workflow_id] = r;
+          }
+        }
+      } catch {
+        // Runs history optional
+      }
+
+      const rows = (workflows ?? []).map((w: Record<string, unknown>) => ({
+        ...w,
+        latest_run: runMap[w.id as string] ?? null,
+      }));
+      return json({ rows });
+    }
+
+    case "workflow-toggle": {
+      const id = idOf(body);
+      if (!id.ok) return json({ error: id.error }, id.status);
+      const patch = workflowTogglePatch(body);
+      if (!patch.ok) return json({ error: patch.error }, patch.status);
+      const { data, error } = await supabase
+        .from("workflows")
+        .update({ is_active: patch.value })
+        .eq("id", id.value)
+        .eq("user_id", userId)
+        .select("id,is_active");
+      if (error) return tableFailure("workflow-toggle", error);
       return json({ rows: data ?? [] });
     }
 

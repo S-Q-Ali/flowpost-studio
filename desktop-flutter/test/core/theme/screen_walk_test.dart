@@ -43,6 +43,14 @@ import 'package:flowpost_desktop/features/settings/presentation/settings_page.da
 import 'package:flowpost_desktop/features/settings/settings_providers.dart';
 import 'package:flowpost_desktop/features/setup/presentation/setup_wizard_page.dart';
 import 'package:flowpost_desktop/features/setup/setup_controller.dart';
+import 'package:flowpost_desktop/features/storage/presentation/storage_page.dart';
+import 'package:flowpost_desktop/features/storage/storage_providers.dart';
+import 'package:flowpost_desktop/features/insights/presentation/insights_page.dart';
+import 'package:flowpost_desktop/features/insights/insights_providers.dart';
+import 'package:flowpost_desktop/features/workflows/data/workflows_repository.dart';
+import 'package:flowpost_desktop/features/workflows/domain/workflow.dart';
+import 'package:flowpost_desktop/features/workflows/presentation/workflows_page.dart';
+import 'package:flowpost_desktop/features/workflows/workflows_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -289,6 +297,31 @@ List<Override> _setup() => [
   urlLauncherProvider.overrideWithValue((uri) async => false),
 ];
 
+class _FakeScreenWalkWorkflowsRepository implements WorkflowsRepository {
+  @override
+  Future<List<WorkflowItem>> loadWorkflows() async => const [];
+  @override
+  Future<bool> toggleWorkflow(String id, bool isActive) async => true;
+  @override
+  Future<bool> triggerWorkflow(String id) async => true;
+}
+
+List<Override> _workflows() => [
+  workflowsRepositoryProvider.overrideWithValue(
+    _FakeScreenWalkWorkflowsRepository(),
+  ),
+];
+
+List<Override> _storage() => [
+  driveAccountsProvider.overrideWithValue([]),
+  megaAccountsProvider.overrideWithValue([]),
+];
+
+List<Override> _insights() => [
+  instagramAccountsProvider.overrideWithValue([]),
+  facebookAccountsProvider.overrideWithValue([]),
+];
+
 final _screens = <_Screen>[
   _Screen(
     route: '/',
@@ -317,6 +350,13 @@ final _screens = <_Screen>[
     extra: _publish,
   ),
   _Screen(
+    route: '/workflows',
+    page: WorkflowsPage,
+    heading: 'Workflows',
+    body: find.text('No workflows found'),
+    extra: _workflows,
+  ),
+  _Screen(
     route: '/queue',
     page: QueuePage,
     heading: 'Queue',
@@ -329,6 +369,20 @@ final _screens = <_Screen>[
     heading: 'Calendar',
     body: find.byKey(const Key('calendar-day-2026-11-02')),
     extra: _calendar,
+  ),
+  _Screen(
+    route: '/storage',
+    page: StoragePage,
+    heading: 'Storage Manager',
+    body: find.text('No Google Drive account connected'),
+    extra: _storage,
+  ),
+  _Screen(
+    route: '/insights',
+    page: InsightsPage,
+    heading: 'Insights & Analytics',
+    body: find.text('No Instagram accounts connected'),
+    extra: _insights,
   ),
   _Screen(
     route: '/settings',

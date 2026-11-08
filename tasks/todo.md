@@ -833,6 +833,16 @@ Branch `chore/desktop-production`, 2026-10-30. The old Electron/Pake shell is go
 
 ---
 
+## Desktop Missing Features Parity (plan: `tasks/plan-2026-11-09-desktop-features.md`, todo: `tasks/todo-2026-11-09-desktop-features.md`)
+
+- [x] **DF1** — Dashboard Stats Cards & Recent Activity on Desktop Home (`/`)
+- [x] **DF2** — Workflows Screen (`/workflows`)
+- [x] **DF3** — Storage Manager Screen (`/storage`)
+- [x] **DF4** — Insights & Analytics Screen (`/insights`)
+- [x] **DF5** — Comprehensive Verification Gate & Screen Walk
+
+---
+
 ## Gate Commands
 
 ```powershell

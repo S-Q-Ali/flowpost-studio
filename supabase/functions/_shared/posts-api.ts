@@ -407,3 +407,20 @@ export function retryInstant(input: unknown): Checked<string> {
   if (!isInstant(instant)) return refuse(400, "A scheduled time is required");
   return { ok: true, value: instant };
 }
+
+/** Columns returned for workflow lists. */
+export const WORKFLOW_COLUMNS =
+  "id,user_id,name,is_active,sheet_url,sheet_id,platforms,youtube_channel_ids," +
+  "facebook_page_ids,instagram_account_ids,tiktok_account_ids,linkedin_account_ids," +
+  "youtube_altered_content,post_as_story,max_videos_per_trigger,run_interval_hours," +
+  "videos_per_run,last_triggered_at,last_manual_triggered_at,run_days,total_posted," +
+  "media_type,scheduling_mode,custom_schedule,drive_account_id,drive_folder_id," +
+  "data_source,created_at,updated_at";
+
+export function workflowTogglePatch(input: unknown): Checked<boolean> {
+  const source = sourceOf(input);
+  if (!source || typeof source.is_active !== "boolean") {
+    return refuse(400, "is_active must be a boolean");
+  }
+  return { ok: true, value: source.is_active };
+}

@@ -13,8 +13,11 @@ class AppShell extends StatelessWidget {
     _Destination('/', 'Home'),
     _Destination('/accounts', 'Accounts'),
     _Destination('/upload', 'Upload', alsoCovers: ['/publish']),
+    _Destination('/workflows', 'Workflows'),
     _Destination('/queue', 'Queue'),
     _Destination('/calendar', 'Calendar'),
+    _Destination('/storage', 'Storage'),
+    _Destination('/insights', 'Insights'),
     _Destination('/settings', 'Settings'),
   ];
 
@@ -34,6 +37,10 @@ class AppShell extends StatelessWidget {
           selected
               ? const Icon(Icons.cloud_upload_rounded)
               : const Icon(Icons.cloud_upload_outlined),
+        '/workflows' =>
+          selected
+              ? const Icon(Icons.account_tree_rounded)
+              : const Icon(Icons.account_tree_outlined),
         '/queue' =>
           selected
               ? const Icon(Icons.list_alt_rounded)
@@ -42,6 +49,14 @@ class AppShell extends StatelessWidget {
           selected
               ? const Icon(Icons.calendar_month_rounded)
               : const Icon(Icons.calendar_month_outlined),
+        '/storage' =>
+          selected
+              ? const Icon(Icons.folder_shared_rounded)
+              : const Icon(Icons.folder_shared_outlined),
+        '/insights' =>
+          selected
+              ? const Icon(Icons.insights_rounded)
+              : const Icon(Icons.insights_outlined),
         '/settings' =>
           selected
               ? const Icon(Icons.settings_rounded)
@@ -59,29 +74,41 @@ class AppShell extends StatelessWidget {
     return Scaffold(
       body: Row(
         children: [
-          NavigationRail(
-            selectedIndex: selected < 0 ? 0 : selected,
-            onDestinationSelected: (index) =>
-                context.go(_destinations[index].route),
-            labelType: NavigationRailLabelType.all,
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Tooltip(
-                message: 'FlowPost Studio',
-                child: Icon(
-                  Icons.campaign_rounded,
-                  color: Theme.of(context).primaryText,
+          LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: NavigationRail(
+                    selectedIndex: selected < 0 ? 0 : selected,
+                    onDestinationSelected: (index) =>
+                        context.go(_destinations[index].route),
+                    labelType: NavigationRailLabelType.all,
+                    leading: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Tooltip(
+                        message: 'FlowPost Studio',
+                        child: Icon(
+                          Icons.campaign_rounded,
+                          color: Theme.of(context).primaryText,
+                        ),
+                      ),
+                    ),
+                    destinations: [
+                      for (final destination in _destinations)
+                        NavigationRailDestination(
+                          icon: _icon(destination.route, selected: false),
+                          selectedIcon: _icon(
+                            destination.route,
+                            selected: true,
+                          ),
+                          label: Text(destination.label),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
-            destinations: [
-              for (final destination in _destinations)
-                NavigationRailDestination(
-                  icon: _icon(destination.route, selected: false),
-                  selectedIcon: _icon(destination.route, selected: true),
-                  label: Text(destination.label),
-                ),
-            ],
           ),
           const VerticalDivider(width: 1),
           Expanded(child: child),

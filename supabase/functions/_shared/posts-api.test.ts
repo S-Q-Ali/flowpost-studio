@@ -18,6 +18,8 @@ import {
   rangeQuery,
   retryInstant,
   revokeRequest,
+  WORKFLOW_COLUMNS,
+  workflowTogglePatch,
 } from "./posts-api";
 
 describe("insertRow", () => {
@@ -710,5 +712,43 @@ describe("ACCOUNT_COLUMNS", () => {
     expect(DISCONNECT_COLUMNS).toContain("access_token");
     expect(DISCONNECT_COLUMNS).toContain("refresh_token");
     expect(DISCONNECT_COLUMNS).not.toMatch(/account_name|display_name|password|secret/i);
+  });
+});
+
+describe("workflowTogglePatch", () => {
+  it("accepts a valid is_active boolean", () => {
+    const result = workflowTogglePatch({ is_active: true });
+    expect(result).toEqual({ ok: true, value: true });
+
+    const resultFalse = workflowTogglePatch({ is_active: false });
+    expect(resultFalse).toEqual({ ok: true, value: false });
+  });
+
+  it("refuses missing or non-boolean is_active", () => {
+    expect(workflowTogglePatch(null)).toEqual({
+      ok: false,
+      status: 400,
+      error: "is_active must be a boolean",
+    });
+    expect(workflowTogglePatch({ is_active: "true" })).toEqual({
+      ok: false,
+      status: 400,
+      error: "is_active must be a boolean",
+    });
+    expect(workflowTogglePatch({})).toEqual({
+      ok: false,
+      status: 400,
+      error: "is_active must be a boolean",
+    });
+  });
+});
+
+describe("WORKFLOW_COLUMNS", () => {
+  it("includes id, name, is_active, and schedule columns", () => {
+    expect(WORKFLOW_COLUMNS).toContain("id");
+    expect(WORKFLOW_COLUMNS).toContain("name");
+    expect(WORKFLOW_COLUMNS).toContain("is_active");
+    expect(WORKFLOW_COLUMNS).toContain("platforms");
+    expect(WORKFLOW_COLUMNS).toContain("run_interval_hours");
   });
 });
