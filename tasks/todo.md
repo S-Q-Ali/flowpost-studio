@@ -64,6 +64,8 @@
 
 ## Phase 1 — Identity and Session (DEFERRED by owner 2026-10-28)
 
+> **Superseded (2026-11-08):** license-key access (ADR 0006, track L1–L12 below) replaced this phase and the identity module was deleted (decision D7 in `tasks/plan-2026-11-01-audit-and-features.md`). The open boxes below are kept as history and are not pending work. Current status and next plan: `tasks/plan-2026-11-08-release.md`.
+
 - [x] **1.1** Write `SPEC-identity.md` + ADR 0001 (dual auth session)
 - [ ] **1.1a** Approve identity decisions: question cadence, admin-only, backend hardening, logout scope, credentials
 - [ ] **1.2** Auth data layer: typed session, secure storage, refresh, logout
@@ -88,7 +90,7 @@
 - [x] **2.2** Typed `AccountsRepository`; local JSON implementation with six seeded accounts
 - [x] **2.3** Accounts screen: connected/disconnected/expired, connect/disconnect, loading/error/empty
 - [x] **2.4** Local connect/disconnect state; persists across restart and reinstall; real browser flow deferred
-- [ ] **2.5** Phase 2 gate (local)
+- [x] **2.5** Phase 2 gate (local)
   - [x] Repository and widget tests for six platforms
   - [x] Local connect/disconnect persists across restart (installed build; `accounts.json`)
   - [x] No token logged (this slice stores no tokens)
