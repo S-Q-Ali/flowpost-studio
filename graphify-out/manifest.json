@@ -540,9 +540,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/google-drive-auth/index.ts": {
-    "mtime": 1793892536.5368032,
-    "seen": 1793893035.380086,
-    "ast_hash": "231c590f5e8efb97cdc6df1257fe95e2",
+    "mtime": 1794086052.1821954,
+    "seen": 1794157439.3195207,
+    "ast_hash": "778a63c672b7121256bee19d586e4ad4",
     "semantic_hash": ""
   },
   "supabase/functions/google-oauth/index.ts": {
@@ -594,9 +594,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/process-workflow/index.ts": {
-    "mtime": 1794053105.4715433,
-    "seen": 1794053585.5625293,
-    "ast_hash": "ae15735ea812b7d18c41b240622c1d55",
+    "mtime": 1794086129.5072424,
+    "seen": 1794157439.3307421,
+    "ast_hash": "e8d85aa9452e96d7fb945c10ae622c32",
     "semantic_hash": ""
   },
   "supabase/functions/tiktok-auth/index.ts": {
@@ -1056,9 +1056,9 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1793389038.8803577,
-    "seen": 1793392570.0524118,
-    "ast_hash": "6e55683535c23b8a428a73b24d362915",
+    "mtime": 1794058647.7014728,
+    "seen": 1794157439.5559814,
+    "ast_hash": "ab590cb0baa3db7b468645b7124bf5ec",
     "semantic_hash": ""
   },
   "README.md": {
@@ -2802,9 +2802,9 @@
     "semantic_hash": ""
   },
   "tasks/todo.md": {
-    "mtime": 1793706686.7940676,
-    "seen": 1793706777.4761376,
-    "ast_hash": "d027c23cd251cf995dd5485b46dfefd3",
+    "mtime": 1794156855.913273,
+    "seen": 1794157439.5921974,
+    "ast_hash": "a52c15bb5de999d3eff80c4d5a8a37e0",
     "semantic_hash": ""
   },
   ".opencode/skills/theme-factory/theme-showcase.pdf": {
@@ -4176,9 +4176,9 @@
     "semantic_hash": ""
   },
   "docs/runbook.md": {
-    "mtime": 1794052388.2446928,
-    "seen": 1794053020.8122227,
-    "ast_hash": "ed12d7bde56402ba7142d0cdddea9236",
+    "mtime": 1794057115.982987,
+    "seen": 1794157439.567022,
+    "ast_hash": "ea100c523f1ece1e6126ba180cdc2a1a",
     "semantic_hash": ""
   },
   "src/components/BrandIcons.tsx": {
@@ -4806,9 +4806,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/_shared/process-workflow-history.test.ts": {
-    "mtime": 1793892306.8684044,
-    "seen": 1793893035.3720865,
-    "ast_hash": "ce706210e2d163662d2671a1b58b5c88",
+    "mtime": 1794157136.694935,
+    "seen": 1794157439.285362,
+    "ast_hash": "0119bf3fd4d7f8af0f48101a6124b853",
     "semantic_hash": ""
   },
   "supabase/functions/_shared/workflow-runs.test.ts": {
@@ -4890,9 +4890,27 @@
     "semantic_hash": ""
   },
   "tasks/plan-2026-11-07-audit-fixes.md": {
-    "mtime": 1794050874.489583,
-    "seen": 1794053020.8674026,
-    "ast_hash": "6a59c308aa3dadd5f7e4b7332ad13f05",
+    "mtime": 1794057449.1119957,
+    "seen": 1794157439.5890238,
+    "ast_hash": "66b9bda6e4b54cfa5ab91ce7c45c28dd",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/r2.test.ts": {
+    "mtime": 1794085783.5530882,
+    "seen": 1794157439.2860398,
+    "ast_hash": "8b8a030a47e24ff33cef16dd00865853",
+    "semantic_hash": ""
+  },
+  "supabase/functions/_shared/r2.ts": {
+    "mtime": 1794085881.2106335,
+    "seen": 1794157439.2860472,
+    "ast_hash": "d10567e0bbe602e659f15e126964deb3",
+    "semantic_hash": ""
+  },
+  "tasks/plan-2026-11-08-release.md": {
+    "mtime": 1794156685.0052311,
+    "seen": 1794157439.5890293,
+    "ast_hash": "9a835838a2ea8f724a8a29e676bc556e",
     "semantic_hash": ""
   }
 }
