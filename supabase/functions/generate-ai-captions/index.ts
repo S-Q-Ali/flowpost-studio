@@ -1,4 +1,4 @@
-﻿import { createClient } from "npm:@supabase/supabase-js@2.49.0";
+import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { decrypt } from "../_shared/crypto.ts";
 import { createSessionLookup, isRequestAuthorized, resolveSessionOwner } from "../_shared/auth.ts";
 import type { AuthResult } from "../_shared/auth.ts";
@@ -149,7 +149,7 @@ Return ONLY valid JSON â€” no markdown, no code fences, no explanation.`;
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "openai/gpt-oss-120b",
+      model: "llama-3.3-70b-versatile",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },

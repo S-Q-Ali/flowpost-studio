@@ -1,6 +1,11 @@
 export const ALLOWED_CHAT_MODELS = new Set<string>([
   "openai/gpt-oss-120b",
   "qwen/qwen3.6-27b",
+  "llama-3.2-11b-vision-preview",
+  "llama-3.2-90b-vision-preview",
+  "llama-3.3-70b-versatile",
+  "llama-3.1-70b-versatile",
+  "llama-3.1-8b-instant",
 ]);
 export const MAX_CHAT_TOKENS = 8192;
 export const DEFAULT_CHAT_TOKENS = 1024;

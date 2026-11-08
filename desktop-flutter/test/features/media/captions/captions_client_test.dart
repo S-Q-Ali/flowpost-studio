@@ -96,7 +96,7 @@ void main() {
       expect(description, 'a beach at sunset');
       final body = transport.bodies.single;
       expect(body['mode'], 'groq-chat');
-      expect(body['model'], 'qwen/qwen3.6-27b');
+      expect(body['model'], 'llama-3.2-11b-vision-preview');
       expect(body['temperature'], 0.6);
       expect(body['max_tokens'], 512);
       final content = (body['messages'] as List).first['content'] as List;
@@ -138,7 +138,7 @@ void main() {
           'tiktok_caption': 'A caption',
         });
         final body = transport.bodies.single;
-        expect(body['model'], 'openai/gpt-oss-120b');
+        expect(body['model'], 'llama-3.3-70b-versatile');
         expect(body['temperature'], 0.7);
         expect(body['max_tokens'], 4096);
         final messages = body['messages'] as List;

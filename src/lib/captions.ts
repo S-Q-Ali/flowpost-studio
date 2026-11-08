@@ -245,7 +245,7 @@ async function groqDescribeFrames(
   const data = await groqApiCall(
     "groq-chat",
     {
-      model: "qwen/qwen3.6-27b",
+      model: "llama-3.2-11b-vision-preview",
       messages: [{ role: "user", content }],
       temperature: 0.6,
       max_tokens: 512,
@@ -292,7 +292,7 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
   const chatData = await groqApiCall(
     "groq-chat",
     {
-      model: "openai/gpt-oss-120b",
+      model: "llama-3.3-70b-versatile",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
