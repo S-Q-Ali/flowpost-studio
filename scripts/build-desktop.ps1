@@ -105,7 +105,10 @@ try {
     New-Item -ItemType Directory -Force -Path $stage | Out-Null
     Copy-Item -Path (Join-Path $Release '*') -Destination $stage -Recurse
     if (Test-Path $FfmpegBin) {
-      Copy-Item -Path $FfmpegBin -Destination (Join-Path $stage 'ffmpeg') -Recurse -Force
+      $stageFfmpegBin = Join-Path $stage 'ffmpeg\bin'
+      New-Item -ItemType Directory -Force -Path $stageFfmpegBin | Out-Null
+      Copy-Item -Path (Join-Path $FfmpegBin '*') -Destination $stageFfmpegBin -Recurse -Force
+      Copy-Item -Path (Join-Path $FfmpegBin '*') -Destination (Join-Path $stage 'ffmpeg') -Recurse -Force
     }
     $zip = Join-Path $Dist 'FlowPost-portable.zip'
     if (Test-Path $zip) { Remove-Item $zip -Force }

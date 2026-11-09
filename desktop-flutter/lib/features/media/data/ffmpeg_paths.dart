@@ -36,9 +36,12 @@ class FfmpegPaths {
     final directories = <String>[];
     final executableDirectory = p.dirname(Platform.resolvedExecutable);
     directories.add(p.join(executableDirectory, 'ffmpeg', 'bin'));
+    directories.add(p.join(executableDirectory, 'ffmpeg'));
+    directories.add(executableDirectory);
     directories.add(
       p.join(Directory.current.path, 'third_party', 'ffmpeg', 'bin'),
     );
+    directories.add(p.join(Directory.current.path, 'third_party', 'ffmpeg'));
     return directories;
   }
 }
