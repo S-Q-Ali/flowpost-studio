@@ -304,6 +304,10 @@ class _FakeScreenWalkWorkflowsRepository implements WorkflowsRepository {
   Future<bool> toggleWorkflow(String id, bool isActive) async => true;
   @override
   Future<bool> triggerWorkflow(String id) async => true;
+  @override
+  Future<WorkflowItem?> createWorkflow(Map<String, dynamic> payload) async => null;
+  @override
+  Future<bool> deleteWorkflow(String id) async => true;
 }
 
 List<Override> _workflows() => [

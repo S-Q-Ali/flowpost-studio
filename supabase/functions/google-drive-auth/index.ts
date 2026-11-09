@@ -302,14 +302,19 @@ Deno.serve(async (req) => {
       const accountIdParam = url.searchParams.get("account_id") || body?.account_id;
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
+      const isParamUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountIdParam);
       let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
-        .eq("id", accountIdParam)
         .eq("platform", "google_drive")
         .eq("is_connected", true);
+      if (isParamUuid) {
+        accountQuery = accountQuery.eq("id", accountIdParam);
+      } else {
+        accountQuery = accountQuery.eq("account_id", accountIdParam);
+      }
       if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
-      const { data: account, error: fetchError } = await accountQuery.single();
+      const { data: account, error: fetchError } = await accountQuery.maybeSingle();
 
       if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
 
@@ -334,19 +339,24 @@ Deno.serve(async (req) => {
 
     if (action === "list-files") {
       const accountIdParam = url.searchParams.get("account_id") || body?.account_id;
-      const parentId = url.searchParams.get("parent_id") || body?.parent_id || "root";
+      const parentId = url.searchParams.get("parent_id") || url.searchParams.get("folder_id") || body?.parent_id || body?.folder_id || "root";
       const pageToken = url.searchParams.get("page_token") || body?.page_token;
 
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
+      const isParamUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountIdParam);
       let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
-        .eq("id", accountIdParam)
         .eq("platform", "google_drive")
         .eq("is_connected", true);
+      if (isParamUuid) {
+        accountQuery = accountQuery.eq("id", accountIdParam);
+      } else {
+        accountQuery = accountQuery.eq("account_id", accountIdParam);
+      }
       if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
-      const { data: account, error: fetchError } = await accountQuery.single();
+      const { data: account, error: fetchError } = await accountQuery.maybeSingle();
 
       if (fetchError || !account) return json({ error: "Drive account not found" }, 404);
 

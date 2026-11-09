@@ -8,6 +8,8 @@ abstract class WorkflowsRepository {
   Future<List<WorkflowItem>> loadWorkflows();
   Future<bool> toggleWorkflow(String id, bool isActive);
   Future<bool> triggerWorkflow(String id);
+  Future<WorkflowItem?> createWorkflow(Map<String, dynamic> payload);
+  Future<bool> deleteWorkflow(String id);
 }
 
 class PostsApiWorkflowsRepository implements WorkflowsRepository {
@@ -22,6 +24,35 @@ class PostsApiWorkflowsRepository implements WorkflowsRepository {
   final PostsTransport transport;
   final String supabaseUrl;
   final String anonKey;
+
+  @override
+  Future<WorkflowItem?> createWorkflow(Map<String, dynamic> payload) async {
+    if (sessionToken == null || sessionToken!.isEmpty) return null;
+    try {
+      final rows = await transport.send(
+        body: {'action': 'workflow-create', ...payload},
+        token: sessionToken,
+      );
+      if (rows.isEmpty) return null;
+      return WorkflowItem.fromJson(rows.first);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<bool> deleteWorkflow(String id) async {
+    if (sessionToken == null || sessionToken!.isEmpty) return false;
+    try {
+      final rows = await transport.send(
+        body: {'action': 'workflow-delete', 'id': id},
+        token: sessionToken,
+      );
+      return rows.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
   Future<List<WorkflowItem>> loadWorkflows() async {

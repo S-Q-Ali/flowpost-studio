@@ -164,14 +164,19 @@ let accountQuery = supabaseAdmin
       const accountIdParam = (body as { account_id?: string }).account_id || url.searchParams.get("account_id");
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
-let accountQuery = supabaseAdmin
+      const isParamUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountIdParam);
+      let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
-        .eq("id", accountIdParam)
         .eq("platform", "mega")
         .eq("is_connected", true);
+      if (isParamUuid) {
+        accountQuery = accountQuery.eq("id", accountIdParam);
+      } else {
+        accountQuery = accountQuery.eq("account_id", accountIdParam);
+      }
       if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
-      const { data: account, error: fetchError } = await accountQuery.single();
+      const { data: account, error: fetchError } = await accountQuery.maybeSingle();
 
       if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
 
@@ -197,14 +202,19 @@ let accountQuery = supabaseAdmin
 
       if (!accountIdParam) return json({ error: "Missing account_id" }, 400);
 
-let accountQuery = supabaseAdmin
+      const isParamUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountIdParam);
+      let accountQuery = supabaseAdmin
         .from("connected_accounts")
         .select("*")
-        .eq("id", accountIdParam)
         .eq("platform", "mega")
         .eq("is_connected", true);
+      if (isParamUuid) {
+        accountQuery = accountQuery.eq("id", accountIdParam);
+      } else {
+        accountQuery = accountQuery.eq("account_id", accountIdParam);
+      }
       if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
-      const { data: account, error: fetchError } = await accountQuery.single();
+      const { data: account, error: fetchError } = await accountQuery.maybeSingle();
 
       if (fetchError || !account) return json({ error: "Mega account not found" }, 404);
 

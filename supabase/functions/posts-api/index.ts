@@ -386,6 +386,56 @@ Deno.serve(async (req) => {
       return json({ rows: data ?? [] });
     }
 
+    case "workflow-create": {
+      const name = typeof body?.name === "string" ? body.name.trim() : "";
+      if (!name) return json({ error: "name is required" }, 400);
+
+      const platforms = Array.isArray(body?.platforms) ? body.platforms : [];
+      const dataSource = body?.data_source === "drive" ? "drive" : "g_sheet";
+      const sheetUrl = typeof body?.sheet_url === "string" ? body.sheet_url.trim() : null;
+      const sheetId = typeof body?.sheet_id === "string" ? body.sheet_id.trim() : null;
+      const driveFolderId = typeof body?.drive_folder_id === "string" ? body.drive_folder_id.trim() : null;
+      const driveAccountId = typeof body?.drive_account_id === "string" ? body.drive_account_id.trim() : null;
+      const runIntervalHours = typeof body?.run_interval_hours === "number" ? Math.max(1, body.run_interval_hours) : 1;
+      const videosPerRun = typeof body?.videos_per_run === "number" ? Math.max(1, body.videos_per_run) : 1;
+      const isActive = body?.is_active !== false;
+
+      const payload = {
+        user_id: userId,
+        name,
+        is_active: isActive,
+        data_source: dataSource,
+        platforms,
+        sheet_url: dataSource === "g_sheet" ? sheetUrl : null,
+        sheet_id: dataSource === "g_sheet" ? sheetId : null,
+        drive_folder_id: dataSource === "drive" ? driveFolderId : null,
+        drive_account_id: driveAccountId,
+        run_interval_hours: runIntervalHours,
+        videos_per_run: videosPerRun,
+        media_type: typeof body?.media_type === "string" ? body.media_type : "video",
+      };
+
+      const { data, error } = await supabase
+        .from("workflows")
+        .insert(payload)
+        .select(WORKFLOW_COLUMNS);
+      if (error) return tableFailure("workflow-create", error);
+      return json({ rows: data ?? [] });
+    }
+
+    case "workflow-delete": {
+      const id = idOf(body);
+      if (!id.ok) return json({ error: id.error }, id.status);
+      const { data, error } = await supabase
+        .from("workflows")
+        .delete()
+        .eq("id", id.value)
+        .eq("user_id", userId)
+        .select("id");
+      if (error) return tableFailure("workflow-delete", error);
+      return json({ rows: data ?? [] });
+    }
+
     default:
       return json({ error: "Unknown action" }, 400);
   }

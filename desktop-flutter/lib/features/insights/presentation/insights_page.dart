@@ -60,6 +60,23 @@ class _InsightsPageState extends ConsumerState<InsightsPage>
   }
 
   Future<void> _loadInsights() async {
+    final igAccounts = ref.read(instagramAccountsProvider);
+    final fbAccounts = ref.read(facebookAccountsProvider);
+
+    if (_currentPlatform == 'instagram' &&
+        (_selectedIgAccountId == null ||
+            !igAccounts.any((a) => a.accountId == _selectedIgAccountId))) {
+      if (igAccounts.isNotEmpty) {
+        _selectedIgAccountId = igAccounts.first.accountId;
+      }
+    } else if (_currentPlatform == 'facebook' &&
+        (_selectedFbAccountId == null ||
+            !fbAccounts.any((a) => a.accountId == _selectedFbAccountId))) {
+      if (fbAccounts.isNotEmpty) {
+        _selectedFbAccountId = fbAccounts.first.accountId;
+      }
+    }
+
     final accountId = _currentPlatform == 'instagram'
         ? _selectedIgAccountId
         : _selectedFbAccountId;
@@ -84,6 +101,23 @@ class _InsightsPageState extends ConsumerState<InsightsPage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(instagramAccountsProvider, (_, next) {
+      if (next.isNotEmpty &&
+          (_selectedIgAccountId == null ||
+              !next.any((a) => a.accountId == _selectedIgAccountId))) {
+        setState(() => _selectedIgAccountId = next.first.accountId);
+        if (_currentPlatform == 'instagram') _loadInsights();
+      }
+    });
+    ref.listen(facebookAccountsProvider, (_, next) {
+      if (next.isNotEmpty &&
+          (_selectedFbAccountId == null ||
+              !next.any((a) => a.accountId == _selectedFbAccountId))) {
+        setState(() => _selectedFbAccountId = next.first.accountId);
+        if (_currentPlatform == 'facebook') _loadInsights();
+      }
+    });
+
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final igAccounts = ref.watch(instagramAccountsProvider);

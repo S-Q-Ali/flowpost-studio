@@ -48,14 +48,19 @@ Deno.serve(async (req) => {
   const rangeParam = url.searchParams.get("range");
   const rangeDays = Math.max(7, Math.min(90, parseInt(rangeParam || "30", 10)));
 
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountId);
   let accountQuery = supabase
     .from("connected_accounts")
     .select("*")
-    .eq("account_id", accountId)
     .eq("platform", "facebook")
     .eq("is_connected", true);
+  if (isUuid) {
+    accountQuery = accountQuery.eq("id", accountId);
+  } else {
+    accountQuery = accountQuery.eq("account_id", accountId);
+  }
   if (sessionUserId) accountQuery = accountQuery.eq("user_id", sessionUserId);
-  const { data: account, error: accountError } = await accountQuery.single();
+  const { data: account, error: accountError } = await accountQuery.maybeSingle();
 
   if (accountError || !account) {
     return new Response(

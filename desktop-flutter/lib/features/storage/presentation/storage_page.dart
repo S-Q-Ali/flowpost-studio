@@ -65,6 +65,12 @@ class _StoragePageState extends ConsumerState<StoragePage>
   }
 
   Future<void> _loadDrive() async {
+    if (_selectedDriveAccountId == null) {
+      final driveAccounts = ref.read(driveAccountsProvider);
+      if (driveAccounts.isNotEmpty) {
+        _selectedDriveAccountId = driveAccounts.first.accountId;
+      }
+    }
     final accountId = _selectedDriveAccountId;
     if (accountId == null) return;
     setState(() => _loadingDrive = true);
@@ -83,6 +89,12 @@ class _StoragePageState extends ConsumerState<StoragePage>
   }
 
   Future<void> _loadMega() async {
+    if (_selectedMegaAccountId == null) {
+      final megaAccounts = ref.read(megaAccountsProvider);
+      if (megaAccounts.isNotEmpty) {
+        _selectedMegaAccountId = megaAccounts.first.accountId;
+      }
+    }
     final accountId = _selectedMegaAccountId;
     if (accountId == null) return;
     setState(() => _loadingMega = true);
@@ -103,6 +115,24 @@ class _StoragePageState extends ConsumerState<StoragePage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(driveAccountsProvider, (_, next) {
+      if (next.isNotEmpty &&
+          (_selectedDriveAccountId == null ||
+              !next.any((a) => a.accountId == _selectedDriveAccountId))) {
+        setState(() => _selectedDriveAccountId = next.first.accountId);
+        _loadDrive();
+      }
+    });
+
+    ref.listen(megaAccountsProvider, (_, next) {
+      if (next.isNotEmpty &&
+          (_selectedMegaAccountId == null ||
+              !next.any((a) => a.accountId == _selectedMegaAccountId))) {
+        setState(() => _selectedMegaAccountId = next.first.accountId);
+        _loadMega();
+      }
+    });
+
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final driveAccounts = ref.watch(driveAccountsProvider);

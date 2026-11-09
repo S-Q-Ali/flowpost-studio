@@ -1,6 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.0";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3";
-import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 import { createRequestAuthorizer, createSessionLookup } from "../_shared/auth.ts";
 import { readSecrets, SecretProblem } from "../_shared/secrets.ts";
 import {
@@ -155,23 +154,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    const uploadUrl = await getSignedUrl(bucket.client, new PutObjectCommand({
-      Bucket: bucket.bucket,
-      Key: key,
-      ContentType: file.type,
-    }), { expiresIn: 3600 });
-
-    const putRes = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Type": file.type },
-      body: file.stream(),
-      // @ts-expect-error duplex required for streaming request body
-      duplex: "half",
-    });
-
-    if (!putRes.ok) {
-      throw new Error(`R2 upload failed: ${putRes.status}`);
-    }
+    const fileBytes = new Uint8Array(await file.arrayBuffer());
+    await bucket.client.send(
+      new PutObjectCommand({
+        Bucket: bucket.bucket,
+        Key: key,
+        ContentType: file.type,
+        ContentLength: file.size,
+        Body: fileBytes,
+      }),
+    );
 
     // Insert video record
     const { data: video, error: videoError } = await supabase

@@ -52,9 +52,15 @@ class CaptionGenerator {
     for (final frame in outputs.frames) {
       frames.add('data:image/jpeg;base64,${await _base64(frame)}');
     }
-    final description = frames.isEmpty
-        ? ''
-        : await api.describeFrames(frames: frames);
+    String description = '';
+    if (frames.isNotEmpty) {
+      try {
+        description = await api.describeFrames(frames: frames);
+      } catch (_) {
+        // Fall back gracefully to audio transcript alone so visual errors don't block captions
+        description = '';
+      }
+    }
 
     report(CaptionStage.generatingCaptions, 0.8, 'Creating captions...');
     final captions = await api.generateCaptions(

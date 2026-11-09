@@ -120,16 +120,38 @@ class CaptionsClient implements CaptionsApi {
     required String userMessage,
     List<String> platforms = const [],
   }) async {
-    final reply = await _post({
-      'mode': 'groq-chat',
-      'model': _captionModel,
-      'messages': [
-        {'role': 'system', 'content': systemPrompt},
-        {'role': 'user', 'content': userMessage},
-      ],
-      'temperature': 0.7,
-      'max_tokens': 4096,
-    });
+    CaptionReply reply;
+    try {
+      reply = await _post({
+        'mode': 'groq-chat',
+        'model': _captionModel,
+        'messages': [
+          {'role': 'system', 'content': systemPrompt},
+          {'role': 'user', 'content': userMessage},
+        ],
+        'temperature': 0.7,
+        'max_tokens': 4096,
+      });
+    } catch (e) {
+      if (e is CaptionException &&
+          (e.message.contains('does not exist') ||
+              e.message.contains('access') ||
+              e.message.contains('not allowed') ||
+              e.message.contains('decommissioned'))) {
+        reply = await _post({
+          'mode': 'groq-chat',
+          'model': 'llama-3.1-8b-instant',
+          'messages': [
+            {'role': 'system', 'content': systemPrompt},
+            {'role': 'user', 'content': userMessage},
+          ],
+          'temperature': 0.7,
+          'max_tokens': 4096,
+        });
+      } else {
+        rethrow;
+      }
+    }
     final captions = parseCaptionJson(_chatContent(reply));
     final allowed = allowedCaptionKeys(platforms);
     if (allowed == null) return captions;
