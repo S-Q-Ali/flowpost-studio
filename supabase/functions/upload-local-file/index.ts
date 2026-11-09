@@ -130,7 +130,8 @@ Deno.serve(async (req) => {
     const extension = uploadExtension(file.name);
     const objectName = idempotencyKey ?? crypto.randomUUID();
     const key = buildUploadObjectKey(userId, objectName, extension);
-    const r2Url = `https://${bucket.publicUrl}/${key}`;
+    const cleanPublicUrl = bucket.publicUrl.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    const r2Url = `https://${cleanPublicUrl}/${key}`;
 
     // A retry after an ambiguous failure must not create a second object:
     // the same key points at the same place, and the row of the first

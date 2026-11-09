@@ -75,13 +75,6 @@ Deno.serve(async (req) => {
   try {
     const body = (await req.json()) as Partial<PostStoryPayload>;
 
-    if (!body.platform) {
-      return json({ error: "platform is required" }, 400);
-    }
-    if (body.platform !== "facebook" && body.platform !== "instagram") {
-      return json({ error: "Invalid platform" }, 400);
-    }
-    platform = body.platform;
     postId = body.postId;
     mediaTypeInput = body.mediaType;
 
@@ -92,13 +85,22 @@ Deno.serve(async (req) => {
     if (postId) {
       const { data: storyPost } = await supabase
         .from("posts")
-        .select("video_id, account_id, user_id, status")
+        .select("video_id, account_id, user_id, status, platform")
         .eq("id", postId)
         .single();
 
       if (!storyPost) {
         return json({ error: "Post not found" }, 404);
       }
+
+      const postPlatform = body.platform || storyPost.platform;
+      if (!postPlatform) {
+        return json({ error: "platform is required" }, 400);
+      }
+      if (postPlatform !== "facebook" && postPlatform !== "instagram") {
+        return json({ error: "Invalid platform" }, 400);
+      }
+      platform = postPlatform as SupportedPlatform;
 
       const access = checkPostAccess(auth, storyPost);
       if (!access.ok) return json({ error: access.error }, access.status);
@@ -139,13 +141,24 @@ Deno.serve(async (req) => {
           return json({ error: "Video URL not found" }, 404);
         }
 
-        const { data: acc } = await supabase
+        let { data: acc } = await supabase
           .from("connected_accounts")
           .select("access_token, token_expiry")
           .eq("user_id", storyPost.user_id)
           .eq("account_id", storyPost.account_id)
           .eq("platform", platform)
-          .single();
+          .maybeSingle();
+
+        if (!acc) {
+          const { data: accByUuid } = await supabase
+            .from("connected_accounts")
+            .select("access_token, token_expiry")
+            .eq("user_id", storyPost.user_id)
+            .eq("id", storyPost.account_id)
+            .eq("platform", platform)
+            .maybeSingle();
+          acc = accByUuid;
+        }
 
         if (!acc?.access_token) {
           await fail();
@@ -280,12 +293,21 @@ Deno.serve(async (req) => {
       // host, everything else through the Facebook app.
       let igBaseUrl = FACEBOOK_GRAPH_BASE;
       try {
-        const { data: igAccount } = await supabase
+        let { data: igAccount } = await supabase
           .from("connected_accounts")
           .select("metadata")
           .eq("account_id", accountId)
           .eq("platform", "instagram")
-          .single();
+          .maybeSingle();
+        if (!igAccount) {
+          const { data: igAccountByUuid } = await supabase
+            .from("connected_accounts")
+            .select("metadata")
+            .eq("id", accountId)
+            .eq("platform", "instagram")
+            .maybeSingle();
+          igAccount = igAccountByUuid;
+        }
         igBaseUrl = metaGraphBase((igAccount as any)?.metadata);
       } catch { /* the Facebook app serves the token either way */ }
 
@@ -326,9 +348,9 @@ Deno.serve(async (req) => {
         await new Promise((r) => setTimeout(r, 2000));
 
         const statusRes = await fetch(
-          `${igBaseUrl}/${container.id}?fields=status_code&access_token=${accessToken}`
+          `${igBaseUrl}/${container.id}?fields=status_code,status&access_token=${accessToken}`
         );
-        const statusData = await statusRes.json() as { status_code?: string; error?: { message: string } };
+        const statusData = await statusRes.json() as { status_code?: string; status?: string; error?: { message: string } };
 
         if (statusData?.status_code === "FINISHED") {
           containerReady = true;
@@ -336,7 +358,8 @@ Deno.serve(async (req) => {
         }
 
         if (statusData?.status_code === "ERROR") {
-          throw new Error(`Container processing failed: ${statusData?.error?.message || "unknown"}`);
+          const detail = statusData?.status || statusData?.error?.message || "unknown";
+          throw new Error(`Instagram story container processing failed: ${detail}`);
         }
 
         console.log(`Container status check ${i + 1}/${MAX_POLL_ATTEMPTS}: ${statusData?.status_code || "unknown"}`);

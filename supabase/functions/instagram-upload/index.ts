@@ -129,16 +129,28 @@ Deno.serve(async (req) => {
       claimed_at: null,
     });
 
-    const { data: account, error: accountError } = await supabase
+    let { data: account, error: accountError } = await supabase
       .from("connected_accounts")
       .select("*")
       .eq("user_id", post.user_id)
       .eq("platform", "instagram")
       .eq("account_id", post.account_id)
       .eq("is_connected", true)
-      .single();
+      .maybeSingle();
 
-    if (accountError || !account?.access_token) {
+    if (!account) {
+      const { data: accountByUuid } = await supabase
+        .from("connected_accounts")
+        .select("*")
+        .eq("user_id", post.user_id)
+        .eq("platform", "instagram")
+        .eq("id", post.account_id)
+        .eq("is_connected", true)
+        .maybeSingle();
+      account = accountByUuid;
+    }
+
+    if (!account?.access_token) {
       await fail();
       return json({ error: "Connected Instagram account not found" }, 404);
     }
@@ -262,7 +274,7 @@ Deno.serve(async (req) => {
         }
 
         const statusRes = await fetch(
-          `${igBaseUrl}/${containerId}?fields=status_code&access_token=${accessToken}`,
+          `${igBaseUrl}/${containerId}?fields=status_code,status&access_token=${accessToken}`,
         );
         const statusData = await statusRes.json() as Record<string, unknown>;
 
@@ -278,9 +290,15 @@ Deno.serve(async (req) => {
           if (publishResult?.id) { console.log("Carousel publish succeeded:", JSON.stringify(publishResult)); break; }
           console.log(`Carousel publish attempt ${attempt + 1} failed:`, JSON.stringify(publishResult));
           if (publishResult.error) break;
+        } else if (statusData.status_code === "ERROR") {
+          const errorDetail = (statusData.status as string) || (statusData.error as any)?.message || "Instagram carousel processing failed";
+          console.error("Carousel container failed:", errorDetail);
+          await fail();
+          return json({ error: `Instagram carousel processing failed: ${errorDetail}` }, 502);
         } else if (statusData.status_code === "EXPIRED") {
           console.error("Carousel container expired");
-          break;
+          await fail();
+          return json({ error: "Instagram carousel container expired" }, 502);
         } else {
           console.log(`Carousel status: ${statusData.status_code || JSON.stringify(statusData)} (attempt ${attempt + 1})`);
         }
@@ -348,9 +366,11 @@ Deno.serve(async (req) => {
 
     console.log("Container created:", container.id);
 
-    const MAX_POLL_ATTEMPTS = 10;
-    const POLL_INTERVAL = 12000;
+    const MAX_POLL_ATTEMPTS = 20;
+    const POLL_INTERVAL = 10000;
     let publishResult: Record<string, unknown> | null = null;
+    let lastStatusCode: string | null = null;
+    let lastStatusDetail: string | null = null;
 
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
       if (attempt > 0) {
@@ -359,9 +379,11 @@ Deno.serve(async (req) => {
       }
 
       const statusRes = await fetch(
-        `${igBaseUrl}/${container.id}?fields=status_code&access_token=${accessToken}`,
+        `${igBaseUrl}/${container.id}?fields=status_code,status&access_token=${accessToken}`,
       );
       const statusData = await statusRes.json() as Record<string, unknown>;
+      lastStatusCode = (statusData.status_code as string) ?? null;
+      lastStatusDetail = (statusData.status as string) ?? (statusData.error as any)?.message ?? null;
 
       if (statusData.status_code === "FINISHED") {
         const publishForm = new URLSearchParams();
@@ -387,18 +409,25 @@ Deno.serve(async (req) => {
           console.error("Non-retryable publish error, giving up");
           break;
         }
+      } else if (statusData.status_code === "ERROR") {
+        const errorDetail = lastStatusDetail || "Instagram video processing failed";
+        console.error("Instagram container failed:", errorDetail);
+        await fail();
+        return json({ error: `Instagram video processing failed: ${errorDetail}` }, 502);
       } else if (statusData.status_code === "EXPIRED") {
         console.error("Container expired");
-        break;
+        await fail();
+        return json({ error: "Instagram container expired" }, 502);
       } else {
         console.log(`Container status: ${statusData.status_code || JSON.stringify(statusData)} (attempt ${attempt + 1})`);
       }
     }
 
     if (!publishResult?.id) {
-      console.error("Publish failed after 10 attempts");
+      console.error(`Publish failed after ${MAX_POLL_ATTEMPTS} attempts`);
       await fail();
-      return json({ error: `Publish failed after 10 attempts: ${JSON.stringify(publishResult)}` }, 502);
+      const failDetail = lastStatusDetail || lastStatusCode || JSON.stringify(publishResult);
+      return json({ error: `Instagram publish timed out (status: ${failDetail})` }, 502);
     }
 
     if (!await publish()) {

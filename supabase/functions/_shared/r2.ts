@@ -32,6 +32,6 @@ export async function readR2Config(
     accessKey: values.R2_ACCESS_KEY,
     secretKey: values.R2_SECRET_KEY,
     bucket: values.R2_BUCKET,
-    publicUrl: values.R2_PUBLIC_URL,
+    publicUrl: values.R2_PUBLIC_URL?.replace(/^https?:\/\//i, "").replace(/\/+$/, "") ?? "",
   };
 }
