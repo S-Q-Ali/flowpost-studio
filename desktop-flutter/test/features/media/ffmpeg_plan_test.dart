@@ -203,13 +203,19 @@ void main() {
       }
     });
 
-    test('the remux copies streams and starts the file early', () {
+    test('the remux copies video stream, sanitizes audio, and starts early', () {
       final command = remuxArguments(
         sourcePath: r'C:\clips\a.mp4',
         outputPath: r'C:\jobs\1\normalized.mp4',
       );
 
-      expect(command, containsAllInOrder(['-c', 'copy']));
+      expect(command, containsAllInOrder(['-c:v', 'copy']));
+      expect(
+        command,
+        containsAllInOrder(
+          ['-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2'],
+        ),
+      );
       expect(command, containsAllInOrder(['-movflags', '+faststart']));
       expect(command.last, r'C:\jobs\1\normalized.mp4');
     });

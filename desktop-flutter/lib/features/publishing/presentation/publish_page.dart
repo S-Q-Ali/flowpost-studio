@@ -981,6 +981,24 @@ class _CreatorControls extends ConsumerWidget {
                   .read(publishSelectionProvider.notifier)
                   .setShareToFeed(v),
             ),
+            const SizedBox(height: 8),
+            TextFormField(
+              initialValue: selection.thumbOffsetMs != null
+                  ? (selection.thumbOffsetMs! / 1000).toString()
+                  : '',
+              decoration: const InputDecoration(
+                labelText: 'Instagram: Cover Frame Offset (seconds)',
+                border: OutlineInputBorder(),
+                helperText: 'Pick video timestamp for cover thumbnail (e.g. 1.5)',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (v) {
+                final sec = double.tryParse(v.trim());
+                ref
+                    .read(publishSelectionProvider.notifier)
+                    .setThumbOffsetMs(sec != null ? (sec * 1000).round() : null);
+              },
+            ),
           ],
           if (hasYt) ...[
             const Divider(),
