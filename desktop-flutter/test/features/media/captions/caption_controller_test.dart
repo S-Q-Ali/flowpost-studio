@@ -4,6 +4,7 @@ import 'package:flowpost_desktop/features/media/captions/captions_providers.dart
 import 'package:flowpost_desktop/features/media/captions/data/caption_generator.dart';
 import 'package:flowpost_desktop/features/media/captions/data/captions_client.dart';
 import 'package:flowpost_desktop/features/media/captions/domain/caption_processing.dart';
+import 'package:flowpost_desktop/features/media/captions/domain/caption_prompt.dart';
 import 'package:flowpost_desktop/features/media/domain/media_job.dart';
 import 'package:flowpost_desktop/features/media/domain/media_validation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,6 +50,7 @@ class _FakeGenerator extends CaptionGenerator {
   Future<CaptionResult> generate({
     required MediaJob job,
     List<String> platforms = const [],
+    MasterPrompt? customPrompt,
     CaptionProgressCallback? onProgress,
   }) async {
     this.platforms = platforms;
@@ -76,6 +78,7 @@ class _PendingGenerator extends CaptionGenerator {
   Future<CaptionResult> generate({
     required MediaJob job,
     List<String> platforms = const [],
+    MasterPrompt? customPrompt,
     CaptionProgressCallback? onProgress,
   }) {
     onProgress?.call(

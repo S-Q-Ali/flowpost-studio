@@ -13,6 +13,8 @@ import '../../../core/theme/theme_controller.dart';
 import '../../../core/update/app_version.dart';
 import '../../license/data/license_models.dart';
 import '../../license/license_controller.dart';
+import '../../media/captions/data/prompt_store.dart';
+import '../../media/captions/domain/caption_prompt.dart';
 import '../settings_providers.dart';
 import 'credentials_form.dart';
 
@@ -44,6 +46,8 @@ class SettingsPage extends ConsumerWidget {
                 const _LicenseSection(),
                 const SizedBox(height: 16),
                 const _CredentialsSection(),
+                const SizedBox(height: 16),
+                const _AiPromptSection(),
                 const SizedBox(height: 16),
                 const _SetupSection(),
                 const SizedBox(height: 16),
@@ -682,6 +686,122 @@ class _AboutSection extends StatelessWidget {
           Text('FlowPost Studio', style: theme.textTheme.titleMedium),
           const SizedBox(height: 4),
           const Text('The desktop companion to the FlowPost dashboard.'),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiPromptSection extends ConsumerStatefulWidget {
+  const _AiPromptSection();
+
+  @override
+  ConsumerState<_AiPromptSection> createState() => _AiPromptSectionState();
+}
+
+class _AiPromptSectionState extends ConsumerState<_AiPromptSection> {
+  late TextEditingController _rulesController;
+  late TextEditingController _instructionsController;
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _rulesController = TextEditingController();
+    _instructionsController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _rulesController.dispose();
+    _instructionsController.dispose();
+    super.dispose();
+  }
+
+  void _syncWithPrompt(MasterPrompt prompt) {
+    _rulesController.text = prompt.strictRules;
+    _instructionsController.text = prompt.generationInstruction;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activePrompt = ref.watch(activePromptProvider);
+    if (!_initialized) {
+      _syncWithPrompt(activePrompt);
+      _initialized = true;
+    }
+
+    final theme = Theme.of(context);
+
+    return _Section(
+      title: 'AI Caption & SEO Strategy Prompt',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Customize how Groq AI writes your hooks, titles, SEO descriptions and hashtags for any video.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _instructionsController,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Generation Goal / Strategy Instruction',
+              border: OutlineInputBorder(),
+              helperText: 'Overall directive for tone, focus, and SEO discoverability.',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _rulesController,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              labelText: 'Strict Platform Rules & Formatting',
+              border: OutlineInputBorder(),
+              helperText: 'Character limits, hook constraints, CTA requirements, and hashtag tiers.',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              FilledButton.icon(
+                onPressed: () async {
+                  final newPrompt = MasterPrompt(
+                    strictRules: _rulesController.text.trim(),
+                    outputFormat: activePrompt.outputFormat,
+                    exampleOutput: activePrompt.exampleOutput,
+                    hashtags: activePrompt.hashtags,
+                    generationInstruction: _instructionsController.text.trim(),
+                  );
+                  final ok = await ref.read(activePromptProvider.notifier).updatePrompt(newPrompt);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(ok ? 'Custom AI strategy prompt saved!' : 'Failed to save prompt.')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Save Prompt'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await ref.read(activePromptProvider.notifier).resetToDefault();
+                  _syncWithPrompt(defaultMasterPrompt);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Reset to viral SEO fallback prompt!')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.restart_alt_outlined),
+                label: const Text('Reset to SEO Default'),
+              ),
+            ],
+          ),
         ],
       ),
     );

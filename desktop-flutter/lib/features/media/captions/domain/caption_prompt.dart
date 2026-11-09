@@ -34,29 +34,30 @@ class MasterPrompt {
 /// The same text as `getDefaultMasterPrompt()` in `src/lib/prompt-templates.ts`.
 const MasterPrompt defaultMasterPrompt = MasterPrompt(
   strictRules:
-      'YouTube titles max 60 characters. Descriptions 2-3 sentences. '
-      'Facebook/Instagram/TikTok captions max 150 characters. LinkedIn '
-      'captions max 300 characters. Include 3-5 relevant hashtags. Use the '
-      'transcript to identify key moments. Match the tone of the video '
-      'content.',
+      'YouTube: High-CTR title strictly under 60 characters (no mobile truncation). '
+      'YouTube description: First 2 lines high-intent SEO search keywords, followed by core bullet takeaways, ending with #Shorts. '
+      'Instagram/Facebook: First line MUST be a scroll-stopping hook under 125 characters (before the "...more" fold). '
+      'Use crisp paragraph breaks, tasteful emojis, and a clear CTA (e.g. "Save this", "Share thoughts"). '
+      'Include 5-8 targeted hashtags (niche, broad, trending). '
+      'TikTok: Ultra-punchy under 120 characters with 3 viral tags. '
+      'LinkedIn: Professional contrarian or strategic takeaway with discussion prompt.',
   outputFormat:
       'Return a JSON object with exactly these keys: yt_video_title (string), '
       'yt_video_description (string), fb_ig_caption (string), tiktok_caption '
       '(string), linkedin_caption (string), hashtags (string).',
   exampleOutput: '''
 {
-  "yt_video_title": "Amazing Video Title Here",
-  "yt_video_description": "Description with 2-3 sentences about the video content.",
-  "fb_ig_caption": "Engaging caption for Facebook and Instagram with emojis and CTAs.",
-  "tiktok_caption": "Short punchy TikTok caption with relevant hashtags.",
-  "linkedin_caption": "Professional LinkedIn caption with insights and takeaways.",
-  "hashtags": "#Topic #Category #Relevant #Trending"
+  "yt_video_title": "Stop Doing This! The Secret That Changes Everything",
+  "yt_video_description": "Discover the essential insight that transformed our approach. In this video, we break down key principles step by step.\\n\\nKey Takeaways:\\n• Why standard methods fail\\n• The one shift you must make\\n\\n#Shorts #Viral #Tips #Strategy",
+  "fb_ig_caption": "Most people get this completely backwards... 🤯\\n\\nHere is the exact framework to fix it today.\\n\\nDrop a 🔥 below if this helped and save for later!\\n\\n#ContentCreator #DigitalGrowth #ProTips #Trending #Reels",
+  "tiktok_caption": "Wait till the end... you won't believe this 🤯 #fyp #trending #viral #lifehack",
+  "linkedin_caption": "The most common mistake teams make early on—and how to overcome it.\\n\\n3 actionable takeaways:\\n1. Focus on core value\\n2. Automate repetitive tasks\\n3. Measure what truly matters\\n\\nWhat is your team's approach? Share below.",
+  "hashtags": "#Viral #Trending #Creator #Reels #Growth #Tips"
 }''',
-  hashtags: '#Content #Video #Trending #Viral #Creator',
+  hashtags: '#Viral #Trending #Creator #Reels #Growth #Tips',
   generationInstruction:
-      'Generate platform-optimized captions based on the video transcript. '
-      'Adapt the tone to each platform\'s style while keeping the core '
-      'message consistent.',
+      'Analyze the audio transcript and visuals. Generate high-retention, SEO-optimized, '
+      'platform-native captions that maximize watch time, engagement, and click-through rate.',
 );
 
 /// The caption keys each platform accepts.

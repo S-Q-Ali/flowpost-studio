@@ -296,6 +296,67 @@ class PublishComposer extends Notifier<PublishSelection> {
     _update(state.copyWith(youtubeTitle: title));
   }
 
+  void selectAll(List<PublishTarget> targets) {
+    final ids = Set<String>.from(state.targetIds);
+    final captions = Map<String, String>.from(state.captions);
+    final aiCaptions = Map<String, String>.from(state.aiCaptions);
+    var title = state.youtubeTitle;
+    for (final target in targets) {
+      if (!ids.contains(target.id)) {
+        ids.add(target.id);
+        final aiCaption = _aiCaption(target);
+        captions[target.id] = aiCaption;
+        if (aiCaption.isNotEmpty) aiCaptions[target.id] = aiCaption;
+        if (target.platform == PublishPlatform.youtube && title.isEmpty) {
+          title = _aiTitle();
+        }
+      }
+    }
+    _update(
+      state.copyWith(
+        targetIds: ids,
+        captions: captions,
+        aiCaptions: aiCaptions,
+        youtubeTitle: title,
+      ),
+    );
+  }
+
+  void deselectAll() {
+    _update(
+      state.copyWith(
+        targetIds: const {},
+        captions: const {},
+        aiCaptions: const {},
+        youtubeTitle: '',
+      ),
+    );
+  }
+
+  void setContainsAlteredContent(bool value) {
+    _update(state.copyWith(containsAlteredContent: value));
+  }
+
+  void setShareToFeed(bool value) {
+    _update(state.copyWith(shareToFeed: value));
+  }
+
+  void setThumbOffsetMs(int? ms) {
+    _update(state.copyWith(thumbOffsetMs: ms));
+  }
+
+  void setMadeForKids(bool value) {
+    _update(state.copyWith(madeForKids: value));
+  }
+
+  void setNotifySubscribers(bool value) {
+    _update(state.copyWith(notifySubscribers: value));
+  }
+
+  void setYoutubeTags(String tags) {
+    _update(state.copyWith(youtubeTags: tags));
+  }
+
   /// Switches between publishing now and publishing at a time.
   ///
   /// The schedule starts at the next full hour, so the field is never empty

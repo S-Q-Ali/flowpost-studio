@@ -7,6 +7,8 @@ import '../../../core/providers/app_providers.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/time_zone.dart';
+import '../../media/captions/captions_providers.dart';
+import '../../media/media_providers.dart';
 import '../../offline/connectivity.dart';
 import '../../offline/offline_providers.dart';
 import '../domain/publish_selection.dart';
@@ -83,13 +85,42 @@ class PublishPage extends ConsumerWidget {
                       ),
                     ),
                 ] else ...[
-                  Text('Platforms', style: theme.textTheme.titleSmall),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text('Platforms', style: theme.textTheme.titleSmall),
+                      Wrap(
+                        spacing: 4,
+                        children: [
+                          TextButton(
+                            onPressed: () => ref
+                                .read(publishSelectionProvider.notifier)
+                                .selectAll(targets),
+                            child: const Text('Select all'),
+                          ),
+                          TextButton(
+                            onPressed: () => ref
+                                .read(publishSelectionProvider.notifier)
+                                .deselectAll(),
+                            child: const Text('Deselect all'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
                   for (final target in targets)
                     _TargetTile(
                       target: target,
                       selected: selection.targetIds.contains(target.id),
                     ),
+                  if (selected.isNotEmpty && state is PublishIdle) ...[
+                    const SizedBox(height: 16),
+                    _SmartAiCaptionButton(selectedTargets: selected),
+                  ],
                   const SizedBox(height: 16),
                   for (final target in selected)
                     _CaptionSection(
@@ -101,6 +132,13 @@ class PublishPage extends ConsumerWidget {
                     (target) => target.platform == PublishPlatform.youtube,
                   )) ...[
                     _TitleField(title: selection.youtubeTitle),
+                  ],
+                  if (selected.isNotEmpty && state is PublishIdle) ...[
+                    const SizedBox(height: 16),
+                    _CreatorControls(
+                      selection: selection,
+                      selectedTargets: selected,
+                    ),
                   ],
                   const SizedBox(height: 16),
                   _ModePicker(mode: selection.mode),
@@ -242,9 +280,68 @@ List<Widget> _statusSection(BuildContext context, PublishState state) {
     PublishDone(statuses: final statuses) => statuses,
   };
   if (statuses.isEmpty) return const [];
+
+  int completed = 0;
+  String currentTargetName = '';
+  for (final s in statuses) {
+    if (s.phase == PublishPhase.published ||
+        s.phase == PublishPhase.scheduled ||
+        s.phase == PublishPhase.failed) {
+      completed++;
+    } else if (s.phase == PublishPhase.publishing) {
+      currentTargetName = s.target.label;
+    }
+  }
+  final double progress =
+      statuses.isNotEmpty ? completed / statuses.length : 0.0;
+
   return [
     Text('Status', style: Theme.of(context).textTheme.titleSmall),
     const SizedBox(height: 8),
+    if (state is PublishRunning) ...[
+      Card(
+        elevation: 0,
+        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Publishing in progress ($completed of ${statuses.length} complete)...',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              LinearProgressIndicator(
+                value: progress > 0 ? progress : null,
+                minHeight: 6,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              if (currentTargetName.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Active target: $currentTargetName',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+    ],
     for (final status in statuses)
       Padding(
         padding: const EdgeInsets.only(bottom: 8),
@@ -716,6 +813,216 @@ class _StatusRow extends ConsumerWidget {
             ),
         ],
       ],
+    );
+  }
+}
+
+class _SmartAiCaptionButton extends ConsumerWidget {
+  const _SmartAiCaptionButton({
+    required this.selectedTargets,
+  });
+
+  final List<PublishTarget> selectedTargets;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (selectedTargets.isEmpty) return const SizedBox.shrink();
+
+    final captionState = ref.watch(captionControllerProvider);
+    final mediaState = ref.watch(mediaControllerProvider);
+    final job = mediaState is MediaReady ? mediaState.job : null;
+
+    final theme = Theme.of(context);
+    final isRunning = captionState is CaptionRunning;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          OutlinedButton.icon(
+            onPressed: isRunning || job == null
+                ? null
+                : () async {
+                    final platforms = selectedTargets
+                        .map((t) => t.platform.name)
+                        .toSet()
+                        .toList();
+
+                    await ref
+                        .read(captionControllerProvider.notifier)
+                        .generate(job, platforms: platforms);
+
+                    final updated = ref.read(captionControllerProvider);
+                    if (updated is CaptionReady) {
+                      final captions = updated.result.captions;
+                      for (final target in selectedTargets) {
+                        String? text;
+                        if (target.platform == PublishPlatform.youtube) {
+                          text = captions['yt_video_description'];
+                          final title = captions['yt_video_title'];
+                          if (title != null && title.isNotEmpty) {
+                            ref
+                                .read(publishSelectionProvider.notifier)
+                                .setYouTubeTitle(title);
+                          }
+                        } else if (target.platform == PublishPlatform.instagram ||
+                            target.platform == PublishPlatform.facebook) {
+                          final body = captions['fb_ig_caption'] ?? captions['caption'] ?? '';
+                          final tags = captions['hashtags'] ?? '';
+                          text = [body, tags].where((s) => s.isNotEmpty).join('\n\n');
+                        } else if (target.platform == PublishPlatform.tiktok) {
+                          final body = captions['tiktok_caption'] ?? '';
+                          final tags = captions['hashtags'] ?? '';
+                          text = [body, tags].where((s) => s.isNotEmpty).join('\n\n');
+                        }
+                        if (text != null && text.isNotEmpty) {
+                          ref
+                              .read(publishSelectionProvider.notifier)
+                              .setCaption(target.id, text);
+                        }
+                      }
+                    }
+                  },
+            icon: isRunning
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.auto_awesome, size: 16),
+            label: Text(
+              isRunning
+                  ? 'Writing captions...'
+                  : 'Generate AI Captions (${selectedTargets.length} platform${selectedTargets.length == 1 ? '' : 's'})',
+            ),
+          ),
+          if (captionState is CaptionRunning) ...[
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: captionState.progress.fraction > 0
+                  ? captionState.progress.fraction
+                  : null,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              captionState.progress.message,
+              style: theme.textTheme.bodySmall,
+            ),
+          ] else if (captionState is CaptionFailed) ...[
+            const SizedBox(height: 8),
+            Text(
+              captionState.message,
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CreatorControls extends ConsumerWidget {
+  const _CreatorControls({
+    required this.selection,
+    required this.selectedTargets,
+  });
+
+  final PublishSelection selection;
+  final List<PublishTarget> selectedTargets;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (selectedTargets.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final hasIg = selectedTargets.any((t) => t.platform == PublishPlatform.instagram);
+    final hasYt = selectedTargets.any((t) => t.platform == PublishPlatform.youtube);
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.2)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+        leading: Icon(Icons.tune, size: 20, color: theme.colorScheme.primary),
+        title: Text('Platform Options & AI Disclosure', style: theme.textTheme.titleSmall),
+        subtitle: selection.containsAlteredContent
+            ? Text('AI Content disclosed', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary))
+            : null,
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: const Icon(Icons.auto_awesome),
+            title: const Text('AI-Generated / Altered Content'),
+            subtitle: const Text(
+              'Discloses synthetic or AI-altered media to Instagram, Facebook and YouTube per platform policies.',
+            ),
+            value: selection.containsAlteredContent,
+            onChanged: (v) => ref
+                .read(publishSelectionProvider.notifier)
+                .setContainsAlteredContent(v),
+          ),
+          if (hasIg) ...[
+            const Divider(),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.grid_on),
+              title: const Text('Instagram: Share Reel to Profile Grid'),
+              subtitle: const Text(
+                'Shows the published Reel on your main profile feed as well as the Reels tab.',
+              ),
+              value: selection.shareToFeed,
+              onChanged: (v) => ref
+                  .read(publishSelectionProvider.notifier)
+                  .setShareToFeed(v),
+            ),
+          ],
+          if (hasYt) ...[
+            const Divider(),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.child_care),
+              title: const Text('YouTube: Made for Kids'),
+              subtitle: const Text(
+                'Mark whether this video is directed to children (COPPA).',
+              ),
+              value: selection.madeForKids,
+              onChanged: (v) => ref
+                  .read(publishSelectionProvider.notifier)
+                  .setMadeForKids(v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.notifications_active_outlined),
+              title: const Text('YouTube: Notify Subscribers'),
+              subtitle: const Text(
+                'Send notification to channel subscribers on publish.',
+              ),
+              value: selection.notifySubscribers,
+              onChanged: (v) => ref
+                  .read(publishSelectionProvider.notifier)
+                  .setNotifySubscribers(v),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              initialValue: selection.youtubeTags,
+              decoration: const InputDecoration(
+                labelText: 'YouTube SEO Tags',
+                border: OutlineInputBorder(),
+                helperText: 'Comma-separated search tags (e.g. tutorial, coding, flutter)',
+              ),
+              onChanged: (v) => ref
+                  .read(publishSelectionProvider.notifier)
+                  .setYoutubeTags(v),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

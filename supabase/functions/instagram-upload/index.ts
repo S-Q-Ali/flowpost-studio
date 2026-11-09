@@ -96,8 +96,8 @@ Deno.serve(async (req) => {
 
   try {
     const postQuery = isCarousel
-      ? supabase.from("posts").select("id, video_id, account_id, caption, status, platform, user_id, metadata, videos(*), carousel_items(id, video_id, sort_order, videos(*))").eq("id", postId).single()
-      : supabase.from("posts").select("id, video_id, account_id, caption, status, platform, user_id, metadata, videos(*)").eq("id", postId).single();
+      ? supabase.from("posts").select("id, video_id, account_id, caption, status, platform, user_id, metadata, contains_altered_content, videos(*), carousel_items(id, video_id, sort_order, videos(*))").eq("id", postId).single()
+      : supabase.from("posts").select("id, video_id, account_id, caption, status, platform, user_id, metadata, contains_altered_content, videos(*)").eq("id", postId).single();
 
     const { data: post, error: postError } = await postQuery;
 
@@ -247,6 +247,11 @@ Deno.serve(async (req) => {
       carouselForm.append("caption", caption);
       carouselForm.append("access_token", accessToken);
 
+      const isAi = (post as any).contains_altered_content === true || (post.metadata as any)?.is_ai_generated === true;
+      if (isAi) {
+        carouselForm.append("is_ai_generated", "true");
+      }
+
       const carouselRes = await fetch(
         `${igBaseUrl}/${igUserId}/media`,
         { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: carouselForm.toString() },
@@ -345,6 +350,36 @@ Deno.serve(async (req) => {
     }
     containerForm.append("caption", caption);
     containerForm.append("access_token", accessToken);
+
+    const isAi = (post as any).contains_altered_content === true || (post.metadata as any)?.is_ai_generated === true;
+    if (isAi) {
+      containerForm.append("is_ai_generated", "true");
+    }
+
+    if (!isImage) {
+      const shareToFeed = (post.metadata as any)?.share_to_feed;
+      if (shareToFeed !== undefined) {
+        containerForm.append("share_to_feed", String(shareToFeed));
+      }
+      const thumbOffset = (post.metadata as any)?.thumb_offset;
+      if (typeof thumbOffset === "number" && thumbOffset >= 0) {
+        containerForm.append("thumb_offset", String(Math.floor(thumbOffset)));
+      }
+      const coverUrl = (post.metadata as any)?.cover_url;
+      if (typeof coverUrl === "string" && coverUrl.startsWith("http")) {
+        containerForm.append("cover_url", coverUrl);
+      }
+      const collaborators = (post.metadata as any)?.collaborators;
+      if (Array.isArray(collaborators) && collaborators.length > 0) {
+        const cleanCollaborators = collaborators
+          .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
+          .map((c) => c.replace(/^@/, "").trim())
+          .slice(0, 3);
+        if (cleanCollaborators.length > 0) {
+          containerForm.append("collaborators", JSON.stringify(cleanCollaborators));
+        }
+      }
+    }
 
     const containerRes = await fetch(
       `${igBaseUrl}/${igUserId}/media`,

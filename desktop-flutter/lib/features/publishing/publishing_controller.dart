@@ -597,6 +597,33 @@ class PublishController extends Notifier<PublishState> {
   }) {
     final caption = (selection.captions[target.id] ?? '').trim();
     final title = selection.youtubeTitle.trim();
+    final isAi = selection.containsAlteredContent ||
+        selection.aiCaptionTargetIds.contains(target.id);
+
+    final Map<String, dynamic> metadata = {};
+    if (target.platform == PublishPlatform.youtube) {
+      if (title.isNotEmpty) metadata['youtube_video_title'] = title;
+      if (selection.youtubeTags.isNotEmpty) {
+        metadata['tags'] = selection.youtubeTags
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList();
+      }
+      if (selection.madeForKids) metadata['made_for_kids'] = true;
+      if (!selection.notifySubscribers) metadata['notify_subscribers'] = false;
+      if (isAi) metadata['contains_altered_content'] = true;
+    } else if (target.platform == PublishPlatform.instagram) {
+      if (!selection.shareToFeed) metadata['share_to_feed'] = false;
+      if (isAi) metadata['is_ai_generated'] = true;
+      if (selection.thumbOffsetMs != null) {
+        metadata['thumb_offset'] = selection.thumbOffsetMs;
+      }
+    } else if (target.platform == PublishPlatform.facebook) {
+      if (title.isNotEmpty) metadata['facebook_video_title'] = title;
+      if (isAi) metadata['is_ai_generated'] = true;
+    }
+
     return PostDraft(
       id: id,
       videoId: videoId,
@@ -607,10 +634,8 @@ class PublishController extends Notifier<PublishState> {
       status: when == null ? 'processing' : 'scheduled',
       caption: caption.isEmpty ? null : caption,
       hashtags: null,
-      containsAlteredContent: selection.aiCaptionTargetIds.contains(target.id),
-      metadata: target.platform == PublishPlatform.youtube && title.isNotEmpty
-          ? {'youtube_video_title': title}
-          : null,
+      containsAlteredContent: isAi,
+      metadata: metadata.isEmpty ? null : metadata,
     );
   }
 }

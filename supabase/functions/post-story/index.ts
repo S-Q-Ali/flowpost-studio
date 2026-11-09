@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     if (postId) {
       const { data: storyPost } = await supabase
         .from("posts")
-        .select("video_id, account_id, user_id, status, platform")
+        .select("video_id, account_id, user_id, status, platform, contains_altered_content, metadata")
         .eq("id", postId)
         .single();
 
@@ -312,9 +312,11 @@ Deno.serve(async (req) => {
       } catch { /* the Facebook app serves the token either way */ }
 
       const isImageStory = mediaTypeInput === "image";
+      const isAiStory = (storyPost as any)?.contains_altered_content === true || ((storyPost as any)?.metadata as any)?.is_ai_generated === true;
       const storyBody: Record<string, unknown> = {
         media_type: "STORIES",
         access_token: accessToken,
+        ...(isAiStory ? { is_ai_generated: true } : {}),
       };
       if (isImageStory) {
         storyBody.image_url = videoUrl;

@@ -5,6 +5,7 @@ import '../../../core/providers/app_providers.dart';
 import '../domain/media_job.dart';
 import 'data/caption_generator.dart';
 import 'data/captions_client.dart';
+import 'data/prompt_store.dart';
 import 'domain/caption_processing.dart';
 
 /// The client the caption service is called with.
@@ -75,11 +76,13 @@ class CaptionController extends Notifier<CaptionState> {
       ),
     );
     try {
+      final activePrompt = ref.read(activePromptProvider);
       final result = await ref
           .read(captionGeneratorProvider)
           .generate(
             job: job,
             platforms: platforms,
+            customPrompt: activePrompt,
             onProgress: (progress) {
               if (run == _run) state = CaptionRunning(progress);
             },

@@ -22,6 +22,7 @@ class CaptionGenerator {
   Future<CaptionResult> generate({
     required MediaJob job,
     List<String> platforms = const [],
+    MasterPrompt? customPrompt,
     CaptionProgressCallback? onProgress,
   }) async {
     final outputs = job.outputs;
@@ -66,7 +67,7 @@ class CaptionGenerator {
     final captions = await api.generateCaptions(
       systemPrompt: buildSystemPrompt(
         fileName: job.displayName,
-        prompt: defaultMasterPrompt,
+        prompt: customPrompt ?? defaultMasterPrompt,
         platforms: platforms,
       ),
       userMessage: buildUserMessage(
