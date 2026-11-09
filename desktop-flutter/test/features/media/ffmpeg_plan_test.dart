@@ -226,7 +226,7 @@ void main() {
       expect(command, containsAllInOrder(['-pix_fmt', 'yuv420p']));
       expect(command, containsAllInOrder(['-c:a', 'aac']));
       expect(command, containsAllInOrder(['-ar', '48000']));
-      expect(command, contains('-shortest'));
+      expect(command, containsAllInOrder(['-g', '60']));
       expect(command, containsAllInOrder(['-movflags', '+faststart']));
     });
 

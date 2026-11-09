@@ -99,7 +99,6 @@ List<String> encodeArguments({
   '48000',
   '-ac',
   '2',
-  '-shortest',
   '-movflags',
   '+faststart',
   '-map_metadata',

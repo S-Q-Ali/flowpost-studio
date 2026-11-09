@@ -341,11 +341,11 @@ Deno.serve(async (req) => {
         throw new Error(redactTokens(containerResText));
       }
 
-      // Poll container status until ready — 20 attempts for Instagram
-      const MAX_POLL_ATTEMPTS = 20;
+      // Poll container status until ready — 30 attempts at 5s interval (150s max)
+      const MAX_POLL_ATTEMPTS = 30;
       let containerReady = false;
       for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 5000));
 
         const statusRes = await fetch(
           `${igBaseUrl}/${container.id}?fields=status_code,status&access_token=${accessToken}`
