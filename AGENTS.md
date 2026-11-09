@@ -19,6 +19,10 @@ skill that points at the web app.
 - An audit may still report a defect that only exists in web code; name it, but
   do not touch `src/` unless the owner asks for web work in that same request.
 
+
+## Language & Communication Rule
+
+- ALWAYS communicate with the user in Roman Urdu / Hinglish. Never reply in Urdu script (Nastaliq/Arabic script) unless explicitly requested by the user.
 ## Core Rules
 
 - If a task matches a skill, invoke it with the `skill` tool before acting.
