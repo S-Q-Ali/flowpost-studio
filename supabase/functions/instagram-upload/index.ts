@@ -175,9 +175,7 @@ Deno.serve(async (req) => {
         return await fileProxyUrl({ megaUrl }, post.user_id);
       }
       if (driveDownloadUrl && googleAccessToken) {
-        if (R2_PUBLIC_URL && videoFileUrl?.includes(R2_PUBLIC_URL)) {
-          return videoFileUrl;
-        }
+        // Direct Google Drive streaming via proxy (zero-R2 dependency)
         // Extract file ID from stored file_url to construct download URL
         const fileIdMatch = videoFileUrl.match(/\/d\/([^/]+)/) || driveDownloadUrl.match(/\/d\/([^/]+)/);
         const fileId = fileIdMatch?.[1];

@@ -210,10 +210,11 @@ void main() {
       );
 
       expect(command, containsAllInOrder(['-c:v', 'copy']));
+      expect(command, containsAllInOrder(['-err_detect', 'ignore_err']));
       expect(
         command,
         containsAllInOrder(
-          ['-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2'],
+          ['-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2', '-af', 'aresample=async=1000'],
         ),
       );
       expect(command, containsAllInOrder(['-movflags', '+faststart']));
@@ -227,6 +228,8 @@ void main() {
       );
 
       expect(command, containsAllInOrder(['-c:v', 'libopenh264']));
+      expect(command, containsAllInOrder(['-err_detect', 'ignore_err']));
+      expect(command, containsAllInOrder(['-af', 'aresample=async=1000']));
       expect(command, containsAllInOrder(['-profile:v', 'main']));
       expect(command, containsAllInOrder(['-b:v', '4M']));
       expect(command, containsAllInOrder(['-pix_fmt', 'yuv420p']));
