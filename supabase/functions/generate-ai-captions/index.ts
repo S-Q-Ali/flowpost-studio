@@ -142,14 +142,14 @@ Return ONLY valid JSON â€” no markdown, no code fences, no explanation.`;
 
   const userMessage = `Video transcript:\n\n${transcript || "No transcript available â€” generate captions based on the file name and general best practices."}`;
 
-  const chatRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  let chatRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${groqKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },

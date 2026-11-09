@@ -221,10 +221,12 @@ void main() {
       );
 
       expect(command, containsAllInOrder(['-c:v', 'libopenh264']));
+      expect(command, containsAllInOrder(['-profile:v', 'main']));
       expect(command, containsAllInOrder(['-b:v', '4M']));
       expect(command, containsAllInOrder(['-pix_fmt', 'yuv420p']));
       expect(command, containsAllInOrder(['-c:a', 'aac']));
       expect(command, containsAllInOrder(['-ar', '48000']));
+      expect(command, contains('-shortest'));
       expect(command, containsAllInOrder(['-movflags', '+faststart']));
     });
 

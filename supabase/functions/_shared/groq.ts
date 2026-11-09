@@ -1,5 +1,6 @@
 export const ALLOWED_CHAT_MODELS = new Set<string>([
   "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
   "qwen/qwen3.8-27b",
   "qwen/qwen3.6-27b",
   "llama-3.2-11b-vision-preview",

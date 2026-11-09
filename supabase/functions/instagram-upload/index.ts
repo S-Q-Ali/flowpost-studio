@@ -291,7 +291,9 @@ Deno.serve(async (req) => {
           console.log(`Carousel publish attempt ${attempt + 1} failed:`, JSON.stringify(publishResult));
           if (publishResult.error) break;
         } else if (statusData.status_code === "ERROR") {
-          const errorDetail = (statusData.status as string) || (statusData.error as any)?.message || "Instagram carousel processing failed";
+          const errorDetail = (statusData.status && statusData.status !== "ERROR")
+            ? (statusData.status as string)
+            : (statusData.error as any)?.message || JSON.stringify(statusData);
           console.error("Carousel container failed:", errorDetail);
           await fail();
           return json({ error: `Instagram carousel processing failed: ${errorDetail}` }, 502);
@@ -383,7 +385,9 @@ Deno.serve(async (req) => {
       );
       const statusData = await statusRes.json() as Record<string, unknown>;
       lastStatusCode = (statusData.status_code as string) ?? null;
-      lastStatusDetail = (statusData.status as string) ?? (statusData.error as any)?.message ?? null;
+      lastStatusDetail = (statusData.status && statusData.status !== "ERROR")
+        ? (statusData.status as string)
+        : ((statusData.error as any)?.message ?? (statusData.status_code === "ERROR" ? JSON.stringify(statusData) : null));
 
       if (statusData.status_code === "FINISHED") {
         const publishForm = new URLSearchParams();

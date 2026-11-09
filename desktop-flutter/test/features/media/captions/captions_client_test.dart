@@ -138,7 +138,7 @@ void main() {
           'tiktok_caption': 'A caption',
         });
         final body = transport.bodies.single;
-        expect(body['model'], 'llama-3.3-70b-versatile');
+        expect(body['model'], 'openai/gpt-oss-120b');
         expect(body['temperature'], 0.7);
         expect(body['max_tokens'], 4096);
         final messages = body['messages'] as List;

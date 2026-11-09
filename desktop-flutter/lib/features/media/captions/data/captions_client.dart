@@ -101,15 +101,36 @@ class CaptionsClient implements CaptionsApi {
           'image_url': {'url': frame},
         },
     ];
-    final reply = await _post({
-      'mode': 'groq-chat',
-      'model': _describeModel,
-      'messages': [
-        {'role': 'user', 'content': content},
-      ],
-      'temperature': 0.6,
-      'max_tokens': 512,
-    });
+    CaptionReply reply;
+    try {
+      reply = await _post({
+        'mode': 'groq-chat',
+        'model': _describeModel,
+        'messages': [
+          {'role': 'user', 'content': content},
+        ],
+        'temperature': 0.6,
+        'max_tokens': 512,
+      });
+    } catch (e) {
+      if (e is CaptionException &&
+          (e.message.contains('does not exist') ||
+              e.message.contains('access') ||
+              e.message.contains('not allowed') ||
+              e.message.contains('decommissioned'))) {
+        reply = await _post({
+          'mode': 'groq-chat',
+          'model': 'qwen/qwen3.6-27b',
+          'messages': [
+            {'role': 'user', 'content': content},
+          ],
+          'temperature': 0.6,
+          'max_tokens': 512,
+        });
+      } else {
+        rethrow;
+      }
+    }
     return _chatContent(reply);
   }
 
@@ -140,7 +161,7 @@ class CaptionsClient implements CaptionsApi {
               e.message.contains('decommissioned'))) {
         reply = await _post({
           'mode': 'groq-chat',
-          'model': 'llama-3.1-8b-instant',
+          'model': 'openai/gpt-oss-20b',
           'messages': [
             {'role': 'system', 'content': systemPrompt},
             {'role': 'user', 'content': userMessage},
@@ -189,7 +210,7 @@ class CaptionsClient implements CaptionsApi {
 
 /// The models the caption service allows.
 const String _describeModel = 'qwen/qwen3.8-27b';
-const String _captionModel = 'llama-3.3-70b-versatile';
+const String _captionModel = 'openai/gpt-oss-120b';
 
 /// The same analysis prompt as `src/lib/captions.ts`.
 const String _analysisPrompt =

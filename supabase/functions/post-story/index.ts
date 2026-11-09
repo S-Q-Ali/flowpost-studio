@@ -358,7 +358,9 @@ Deno.serve(async (req) => {
         }
 
         if (statusData?.status_code === "ERROR") {
-          const detail = statusData?.status || statusData?.error?.message || "unknown";
+          const detail = (statusData?.status && statusData?.status !== "ERROR")
+            ? statusData.status
+            : (statusData?.error?.message || JSON.stringify(statusData));
           throw new Error(`Instagram story container processing failed: ${detail}`);
         }
 
