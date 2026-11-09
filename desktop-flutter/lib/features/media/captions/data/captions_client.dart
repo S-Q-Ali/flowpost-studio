@@ -166,7 +166,7 @@ class CaptionsClient implements CaptionsApi {
 }
 
 /// The models the caption service allows.
-const String _describeModel = 'llama-3.2-11b-vision-preview';
+const String _describeModel = 'qwen/qwen3.8-27b';
 const String _captionModel = 'llama-3.3-70b-versatile';
 
 /// The same analysis prompt as `src/lib/captions.ts`.

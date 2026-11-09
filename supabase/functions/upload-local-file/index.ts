@@ -197,9 +197,9 @@ Deno.serve(async (req) => {
       size: file.size,
     });
   } catch (err) {
-    // The detail stays in the log: the client gets a readable message, not
-    // the internals of the failure.
+    // Return the actual error message so the operator and user can see why the upload failed
     console.error("Upload error:", err);
-    return json({ error: "The upload failed. Please try again." }, 500);
+    const message = err instanceof Error ? err.message : String(err);
+    return json({ error: `Upload error: ${message}` }, 500);
   }
 });

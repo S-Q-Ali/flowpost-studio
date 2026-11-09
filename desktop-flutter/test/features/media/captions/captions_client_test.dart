@@ -96,7 +96,7 @@ void main() {
       expect(description, 'a beach at sunset');
       final body = transport.bodies.single;
       expect(body['mode'], 'groq-chat');
-      expect(body['model'], 'llama-3.2-11b-vision-preview');
+      expect(body['model'], 'qwen/qwen3.8-27b');
       expect(body['temperature'], 0.6);
       expect(body['max_tokens'], 512);
       final content = (body['messages'] as List).first['content'] as List;
