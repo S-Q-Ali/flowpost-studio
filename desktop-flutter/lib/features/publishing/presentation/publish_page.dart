@@ -791,8 +791,8 @@ class _TargetTile extends ConsumerWidget {
           ),
           subtitle: Text(
             isStory
-                ? '@${target.accountName} • Disappears in 24 hours'
-                : '@${target.accountName}',
+                ? '${target.accountName} • Disappears in 24 hours'
+                : target.accountName,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.8),
             ),

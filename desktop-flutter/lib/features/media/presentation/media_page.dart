@@ -138,13 +138,8 @@ class _EmptyState extends ConsumerWidget {
         ),
         const SizedBox(height: 24),
         FilledButton.icon(
-          onPressed: () async {
-            await ref.read(mediaControllerProvider.notifier).pickFile();
-            if (context.mounted &&
-                ref.read(mediaControllerProvider) is! MediaIdle) {
-              context.go(publishRoute);
-            }
-          },
+          onPressed: () =>
+              ref.read(mediaControllerProvider.notifier).pickFile(),
           icon: const Icon(Icons.folder_open),
           label: const Text('Choose file'),
         ),

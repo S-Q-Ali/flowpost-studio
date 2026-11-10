@@ -531,6 +531,7 @@ void main() {
       await tester.enterText(find.byKey(const Key('schedule-time')), when.time);
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Schedule'));
       await tester.tap(find.widgetWithText(FilledButton, 'Schedule'));
       await tester.pumpAndSettle();
 

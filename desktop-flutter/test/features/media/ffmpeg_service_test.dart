@@ -351,7 +351,7 @@ void main() {
 
     expect(
       copyExecutor.ffmpegArgumentLists.first,
-      containsAllInOrder(['-c', 'copy']),
+      containsAllInOrder(['-c:v', 'copy']),
     );
 
     final encodeExecutor = _workingExecutor();
@@ -369,7 +369,7 @@ void main() {
   test('a failed remux falls back to one encode attempt', () async {
     final executor = _workingExecutor(
       onFfmpeg: (call) {
-        final isRemux = call.arguments.contains('-c');
+        final isRemux = call.arguments.contains('-c:v');
         if (isRemux) {
           return const FfmpegRun(
             exitCode: 1,
@@ -389,7 +389,7 @@ void main() {
 
     expect(result.stage, MediaStage.ready);
     final ffmpegCalls = executor.ffmpegArgumentLists;
-    expect(ffmpegCalls[0], containsAllInOrder(['-c', 'copy']));
+    expect(ffmpegCalls[0], containsAllInOrder(['-c:v', 'copy']));
     expect(ffmpegCalls[1], containsAllInOrder(['-c:v', 'libopenh264']));
     expect(
       ffmpegCalls.where((arguments) => arguments.contains('libopenh264')),
