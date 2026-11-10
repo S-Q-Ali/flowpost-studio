@@ -53,10 +53,10 @@ void main() {
       transport.urls.single,
       Uri.parse('https://test.supabase.co/functions/v1/instagram-upload'),
     );
-    expect(
-      jsonDecode(transport.bodies.single),
-      {'postId': 'post-1', 'platform': 'instagram'},
-    );
+    expect(jsonDecode(transport.bodies.single), {
+      'postId': 'post-1',
+      'platform': 'instagram',
+    });
     expect(transport.tokens.single, 'session');
   });
 

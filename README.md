@@ -12,24 +12,30 @@
 
 ## Features
 
-- **Cross-platform publishing** — one upload fans out to YouTube, Instagram, Facebook, TikTok and LinkedIn
-- **Scheduled posting** — pick a time per platform; a scheduler edge function publishes when it is due
-- **Queue and calendar** — month, week and list views; edit, reschedule, retry or delete pending posts
-- **AI captions** — Groq Whisper transcription, frame analysis and an LLM write per-platform captions
-- **Accounts** — connect each platform from inside the app in your browser; the OAuth token is held encrypted on the server and never reaches your PC, and signing out of the platform in the browser does not break the connection
-- **Offline-friendly** — posts cached in SQLite, drafts autosaved and restored after a restart
-- **Desktop-native** — single instance, tray, allowlisted deep links, bundled FFmpeg and a diagnostics export
-- **License-key access** — the app unlocks with a license key, with no account and no sign-up
+- **Unified 1-Click Publishing Flow** — pick a file and start composing immediately; video normalization and cloud upload run in parallel in the background
+- **Cross-Platform Visual Cards** — branded platform selection (Instagram, YouTube, Facebook, TikTok, LinkedIn) with colored active states and handles
+- **Instagram 24h Story Hierarchy** — publish to feed/reels or 24-hour stories with automatic caption bypass and story badge formatting
+- **Creator Controls** — toggle "Altered or Synthetic Content" (AI transparency label) and "Show in Instagram Feed Grid" per post
+- **Scheduled Posting with Native Pickers** — interactive date and time pickers; scheduler edge function dispatches posts automatically in your local timezone
+- **Queue and Calendar** — month, week and list views; edit, reschedule, retry or delete pending posts
+- **Smart AI Captions** — Groq Whisper transcription, frame vision analysis and an LLM tailor captions to each platform's character limits and style
+- **Multi-Cloud Automation Workflows** — automatically ingest, process and schedule videos from Google Drive and Cloudflare R2 storage
+- **Accounts Security** — connect platforms via secure browser OAuth; tokens stay encrypted with AES-GCM on the server and never touch the local PC
+- **Offline-Friendly** — posts cached in SQLite, drafts autosaved and restored after restarts
+- **Desktop-Native** — Windows 10/11 app with tray controls, single-instance lock, allowlisted deep links, bundled FFmpeg, and diagnostics export
+- **License-Key Access** — unlock with a license key; zero signups required
 
 ## Screenshots
 
-| | |
-|---|---|
-| ![Upload: a 42% normalized video with a processing progress bar](docs/screenshots/upload.webp) | ![Queue: scheduled, published and failed posts with retry](docs/screenshots/queue.webp) |
-| ![Calendar: an October month grid with scheduled posts](docs/screenshots/calendar.webp) | ![Settings: an active license, credentials, updates and diagnostics](docs/screenshots/settings.webp) |
-| ![Unlock: the first-run license key screen](docs/screenshots/license.webp) | ![Publish: a selected Instagram target and a ready caption](docs/screenshots/publish.webp) |
+| Media & Normalization | Queue & History |
+|:---:|:---:|
+| ![Upload: normalized video preview with processing progress bar](docs/screenshots/upload.webp)<br/>*Unified Upload & Live FFmpeg Progress* | ![Queue: scheduled, published and failed posts with retry](docs/screenshots/queue.webp)<br/>*Post Queue & Status Timeline* |
+| **Interactive Content Calendar** | **Settings & Diagnostics** |
+| ![Calendar: month grid with scheduled cross-platform posts](docs/screenshots/calendar.webp)<br/>*Calendar Grid & Scheduling View* | ![Settings: active license, credentials, updates and diagnostics](docs/screenshots/settings.webp)<br/>*Device Management & Diagnostics* |
+| **Guided Activation** | **Compose & Platform Cards** |
+| ![Unlock: the first-run license key screen](docs/screenshots/license.webp)<br/>*License Unlock & Guided Setup* | ![Publish: a selected Instagram target and ready caption](docs/screenshots/publish.webp)<br/>*Modern Branded Platform Cards & Compose* |
 
-The images are rendered from the real widgets with fake data; `desktop-flutter/test/screenshots/capture.dart` regenerates them.
+The images are rendered from the desktop app widgets with test fixtures; `desktop-flutter/test/screenshots/capture.dart` regenerates them.
 
 ## Download
 

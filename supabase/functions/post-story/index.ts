@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
-  let platform: SupportedPlatform;
+  let platform: SupportedPlatform = "instagram";
   let accountId: string;
   let videoUrl: string;
   let accessToken: string;
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
           return json({ error: "The Instagram connection expired. Reconnect it in Accounts." }, 409);
         }
 
-        accountId = storyPost.account_id;
+        accountId = String(storyPost.account_id);
         videoUrl = video.file_url;
         accessToken = await decrypt(acc.access_token);
         if (!mediaTypeInput) mediaTypeInput = video.media_type;

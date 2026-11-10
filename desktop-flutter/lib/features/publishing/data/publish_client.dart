@@ -105,10 +105,7 @@ class PublishClient implements PublishApi {
     final url = Uri.parse('$supabaseUrl/functions/v1/${target.edgeFunction}');
     final reply = await _transport.send(
       url: url,
-      body: jsonEncode({
-        'postId': postId,
-        'platform': target.platform.name,
-      }),
+      body: jsonEncode({'postId': postId, 'platform': target.platform.name}),
       token: token,
     );
     final failure = reply.failure;

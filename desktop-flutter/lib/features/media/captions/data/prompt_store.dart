@@ -13,7 +13,7 @@ const String promptFileName = 'custom_prompt.json';
 /// the high-converting SEO viral fallback prompt when none is set.
 class PromptStore {
   PromptStore({Future<Directory> Function()? folder})
-      : _folder = folder ?? getApplicationSupportDirectory;
+    : _folder = folder ?? getApplicationSupportDirectory;
 
   final Future<Directory> Function() _folder;
 
@@ -31,11 +31,18 @@ class PromptStore {
       if (data is! Map<String, dynamic>) return defaultMasterPrompt;
 
       return MasterPrompt(
-        strictRules: data['strict_rules'] as String? ?? defaultMasterPrompt.strictRules,
-        outputFormat: data['output_format'] as String? ?? defaultMasterPrompt.outputFormat,
-        exampleOutput: data['example_output'] as String? ?? defaultMasterPrompt.exampleOutput,
+        strictRules:
+            data['strict_rules'] as String? ?? defaultMasterPrompt.strictRules,
+        outputFormat:
+            data['output_format'] as String? ??
+            defaultMasterPrompt.outputFormat,
+        exampleOutput:
+            data['example_output'] as String? ??
+            defaultMasterPrompt.exampleOutput,
         hashtags: data['hashtags'] as String? ?? defaultMasterPrompt.hashtags,
-        generationInstruction: data['generation_instruction'] as String? ?? defaultMasterPrompt.generationInstruction,
+        generationInstruction:
+            data['generation_instruction'] as String? ??
+            defaultMasterPrompt.generationInstruction,
       );
     } catch (_) {
       return defaultMasterPrompt;
@@ -68,8 +75,9 @@ class PromptStore {
 
 final promptStoreProvider = Provider<PromptStore>((ref) => PromptStore());
 
-final activePromptProvider =
-    NotifierProvider<PromptNotifier, MasterPrompt>(PromptNotifier.new);
+final activePromptProvider = NotifierProvider<PromptNotifier, MasterPrompt>(
+  PromptNotifier.new,
+);
 
 class PromptNotifier extends Notifier<MasterPrompt> {
   @override

@@ -203,23 +203,35 @@ void main() {
       }
     });
 
-    test('the remux copies video stream, sanitizes audio, and starts early', () {
-      final command = remuxArguments(
-        sourcePath: r'C:\clips\a.mp4',
-        outputPath: r'C:\jobs\1\normalized.mp4',
-      );
+    test(
+      'the remux copies video stream, sanitizes audio, and starts early',
+      () {
+        final command = remuxArguments(
+          sourcePath: r'C:\clips\a.mp4',
+          outputPath: r'C:\jobs\1\normalized.mp4',
+        );
 
-      expect(command, containsAllInOrder(['-c:v', 'copy']));
-      expect(command, containsAllInOrder(['-err_detect', 'ignore_err']));
-      expect(
-        command,
-        containsAllInOrder(
-          ['-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2', '-af', 'aresample=async=1000'],
-        ),
-      );
-      expect(command, containsAllInOrder(['-movflags', '+faststart']));
-      expect(command.last, r'C:\jobs\1\normalized.mp4');
-    });
+        expect(command, containsAllInOrder(['-c:v', 'copy']));
+        expect(command, containsAllInOrder(['-err_detect', 'ignore_err']));
+        expect(
+          command,
+          containsAllInOrder([
+            '-c:a',
+            'aac',
+            '-b:a',
+            '128k',
+            '-ar',
+            '48000',
+            '-ac',
+            '2',
+            '-af',
+            'aresample=async=1000',
+          ]),
+        );
+        expect(command, containsAllInOrder(['-movflags', '+faststart']));
+        expect(command.last, r'C:\jobs\1\normalized.mp4');
+      },
+    );
 
     test('the encode uses libopenh264 with the spec bitrate', () {
       final command = encodeArguments(

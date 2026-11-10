@@ -296,8 +296,9 @@ List<Widget> _statusSection(BuildContext context, PublishState state) {
       currentTargetName = s.target.label;
     }
   }
-  final double progress =
-      statuses.isNotEmpty ? completed / statuses.length : 0.0;
+  final double progress = statuses.isNotEmpty
+      ? completed / statuses.length
+      : 0.0;
 
   return [
     Text('Status', style: Theme.of(context).textTheme.titleSmall),
@@ -305,7 +306,8 @@ List<Widget> _statusSection(BuildContext context, PublishState state) {
     if (state is PublishRunning) ...[
       Card(
         elevation: 0,
-        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+        color: Theme.of(context).colorScheme.primaryContainer
+            .withValues(alpha: 0.3),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -713,10 +715,7 @@ class _TargetTile extends ConsumerWidget {
         const Color(0xFFFF0000),
         Icons.play_circle_fill_rounded,
       ),
-      PublishPlatform.facebook => (
-        const Color(0xFF1877F2),
-        Icons.facebook,
-      ),
+      PublishPlatform.facebook => (const Color(0xFF1877F2), Icons.facebook),
       PublishPlatform.tiktok => (
         const Color(0xFF00F2FE),
         Icons.music_note_rounded,
@@ -728,10 +727,7 @@ class _TargetTile extends ConsumerWidget {
     };
 
     return Padding(
-      padding: EdgeInsets.only(
-        left: isStory ? 24.0 : 0.0,
-        bottom: 8.0,
-      ),
+      padding: EdgeInsets.only(left: isStory ? 24.0 : 0.0, bottom: 8.0),
       child: Card(
         elevation: 0,
         margin: EdgeInsets.zero,
@@ -768,13 +764,18 @@ class _TargetTile extends ConsumerWidget {
             children: [
               Text(
                 target.label,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
               ),
               if (isStory) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: brandColor.withOpacity(0.18),
                     borderRadius: BorderRadius.circular(4),
@@ -800,8 +801,10 @@ class _TargetTile extends ConsumerWidget {
             ),
           ),
           controlAffinity: ListTileControlAffinity.trailing,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 4,
+          ),
         ),
       ),
     );
@@ -1169,9 +1172,7 @@ class _StatusRow extends ConsumerWidget {
 }
 
 class _SmartAiCaptionButton extends ConsumerWidget {
-  const _SmartAiCaptionButton({
-    required this.selectedTargets,
-  });
+  const _SmartAiCaptionButton({required this.selectedTargets});
 
   final List<PublishTarget> selectedTargets;
 
@@ -1217,15 +1218,25 @@ class _SmartAiCaptionButton extends ConsumerWidget {
                                 .read(publishSelectionProvider.notifier)
                                 .setYouTubeTitle(title);
                           }
-                        } else if (target.platform == PublishPlatform.instagram ||
+                        } else if (target.platform ==
+                                PublishPlatform.instagram ||
                             target.platform == PublishPlatform.facebook) {
-                          final body = captions['fb_ig_caption'] ?? captions['caption'] ?? '';
+                          final body =
+                              captions['fb_ig_caption'] ??
+                              captions['caption'] ??
+                              '';
                           final tags = captions['hashtags'] ?? '';
-                          text = [body, tags].where((s) => s.isNotEmpty).join('\n\n');
+                          text = [
+                            body,
+                            tags,
+                          ].where((s) => s.isNotEmpty).join('\n\n');
                         } else if (target.platform == PublishPlatform.tiktok) {
                           final body = captions['tiktok_caption'] ?? '';
                           final tags = captions['hashtags'] ?? '';
-                          text = [body, tags].where((s) => s.isNotEmpty).join('\n\n');
+                          text = [
+                            body,
+                            tags,
+                          ].where((s) => s.isNotEmpty).join('\n\n');
                         }
                         if (text != null && text.isNotEmpty) {
                           ref
@@ -1264,7 +1275,9 @@ class _SmartAiCaptionButton extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               captionState.message,
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
             ),
           ],
         ],
@@ -1287,8 +1300,12 @@ class _CreatorControls extends ConsumerWidget {
     if (selectedTargets.isEmpty) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
-    final hasIg = selectedTargets.any((t) => t.platform == PublishPlatform.instagram);
-    final hasYt = selectedTargets.any((t) => t.platform == PublishPlatform.youtube);
+    final hasIg = selectedTargets.any(
+      (t) => t.platform == PublishPlatform.instagram,
+    );
+    final hasYt = selectedTargets.any(
+      (t) => t.platform == PublishPlatform.youtube,
+    );
 
     return Card(
       elevation: 0,
@@ -1300,9 +1317,17 @@ class _CreatorControls extends ConsumerWidget {
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 16),
         leading: Icon(Icons.tune, size: 20, color: theme.colorScheme.primary),
-        title: Text('Platform Options & AI Disclosure', style: theme.textTheme.titleSmall),
+        title: Text(
+          'Platform Options & AI Disclosure',
+          style: theme.textTheme.titleSmall,
+        ),
         subtitle: selection.containsAlteredContent
-            ? Text('AI Content disclosed', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary))
+            ? Text(
+                'AI Content disclosed',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              )
             : null,
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
@@ -1328,9 +1353,8 @@ class _CreatorControls extends ConsumerWidget {
                 'Shows the published Reel on your main profile feed as well as the Reels tab.',
               ),
               value: selection.shareToFeed,
-              onChanged: (v) => ref
-                  .read(publishSelectionProvider.notifier)
-                  .setShareToFeed(v),
+              onChanged: (v) =>
+                  ref.read(publishSelectionProvider.notifier).setShareToFeed(v),
             ),
             const SizedBox(height: 8),
             TextFormField(
@@ -1340,14 +1364,19 @@ class _CreatorControls extends ConsumerWidget {
               decoration: const InputDecoration(
                 labelText: 'Instagram: Cover Frame Offset (seconds)',
                 border: OutlineInputBorder(),
-                helperText: 'Pick video timestamp for cover thumbnail (e.g. 1.5)',
+                helperText:
+                    'Pick video timestamp for cover thumbnail (e.g. 1.5)',
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               onChanged: (v) {
                 final sec = double.tryParse(v.trim());
                 ref
                     .read(publishSelectionProvider.notifier)
-                    .setThumbOffsetMs(sec != null ? (sec * 1000).round() : null);
+                    .setThumbOffsetMs(
+                      sec != null ? (sec * 1000).round() : null,
+                    );
               },
             ),
           ],
@@ -1361,9 +1390,8 @@ class _CreatorControls extends ConsumerWidget {
                 'Mark whether this video is directed to children (COPPA).',
               ),
               value: selection.madeForKids,
-              onChanged: (v) => ref
-                  .read(publishSelectionProvider.notifier)
-                  .setMadeForKids(v),
+              onChanged: (v) =>
+                  ref.read(publishSelectionProvider.notifier).setMadeForKids(v),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -1385,9 +1413,8 @@ class _CreatorControls extends ConsumerWidget {
                 border: OutlineInputBorder(),
                 helperText: 'Comma-separated search tags (e.g. tutorial, coding, flutter)',
               ),
-              onChanged: (v) => ref
-                  .read(publishSelectionProvider.notifier)
-                  .setYoutubeTags(v),
+              onChanged: (v) =>
+                  ref.read(publishSelectionProvider.notifier).setYoutubeTags(v),
             ),
           ],
         ],

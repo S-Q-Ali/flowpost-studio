@@ -749,7 +749,8 @@ class _AiPromptSectionState extends ConsumerState<_AiPromptSection> {
             decoration: const InputDecoration(
               labelText: 'Generation Goal / Strategy Instruction',
               border: OutlineInputBorder(),
-              helperText: 'Overall directive for tone, focus, and SEO discoverability.',
+              helperText:
+                  'Overall directive for tone, focus, and SEO discoverability.',
             ),
           ),
           const SizedBox(height: 12),
@@ -777,10 +778,18 @@ class _AiPromptSectionState extends ConsumerState<_AiPromptSection> {
                     hashtags: activePrompt.hashtags,
                     generationInstruction: _instructionsController.text.trim(),
                   );
-                  final ok = await ref.read(activePromptProvider.notifier).updatePrompt(newPrompt);
+                  final ok = await ref
+                      .read(activePromptProvider.notifier)
+                      .updatePrompt(newPrompt);
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(ok ? 'Custom AI strategy prompt saved!' : 'Failed to save prompt.')),
+                      SnackBar(
+                        content: Text(
+                          ok
+                              ? 'Custom AI strategy prompt saved!'
+                              : 'Failed to save prompt.',
+                        ),
+                      ),
                     );
                   }
                 },
@@ -789,11 +798,15 @@ class _AiPromptSectionState extends ConsumerState<_AiPromptSection> {
               ),
               OutlinedButton.icon(
                 onPressed: () async {
-                  await ref.read(activePromptProvider.notifier).resetToDefault();
+                  await ref
+                      .read(activePromptProvider.notifier)
+                      .resetToDefault();
                   _syncWithPrompt(defaultMasterPrompt);
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Reset to viral SEO fallback prompt!')),
+                      const SnackBar(
+                        content: Text('Reset to viral SEO fallback prompt!'),
+                      ),
                     );
                   }
                 },

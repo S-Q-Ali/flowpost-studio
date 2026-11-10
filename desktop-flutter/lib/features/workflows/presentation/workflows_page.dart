@@ -67,7 +67,9 @@ class _WorkflowsPageState extends ConsumerState<WorkflowsPage> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to create workflow. Please check details.')),
+        const SnackBar(
+          content: Text('Failed to create workflow. Please check details.'),
+        ),
       );
     }
   }
@@ -100,9 +102,8 @@ class _WorkflowsPageState extends ConsumerState<WorkflowsPage> {
     if (!mounted) return;
     if (success) {
       ref.invalidate(workflowsListProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Workflow deleted.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Workflow deleted.')));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to delete workflow.')),
@@ -257,7 +258,10 @@ class _WorkflowsPageState extends ConsumerState<WorkflowsPage> {
                                   ),
                                   const SizedBox(width: 4),
                                   IconButton(
-                                    icon: const Icon(Icons.delete_outline, size: 20),
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 20,
+                                    ),
                                     tooltip: 'Delete workflow',
                                     color: scheme.error,
                                     onPressed: () => _deleteWorkflow(wf),
@@ -669,7 +673,10 @@ class _CreateWorkflowDialogState extends State<_CreateWorkflowDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Videos Per Run', style: theme.textTheme.titleSmall),
+                        Text(
+                          'Videos Per Run',
+                          style: theme.textTheme.titleSmall,
+                        ),
                         const SizedBox(height: 6),
                         DropdownButtonFormField<int>(
                           initialValue: _videosPerRun,

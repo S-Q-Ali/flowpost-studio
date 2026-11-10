@@ -364,7 +364,8 @@ Deno.serve(async (req) => {
         // Runs history optional
       }
 
-      const rows = (workflows ?? []).map((w: Record<string, unknown>) => ({
+      const workflowList = (workflows as unknown as Array<Record<string, unknown>>) ?? [];
+      const rows = workflowList.map((w) => ({
         ...w,
         latest_run: runMap[w.id as string] ?? null,
       }));

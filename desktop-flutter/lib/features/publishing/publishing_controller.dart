@@ -597,7 +597,8 @@ class PublishController extends Notifier<PublishState> {
   }) {
     final caption = (selection.captions[target.id] ?? '').trim();
     final title = selection.youtubeTitle.trim();
-    final isAi = selection.containsAlteredContent ||
+    final isAi =
+        selection.containsAlteredContent ||
         selection.aiCaptionTargetIds.contains(target.id);
 
     final Map<String, dynamic> metadata = {};

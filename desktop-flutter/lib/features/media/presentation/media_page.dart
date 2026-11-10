@@ -140,7 +140,8 @@ class _EmptyState extends ConsumerWidget {
         FilledButton.icon(
           onPressed: () async {
             await ref.read(mediaControllerProvider.notifier).pickFile();
-            if (context.mounted && ref.read(mediaControllerProvider) is! MediaIdle) {
+            if (context.mounted &&
+                ref.read(mediaControllerProvider) is! MediaIdle) {
               context.go(publishRoute);
             }
           },
@@ -303,9 +304,7 @@ class _ReadyState extends ConsumerWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
               side: BorderSide(
-                color: Theme.of(context)
-                    .colorScheme
-                    .outlineVariant
+                color: Theme.of(context).colorScheme.outlineVariant
                     .withOpacity(0.35),
               ),
             ),

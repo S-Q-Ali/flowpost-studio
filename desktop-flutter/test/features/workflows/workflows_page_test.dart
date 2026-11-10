@@ -33,7 +33,8 @@ class _FakeWorkflowsRepository implements WorkflowsRepository {
   }
 
   @override
-  Future<WorkflowItem?> createWorkflow(Map<String, dynamic> payload) async => null;
+  Future<WorkflowItem?> createWorkflow(Map<String, dynamic> payload) async =>
+      null;
 
   @override
   Future<bool> deleteWorkflow(String id) async => true;
