@@ -369,7 +369,7 @@ void main() {
   test('a failed remux falls back to one encode attempt', () async {
     final executor = _workingExecutor(
       onFfmpeg: (call) {
-        final isRemux = call.arguments.contains('-c:v');
+        final isRemux = call.arguments.contains('copy');
         if (isRemux) {
           return const FfmpegRun(
             exitCode: 1,

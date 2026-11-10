@@ -287,43 +287,22 @@ class _ReadyState extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         if (outputs != null) ...[
-          _Thumbnail(
-            file: outputs.thumbnail,
-            isVertical: probe != null && probe.height > probe.width,
-          ),
+          _Thumbnail(file: outputs.thumbnail),
           const SizedBox(height: 16),
         ],
         if (probe != null) ...[
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-              side: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant
-                    .withValues(alpha: 0.35),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SummaryRow(
-                    label: 'Dimensions',
-                    value: '${probe.width} x ${probe.height}',
-                  ),
-                  if (job.kind == MediaKind.video)
-                    _SummaryRow(
-                      label: 'Duration',
-                      value: formatMediaDuration(probe.duration),
-                    ),
-                  _SummaryRow(label: 'Video codec', value: probe.videoCodec),
-                  if (probe.hasAudio)
-                    _SummaryRow(label: 'Audio codec', value: probe.audioCodec!),
-                ],
-              ),
-            ),
+          _SummaryRow(
+            label: 'Dimensions',
+            value: '${probe.width} x ${probe.height}',
           ),
+          if (job.kind == MediaKind.video)
+            _SummaryRow(
+              label: 'Duration',
+              value: formatMediaDuration(probe.duration),
+            ),
+          _SummaryRow(label: 'Video codec', value: probe.videoCodec),
+          if (probe.hasAudio)
+            _SummaryRow(label: 'Audio codec', value: probe.audioCodec!),
         ],
         if (outputs != null) ...[
           const SizedBox(height: 16),
@@ -342,11 +321,6 @@ class _ReadyState extends ConsumerWidget {
           spacing: 12,
           runSpacing: 8,
           children: [
-            FilledButton.icon(
-              onPressed: () => context.go(publishRoute),
-              icon: const Icon(Icons.arrow_forward),
-              label: const Text('Continue to Publish'),
-            ),
             FilledButton.tonalIcon(
               onPressed: canGenerate
                   ? () => ref
@@ -465,24 +439,20 @@ class _CaptionField extends ConsumerWidget {
 
 /// The generated thumbnail, with a placeholder until the file is there.
 class _Thumbnail extends StatelessWidget {
-  const _Thumbnail({required this.file, this.isVertical = false});
+  const _Thumbnail({required this.file});
 
   final File file;
-  final bool isVertical;
 
   @override
   Widget build(BuildContext context) {
-    final width = isVertical ? 180.0 : 320.0;
-    final height = isVertical ? 320.0 : 180.0;
-
     return FutureBuilder<bool>(
       future: file.exists(),
       builder: (context, snapshot) {
         final exists = snapshot.data ?? false;
         if (!exists) {
           return Container(
-            width: width,
-            height: height,
+            width: 320,
+            height: 180,
             alignment: Alignment.center,
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: const Text('No preview'),
@@ -492,12 +462,12 @@ class _Thumbnail extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: Image.file(
             file,
-            width: width,
-            height: height,
+            width: 320,
+            height: 180,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stack) => Container(
-              width: width,
-              height: height,
+              width: 320,
+              height: 180,
               alignment: Alignment.center,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: const Text('No preview'),
