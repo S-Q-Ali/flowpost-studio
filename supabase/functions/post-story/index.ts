@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
   let mediaTypeInput: "video" | "image" | undefined;
   let postId: string | undefined;
   let held: HeldClaim | null = null;
+  let storyPost: Record<string, unknown> | null = null;
 
   try {
     const body = (await req.json()) as Partial<PostStoryPayload>;
@@ -83,15 +84,16 @@ Deno.serve(async (req) => {
     const isServiceCaller = auth.kind === "service-role" || auth.kind === "cron";
 
     if (postId) {
-      const { data: storyPost } = await supabase
+      const { data: fetchedPost } = await supabase
         .from("posts")
         .select("video_id, account_id, user_id, status, platform, contains_altered_content, metadata")
         .eq("id", postId)
         .single();
 
-      if (!storyPost) {
+      if (!fetchedPost) {
         return json({ error: "Post not found" }, 404);
       }
+      storyPost = fetchedPost as Record<string, unknown>;
 
       const postPlatform = body.platform || storyPost.platform;
       if (!postPlatform) {
