@@ -305,7 +305,7 @@ class _ReadyState extends ConsumerWidget {
               borderRadius: BorderRadius.circular(10),
               side: BorderSide(
                 color: Theme.of(context).colorScheme.outlineVariant
-                    .withOpacity(0.35),
+                    .withValues(alpha: 0.35),
               ),
             ),
             child: Padding(

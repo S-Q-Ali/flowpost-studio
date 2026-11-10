@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +8,6 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/time_zone.dart';
 import '../../media/captions/captions_providers.dart';
-import '../../media/domain/media_job.dart';
 import '../../media/media_providers.dart';
 import '../../media/upload/upload_providers.dart';
 import '../../offline/connectivity.dart';
@@ -368,7 +365,7 @@ class _EmptyMediaHero extends ConsumerWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.4),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
         ),
       ),
       child: Padding(
@@ -380,7 +377,7 @@ class _EmptyMediaHero extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.12),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -435,7 +432,7 @@ class _MediaSummary extends ConsumerWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.4),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
         ),
       ),
       child: Padding(
@@ -448,7 +445,7 @@ class _MediaSummary extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -484,7 +481,7 @@ class _MediaSummary extends ConsumerWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.15),
+                      color: Colors.amber.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -517,7 +514,7 @@ class _MediaSummary extends ConsumerWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.15),
+                      color: Colors.green.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Row(
@@ -735,13 +732,13 @@ class _TargetTile extends ConsumerWidget {
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
             color: selected
-                ? brandColor.withOpacity(0.7)
-                : theme.colorScheme.outlineVariant.withOpacity(0.35),
+                ? brandColor.withValues(alpha: 0.7)
+                : theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
             width: selected ? 1.5 : 1.0,
           ),
         ),
         color: selected
-            ? brandColor.withOpacity(0.08)
+            ? brandColor.withValues(alpha: 0.08)
             : theme.colorScheme.surfaceContainerLow,
         child: CheckboxListTile(
           key: Key('target-${target.id}'),
@@ -755,7 +752,7 @@ class _TargetTile extends ConsumerWidget {
           secondary: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: brandColor.withOpacity(0.12),
+              color: brandColor.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(brandIcon, color: brandColor, size: 20),
@@ -777,7 +774,7 @@ class _TargetTile extends ConsumerWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: brandColor.withOpacity(0.18),
+                    color: brandColor.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -797,7 +794,7 @@ class _TargetTile extends ConsumerWidget {
                 ? '@${target.accountName} • Disappears in 24 hours'
                 : '@${target.accountName}',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.textTheme.bodySmall?.color?.withOpacity(0.8),
+              color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.8),
             ),
           ),
           controlAffinity: ListTileControlAffinity.trailing,
