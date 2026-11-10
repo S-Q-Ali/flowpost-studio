@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
       claimed_at: null,
     });
 
-    let { data: account, error: accountError } = await supabase
+    const { data: initialAccount } = await supabase
       .from("connected_accounts")
       .select("*")
       .eq("user_id", post.user_id)
@@ -137,6 +137,8 @@ Deno.serve(async (req) => {
       .eq("account_id", post.account_id)
       .eq("is_connected", true)
       .maybeSingle();
+
+    let account = initialAccount;
 
     if (!account) {
       const { data: accountByUuid } = await supabase

@@ -142,7 +142,7 @@ Return ONLY valid JSON â€” no markdown, no code fences, no explanation.`;
 
   const userMessage = `Video transcript:\n\n${transcript || "No transcript available â€” generate captions based on the file name and general best practices."}`;
 
-  let chatRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const chatRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${groqKey}`,

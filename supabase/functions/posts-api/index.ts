@@ -352,7 +352,7 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: false });
       if (error) return tableFailure("workflows-list", error);
 
-      let runMap: Record<string, unknown> = {};
+      const runMap: Record<string, unknown> = {};
       try {
         const { data: runData } = await supabase.rpc("latest_workflow_runs");
         if (Array.isArray(runData)) {
