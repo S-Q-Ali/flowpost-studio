@@ -43,7 +43,7 @@ class MultipartBody {
   late final String preamble = _buildPreamble();
 
   /// The closing boundary, behind the file.
-  late final String epilogue = '--$boundary--\r\n';
+  late final String epilogue = '\r\n--$boundary--\r\n';
 
   /// The number of bytes of the file.
   late final int fileLength = file.lengthSync();
