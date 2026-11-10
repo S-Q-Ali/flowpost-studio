@@ -110,6 +110,14 @@ ThemeData flowPostLightTheme() {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: FlowPostColors.background,
+    cardTheme: CardThemeData(
+      color: FlowPostColors.card,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: FlowPostColors.border, width: 1),
+      ),
+    ),
     focusColor: FlowPostColors.foreground.withValues(alpha: 0.12),
     extensions: const [lightTones],
   );
@@ -129,11 +137,20 @@ ThemeData flowPostDarkTheme() {
         error: FlowPostDarkColors.destructive,
         onError: FlowPostDarkColors.primaryForeground,
         outline: FlowPostDarkColors.outline,
+        outlineVariant: const Color(0xFF38202F),
       );
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: scheme,
+    cardTheme: const CardThemeData(
+      color: FlowPostDarkColors.card,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        side: BorderSide(color: Color(0xFF38202F), width: 1),
+      ),
+    ),
     scaffoldBackgroundColor: FlowPostDarkColors.background,
     focusColor: FlowPostDarkColors.foreground.withValues(alpha: 0.12),
     extensions: const [darkTones],

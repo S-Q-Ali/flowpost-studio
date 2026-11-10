@@ -193,6 +193,8 @@ class MediaController extends Notifier<MediaState> {
       if (_current?.id != job.id) return;
       state = MediaReady(result);
       _log.info('Media job ${job.id} ready.');
+      // Auto-pipeline: immediately begin cloud upload to R2
+      unawaited(ref.read(uploadControllerProvider.notifier).upload(result));
     } on MediaCancelled {
       // A cancelled job leaves nothing behind. The pick of another file has
       // already taken the screen and deleted the folder, so a run that is no

@@ -138,8 +138,12 @@ class _EmptyState extends ConsumerWidget {
         ),
         const SizedBox(height: 24),
         FilledButton.icon(
-          onPressed: () =>
-              ref.read(mediaControllerProvider.notifier).pickFile(),
+          onPressed: () async {
+            await ref.read(mediaControllerProvider.notifier).pickFile();
+            if (context.mounted && ref.read(mediaControllerProvider) is! MediaIdle) {
+              context.go(publishRoute);
+            }
+          },
           icon: const Icon(Icons.folder_open),
           label: const Text('Choose file'),
         ),
@@ -287,22 +291,45 @@ class _ReadyState extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         if (outputs != null) ...[
-          _Thumbnail(file: outputs.thumbnail),
+          _Thumbnail(
+            file: outputs.thumbnail,
+            isVertical: probe != null && probe.height > probe.width,
+          ),
           const SizedBox(height: 16),
         ],
         if (probe != null) ...[
-          _SummaryRow(
-            label: 'Dimensions',
-            value: '${probe.width} x ${probe.height}',
-          ),
-          if (job.kind == MediaKind.video)
-            _SummaryRow(
-              label: 'Duration',
-              value: formatMediaDuration(probe.duration),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(
+                color: Theme.of(context)
+                    .colorScheme
+                    .outlineVariant
+                    .withOpacity(0.35),
+              ),
             ),
-          _SummaryRow(label: 'Video codec', value: probe.videoCodec),
-          if (probe.hasAudio)
-            _SummaryRow(label: 'Audio codec', value: probe.audioCodec!),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SummaryRow(
+                    label: 'Dimensions',
+                    value: '${probe.width} x ${probe.height}',
+                  ),
+                  if (job.kind == MediaKind.video)
+                    _SummaryRow(
+                      label: 'Duration',
+                      value: formatMediaDuration(probe.duration),
+                    ),
+                  _SummaryRow(label: 'Video codec', value: probe.videoCodec),
+                  if (probe.hasAudio)
+                    _SummaryRow(label: 'Audio codec', value: probe.audioCodec!),
+                ],
+              ),
+            ),
+          ),
         ],
         if (outputs != null) ...[
           const SizedBox(height: 16),
@@ -322,6 +349,11 @@ class _ReadyState extends ConsumerWidget {
           runSpacing: 8,
           children: [
             FilledButton.icon(
+              onPressed: () => context.go(publishRoute),
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Continue to Publish'),
+            ),
+            FilledButton.tonalIcon(
               onPressed: canGenerate
                   ? () => ref
                         .read(captionControllerProvider.notifier)
@@ -439,20 +471,24 @@ class _CaptionField extends ConsumerWidget {
 
 /// The generated thumbnail, with a placeholder until the file is there.
 class _Thumbnail extends StatelessWidget {
-  const _Thumbnail({required this.file});
+  const _Thumbnail({required this.file, this.isVertical = false});
 
   final File file;
+  final bool isVertical;
 
   @override
   Widget build(BuildContext context) {
+    final width = isVertical ? 180.0 : 320.0;
+    final height = isVertical ? 320.0 : 180.0;
+
     return FutureBuilder<bool>(
       future: file.exists(),
       builder: (context, snapshot) {
         final exists = snapshot.data ?? false;
         if (!exists) {
           return Container(
-            width: 320,
-            height: 180,
+            width: width,
+            height: height,
             alignment: Alignment.center,
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: const Text('No preview'),
@@ -462,12 +498,12 @@ class _Thumbnail extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: Image.file(
             file,
-            width: 320,
-            height: 180,
+            width: width,
+            height: height,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stack) => Container(
-              width: 320,
-              height: 180,
+              width: width,
+              height: height,
               alignment: Alignment.center,
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: const Text('No preview'),

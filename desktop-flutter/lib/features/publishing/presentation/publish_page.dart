@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +10,9 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/time/time_zone.dart';
 import '../../media/captions/captions_providers.dart';
+import '../../media/domain/media_job.dart';
 import '../../media/media_providers.dart';
+import '../../media/upload/upload_providers.dart';
 import '../../offline/connectivity.dart';
 import '../../offline/offline_providers.dart';
 import '../domain/publish_selection.dart';
@@ -50,7 +54,7 @@ class PublishPage extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               if (media == null) ...[
-                const Text('Upload a file first, then publish it from here.'),
+                const _EmptyMediaHero(),
                 const _SavedDrafts(),
               ] else ...[
                 _MediaSummary(fileName: media.fileName, size: media.size),
@@ -350,23 +354,201 @@ List<Widget> _statusSection(BuildContext context, PublishState state) {
   ];
 }
 
+/// Hero card when no media has been selected yet.
+class _EmptyMediaHero extends ConsumerWidget {
+  const _EmptyMediaHero();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.4),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.cloud_upload_outlined,
+                  size: 36,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Upload a file first, then publish it from here.',
+                style: theme.textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Pick a video (MP4, MOV, MKV) or image to publish across platforms.',
+                style: theme.textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                icon: const Icon(Icons.file_open_outlined, size: 18),
+                label: const Text('Choose file'),
+                onPressed: () =>
+                    ref.read(mediaControllerProvider.notifier).pickFile(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The file that goes out.
-class _MediaSummary extends StatelessWidget {
+class _MediaSummary extends ConsumerWidget {
   const _MediaSummary({required this.fileName, required this.size});
 
   final String fileName;
   final int size;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(fileName, style: theme.textTheme.titleMedium),
-        const SizedBox(height: 2),
-        Text(formatMediaBytes(size), style: theme.textTheme.bodySmall),
-      ],
+    final uploadState = ref.watch(uploadControllerProvider);
+    final isUploading = uploadState is UploadRunning;
+    final progressFraction = isUploading ? uploadState.progress.fraction : 1.0;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.4),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.movie_outlined,
+                    color: theme.colorScheme.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fileName,
+                        key: const Key('media-filename'),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        formatMediaBytes(size),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                if (isUploading)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.amber,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Uploading ${(progressFraction * 100).toInt()}%',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.amber,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.check_circle, size: 14, color: Colors.green),
+                        SizedBox(width: 4),
+                        Text(
+                          'Ready',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            if (isUploading) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progressFraction > 0 ? progressFraction : null,
+                  minHeight: 4,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -519,15 +701,109 @@ class _TargetTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return CheckboxListTile(
-      key: Key('target-${target.id}'),
-      value: selected,
-      onChanged: (_) =>
-          ref.read(publishSelectionProvider.notifier).toggle(target),
-      title: Text(target.label),
-      subtitle: Text(target.accountName),
-      controlAffinity: ListTileControlAffinity.leading,
-      contentPadding: EdgeInsets.zero,
+    final theme = Theme.of(context);
+    final isStory = target.postType == PostType.story;
+
+    final (Color brandColor, IconData brandIcon) = switch (target.platform) {
+      PublishPlatform.instagram => (
+        const Color(0xFFE1306C),
+        isStory ? Icons.auto_stories_rounded : Icons.camera_alt_outlined,
+      ),
+      PublishPlatform.youtube => (
+        const Color(0xFFFF0000),
+        Icons.play_circle_fill_rounded,
+      ),
+      PublishPlatform.facebook => (
+        const Color(0xFF1877F2),
+        Icons.facebook,
+      ),
+      PublishPlatform.tiktok => (
+        const Color(0xFF00F2FE),
+        Icons.music_note_rounded,
+      ),
+      PublishPlatform.linkedin => (
+        const Color(0xFF0A66C2),
+        Icons.business_rounded,
+      ),
+    };
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: isStory ? 24.0 : 0.0,
+        bottom: 8.0,
+      ),
+      child: Card(
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: selected
+                ? brandColor.withOpacity(0.7)
+                : theme.colorScheme.outlineVariant.withOpacity(0.35),
+            width: selected ? 1.5 : 1.0,
+          ),
+        ),
+        color: selected
+            ? brandColor.withOpacity(0.08)
+            : theme.colorScheme.surfaceContainerLow,
+        child: CheckboxListTile(
+          key: Key('target-${target.id}'),
+          value: selected,
+          activeColor: brandColor,
+          checkboxShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+          ),
+          onChanged: (_) =>
+              ref.read(publishSelectionProvider.notifier).toggle(target),
+          secondary: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: brandColor.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(brandIcon, color: brandColor, size: 20),
+          ),
+          title: Row(
+            children: [
+              Text(
+                target.label,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              if (isStory) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: brandColor.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '24h Story',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: brandColor,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          subtitle: Text(
+            isStory
+                ? '@${target.accountName} • Disappears in 24 hours'
+                : '@${target.accountName}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.textTheme.bodySmall?.color?.withOpacity(0.8),
+            ),
+          ),
+          controlAffinity: ListTileControlAffinity.trailing,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        ),
+      ),
     );
   }
 }
@@ -548,28 +824,49 @@ class _CaptionSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final limit = target.captionLimit;
+
+    if (!target.takesCaption) {
+      if (issues.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final issue in issues)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  issue.message,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (target.takesCaption) ...[
-            TextFormField(
-              key: Key('caption-${target.id}'),
-              initialValue: caption,
-              maxLines: null,
-              decoration: InputDecoration(
-                labelText: '${target.label} caption',
-                border: const OutlineInputBorder(),
-                helperText: limit == null
-                    ? '${caption.length} characters'
-                    : '${caption.length} / $limit',
-              ),
-              onChanged: (text) => ref
-                  .read(publishSelectionProvider.notifier)
-                  .setCaption(target.id, text),
+          TextFormField(
+            key: Key('caption-${target.id}'),
+            initialValue: caption,
+            maxLines: null,
+            decoration: InputDecoration(
+              labelText: '${target.label} caption',
+              border: const OutlineInputBorder(),
+              helperText: limit == null
+                  ? '${caption.length} characters'
+                  : '${caption.length} / $limit',
             ),
-          ],
+            onChanged: (text) => ref
+                .read(publishSelectionProvider.notifier)
+                .setCaption(target.id, text),
+          ),
           for (final issue in issues)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -673,7 +970,7 @@ class _ScheduleFields extends ConsumerWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             SizedBox(
-              width: 160,
+              width: 175,
               // A restored or re-chosen time has to replace the text in the
               // field, and `initialValue` only applies when the field is
               // built. The key is what rebuilds it.
@@ -682,10 +979,37 @@ class _ScheduleFields extends ConsumerWidget {
                 child: TextFormField(
                   key: const Key('schedule-date'),
                   initialValue: date,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Date',
                     hintText: 'YYYY-MM-DD',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.calendar_month_outlined, size: 20),
+                      tooltip: 'Select date',
+                      onPressed: () async {
+                        final parsed =
+                            DateTime.tryParse(date) ?? DateTime.now();
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: parsed,
+                          firstDate: DateTime.now().subtract(
+                            const Duration(days: 1),
+                          ),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 365),
+                          ),
+                        );
+                        if (picked != null) {
+                          final formatted =
+                              '${picked.year.toString().padLeft(4, '0')}-'
+                              '${picked.month.toString().padLeft(2, '0')}-'
+                              '${picked.day.toString().padLeft(2, '0')}';
+                          ref
+                              .read(publishSelectionProvider.notifier)
+                              .setScheduleDate(formatted);
+                        }
+                      },
+                    ),
                   ),
                   onChanged: (text) => ref
                       .read(publishSelectionProvider.notifier)
@@ -694,16 +1018,43 @@ class _ScheduleFields extends ConsumerWidget {
               ),
             ),
             SizedBox(
-              width: 120,
+              width: 145,
               child: KeyedSubtree(
                 key: ValueKey('time-$time'),
                 child: TextFormField(
                   key: const Key('schedule-time'),
                   initialValue: time,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Time',
                     hintText: 'HH:MM',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.access_time_rounded, size: 20),
+                      tooltip: 'Select time',
+                      onPressed: () async {
+                        var initial = const TimeOfDay(hour: 12, minute: 0);
+                        final parts = time.split(':');
+                        if (parts.length == 2) {
+                          final h = int.tryParse(parts[0]);
+                          final m = int.tryParse(parts[1]);
+                          if (h != null && m != null) {
+                            initial = TimeOfDay(hour: h, minute: m);
+                          }
+                        }
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: initial,
+                        );
+                        if (picked != null) {
+                          final formatted =
+                              '${picked.hour.toString().padLeft(2, '0')}:'
+                              '${picked.minute.toString().padLeft(2, '0')}';
+                          ref
+                              .read(publishSelectionProvider.notifier)
+                              .setScheduleTime(formatted);
+                        }
+                      },
+                    ),
                   ),
                   onChanged: (text) => ref
                       .read(publishSelectionProvider.notifier)
