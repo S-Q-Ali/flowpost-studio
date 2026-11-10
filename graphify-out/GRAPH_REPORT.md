@@ -1,7 +1,7 @@
 # Graph Report - flowpost-studio  (2026-11-10)
 
 ## Corpus Check
-- 772 files · ~773,779 words
+- 772 files · ~773,797 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 198 file(s) not represented in the graph (top: .xsd 117, .ttf 54, (none) 8)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ded246d4`
+- Built from commit: `aeb38abb`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -2203,13 +2203,13 @@ Nodes (3): Point, x, y
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `run_single_query()` connect `argparse` to `tempfile`, `react`, `sys`, `evaluation.py`?**
-  _High betweenness centrality (0.185) - this node is a cross-community bridge._
+  _High betweenness centrality (0.188) - this node is a cross-community bridge._
 - **What connects `file`, `deadline`, `result` to the rest of the system?**
   _2583 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `dart:io` be split into smaller, more focused modules?**
   _Cohesion score 0.02990990990990991 - nodes in this community are weakly interconnected._
 - **Why does `vitest` connect `ref_npm_supabase` to `App.tsx`, `WorkflowItemsPage.tsx`, `PipelineLandingPage.tsx`, `verify-security-questions/index.ts`, `package.json`, `cn`, `process-workflow/index.ts`, `AuthContext.tsx`, `QueuePage.tsx`, `rate-limit.ts`, `tiktok-upload/index.ts`, `operator-config.ts`, `license.ts`, `process-workflow-history.test.ts`, `invokeFunction`, `instagram-auth/index.ts`, `session.ts`, `google-drive-auth/index.ts`, `ref_npm_supabase`, `Implementation Plan: Audit Fixes + Dark Mode, Guided Setup, Browser Account Connections`, `posts-api/index.ts`, `upload-local-file/index.ts`?**
-  _High betweenness centrality (0.086) - this node is a cross-community bridge._
+  _High betweenness centrality (0.087) - this node is a cross-community bridge._
 - **Should `App.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.06734006734006734 - nodes in this community are weakly interconnected._
 - **Why does `run()` connect `Managed Agents - Self-Hosted Sandboxes` to `QueuePage.tsx`, `Beta Features & Anthropic-Defined Tools`, `.update`?**
