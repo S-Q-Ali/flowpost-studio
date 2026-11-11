@@ -30,9 +30,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1793841007.714032,
-    "seen": 1793875298.0278702,
-    "ast_hash": "ad82fba6a54c4929fc7649cfa41d271f",
+    "mtime": 1794373866.2961774,
+    "seen": 1794374180.2561314,
+    "ast_hash": "afedb9b62637713c2b437af7a4123f0d",
     "semantic_hash": ""
   },
   "src/components/AppLayout.tsx": {
@@ -390,10 +390,10 @@
     "semantic_hash": ""
   },
   "src/pages/PrivacyPage.tsx": {
-    "mtime": 1785013983.983737,
-    "seen": 1789020917.2984962,
-    "ast_hash": "4f96bfa291d4922c990f94cd00ce6e64",
-    "semantic_hash": "4f96bfa291d4922c990f94cd00ce6e64"
+    "mtime": 1794373862.5323784,
+    "seen": 1794374180.274012,
+    "ast_hash": "7183493065721c19dd988a4ed9febfa7",
+    "semantic_hash": ""
   },
   "src/pages/ProfilePage.tsx": {
     "mtime": 1793389043.5335193,
@@ -414,10 +414,10 @@
     "semantic_hash": ""
   },
   "src/pages/TermsPage.tsx": {
-    "mtime": 1785013983.1505628,
-    "seen": 1789020917.2984962,
-    "ast_hash": "2a3d5787804e2bd00e7625684679e010",
-    "semantic_hash": "2a3d5787804e2bd00e7625684679e010"
+    "mtime": 1794373857.550183,
+    "seen": 1794374180.2746196,
+    "ast_hash": "0ffd42fc1e1fe905f320a9cdf4e7abf5",
+    "semantic_hash": ""
   },
   "src/pages/ToolsPage.tsx": {
     "mtime": 1793391299.3605561,
@@ -5043,6 +5043,18 @@
     "mtime": 1794329555.4274073,
     "seen": 1794340841.6699533,
     "ast_hash": "350d9ac5faaaa303d98f5bdf9c88d1f7",
+    "semantic_hash": ""
+  },
+  "src/App.test.tsx": {
+    "mtime": 1794374059.405263,
+    "seen": 1794374180.2561266,
+    "ast_hash": "2d694ea2d88d4e9d72e744d69f4335a6",
+    "semantic_hash": ""
+  },
+  "src/pages/WebAppShutdownPage.tsx": {
+    "mtime": 1794374057.6118,
+    "seen": 1794374180.2750316,
+    "ast_hash": "b101a5a85d5fb1a8f559c901cc23c93a",
     "semantic_hash": ""
   }
 }
